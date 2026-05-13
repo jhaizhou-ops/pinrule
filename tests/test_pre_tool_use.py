@@ -121,6 +121,34 @@ def test_deny_edit_only_scans_new_string(monkeypatch, tmp_path):
     assert out["permissionDecision"] == "deny"
 
 
+def test_doc_write_exempts_keyword_layer(monkeypatch, tmp_path):
+    """Write .md / .rst 等文档时关键词层豁免 — 文档里描述触发词字面不是真违反。
+
+    根因：HANDOFF.md / README.md 描述 sticky 触发词时关键词层会误判。
+    """
+    _patch(monkeypatch, tmp_path, [
+        {"id": "long-term", "preference": "x", "violation_keywords": ["硬编码", "workaround"]},
+    ])
+    out = _run_hook(monkeypatch, {
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": "/tmp/HANDOFF.md",
+            "content": "# 触发词说明\n这条规则拦截「硬编码」「workaround」等字面",
+        },
+    })
+    assert out["permissionDecision"] == "allow"  # 文档豁免
+
+    # 同样内容但写 .py 文件 → 该拦（不是文档语境）
+    out = _run_hook(monkeypatch, {
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": "/tmp/foo.py",
+            "content": "x = '硬编码'",
+        },
+    })
+    assert out["permissionDecision"] == "deny"
+
+
 def test_fail_open_on_bad_yaml(monkeypatch, tmp_path):
     """sticky.yaml 配置错 → 不阻塞 tool（fail open）。"""
     sticky_path = tmp_path / "sticky.yaml"

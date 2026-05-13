@@ -86,10 +86,18 @@ def main() -> int:
         check_hits.extend(hits)
 
     # 关键词层（兜底）
+    # 文档语境（.md/.rst/.txt/.markdown 等）豁免关键词扫 —
+    # 文档常描述触发词字面（如 HANDOFF.md 列 sticky 触发词），不是真要做。
+    # 工程层 violation_checks 已经按 tool 分组判定，更精准，所以这里只豁免关键词。
     keyword_violations: list[Violation] = []
-    scan_text = extract_tool_text(tool_name, tool_input)
-    if scan_text.strip():
-        keyword_violations = detect(scan_text, sticky_list, session_id=session_id)
+    is_doc_write = False
+    if tool_name in ("Write", "Edit", "NotebookEdit"):
+        fp = (tool_input.get("file_path", "") or "").lower()
+        is_doc_write = fp.endswith((".md", ".rst", ".txt", ".markdown", ".adoc"))
+    if not is_doc_write:
+        scan_text = extract_tool_text(tool_name, tool_input)
+        if scan_text.strip():
+            keyword_violations = detect(scan_text, sticky_list, session_id=session_id)
 
     if not check_hits and not keyword_violations:
         _allow()

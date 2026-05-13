@@ -36,7 +36,7 @@ def test_long_term_detects_no_verify():
         tool_input={"command": "git commit --no-verify -m 'msg'"},
     )
     assert hit is not None
-    assert "verify" in hit.trigger.lower() or "skip" in hit.trigger.lower() or "force" in hit.trigger.lower()
+    assert "跳过" in hit.trigger or "验证" in hit.trigger
 
 
 def test_long_term_detects_temp_comment():
@@ -51,6 +51,29 @@ def test_long_term_detects_temp_comment():
 def test_long_term_clean_code_passes():
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(tool_name="Write", tool_input={"content": "def foo(x): return x * 2"})
+    assert hit is None
+
+
+def test_long_term_write_with_no_verify_string_passes():
+    """Write 文档里描述 --no-verify 字面（不是真要跑）→ 不该拦。"""
+    fn = REGISTRY["long_term_fundamental"]
+    content = "# karma 检测规则\n这条规则会拦截 --no-verify、--skip、--force 等 flag。"
+    hit = fn(tool_name="Write", tool_input={"file_path": "/tmp/doc.md", "content": content})
+    assert hit is None
+
+
+def test_long_term_bash_with_no_verify_blocked():
+    """Bash 真跑 --no-verify → 该拦。"""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(tool_name="Bash", tool_input={"command": "git commit --no-verify -m 'fix'"})
+    assert hit is not None
+    assert "验证" in hit.trigger or "verify" in hit.trigger.lower() or "skip" in hit.trigger.lower()
+
+
+def test_long_term_bash_with_todo_passes():
+    """Bash 里出现 # TODO 是 shell 注释，不算 Write 代码 → 不拦。"""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(tool_name="Bash", tool_input={"command": "echo hello  # TODO refactor later"})
     assert hit is None
 
 
