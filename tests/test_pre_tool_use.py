@@ -21,12 +21,14 @@ def _patch(monkeypatch, tmp_path: Path, sticky_items: list[dict]) -> tuple[Path,
 
 
 def _run_hook(monkeypatch, payload: dict) -> dict:
+    """跑 hook，返回 hookSpecificOutput dict (含 permissionDecision)。"""
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
     import sys
     captured = io.StringIO()
     monkeypatch.setattr("sys.stdout", captured)
     pre_tool_use.main()
-    return json.loads(captured.getvalue())
+    out = json.loads(captured.getvalue())
+    return out.get("hookSpecificOutput", {})
 
 
 def test_allow_when_no_sticky(monkeypatch, tmp_path):
@@ -36,7 +38,7 @@ def test_allow_when_no_sticky(monkeypatch, tmp_path):
         "tool_name": "Bash",
         "tool_input": {"command": "echo hi"},
     })
-    assert out["decision"] == "allow"
+    assert out["permissionDecision"] == "allow"
 
 
 def test_allow_clean_bash(monkeypatch, tmp_path):
@@ -47,7 +49,7 @@ def test_allow_clean_bash(monkeypatch, tmp_path):
         "tool_name": "Bash",
         "tool_input": {"command": "ls -la"},
     })
-    assert out["decision"] == "allow"
+    assert out["permissionDecision"] == "allow"
 
 
 def test_deny_bash_sleep(monkeypatch, tmp_path):
@@ -64,9 +66,9 @@ def test_deny_bash_sleep(monkeypatch, tmp_path):
         "tool_input": {"command": "sleep 30 && echo done"},
         "session_id": "test",
     })
-    assert out["decision"] == "deny"
-    assert "non-blocking" in out["reason"]
-    assert "sleep" in out["reason"]
+    assert out["permissionDecision"] == "deny"
+    assert "non-blocking" in out["permissionDecisionReason"]
+    assert "sleep" in out["permissionDecisionReason"]
     # 拦截也写入 violations.jsonl (供 stats 看到)
     assert violations_path.exists()
 
@@ -87,8 +89,8 @@ def test_deny_write_with_hardcoded(monkeypatch, tmp_path):
             "content": "# 先打个补丁\nMAGIC = 42",
         },
     })
-    assert out["decision"] == "deny"
-    assert "long-term" in out["reason"]
+    assert out["permissionDecision"] == "deny"
+    assert "long-term" in out["permissionDecisionReason"]
 
 
 def test_deny_edit_only_scans_new_string(monkeypatch, tmp_path):
@@ -105,7 +107,7 @@ def test_deny_edit_only_scans_new_string(monkeypatch, tmp_path):
             "new_string": "# 修复根因",     # 新加的内容干净
         },
     })
-    assert out["decision"] == "allow"
+    assert out["permissionDecision"] == "allow"
 
     # new_string 含违反词 (Agent 想加) → 该 deny
     out = _run_hook(monkeypatch, {
@@ -116,7 +118,7 @@ def test_deny_edit_only_scans_new_string(monkeypatch, tmp_path):
             "new_string": "# 先打个补丁 fix",
         },
     })
-    assert out["decision"] == "deny"
+    assert out["permissionDecision"] == "deny"
 
 
 def test_fail_open_on_bad_yaml(monkeypatch, tmp_path):
@@ -130,7 +132,7 @@ def test_fail_open_on_bad_yaml(monkeypatch, tmp_path):
         "tool_input": {"command": "sleep 5"},
     })
     # 配置坏掉了，但不该完全阻断 tool
-    assert out["decision"] == "allow"
+    assert out["permissionDecision"] == "allow"
 
 
 def test_fail_open_on_bad_payload(monkeypatch, tmp_path):
@@ -143,4 +145,5 @@ def test_fail_open_on_bad_payload(monkeypatch, tmp_path):
     monkeypatch.setattr("sys.stdout", captured)
     pre_tool_use.main()
     out = json.loads(captured.getvalue())
-    assert out["decision"] == "allow"
+    # bad payload 走顶层 _allow() → hookSpecificOutput.permissionDecision
+    assert out["hookSpecificOutput"]["permissionDecision"] == "allow"

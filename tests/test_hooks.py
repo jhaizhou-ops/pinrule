@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import yaml
 
-from karma.hooks import post_response, user_prompt_submit
+from karma.hooks import stop, user_prompt_submit
 
 
 def _patch_paths(monkeypatch, tmp_path: Path, sticky_items: list[dict] | None = None):
@@ -25,77 +25,89 @@ def _patch_paths(monkeypatch, tmp_path: Path, sticky_items: list[dict] | None = 
 
 
 def test_user_prompt_submit_no_sticky_passthrough(monkeypatch, tmp_path, capsys):
-    """sticky.yaml 不存在 → 原样输出 user_text。"""
+    """sticky.yaml 不存在 → 输出空 JSON（无 additionalContext）。"""
     _patch_paths(monkeypatch, tmp_path, sticky_items=None)
-    payload = json.dumps({"user_text": "你好"})
+    payload = json.dumps({"prompt": "你好", "session_id": "s"})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     rc = user_prompt_submit.main()
     captured = capsys.readouterr()
     assert rc == 0
-    assert captured.out == "你好"
+    out = json.loads(captured.out)
+    assert out == {}
 
 
-def test_user_prompt_submit_injects_sticky(monkeypatch, tmp_path, capsys):
+def test_user_prompt_submit_injects_sticky_as_context(monkeypatch, tmp_path, capsys):
     _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "test-rule", "preference": "用长期方案", "violation_keywords": ["补丁"]},
     ])
-    payload = json.dumps({"user_text": "开始吧"})
+    payload = json.dumps({"prompt": "开始吧", "session_id": "s"})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     rc = user_prompt_submit.main()
     captured = capsys.readouterr()
     assert rc == 0
-    out = captured.out
-    assert "[karma sticky" in out
-    assert "用长期方案" in out
-    assert "[用户当前消息]" in out
-    assert "开始吧" in out
-    # sticky 在 user_text 前面
-    assert out.index("用长期方案") < out.index("开始吧")
+    out = json.loads(captured.out)
+    hso = out["hookSpecificOutput"]
+    assert hso["hookEventName"] == "UserPromptSubmit"
+    ctx = hso["additionalContext"]
+    assert "[karma sticky" in ctx
+    assert "用长期方案" in ctx
 
 
 def test_user_prompt_submit_handles_bad_yaml(monkeypatch, tmp_path, capsys):
-    """sticky.yaml 配置错 → stderr 报错但不阻断 user_text。"""
+    """sticky.yaml 配置错 → stderr 报错，输出 passthrough（空 JSON）。"""
     sticky_path = tmp_path / "sticky.yaml"
     sticky_path.write_text("- {{ this is not valid yaml", encoding="utf-8")
     monkeypatch.setattr("karma.sticky.DEFAULT_PATH", sticky_path)
     monkeypatch.setattr("karma.violations.DEFAULT_PATH", tmp_path / "violations.jsonl")
-    payload = json.dumps({"user_text": "你好"})
+    payload = json.dumps({"prompt": "你好", "session_id": "s"})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     rc = user_prompt_submit.main()
     captured = capsys.readouterr()
     assert rc == 0
-    assert "你好" in captured.out
-    assert "karma:" in captured.err  # fail loud
+    out = json.loads(captured.out)
+    assert out == {}
+    assert "karma:" in captured.err
 
 
-def test_post_response_detects_and_writes(monkeypatch, tmp_path, capsys):
-    sticky_path, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
+def test_stop_reads_transcript_and_detects(monkeypatch, tmp_path, capsys):
+    """Stop hook 读 transcript 文件，扫最后 assistant message 中违反。"""
+    _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "no-patch", "preference": "no patches", "violation_keywords": ["先打个补丁"]},
     ])
+    # 准备假 transcript
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text("\n".join([
+        json.dumps({"type": "user", "message": {"content": "你来修一下"}}),
+        json.dumps({
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": "让我先打个补丁快速搞定"}
+                ]
+            }
+        }),
+    ]), encoding="utf-8")
     payload = json.dumps({
-        "agent_response": "让我先打个补丁快速搞定",
         "session_id": "test-session",
+        "transcript_path": str(transcript),
     })
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
-    rc = post_response.main()
+    rc = stop.main()
     captured = capsys.readouterr()
     assert rc == 0
     assert violations_path.exists()
     lines = violations_path.read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 1
-    v = json.loads(lines[0])
-    assert v["sticky_id"] == "no-patch"
-    assert v["session_id"] == "test-session"
-    # stderr 通知
+    assert any(json.loads(ln)["sticky_id"] == "no-patch" for ln in lines)
     assert "⚠️ karma" in captured.err
 
 
-def test_post_response_no_violation_no_write(monkeypatch, tmp_path):
-    sticky_path, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
-        {"id": "no-patch", "preference": "x", "violation_keywords": ["先打个补丁"]},
+def test_stop_no_transcript_no_op(monkeypatch, tmp_path, capsys):
+    _patch_paths(monkeypatch, tmp_path, sticky_items=[
+        {"id": "no-patch", "preference": "x", "violation_keywords": ["补丁"]},
     ])
-    payload = json.dumps({"agent_response": "好的，我用长期方案", "session_id": "s"})
+    payload = json.dumps({"session_id": "s", "transcript_path": "/nonexistent"})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
-    rc = post_response.main()
+    rc = stop.main()
+    captured = capsys.readouterr()
     assert rc == 0
-    assert not violations_path.exists()
+    assert json.loads(captured.out) == {}

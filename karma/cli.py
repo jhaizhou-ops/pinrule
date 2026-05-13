@@ -177,29 +177,46 @@ def cmd_install_hooks() -> int:
     """生成 hook wrapper 脚本并提示用户怎么配置 Claude Code。"""
     hooks_dir = Path.home() / ".claude" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    karma_python = sys.executable
-    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "post_response"):
+    karma_python = sys.executable  # 用当前 venv python（含 karma 包），避免 PATH 问题
+    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"):
         wrapper = hooks_dir / f"karma_{hook_name}.py"
         wrapper.write_text(
-            f"#!/usr/bin/env python3\n"
+            f"#!{karma_python}\n"
             f"# karma {hook_name} hook wrapper (auto-generated)\n"
+            f"# python: {karma_python}\n"
             f"import sys\n"
             f"sys.exit(__import__('karma.hooks.{hook_name}', fromlist=['main']).main())\n"
         )
         wrapper.chmod(0o755)
         print(f"  生成: {wrapper}")
-    print("\n下一步：把以下配置加到 Claude Code 的 hooks settings:")
-    print(f'  "user_prompt_submit": "python3 {hooks_dir}/karma_user_prompt_submit.py"')
-    print(f'  "pre_tool_use":       "python3 {hooks_dir}/karma_pre_tool_use.py"  # 关键：实时拦截违反')
-    print(f'  "post_tool_use":      "python3 {hooks_dir}/karma_post_tool_use.py" # 跟踪 session 状态')
-    print(f'  "post_response":      "python3 {hooks_dir}/karma_post_response.py"')
+    # 清理旧版 post_response wrapper (如果存在)
+    old_pr = hooks_dir / "karma_post_response.py"
+    if old_pr.exists():
+        old_pr.unlink()
+        print(f"  删除旧版: {old_pr}")
+
+    print(f"\n使用的 Python: {karma_python}")
+    print(f"\n把以下配置加到 ~/.claude/settings.json 的 hooks 块（PascalCase 事件名）:")
+    print()
+    print("""  "UserPromptSubmit": [
+    {"matcher": "*", "hooks": [{"type": "command", "command": "%s/karma_user_prompt_submit.py"}]}
+  ],
+  "PreToolUse": [
+    {"matcher": "*", "hooks": [{"type": "command", "command": "%s/karma_pre_tool_use.py"}]}
+  ],
+  "PostToolUse": [
+    {"matcher": "*", "hooks": [{"type": "command", "command": "%s/karma_post_tool_use.py"}]}
+  ],
+  "Stop": [
+    {"matcher": "*", "hooks": [{"type": "command", "command": "%s/karma_stop.py"}]}
+  ]""" % (hooks_dir, hooks_dir, hooks_dir, hooks_dir))
     return 0
 
 
 def cmd_uninstall_hooks() -> int:
     hooks_dir = Path.home() / ".claude" / "hooks"
     n = 0
-    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "post_response"):
+    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "stop", "post_response"):
         wrapper = hooks_dir / f"karma_{hook_name}.py"
         if wrapper.exists():
             wrapper.unlink()

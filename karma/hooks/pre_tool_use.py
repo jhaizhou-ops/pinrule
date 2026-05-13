@@ -1,12 +1,14 @@
-"""pre_tool_use hook — Agent 调 tool **之前**拦截违反。
+"""PreToolUse hook — Agent 调 tool 前拦截违反。
 
-时机：Agent 决定调 tool 但还没执行。
-输入：stdin JSON {tool_name, tool_input, session_id}
-输出：stdout JSON {decision: "allow"|"deny", reason?}
+Claude Code 实际协议:
+- stdin payload: {tool_name, tool_input, tool_use_id, session_id, transcript_path, ...}
+- stdout 输出:
+    allow: {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}
+    deny : {"hookSpecificOutput": {..., "permissionDecision": "deny", "permissionDecisionReason": "..."}}
 
 检测两层：
-1. 关键词层（violation_keywords）— 扫 tool_input 文本中关键词出现
-2. 工程层（violation_checks）— 调 karma.checks 函数库（结构化模式 + session 状态）
+1. 工程层 violation_checks (karma.checks 函数库)
+2. 关键词层 violation_keywords (兜底)
 
 性能预算：< 100ms
 Fail open：配置坏 / 异常 → allow (不卡 Agent)
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 
 from karma import session_state
 from karma.checks import run_checks
@@ -24,12 +27,31 @@ from karma.sticky import StickyConfigError, load
 from karma.violations import Violation, append, detect
 
 
+def _allow() -> None:
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "allow",
+        }
+    }))
+
+
+def _deny(reason: str) -> None:
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }, ensure_ascii=False))
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as e:
-        print(f"karma pre_tool_use: 输入 JSON 解析失败 ({e})", file=sys.stderr)
-        print(json.dumps({"decision": "allow"}))
+        print(f"karma PreToolUse: 输入 JSON 解析失败 ({e})", file=sys.stderr)
+        _allow()
         return 0
 
     tool_name = payload.get("tool_name", "")
@@ -40,11 +62,11 @@ def main() -> int:
         sticky_list = load()
     except StickyConfigError as e:
         print(f"karma: {e}", file=sys.stderr)
-        print(json.dumps({"decision": "allow"}))
+        _allow()
         return 0
 
     if not sticky_list:
-        print(json.dumps({"decision": "allow"}))
+        _allow()
         return 0
 
     state = session_state.load(session_id)
@@ -70,15 +92,14 @@ def main() -> int:
         keyword_violations = detect(scan_text, sticky_list, session_id=session_id)
 
     if not check_hits and not keyword_violations:
-        print(json.dumps({"decision": "allow"}))
+        _allow()
         return 0
 
-    # 优先工程层结果（更精准），关键词作 fallback
+    # 优先工程层
     if check_hits:
         top = check_hits[0]
-        # 同时写违反记录（让 stats 看得到）
         append([Violation(
-            ts=__import__("time").__dict__["time"]().__int__() if False else int(__import__("time").time()),
+            ts=int(time.time()),
             session_id=session_id,
             sticky_id=top.sticky_id,
             trigger=top.trigger,
@@ -91,7 +112,7 @@ def main() -> int:
             f"方向：{sticky_pref.strip()}\n"
             f"建议：{top.suggested_fix}"
         )
-        print(json.dumps({"decision": "deny", "reason": reason}, ensure_ascii=False))
+        _deny(reason)
         print(
             f"🛑 karma: {top.sticky_id} (tool={tool_name}) — {top.trigger}",
             file=sys.stderr,
@@ -107,7 +128,7 @@ def main() -> int:
         f"方向：{sticky_pref.strip()}\n"
         f"请改写，不要用 {top_kw.trigger!r} 这种方式。"
     )
-    print(json.dumps({"decision": "deny", "reason": reason}, ensure_ascii=False))
+    _deny(reason)
     print(
         f"🛑 karma: {top_kw.sticky_id} (tool={tool_name}, 关键词 {top_kw.trigger!r})",
         file=sys.stderr,
