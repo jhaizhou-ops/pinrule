@@ -85,11 +85,11 @@ def test_load_rejects_over_hard_max(tmp_path: Path) -> None:
 
 
 def test_load_real_example() -> None:
-    """data/sticky.example.yaml 必须能加载，且是 8 条种子 sticky。"""
+    """data/sticky.example.yaml 必须能加载，且是 6 条种子 sticky (M2 精简)。"""
     repo_root = Path(__file__).resolve().parents[1]
     example = repo_root / "data" / "sticky.example.yaml"
     sticky = load(example)
-    assert len(sticky) == 8
+    assert len(sticky) == 6
     ids = {s.id for s in sticky}
     expected = {
         "long-term-fundamental",
@@ -97,11 +97,12 @@ def test_load_real_example() -> None:
         "chinese-plain-no-jargon",
         "loud-failure-with-evidence",
         "no-testset-no-future-leakage",
-        "never-accept-ceiling",
-        "minimal-surgical",
         "read-before-write",
     }
     assert ids == expected
+    # 每条都有对应 violation_checks
+    for s in sticky:
+        assert s.violation_checks, f"{s.id} 缺 violation_checks"
 
 
 def test_format_for_injection_basic() -> None:

@@ -25,7 +25,7 @@ class Sticky:
     id: str
     preference: str  # 多行允许
     violation_keywords: tuple[str, ...] = ()
-    violation_check: str | None = None  # 命名内置检测函数 (v1+)
+    violation_checks: tuple[str, ...] = ()  # 工程检测函数名列表（从 karma.checks 注册表）
 
 
 @dataclass(slots=True)
@@ -88,15 +88,16 @@ def load(path: Path | None = None) -> list[Sticky]:
             raise StickyConfigError(f"sticky {sid!r} violation_keywords 必须是 list")
         kws_clean = tuple(str(k).strip() for k in kws if str(k).strip())
 
-        vc = item.get("violation_check")
-        if vc is not None and not isinstance(vc, str):
-            raise StickyConfigError(f"sticky {sid!r} violation_check 必须是 string")
+        vcs = item.get("violation_checks", []) or []
+        if not isinstance(vcs, list):
+            raise StickyConfigError(f"sticky {sid!r} violation_checks 必须是 list")
+        vcs_clean = tuple(str(v).strip() for v in vcs if str(v).strip())
 
         sticky_list.append(Sticky(
             id=sid,
             preference=pref,
             violation_keywords=kws_clean,
-            violation_check=vc,
+            violation_checks=vcs_clean,
         ))
 
     return sticky_list

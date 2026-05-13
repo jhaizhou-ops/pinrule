@@ -1,12 +1,13 @@
-# karma v2 sticky 模板 — 用户最高优先级方向
+# karma v2 sticky 模板 — 用户最高优先级方向（6 条精选）
 #
-# 安装方式：复制本文件到 ~/.claude/karma/sticky.yaml
+# 安装：复制本文件到 ~/.claude/karma/sticky.yaml
 # 上限：10 条（超过 12 hook 拒绝加载）
-# 字段：
-#   id                  : kebab-case 短 slug，CLI 用
+#
+# 字段:
+#   id                  : kebab-case 短 slug
 #   preference          : 多行允许，建议「方向 + 例外 + 决策提示」
-#   violation_keywords  : 数组，任一匹配（不区分大小写）算违反
-#   violation_check     : 可选，命名内置检测函数 (v1+)
+#   violation_keywords  : 关键词列表（自然语言层扫描）
+#   violation_checks    : 工程检测函数名列表（从 karma.checks 注册表）
 
 - id: long-term-fundamental
   preference: |
@@ -23,55 +24,37 @@
     - 先 hack
     - 暂时这样
     - 短期目标
+  violation_checks:
+    - long_term_fundamental
 
 - id: non-blocking-parallel
   preference: |
     不阻塞前端 — 测试 / 子 Agent / 长任务跑步时，立刻并行推进其他能做的事。
     优先多 Agent 并发，不串行等。
-    遇到「等 X 完成后再 Y」时反思能不能现在就启动 Y。
     跑 background 任务后必须继续推进 — 起完任务就「等」也算阻塞。
   violation_keywords:
-    # 显式等待
     - 等测试完
     - 等测试跑完
     - 等子 Agent
     - 等 X 完成后再 Y
     - 串行执行
-    # 隐蔽等待
-    - sleep
-    - 先 sleep
-    - 等一会儿
-    - 等一下
-    - 我等一下
     - 我先等
+    - 等一下
     - 等会儿
     - 等结果出来
-    - 等结果再
     - 我盯着
     - 我先看着
-    - 让我等
-    # Bash sleep 命令（pre_tool_use 主要拦截这类）
-    - "sleep "
-    - sleep 5
-    - sleep 10
-    - sleep 30
-    - sleep 60
+  violation_checks:
+    - non_blocking_parallel
 
 - id: chinese-plain-no-jargon
   preference: |
     用直白中文。不用英文技术术语（F1 / precision / supervisor / oracle 等）。
     用「综合得分 / 精度 / 召回率」等完整汉字。
     必须用英文专有名词时短解释一下。用类比解释复杂概念，不堆 jargon。
-  violation_keywords:
-    - F1
-    - precision
-    - recall
-    - supervisor
-    - oracle
-    - heuristic
-    - paradigm
-    - retrieval
-    - inference
+  violation_keywords: []  # 全靠工程检测，关键词版假阳性多
+  violation_checks:
+    - chinese_plain_no_jargon
 
 - id: loud-failure-with-evidence
   preference: |
@@ -79,14 +62,11 @@
     「完成」但 skip / mock / 假数据不算完成。
     每个「做完了」声明必须附证据（test pass / build OK / 数据 / 截图）。
   violation_keywords:
-    - migration completed
-    - 应该可以
-    - 大概率
-    - 我猜
     - skip 了
     - 暂时假数据
     - 临时 mock
-    - 应该没问题
+  violation_checks:
+    - loud_failure_with_evidence
 
 - id: no-testset-no-future-leakage
   preference: |
@@ -94,41 +74,12 @@
     不能用未来数据喂当前模块 — turn N 的决策只能用 turn N-1 及之前的数据。
     改 prompt / 算法后必须重跑评测，不能用旧 cache 看效果。
   violation_keywords:
-    - 用 eval 结果调
     - 反喂池子
     - LLM judge 写回
     - rerun 用最终池子
-    - 用未来 turn
-    - cache hit 100%
     - 取巧验证
-
-- id: never-accept-ceiling
-  preference: |
-    永不接受「天花板 / 接受现状 / 这是极限」类结论。
-    发现问题就找根因 → 推方案 → 落地验证，持续迭代到成功。
-    不要问「要不要继续」「这个是不是太难了」— 在明确路径下自主推进。
-  violation_keywords:
-    - 这是天花板
-    - 接受现状
-    - 这是极限
-    - 已经到顶
-    - 没法再优化
-    - 要不要继续
-    - 是不是该停
-
-- id: minimal-surgical
-  preference: |
-    最少代码解决问题。不加推测性功能、不为一次性代码加抽象、不顺手 refactor。
-    三个相似的行也比早抽象好。
-    手术式修改 — 只碰必须碰的，不动相邻代码 / 注释 / 格式。
-  violation_keywords:
-    - 顺便改一下
-    - 顺手优化
-    - 抽象出 X 类
-    - 加个通用 helper
-    - 留个扩展点
-    - 未来可能需要
-    - 一并 cleanup
+  violation_checks:
+    - no_testset_no_future_leakage
 
 - id: read-before-write
   preference: |
@@ -137,7 +88,6 @@
     改任何模块前看清这个模块怎么被用、跟谁耦合、改了影响谁。
   violation_keywords:
     - 看起来不相关
-    - 我直接加一个
     - 应该不影响其他
-    - 我先写完再说
-    - 别的应该没问题
+  violation_checks:
+    - read_before_write
