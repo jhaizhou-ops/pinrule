@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# karma 本地状态（不进仓库）
+violations.jsonl
+stats.json
+
+# OS
+.DS_Store
