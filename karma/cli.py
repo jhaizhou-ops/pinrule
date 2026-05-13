@@ -178,7 +178,7 @@ def cmd_install_hooks() -> int:
     hooks_dir = Path.home() / ".claude" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     karma_python = sys.executable
-    for hook_name in ("user_prompt_submit", "post_response"):
+    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_response"):
         wrapper = hooks_dir / f"karma_{hook_name}.py"
         wrapper.write_text(
             f"#!/usr/bin/env python3\n"
@@ -190,6 +190,7 @@ def cmd_install_hooks() -> int:
         print(f"  生成: {wrapper}")
     print("\n下一步：把以下配置加到 Claude Code 的 hooks settings:")
     print(f'  "user_prompt_submit": "python3 {hooks_dir}/karma_user_prompt_submit.py"')
+    print(f'  "pre_tool_use":       "python3 {hooks_dir}/karma_pre_tool_use.py"  # 关键：实时拦截违反 tool')
     print(f'  "post_response":      "python3 {hooks_dir}/karma_post_response.py"')
     return 0
 
@@ -197,7 +198,7 @@ def cmd_install_hooks() -> int:
 def cmd_uninstall_hooks() -> int:
     hooks_dir = Path.home() / ".claude" / "hooks"
     n = 0
-    for hook_name in ("user_prompt_submit", "post_response"):
+    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_response"):
         wrapper = hooks_dir / f"karma_{hook_name}.py"
         if wrapper.exists():
             wrapper.unlink()

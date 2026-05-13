@@ -14,8 +14,9 @@
                        ▼
 ┌──────────────────────────────────────────────────────────┐
 │  Claude Code hooks (~/.claude/hooks/)                    │
-│  ├── user_prompt_submit.py  ← 前置注入 sticky            │
-│  └── post_response.py        ← 扫违反 + 记录              │
+│  ├── user_prompt_submit.py  ← 前置注入 sticky (永驻)      │
+│  ├── pre_tool_use.py         ← 实时拦截违反 tool 调用      │
+│  └── post_response.py        ← 兜底扫违反 + 记录          │
 └──────────────────────────────────────────────────────────┘
                        │
                        │ inject / detect
@@ -154,6 +155,29 @@ if __name__ == "__main__":
   }
 }
 ```
+
+### pre_tool_use hook（实时拦截，最关键的干预层）
+
+时机：Agent 决定调 tool（Bash / Write / Edit）但**还没执行**前。
+
+跟 post_response 的差别：post_response 是事后通知（Agent 已经做完违反动作），
+pre_tool_use 是**事前拦截**（Agent 还没执行就被打回，让它重新规划）。
+
+实现：`~/.claude/hooks/karma_pre_tool_use.py` → 调 `karma.hooks.pre_tool_use:main`
+
+输入：stdin JSON `{tool_name, tool_input, session_id}`
+输出：stdout JSON `{decision: "allow"|"deny", reason?: "..."}`
+
+提取逻辑（不同 tool 不同字段）：
+- `Bash` → `tool_input.command`
+- `Write` → `tool_input.content`
+- `Edit` → `tool_input.new_string` (只扫 Agent 加的新内容，不扫已有 old_string)
+- 其他 tool → 整个 input JSON dump
+
+性能预算：< 100ms（影响每次 tool 调用响应）
+
+Fail open 原则：sticky.yaml 配置错或 payload JSON 解析失败 → 不阻塞 tool（避免坏
+karma 卡死 Agent）。
 
 ### post_response hook
 

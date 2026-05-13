@@ -29,15 +29,33 @@
     不阻塞前端 — 测试 / 子 Agent / 长任务跑步时，立刻并行推进其他能做的事。
     优先多 Agent 并发，不串行等。
     遇到「等 X 完成后再 Y」时反思能不能现在就启动 Y。
+    跑 background 任务后必须继续推进 — 起完任务就「等」也算阻塞。
   violation_keywords:
+    # 显式等待
     - 等测试完
     - 等测试跑完
     - 等子 Agent
-    - 先 sleep
-    - 等一会儿
-    - 我等一下
     - 等 X 完成后再 Y
     - 串行执行
+    # 隐蔽等待
+    - sleep
+    - 先 sleep
+    - 等一会儿
+    - 等一下
+    - 我等一下
+    - 我先等
+    - 等会儿
+    - 等结果出来
+    - 等结果再
+    - 我盯着
+    - 我先看着
+    - 让我等
+    # Bash sleep 命令（pre_tool_use 主要拦截这类）
+    - "sleep "
+    - sleep 5
+    - sleep 10
+    - sleep 30
+    - sleep 60
 
 - id: chinese-plain-no-jargon
   preference: |
