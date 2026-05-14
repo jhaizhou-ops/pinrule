@@ -216,7 +216,7 @@ def _check_file_last_commit_ts(sticky_id: str, sticky_list) -> int | None:
         return None
 
 
-def cmd_audit(with_fix_timeline: bool = False) -> int:
+def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> int:
     """审计违反历史：每条 sticky 的 top 触发词 + 假阳嫌疑标记 + 本 session 漂移近况。
 
     假阳嫌疑：同一触发词命中 ≥ 5 次且占该 sticky 触发 ≥ 50% → 可能 pattern 过宽
@@ -224,6 +224,9 @@ def cmd_audit(with_fix_timeline: bool = False) -> int:
     with_fix_timeline=True 时，调 git log 查每个 check 文件最新 commit ts，对比
     violation.ts 标记每条 violation 在 fix 前 / 后。dev 工具，仅 karma 仓库 cwd
     + git 可用时启用。
+
+    output_format='md' 时输出 markdown 表格，方便粘贴到 PR / issue 分享
+    dogfooding 数据。
     """
     violations = load_all()
     if not violations:
@@ -234,7 +237,11 @@ def cmd_audit(with_fix_timeline: bool = False) -> int:
     by_sticky: dict[str, Counter] = {}
     for v in violations:
         by_sticky.setdefault(v.sticky_id, Counter())[v.trigger] += 1
-    print(f"karma 违反审计 (总 {len(violations)} 条):\n")
+    is_md = output_format == "md"
+    if is_md:
+        print(f"# karma 违反审计 (总 {len(violations)} 条)\n")
+    else:
+        print(f"karma 违反审计 (总 {len(violations)} 条):\n")
     # fix 时间线 — 仅 with_fix_timeline=True 时算
     fix_ts_by_sticky: dict[str, int | None] = {}
     if with_fix_timeline:
@@ -257,12 +264,24 @@ def cmd_audit(with_fix_timeline: bool = False) -> int:
                 timeline_suffix = (
                     f" [check 最新 fix {fix_date}: 修前 {pre_fix} / 修后 {post_fix}]"
                 )
-        print(f"[{sid}] {total} 条触发{timeline_suffix}")
-        for trigger, cnt in ctr.most_common(5):
-            ratio = cnt / total
-            mark = " ⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""
-            print(f"  {cnt:>3}× ({ratio*100:.0f}%) {trigger!r}{mark}")
-        print()
+        if is_md:
+            print(f"### [{sid}] {total} 条触发{timeline_suffix}\n")
+            print("| 次数 | 占比 | 触发词 | 标记 |")
+            print("|---|---|---|---|")
+            for trigger, cnt in ctr.most_common(5):
+                ratio = cnt / total
+                mark = "⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""
+                # markdown 表格 cell 转义 `|` 跟换行避免破表
+                trigger_safe = trigger.replace("|", "\\|").replace("\n", " ")
+                print(f"| {cnt} | {ratio*100:.0f}% | `{trigger_safe}` | {mark} |")
+            print()
+        else:
+            print(f"[{sid}] {total} 条触发{timeline_suffix}")
+            for trigger, cnt in ctr.most_common(5):
+                ratio = cnt / total
+                mark = " ⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""
+                print(f"  {cnt:>3}× ({ratio*100:.0f}%) {trigger!r}{mark}")
+            print()
 
     # 本 session 漂移近况（最近 N turn 内每条 sticky 累积次数）
     current_session = violations[-1].session_id
@@ -751,7 +770,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_stats()
     if cmd == "audit":
         with_timeline = "--with-fix-timeline" in args
-        return cmd_audit(with_fix_timeline=with_timeline)
+        output_format = "md" if "--format" in args and args[args.index("--format") + 1] == "md" else "text"
+        return cmd_audit(with_fix_timeline=with_timeline, output_format=output_format)
     if cmd in ("reset", "reset-session"):
         return cmd_reset_session()
     if cmd == "install-hooks":

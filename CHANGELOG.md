@@ -4,6 +4,38 @@
 
 ## [Unreleased]
 
+## [0.4.21] — 2026-05-14（feat — audit --format md 输出 markdown 表格）
+
+### 真价值
+
+dogfooding 数据粘贴到 PR / issue 分享更方便 — 当前 plain text 视图复制粘
+贴破排版。markdown 输出直接 GitHub flavored，dogfooding 治理曲线一目了然。
+
+### Fix / Feat
+
+`karma/cli.py`：
+
+- `cmd_audit` 加 `output_format: str = "text"` 参数。`output_format="md"`
+  时每条 sticky 用 `### [sid]` heading + markdown 表格输出触发词清单
+- 触发词 cell `|` 转义 `\\|` + 换行折叠成空格防破表
+- CLI 加 `--format md` flag。组合用：`karma audit --with-fix-timeline --format md`
+
+### 真跑通
+
+```
+# karma 违反审计 (总 66 条)
+
+### [keep-pushing-no-stop] 33 条触发 [check 最新 fix 05-14 19:01: 修前 33 / 修后 0]
+
+| 次数 | 占比 | 触发词 | 标记 |
+|---|---|---|---|
+| 32 | 97% | `response 纯陈述完结...` | ⚠️ 可能假阳 |
+```
+
+### 验证
+
+335 测试全过；ruff/mypy 全绿。
+
 ## [0.4.20] — 2026-05-14（patch — keep-pushing 推进信号位置错判：中段推进 + 末尾列表）
 
 ### 真触发
