@@ -4,6 +4,38 @@
 
 ## [Unreleased]
 
+## [0.4.13] — 2026-05-14（patch — deep-fix-not-bypass 假阳：python -c 比较运算符不是 shell 重定向）
+
+### 真触发
+
+dogfooding 实测：跑 `python -c "...json.loads(l).get('ts', 0) > cutoff..."`
+读 violations.jsonl 时被 `deep-fix-not-bypass` 错拦「绕开检测 — 手动写
+karma 内部状态」。深挖：`_WRITE_OP_RE` 的 `> c` 命中了 python 代码里的
+比较运算符 `> cutoff`，因为 `strip_shell_quoted_literals` 保留 `python -c`
+内容（设计上为拦截「`bash -c 'rm karma'`」类 indirect 绕过）。
+
+### Fix
+
+`karma/checks/bypass_karma.py` 拆 `_WRITE_OP_RE` 成两类：
+
+- `_PYTHON_OR_SHELL_WRITE_RE` — 跨语言通用 python 写字面（`.write` /
+  `.unlink` / `json.dump` 等），shell + python 都扫
+- `_SHELL_REDIR_WRITE_RE` — shell-only `>` 重定向
+
+加 `_LANG_C_HEAD_RE` 识别命令头 `python(\\d+)? -c` / `node -c` / `ruby
+-c` / `perl -c`。是宿主语言 -c 时**跳 shell 重定向检测**（python 代码里
+`>` 是比较不是重定向），但 `.write` / `.unlink` 仍扫真 python 绕过。
+
+### 验证
+
+4 向真测：
+1. `python -c "... 'ts', 0) > cutoff ..."` read → None ✓（不再误拦）
+2. `python -c "open(karma).write('{}')"` → 命中 ✓（真 python 写绕过）
+3. `echo '{}' > ~/.claude/karma/session-state.json` → 命中 ✓（shell 真绕过）
+4. `karma violations clear` → None ✓（CLI 合法操作）
+
+321 测试全过；加 3 个守护 case 在 `tests/test_bypass_karma.py`。
+
 ## [0.4.12] — 2026-05-14（patch — keep-pushing 假阳治理 + scripts/verify-installed.sh）
 
 ### 真触发

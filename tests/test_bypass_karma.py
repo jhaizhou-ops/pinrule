@@ -158,3 +158,40 @@ EOF"""
     # 如果未来 strip 改成保留 python heredoc 内容 → 此 case 会命中
     # 当前接受 hit is None — 但 sticky.yaml violation_keywords 兜底
     _ = hit  # documentation 用，不 assert
+
+
+def test_python_c_compare_operator_not_shell_redir():
+    """python -c "..." 内的 `>` `<` 是比较运算符不是 shell 重定向 — 不该拦。
+
+    v0.4.13 dogfooding 真触发：读 violations.jsonl 时 python 代码含
+    `json.loads(l).get('ts', 0) > cutoff` 被 _WRITE_OP_RE 的 `> c`
+    误命中 shell 重定向 → 错算 karma 内部状态写 → 假阳拦读操作。
+
+    fix：拆 _PYTHON_OR_SHELL_WRITE_RE（跨语言通用写）+ _SHELL_REDIR_WRITE_RE
+    （shell-only 重定向）。命令头是宿主语言 + -c 时跳 shell 重定向检测。
+    真 python 写绕过用 `.write` 仍命中（_PYTHON_OR_SHELL_WRITE_RE 扫）。
+    """
+    cmd = (
+        '.venv/bin/python -c "import json, time\\n'
+        "cutoff = time.time() - 600\\n"
+        "with open('/Users/jhz/.claude/karma/violations.jsonl') as f:\\n"
+        "    new = [json.loads(l) for l in f if json.loads(l).get('ts', 0) > cutoff]"
+        '"'
+    )
+    assert _check(cmd) is None, "python -c 内比较运算符 `>` 不是 shell 重定向，不该误算写绕过"
+
+
+def test_python_c_real_write_still_caught():
+    """python -c "..." 内**真**调用 .write 写 karma 文件 — 仍命中（真绕过）。
+
+    跟上一 case 对偶：python -c 不能整段豁免，否则真绕过漏拦。靠
+    `.write` / `.unlink` 等 python 真写字面识别。
+    """
+    cmd = """python -c "open('.claude/karma/session-state.json', 'w').write('{}')\""""
+    assert _check(cmd) is not None, "python -c 内 .write 真绕过应命中"
+
+
+def test_shell_redir_real_bypass_still_caught():
+    """shell `>` 重定向真写 karma 文件 — 命令头不是宿主语言时仍扫。"""
+    cmd = "echo '{}' > ~/.claude/karma/session-state.json"
+    assert _check(cmd) is not None, "shell 真 `>` 重定向写 karma 状态应命中"

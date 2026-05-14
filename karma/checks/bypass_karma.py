@@ -45,16 +45,31 @@ _KARMA_STATE_PATH_RE = re.compile(
 # 是日常 karma 状态自治，不是绕开检测。攻击者 hack 用 cp/mv 改 karma 状态
 # 是极少数 case；为它拦合法操作得不偿失。真 hack 路径（echo > file / python
 # 直接写）仍能 catch。
-_WRITE_OP_RE = re.compile(
+#
+# 拆成两类（v0.4.13 dogfooding 治理）：
+# 1. 跨语言通用写（python `.write` / `json.dump` 等）— shell + python 都扫
+# 2. shell-only 重定向（`>` 写文件）— 命令头是 python/node/ruby/perl -c 时跳，
+#    避免 python 代码里 `cutoff > 0` 比较运算符被错算成 shell 重定向（真触发：
+#    `python -c "... 'ts', 0) > cutoff ..."` 读 violations.jsonl 时被错拦）
+_PYTHON_OR_SHELL_WRITE_RE = re.compile(
     r"(?:"
     r"\.write_text\b|\.write\b|"          # Python 写文件
     r"write_text\s*\(|write\s*\("
-    # shell 重定向写 — `> file`。排除目标 /dev/null 等丢弃路径
-    # （`2>/dev/null` stderr 转黑洞不算写）。`2> /tmp/x.log` 写真文件仍算写。
-    r"|>\s*(?!/dev/(?:null|zero|stderr|stdout))[/.~\w]"
     r"|\.unlink\b|\.replace\b"            # Python unlink / replace
     r"|json\.dump|p\.write"
     r")",
+    re.IGNORECASE,
+)
+_SHELL_REDIR_WRITE_RE = re.compile(
+    # shell 重定向写 — `> file`。排除目标 /dev/null 等丢弃路径
+    # （`2>/dev/null` stderr 转黑洞不算写）。`2> /tmp/x.log` 写真文件仍算写。
+    r">\s*(?!/dev/(?:null|zero|stderr|stdout))[/.~\w]",
+    re.IGNORECASE,
+)
+# 命令头是宿主语言 + -c/-e flag — 跳 shell 重定向检测（python `>` 是比较运算符）
+# 注意：真 python 写绕过用 `.write` 仍命中 _PYTHON_OR_SHELL_WRITE_RE
+_LANG_C_HEAD_RE = re.compile(
+    r"\b(?:python\d?|node|ruby|perl)\s+-[ce]\b",
     re.IGNORECASE,
 )
 
@@ -84,7 +99,12 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     # 信号 1：剥后命令骨架含 karma 内部字段 / 路径 + 写操作 → 绕开检测
     has_internal = bool(_KARMA_INTERNAL_RE.search(cmd_stripped))
     has_state_path = bool(_KARMA_STATE_PATH_RE.search(cmd_stripped))
-    has_write = bool(_WRITE_OP_RE.search(cmd_stripped))
+    # 写检测拆两类：跨语言通用 python 写（.write/.unlink 等）+ shell-only 重定向
+    # 宿主语言 + -c 跳 shell 重定向（python 代码里 `>` 是比较运算符不是写）
+    has_python_write = bool(_PYTHON_OR_SHELL_WRITE_RE.search(cmd_stripped))
+    is_lang_c = bool(_LANG_C_HEAD_RE.search(cmd_raw))
+    has_shell_redir = (not is_lang_c) and bool(_SHELL_REDIR_WRITE_RE.search(cmd_stripped))
+    has_write = has_python_write or has_shell_redir
 
     if (has_internal or has_state_path) and has_write:
         m1 = _KARMA_INTERNAL_RE.search(cmd_stripped)
