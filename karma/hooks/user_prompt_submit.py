@@ -63,6 +63,7 @@ def main() -> int:
     # 顺便 catchup pending background 任务（task #8：catchup 之前只在 PostToolUse
     # 跑，bg 完成后第一个触发的 hook 可能是这里 / pre_tool_use，要多 hook 都跑）
     session_id = payload.get("session_id", "") or "default"
+
     try:
         state = session_state.load(session_id)
         state.catchup_pending_bg()
@@ -73,6 +74,13 @@ def main() -> int:
         # 起手 sticky 已全量注入过 — 中段注入是「衰减后重新锚定」补丁）
         state.tool_byte_seq = 0
         state.last_reinject_byte_seq = 0
+        # v0.4.38 跨 turn model 跟踪：用户中途 /model opus 切换主模型时
+        # SessionStart 已过没机会更新主 state.model → user_prompt_submit
+        # 每 turn 都看 payload model 字段（如果协议有就更新，没就保留之前）。
+        # 容错设计跟 v0.4.36 SessionStart 同 — 协议有就用没就 fallback 之前值。
+        payload_model = payload.get("model")
+        if payload_model:
+            state.model = payload_model
         session_state.save(state)
         current_turn = state.turn_count
     except Exception:

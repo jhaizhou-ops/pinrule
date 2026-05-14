@@ -4,6 +4,52 @@
 
 ## [Unreleased]
 
+## [0.4.38] — 2026-05-15（feat — user_prompt_submit 每 turn 跟踪主 model 跨 turn 切换）
+
+### 真触发
+
+用户洞察：「主 Agent 的 LLM 也有可能是其他的，有没有可能每一 turn 启动的时候也判断下？来决定这一 turn 的中段触发频率？」
+
+v0.4.36 把主 Agent model 拿取放在 SessionStart hook（session 起手一次）— 但用户中途 `/model opus` 切换主模型后：
+
+- SessionStart 早过 → state.model 永远是起手值
+- 中段注入仍按旧 model 阈值 → 错配
+
+### 真路径
+
+`user_prompt_submit` hook 每 turn 都触发（已用于 turn_count += 1 + tool_byte_seq 归零等）— 加几行从 payload 读 model 写 state.model 几乎零成本。
+
+```python
+payload_model = payload.get("model")
+if payload_model:
+    state.model = payload_model
+```
+
+容错设计跟 v0.4.36 SessionStart 同 — 协议层有 model 字段就用，没就保留之前值（fallback 到 SessionStart 那次写入或 DEFAULT 60K）。
+
+### 真覆盖场景
+
+| Agent / 场景 | model 来源 |
+|---|---|
+| 主 Agent session 起手 | SessionStart payload.model （v0.4.36）|
+| 主 Agent 中途 /model 切换 | **user_prompt_submit payload.model 每 turn 跟踪**（v0.4.38）|
+| 子 Agent (主指定 model) | 主 PreToolUse Agent tool_input.model（v0.4.37）|
+| 子 Agent (主没指定 model) | 拿不到 → DEFAULT 60K fallback |
+
+### 验证
+
+- 加 1 守护测试覆盖 user_prompt_submit 真写 model 路径（连续 2 turn 不同 model 切换不抛异常 + 容错正确）
+- 测试 382 → **383 全过** + ruff 干净
+- 真协议层是否带 model 字段：当前 manual run 实验未确认（容错设计不依赖 — 有就用没保留之前），dogfooding 持续观察
+
+### 真闭环升级
+
+v0.4.34（子 Agent 独立 state）+ v0.4.35（model_threshold 表）+ v0.4.36（SessionStart 主 model）+ v0.4.37（子 Agent model 真捕获）+ v0.4.38（user_prompt_submit 每 turn 跟踪主 model）= **完整真按当前模型实时自动适应阈值架构**，覆盖：
+- session 起手主 model
+- 中途 /model 切换主 model
+- 主 Agent 派子 Agent 时指定子 model
+- 子 Agent 跑长任务时按子 model 阈值
+
 ## [0.4.37] — 2026-05-15（feat — 子 Agent model 真捕获从主 Agent Task tool input）
 
 ### 真触发

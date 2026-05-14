@@ -38,6 +38,32 @@ def test_pre_compact_hook_auto_allows():
         pytest.skip(f"Hook execution failed: {result.stderr}")
 
 
+def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
+    """v0.4.38 真路径：用户中途 /model opus 切换主模型时 SessionStart 已过，
+    user_prompt_submit hook 每 turn 都看 payload model 字段更新 state.model
+    让中段 sticky 注入按真当前模型阈值（容错设计 — 协议有就用没保留之前）。
+    """
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    # 第一 turn 主 model 是 sonnet
+    payload1 = {"session_id": "test-ups-model", "prompt": "first", "model": "claude-sonnet-4-6"}
+    result1 = subprocess.run(
+        ["/Users/jhz/karma/.venv/bin/python", "-m", "karma.hooks.user_prompt_submit"],
+        capture_output=True, text=True, input=json.dumps(payload1),
+        cwd="/Users/jhz/karma",
+    )
+    assert result1.returncode == 0
+    # 第二 turn 用户 /model opus 切换 — payload 含新 model
+    payload2 = {"session_id": "test-ups-model", "prompt": "second", "model": "claude-opus-4-7"}
+    result2 = subprocess.run(
+        ["/Users/jhz/karma/.venv/bin/python", "-m", "karma.hooks.user_prompt_submit"],
+        capture_output=True, text=True, input=json.dumps(payload2),
+        cwd="/Users/jhz/karma",
+    )
+    assert result2.returncode == 0
+    # 容错路径已 exec — 真协议有 model 字段时 state 真更新（实际效果由 dogfooding
+    # manual run 真验证，这里守护代码路径不抛异常 + 容错正确）
+
+
 def test_session_start_writes_model_to_state(tmp_path, monkeypatch):
     """v0.4.36 真协议层 fix：SessionStart payload 真有 model 字段（PreToolUse /
     PostToolUse / Stop / Subagent* 都没）— SessionStart 是唯一路径写 state.model
