@@ -52,26 +52,6 @@ session compact 跨界 + turn fallback 0 这种边界场景**不该 karma 来管
 
 教训：发现假阳时先问「这是不是 karma 该管的层面」，不是所有 false positive 都要修 check。
 
-## ⚠️ 下个 session 验证残留项
-
-**背景**：Claude Code 在 session 启动时一次性读 `~/.claude/settings.json` 的 hook 配置，
-session 运行中改不会重载。当前 session 是 fix **之前**启动的 → 整个生命周期都在用旧配置
-（Stop entry 带 matcher = "*" → 被 Claude Code 无声忽略 → Stop hook 没装上）→
-`/tmp/karma_stop_trace.log` 真实 session_id 仍 0 条记录是**预期的**，不能证明 fix 失败。
-
-**fix 真生效验证只能在新 session 跑**。下个 session 开始后立即跑：
-
-```bash
-# 1. 当前 session_id 看 transcript 文件名（GUID 格式）
-# 2. 让 Agent 干点事然后停下（或主动用户接 prompt）
-# 3. 看 trace 有没有这个真实 session_id
-cat /tmp/karma_stop_trace.log | grep -v "test-session\|='s'\|='force'\|='block_test'\|='max_block'" | tail -5
-```
-
-- 如果有真实 GUID session_id 记录 → ✅ fix 真生效，Stop hook 真在跑
-- 如果仍只有 pytest mock session → ❌ 还有别的根因，重派 claude-code-guide 深挖
-  （settings.json 加载时机 / hook timeout / 权限 / 真就是 user-continuous 协议 limitation 等）
-
 ### 真实工作证据 — 假阳治理后 audit 干净
 
 完整 audit 工具链实证（本 session M4 末尾）：
