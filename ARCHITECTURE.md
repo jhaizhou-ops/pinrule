@@ -190,10 +190,11 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 
 性能：< 200ms。
 
-**⚠️ 实战 limitation（dogfooding 实证）**：Claude Code Stop hook 在 user-continuous
-对话场景中**根本不触发**（`/tmp/karma_stop_trace.log` 验证：真实 session 0 条记录，
-只有 pytest mock session）。所有依赖 Stop hook 的干预协议层 OK 但实战不生效。
-karma 唯一有效干预时机 = UserPromptSubmit 强提醒 fallback。
+**⚠️ Stop hook 配置注意**：Stop / SessionStart / SessionEnd 等 event **不支持
+`matcher` 字段** — Claude Code 看到 matcher 会无声忽略整个 hook entry。
+`karma install-hooks` 已修：Stop entry 不加 matcher，PreToolUse/PostToolUse/
+UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 真实 session 0 条，
+先检查 `~/.claude/settings.json` 的 Stop entry 是否含 matcher 字段。
 
 ## 6 个 violation_check 函数（工程层精准检测）
 
