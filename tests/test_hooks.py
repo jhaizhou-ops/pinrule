@@ -135,8 +135,9 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     )], path=violations_path)
     state = session_state.SessionState(session_id="anchor_test")
     state.turn_count = 5
-    # v0.4.32 token 启发式：必须预设累积 token 达阈值（默认 8000）才注入
-    state.tool_byte_seq = 10000
+    # v0.4.35 模型自适应阈值：默认 sonnet 60K，预设 70K byte_seq 真触发注入
+    state.model = "claude-sonnet-4-6"
+    state.tool_byte_seq = 70000
     state.last_reinject_byte_seq = 0
     session_state.save(state, base_dir=tmp_path)
 

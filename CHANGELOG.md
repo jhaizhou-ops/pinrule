@@ -4,6 +4,52 @@
 
 ## [Unreleased]
 
+## [0.4.35] — 2026-05-15（feat — 中段注入阈值按模型自动适配 + 默认抬到 60K 跟当代 Claude 真衰减区对齐）
+
+### 真触发
+
+用户洞察连击两条：
+
+1. **数字真根因**：「当代 Claude Sonnet/Opus 4.6 真衰减拐点 70K-200K 不是 8K，差距 10x，建议注入阈值改成至少 60K」
+2. **多模型场景**：「子 Agent 经常用 Sonnet 或 Haiku 模型而主 Agent 用 Opus，能不能自动识别和自动适应不用用户手动调？」
+
+v0.4.32 用 8K 阈值是 Liu 2023 旧模型数据撑场（GPT-3.5/Claude-1.3 时代）— web 调研真发现当代 Claude 衰减拐点真在 70K-200K，差 10x。8K 频率太密导致 Agent 表达扭曲（v0.4.32 commit 实证「真字癫狂」副作用）。
+
+### 真协议依据
+
+不同模型真衰减区入口（基于 Anthropic 公开 + RULER/MRCR/NIAH 2026 benchmark）：
+
+- **Opus 4.x**：~70K-100K → 阈值 80K
+- **Sonnet 4.x**：~50K-70K → 阈值 60K
+- **Haiku 4.x**：~20K-40K → 阈值 30K
+- **老模型** (GPT-3.5 / Claude-1.3 时代)：8K → 阈值 8K（向后兼容 Liu 2023 数据）
+- **未知模型 fallback**：60K（按用户「至少 60K」保守原则）
+
+### 真 fix（按模型自动适配，无需用户手动配）
+
+- `karma/model_threshold.py` 新模块：`threshold_for_model(model: str | None) -> int` 关键词匹配 + 7 条守护测试覆盖（opus / sonnet / haiku / 老模型 / 未知 fallback / 大小写 / 关键词优先级）
+- `karma/session_state.py` `SessionState` 加 `model: str | None = None` 字段 + load/save 序列化
+- `karma/hooks/post_tool_use.py`：从 payload `model` 字段更新 `state.model` + `_build_smart_reinject` 阈值优先级 = sticky.yaml 显式配置 > `threshold_for_model(state.model)` 按模型 > DEFAULT 60K
+
+容错设计：协议层有 model 字段就用，没字段就 fallback 60K（不依赖具体协议查实结果，向前向后兼容）。
+
+### 验证
+
+- `tests/test_model_threshold.py` 7 条守护测试全过
+- `tests/test_post_tool_use_reinject.py` 加 2 条按模型适配测试（opus 80K vs haiku 30K 真行为对比）
+- 旧测试预设阈值改 sonnet 60K 真行为
+- 测试 370 → **379 全过** + ruff 干净
+
+### 真效果预估
+
+| 模型场景 | 之前 v0.4.32 (8K) | 现在 v0.4.35 |
+|---|---|---|
+| Opus 跑长任务（典型 1 turn 50 tool call ≈ 100K context）| 12 次注入 | 1 次（80K 阈值）|
+| Sonnet 子 Agent 跑长任务 | 12 次注入 | 1-2 次（60K 阈值）|
+| Haiku 子 Agent 短任务 | 频繁 | 按 30K 真衰减区刷新 |
+
+「真字癫狂」副作用在 Opus 主场景几乎消除（每 turn 1 次提醒 = sticky 真重要时刻）。
+
 ## [0.4.34] — 2026-05-15（feat — 子 Agent 独立 karma 监控架构 + v0.4.32 叙事对齐 + v3 第七步真验证完成）
 
 ### 真触发

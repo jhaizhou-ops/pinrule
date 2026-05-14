@@ -70,6 +70,12 @@ def main() -> int:
     tool_response = payload.get("tool_response", "") or ""
 
     state = session_state.load(session_id, agent_id=agent_id)
+    # v0.4.35 模型自适应阈值：从 payload 提 model 字段更新 state.model
+    # 协议层有 model 字段时每次 hook 都覆盖更新（容错 — 没字段就保留之前值，
+    # 全 None 时 threshold_for_model 走 DEFAULT_THRESHOLD 60K fallback）
+    payload_model = payload.get("model")
+    if payload_model:
+        state.model = payload_model
 
     # 先 catchup 之前 pending 的 background 任务输出（任务可能在中间完成了）
     # 这样能在后续 record 之前更新 last_test_pass_ts，保证 evidence check 看见
@@ -173,10 +179,22 @@ def _build_smart_reinject(session_id: str, state) -> str:
     try:
         cfg = _load_config()
         window_turns = int(cfg.get("recent_violation_turns", 5))
-        reinject_threshold = int(cfg.get("reinject_every_n_tokens", 8000))
+        # v0.4.35 阈值来源优先级：sticky.yaml 显式配置 > 按模型自适应 > DEFAULT 60K
+        # 用户 sticky.yaml 给 reinject_every_n_tokens 数字 → 强制覆盖
+        # 没给 → 按 state.model 真模型阈值（model_threshold 表）
+        configured = cfg.get("reinject_every_n_tokens")
+        if configured is not None:
+            reinject_threshold = int(configured)
+        else:
+            from karma.model_threshold import threshold_for_model
+            reinject_threshold = threshold_for_model(state.model)
     except Exception:
         window_turns = 5
-        reinject_threshold = 8000
+        from karma.model_threshold import threshold_for_model, DEFAULT_THRESHOLD
+        try:
+            reinject_threshold = threshold_for_model(state.model)
+        except Exception:
+            reinject_threshold = DEFAULT_THRESHOLD
 
     # v0.4.32 token 启发式：累积 token 距上次注入未达阈值 → 不注入
     accumulated = state.tool_byte_seq - state.last_reinject_byte_seq

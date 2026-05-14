@@ -101,6 +101,13 @@ class SessionState:
     # 子 Agent agent_id=<uuid>（state 文件名 <session_id>__<agent_id>.json）
     # 子 Agent state 在 SubagentStop 时被 purge_subagent_state 销毁
     agent_id: str | None = None
+    # v0.4.35 模型自适应阈值：当前 Agent 模型 ID（如 claude-opus-4-7）
+    # post_tool_use hook 每次从 payload.get("model") 更新（hook 协议如果有
+    # 字段）。中段 sticky 注入用 model_threshold.threshold_for_model(state.model)
+    # 按当前模型真衰减区入口决定 token 阈值（Opus 80K / Sonnet 60K / Haiku 30K
+    # / 未知 fallback 60K）。子 Agent 经常用 Sonnet/Haiku 跑长任务而主 Agent
+    # 用 Opus — v0.4.34 子 Agent 独立 state + 本字段让各自按真模型阈值刷新。
+    model: str | None = None
     read_files: set[str] = field(default_factory=set)         # 本 session Read 过的 file_path
     edit_files: list[str] = field(default_factory=list)        # Edit/Write 顺序记录（重复也保留）
     recent_bash: list[BashSnapshot] = field(default_factory=list)
@@ -320,6 +327,7 @@ def load(session_id: str, base_dir: Path | None = None, agent_id: str | None = N
         stop_block_count=int(d.get("stop_block_count", 0) or 0),
         tool_byte_seq=int(d.get("tool_byte_seq", 0) or 0),
         last_reinject_byte_seq=int(d.get("last_reinject_byte_seq", 0) or 0),
+        model=d.get("model") or None,
     )
     return state
 
@@ -388,6 +396,7 @@ def save(state: SessionState, base_dir: Path | None = None) -> None:
         "stop_block_count": state.stop_block_count,
         "tool_byte_seq": state.tool_byte_seq,
         "last_reinject_byte_seq": state.last_reinject_byte_seq,
+        "model": state.model,
     }
     # tmp 名加 pid + nanosecond 避免并发 PostToolUse 同 session 写冲突
     import os

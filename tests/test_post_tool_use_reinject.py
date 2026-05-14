@@ -24,8 +24,11 @@ def _make_sticky(sid: str) -> Sticky:
     )
 
 
-def _make_state(turn=5, byte_seq=0, last_reinject=0) -> SessionState:
-    s = SessionState(session_id="test")
+def _make_state(turn=5, byte_seq=0, last_reinject=0, model="claude-sonnet-4-6") -> SessionState:
+    """v0.4.35: 默认 model=sonnet (阈值 60K) — 测试用 70K byte_seq 触发真注入逻辑。
+    旧测试用 model=claude-instant 时 8K 阈值，跟之前 v0.4.32 行为一致。
+    """
+    s = SessionState(session_id="test", model=model)
     s.turn_count = turn
     s.tool_byte_seq = byte_seq
     s.last_reinject_byte_seq = last_reinject
@@ -67,7 +70,7 @@ def test_no_reinject_when_below_threshold():
 
 def test_reinject_when_threshold_reached_and_sticky_triggered():
     """累积达阈值 + 有最近触发 sticky → 注入 + 重置 last_reinject_byte_seq。"""
-    state = _make_state(byte_seq=10000, last_reinject=0)  # 累积 10K > 8K
+    state = _make_state(byte_seq=70000, last_reinject=0)  # sonnet 60K 阈值，累积 70K 真触发
     with patch("karma.sticky.load", return_value=[_make_sticky("r1"), _make_sticky("r2")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 2}):
         result = _build_smart_reinject("test", state)
@@ -76,19 +79,20 @@ def test_reinject_when_threshold_reached_and_sticky_triggered():
     assert "r1" in result
     assert "r2" not in result  # 没触发 r2 不该注入
     # 注入后 last_reinject_byte_seq 真重置为当前 tool_byte_seq
-    assert state.last_reinject_byte_seq == 10000
+    assert state.last_reinject_byte_seq == 70000
 
 
 def test_threshold_resets_after_reinject():
-    """注入后再积累必须从 0 起算 — last_reinject_byte_seq 真节流测试。"""
-    state = _make_state(byte_seq=10000, last_reinject=0)
+    """注入后再积累必须从 0 起算 — last_reinject_byte_seq 真节流测试。
+    sonnet 60K 阈值：累积 70K 触发首次注入，再加 5K (距 last 5K) 不再触发。
+    """
+    state = _make_state(byte_seq=70000, last_reinject=0)
     with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 1}):
-        # 第一次注入达阈值
         r1 = _build_smart_reinject("test", state)
     assert r1 != ""
-    # 模拟下个 tool 累积 5K（10000+5000=15000，距 last_reinject=10000 差 5K < 8K）
-    state.tool_byte_seq = 15000
+    # 模拟下个 tool 累积 5K（70000+5000=75000，距 last_reinject=70000 差 5K < 60K）
+    state.tool_byte_seq = 75000
     with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 1}):
         r2 = _build_smart_reinject("test", state)
@@ -98,17 +102,40 @@ def test_threshold_resets_after_reinject():
 def test_no_recent_violations_throttles_last_reinject_anyway():
     """累积达阈值但无最近触发 sticky → 不注入但仍更新 last_reinject_byte_seq
     防止下个 PostToolUse 立刻再判定（节流）。"""
-    state = _make_state(byte_seq=10000, last_reinject=0)
+    state = _make_state(byte_seq=70000, last_reinject=0)  # sonnet 60K 阈值，70K 触发判定
     with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={}):
         result = _build_smart_reinject("test", state)
     assert result == ""
     # 节流：即使没注入内容也更新位置防止下次立即重判
-    assert state.last_reinject_byte_seq == 10000
+    assert state.last_reinject_byte_seq == 70000
 
 
 def test_zero_turn_returns_empty():
     """turn=0 (session 起手未提 prompt) → 不注入。"""
-    state = _make_state(turn=0, byte_seq=10000)
+    state = _make_state(turn=0, byte_seq=70000)
     with patch("karma.sticky.load", return_value=[_make_sticky("r1")]):
         assert _build_smart_reinject("test", state) == ""
+
+
+def test_threshold_adapts_to_opus_model():
+    """v0.4.35 真验证：opus 模型阈值 80K，70K byte_seq 不该触发（< 80K）。"""
+    state = _make_state(byte_seq=70000, last_reinject=0, model="claude-opus-4-7")
+    with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
+         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+        result = _build_smart_reinject("test", state)
+    assert result == ""  # opus 阈值 80K，累积 70K 不触发
+    state.tool_byte_seq = 85000
+    with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
+         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+        result = _build_smart_reinject("test", state)
+    assert "[karma 锚定刷新" in result  # opus 累积 85K 触发
+
+
+def test_threshold_adapts_to_haiku_model():
+    """v0.4.35 真验证：haiku 模型阈值 30K，35K byte_seq 真触发（小模型衰减更快）。"""
+    state = _make_state(byte_seq=35000, last_reinject=0, model="claude-haiku-4-5")
+    with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
+         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+        result = _build_smart_reinject("test", state)
+    assert "[karma 锚定刷新" in result  # haiku 30K 阈值，35K 触发
