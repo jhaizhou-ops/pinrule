@@ -31,6 +31,26 @@
 | **M4 user_prompt_submit 强提醒 fallback** | 用户反馈「你又停下来了，自己加的 sticky 也没拦」根因：Claude Code Stop hook 在 user 立刻接 prompt 时**不跑**（user_prompt_submit 优先级覆盖 Stop hook idle 触发）。fallback：user_prompt_submit hook 读 transcript last assistant message 跑 keep_pushing.check，命中（纯陈述完结无推进）→ 注入「强提醒」段告诉本 turn Claude 上次停了，本 turn 必须立即推进。这是 karma 当前能做的最强 keep-pushing 干预（不依赖 Stop hook 协议层 limitation） | 最新 |
 | **M4 Stop hook 不跑 → 撤回错误诊断**（重要错误教训） | 之前结论「Claude Code Stop hook 在 user-continuous 对话不跑」**错** — 用户质疑「stop hook 原理机制咱们没研究清楚」后重派 claude-code-guide 确认：**Stop hook 不支持 matcher 字段**，karma install-hooks 给所有 event 都加 `matcher: '*'` → Stop event 看到 matcher 会无声忽略整个 hook entry → Stop hook 根本没装上 → trace 0 条记录。**真根因**：karma 自身 install-hooks 配置 bug。修：_karma_event_entry 只对 PreToolUse/PostToolUse/UserPromptSubmit 加 matcher，Stop 不加。`karma install-hooks` 重装后修好。教训：单次 trace 0 条记录不能直接断言「协议 limitation」，要查配置先 | 最新 |
 
+## ⚠️ 下个 session 首要验证项 — Stop hook matcher fix 是否真跑
+
+**背景**：Claude Code 在 session 启动时一次性读 `~/.claude/settings.json` 的 hook 配置，
+session 运行中改不会重载。当前 session 是 fix **之前**启动的 → 整个生命周期都在用旧配置
+（Stop entry 带 matcher = "*" → 被 Claude Code 无声忽略 → Stop hook 没装上）→
+`/tmp/karma_stop_trace.log` 真实 session_id 仍 0 条记录是**预期的**，不能证明 fix 失败。
+
+**fix 真生效验证只能在新 session 跑**。下个 session 开始后立即跑：
+
+```bash
+# 1. 当前 session_id 看 transcript 文件名（GUID 格式）
+# 2. 让 Agent 干点事然后停下（或主动用户接 prompt）
+# 3. 看 trace 有没有这个真实 session_id
+cat /tmp/karma_stop_trace.log | grep -v "test-session\|='s'\|='force'\|='block_test'\|='max_block'" | tail -5
+```
+
+- 如果有真实 GUID session_id 记录 → ✅ fix 真生效，Stop hook 真在跑
+- 如果仍只有 pytest mock session → ❌ 还有别的根因，重派 claude-code-guide 深挖
+  （settings.json 加载时机 / hook timeout / 权限 / 真就是 user-continuous 协议 limitation 等）
+
 ### 真实工作证据 — 假阳治理后 audit 干净
 
 完整 audit 工具链实证（本 session M4 末尾）：
