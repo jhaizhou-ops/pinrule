@@ -69,6 +69,17 @@ def main() -> int:
         print(json.dumps({}))
         return 0
 
+    # TEMP DEBUG: dump Stop hook 每次触发的 trace 到 /tmp/karma_stop_trace.log
+    # 验证 Claude Code Stop hook 是否在「user 立刻接 prompt 时」真跑
+    try:
+        import time as _t
+        from pathlib import Path as _P
+        _trace = _P("/tmp/karma_stop_trace.log")
+        with _trace.open("a", encoding="utf-8") as f:
+            f.write(f"[{_t.strftime('%H:%M:%S')}] Stop hook fired, session={payload.get('session_id', '')!r}\n")
+    except Exception:
+        pass
+
     session_id = payload.get("session_id", "") or "default"
     transcript_path = payload.get("transcript_path", "")
     response = _read_last_assistant_response(transcript_path)

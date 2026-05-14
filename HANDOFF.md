@@ -29,6 +29,7 @@
 | **M4 keep-pushing 反转 + audit 改进建议** | 用户精准纠正：问号是合理决策应豁免，纯陈述完结无下一步才是真停下 → 反转检测方向（推进/问号豁免，停顿词/默认 → 命中）。stats / doctor 显示 stop_block_count；audit 末尾自动改进建议段；catchup 多 hook 跑（UserPromptSubmit+PreToolUse 都跑，task #8 剩余 case）；non_blocking 长任务列表收紧（移除 pytest 等测试命令，保留 docker/build/install）| 8502713 → 最新 |
 | **M4 元层面监管 — 自身被绕过的检测**（用户反馈核心场景） | 回应「这就是一个典型的出现了问题，你绕过/忽略了问题拿了个短期结果」三层实施：① bypass_karma check（Bash 命令含 karma 内部敏感字面 + 写操作 → 命中）② Stop hook 累积强制 decision=block（同 sticky ≥ N 次必须 fix 根因不许继续绕）③ sticky #8 deep-fix-not-bypass 进默认开发模板（preference + 关键词 + 工程层）。strip_shell_quoted_literals 加 python/node/ruby -c flag + placeholder 保护内部引号字面（commit message 自指假阳豁免 + python -c 真执行代码保留扫）| 最新 |
 | **M4 user_prompt_submit 强提醒 fallback** | 用户反馈「你又停下来了，自己加的 sticky 也没拦」根因：Claude Code Stop hook 在 user 立刻接 prompt 时**不跑**（user_prompt_submit 优先级覆盖 Stop hook idle 触发）。fallback：user_prompt_submit hook 读 transcript last assistant message 跑 keep_pushing.check，命中（纯陈述完结无推进）→ 注入「强提醒」段告诉本 turn Claude 上次停了，本 turn 必须立即推进。这是 karma 当前能做的最强 keep-pushing 干预（不依赖 Stop hook 协议层 limitation） | 最新 |
+| **M4 Stop hook 实战未跑的实证** | 加 `/tmp/karma_stop_trace.log` debug 验证：本 session 真实 session_id 一次都没出现，trace 只有 pytest mock session。→ **Claude Code Stop hook 在 user-continuous 对话场景中根本不触发**。基于 Stop hook 的所有干预（机制 2 累积强制 block / keep-pushing decision=block）实战层面**未生效**。karma 唯一有效干预时机 = user_prompt_submit hook（每 user prompt 跑）→ user_prompt_submit 强提醒 fallback 是唯一实战可用机制 | 最新 |
 
 ### 真实工作证据 — 假阳治理后 audit 干净
 
