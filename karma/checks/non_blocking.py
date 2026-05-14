@@ -17,10 +17,19 @@ _STICKY_ID = "non-blocking-parallel"
 
 _SLEEP_RE = re.compile(r"\bsleep\s+\d+", re.IGNORECASE)
 _WAIT_RE = re.compile(r"(?:^|\s|\&)wait(?:\s|$|\&)", re.IGNORECASE)
+# 「真长任务」— 通常运行时间 ≥ 30s 的命令。短测试命令（pytest / jest 等多数项目
+# 跑得快 < 5s）从默认列表移除，避免 audit 指出的高频假阳（karma 自身测试 0.1s
+# 但触发拦截 5×，占 sticky 触发 83%）。
+# 保留：构建（docker build / cargo build）/ 容器（docker run）/ 包管理（npm install）/
+# 基建（make 大目标 / docker compose up）
 _LONG_TASK_RE = re.compile(
-    r"""\b(pytest|jest|cargo\s+test|go\s+test|npm\s+(?:test|run\s+test)|tox|mocha|vitest|
-         docker\s+run|docker\s+compose\s+(?:up|run)|cargo\s+build|make\s+\w+|
-         uv\s+run|python\s+-m\s+pytest)\b""",
+    r"""\b(
+        docker\s+run|docker\s+compose\s+(?:up|run|build)|docker\s+build|
+        cargo\s+build|cargo\s+install|
+        npm\s+(?:install|ci)|yarn\s+install|pnpm\s+install|
+        make\s+(?:install|build|all|release|deploy)|
+        gradlew?\s+build|mvn\s+(?:install|package|deploy)
+    )\b""",
     re.IGNORECASE | re.VERBOSE,
 )
 

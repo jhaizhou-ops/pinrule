@@ -170,14 +170,25 @@ def test_non_blocking_detects_sleep():
 
 def test_non_blocking_detects_long_task_no_background():
     fn = REGISTRY["non_blocking_parallel"]
-    hit = fn(tool_name="Bash", tool_input={"command": "pytest tests/", "run_in_background": False})
+    # 真长任务（docker run / build）— 不带 background 命中
+    hit = fn(tool_name="Bash", tool_input={"command": "docker compose up", "run_in_background": False})
     assert hit is not None
-    assert "background" in hit.trigger or "pytest" in hit.trigger
+    assert "background" in hit.trigger or "docker" in hit.trigger.lower()
 
 
 def test_non_blocking_long_task_with_background_passes():
     fn = REGISTRY["non_blocking_parallel"]
-    hit = fn(tool_name="Bash", tool_input={"command": "pytest tests/", "run_in_background": True})
+    hit = fn(tool_name="Bash", tool_input={"command": "docker compose up", "run_in_background": True})
+    assert hit is None
+
+
+def test_non_blocking_test_commands_not_long_task():
+    """pytest / jest 等测试命令默认不算长任务（多数项目跑得快 < 5s），
+    避免 audit 指出的高频假阳。真长测试用户自加 background。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    hit = fn(tool_name="Bash", tool_input={"command": "pytest tests/"})
+    assert hit is None  # 不再算长任务
+    hit = fn(tool_name="Bash", tool_input={"command": "jest"})
     assert hit is None
 
 
@@ -188,12 +199,12 @@ def test_non_blocking_ignores_non_bash():
 
 
 def test_non_blocking_ignores_quoted_literals():
-    """命令引号字面里出现 pytest/sleep 等字面词不该假阳（commit message / echo）。"""
+    """命令引号字面里出现长任务命令字面词不该假阳（commit message / echo）。"""
     fn = REGISTRY["non_blocking_parallel"]
-    # git commit message 含 pytest 字面 — 不是要跑 pytest
+    # git commit message 含 docker / build 字面 — 不是要执行
     hit = fn(
         tool_name="Bash",
-        tool_input={"command": 'git commit -m "fix: pytest assertions passed"'},
+        tool_input={"command": 'git commit -m "fix: docker run output parsing"'},
     )
     assert hit is None
     # echo "sleep 30" 是 echo 字面 — 不是要 sleep
@@ -202,31 +213,31 @@ def test_non_blocking_ignores_quoted_literals():
         tool_input={"command": 'echo "sleep 30 before retry"'},
     )
     assert hit is None
-    # 真要跑 pytest 仍命中
+    # 真要跑 docker run 仍命中
     hit = fn(
         tool_name="Bash",
-        tool_input={"command": "pytest tests/"},
+        tool_input={"command": "docker run myapp"},
     )
     assert hit is not None
 
 
 def test_non_blocking_ignores_heredoc_content():
-    """heredoc 内是程序数据 — pytest / sleep 字面不算执行意图。"""
+    """heredoc 内是程序数据 — 命令字面词不算执行意图。"""
     fn = REGISTRY["non_blocking_parallel"]
-    # Python heredoc 含 'pytest' / 'sleep' 字面（regex pattern 内）— 不命中
+    # Python heredoc 含字面词（regex pattern 内）— 不命中
     cmd = """python <<'PYEOF'
 import re
-pat = re.compile(r'\\b(pytest|sleep)\\b')
+pat = re.compile(r'\\b(docker|sleep)\\b')
 print(pat.search('foo'))
 PYEOF"""
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
     assert hit is None, "heredoc 内字面不算执行意图"
-    # 但 heredoc **外**（命令头）含 pytest 仍命中
-    cmd_with_pytest = """pytest tests/ <<'EOF'
+    # 但 heredoc **外**（命令头）真长任务仍命中
+    cmd_with_docker = """docker compose up <<'EOF'
 some input
 EOF"""
-    hit = fn(tool_name="Bash", tool_input={"command": cmd_with_pytest})
-    assert hit is not None, "heredoc 外命令头含 pytest 仍是真执行"
+    hit = fn(tool_name="Bash", tool_input={"command": cmd_with_docker})
+    assert hit is not None, "heredoc 外命令头真长任务仍是真执行"
 
 
 # -------- #3 chinese-plain-no-jargon --------

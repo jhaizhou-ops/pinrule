@@ -139,14 +139,14 @@ def test_non_blocking_bash_c_sleep():
     assert hit is not None, "bash -c 间接 sleep 仍应识别为阻塞"
 
 
-def test_non_blocking_sh_c_pytest():
-    """`sh -c 'pytest tests/'` 是真要跑长任务。"""
+def test_non_blocking_sh_c_long_task():
+    """`sh -c 'docker run X'` 是真要跑长任务。"""
     fn = REGISTRY["non_blocking_parallel"]
     hit = fn(
         tool_name="Bash",
-        tool_input={"command": "sh -c 'pytest tests/'"},
+        tool_input={"command": "sh -c 'docker compose up'"},
     )
-    assert hit is not None, "sh -c 间接 pytest 仍应识别为长任务"
+    assert hit is not None, "sh -c 间接 docker 仍应识别为长任务"
 
 
 # ============================================================
@@ -188,15 +188,15 @@ EOF"""
     assert hit is not None, "bash heredoc 内 sleep 是真执行 — 不该被剥成数据"
 
 
-def test_sh_heredoc_inner_pytest_blocked():
-    """sh <<EOF 内 pytest tests/ 是真要跑测试，仍要拦（缺 background）。"""
+def test_sh_heredoc_inner_long_task_blocked():
+    """sh <<EOF 内真长任务（docker run）是真执行，仍要拦（缺 background）。"""
     fn = REGISTRY["non_blocking_parallel"]
     cmd = """sh <<'EOF'
 cd /repo
-pytest tests/
+docker compose up
 EOF"""
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "sh heredoc 内 pytest 是真执行 — 不该被剥成数据"
+    assert hit is not None, "sh heredoc 内 docker 是真执行 — 不该被剥成数据"
 
 
 def test_python_heredoc_inner_pytest_literal_passes():
