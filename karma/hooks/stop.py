@@ -15,6 +15,7 @@ from pathlib import Path
 
 from karma import session_state
 from karma.checks import run_checks
+from karma.notify import notify
 from karma.sticky import StickyConfigError, load
 from karma.violations import Violation, append, detect
 
@@ -112,12 +113,14 @@ def main() -> int:
     if all_records:
         append(all_records)
 
-    # stderr 通知
+    # stderr 通知 + 桌面通知（用户离开 stderr 视野时的补充提示）
     summary_lines = []
+    notify_msgs = []
     for h in check_hits:
         line = f"⚠️ karma: Agent 违反 {h.sticky_id!r} — {h.trigger}"
         print(line, file=sys.stderr)
         summary_lines.append(line)
+        notify_msgs.append(f"{h.sticky_id} — {h.trigger}")
         if h.suggested_fix:
             print(f"   建议：{h.suggested_fix}", file=sys.stderr)
     for v in keyword_violations:
@@ -126,6 +129,11 @@ def main() -> int:
         line = f"⚠️ karma: Agent 触发关键词 {v.sticky_id!r} (词 {v.trigger!r})"
         print(line, file=sys.stderr)
         summary_lines.append(line)
+        notify_msgs.append(f"{v.sticky_id} — {v.trigger}")
+
+    # 桌面通知（合并多条违反到一条 notification 避免轰炸；fail open）
+    if notify_msgs:
+        notify("karma 检测违反", " / ".join(notify_msgs[:3]))
 
     # 也可以通过 additionalContext 让 Claude 看到 — 但 Stop 后 Claude 已停，
     # 主要给下次 UserPromptSubmit 的 sticky 注入加 RECENT_VIOLATION 标记
