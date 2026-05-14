@@ -208,7 +208,7 @@ def cmd_sticky_remove(rule_id: str) -> int:
 
 
 def cmd_audit() -> int:
-    """审计违反历史：每条 sticky 的 top 触发词 + 假阳嫌疑标记。
+    """审计违反历史：每条 sticky 的 top 触发词 + 假阳嫌疑标记 + 本 session 漂移近况。
 
     假阳嫌疑：同一触发词命中 ≥ 5 次且占该 sticky 触发 ≥ 50% → 可能 pattern 过宽
     """
@@ -231,6 +231,24 @@ def cmd_audit() -> int:
             mark = " ⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""
             print(f"  {cnt:>3}× ({ratio*100:.0f}%) {trigger!r}{mark}")
         print()
+
+    # 本 session 漂移近况（最近 N turn 内每条 sticky 累积次数）
+    current_session = violations[-1].session_id
+    current_turn = max((v.turn for v in violations if v.session_id == current_session), default=0)
+    if current_turn > 0:
+        turns_window = 10
+        cutoff = current_turn - turns_window
+        recent = Counter(
+            v.sticky_id for v in violations
+            if v.session_id == current_session and v.turn >= cutoff and v.turn > 0
+        )
+        if recent:
+            print(f"=== 本 session 最近 {turns_window} turn 漂移近况（当前 turn={current_turn}）===")
+            for sid, n in recent.most_common():
+                hot = " 🔥 高频" if n >= 3 else ""
+                print(f"  {n:>3}× {sid}{hot}")
+        else:
+            print(f"=== 本 session 最近 {turns_window} turn 无违反 ✓ (当前 turn={current_turn}) ===")
     return 0
 
 
