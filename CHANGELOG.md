@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### Pending refactor（评审 Agent A 建议，发布后做）
+
+- `karma/violations.py` 4 个 `recent_*` 函数大段复制 — 抽公共 `_scan_tail`
+  helper（参数化 accept_fn / reduce_fn）减一半 IO。
+- `karma/checks/__init__.py` 循环依赖 — 8 处子模块函数体内
+  `from karma.checks import CheckHit` 是为绕循环。抽 `karma/checks/_types.py`
+  存 `CheckHit` / `CheckFn` Protocol，所有子模块顶部正常 import。
+- `run_checks` 的 `except Exception: continue` 静默吞错 — 加 `KARMA_DEBUG`
+  门控的 stderr trace 让 check 实现 bug 不再隐形。
+- `splitlines()[-N:]` 不是真 tail — 当前 rotation 阈值 5000 行 OK，文件
+  膨胀后改 `collections.deque(f, maxlen=N)` 或反向 seek。
+- emoji 风格统一（pre_tool_use 🛑 vs stop ⚠️）。
+
+
 ## [0.1.0] — 2026-05-14（首个公开版本）
 
 karma v2 的第一个可发布版本，经历多轮 dogfooding 修真 bug。
