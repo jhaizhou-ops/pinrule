@@ -72,52 +72,73 @@ karma 用 **「行为违反检测」** 做反馈：
 
 karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 
-## 功能需求（v0 MVP）
+## 功能需求（v0 MVP — 已交付）
 
-### F1. 核心方向配置
+### F1. 核心方向配置 ✅
 
 - 用户在 `~/.claude/karma/sticky.yaml` 定义 5-10 条（上限 10，超过 12 拒绝加载）
-- 字段：`id` / `preference` (一句话规则) / `violation_keywords` (触发词数组) / 可选 `violation_check` (检查函数名)
-- karma CLI: `karma sticky add / remove / list / edit`
+- 字段：`id` / `preference` / `violation_keywords` / `violation_checks`（工程层 check 函数名列表）
+- karma CLI: `karma sticky list / edit / remove`、`karma init`
 
-### F2. user_prompt_submit hook
+### F2. user_prompt_submit hook ✅
 
 - 每次 user_prompt_submit，hook 读 sticky.yaml
-- 在 user_text 前面注入 sticky 提示块
-- 格式人类友好：
-  ```
-  [karma sticky — 用户最高优先级方向，请始终遵守]
-  1. 用普适长期正确优雅方案
-  2. 不要前端阻塞
-  ...
+- 用 `additionalContext` 注入到 Claude 上下文（不修改 user_text 本身）
+- 格式：`[karma sticky — 用户最高优先级方向，请始终遵守]` 加 1-10 编号规则
+- 24h 内触发过的规则前标 `⚠️ 上次违反！`
+- 性能：< 50ms
 
-  [用户当前消息]
-  原 user_text
-  ```
-- RECENT_VIOLATION 规则在该规则前标 `⚠️` 或额外加一句「(上次违反)」
+### F3. 违反检测 / 反馈闭环 ✅
 
-### F3. post_response hook
+两层检测：
+- **关键词层**：扫 Bash command + Write/Edit 注释行 + Stop hook 看 Agent response 含违反字眼
+- **工程层（M2+ 加强）**：6 个 violation_check 函数针对每条 sticky 做精确 regex 检测
+  - long_term_fundamental：长 hash if 分支 / 黑白名单字面 / TODO 真注释 / 意图字面注释 / 全大写常量名单
+  - non_blocking_parallel：sleep / wait / 长任务无 background / 间接 shell 执行
+  - chinese_plain_no_jargon：中文占比 + jargon 检测（剥 code block + inline code）
+  - loud_failure_with_evidence：完成词 / weak claim 在代码任务上下文 + 无测试证据
+  - no_testset_no_future_leakage：gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值
+  - read_before_write：Edit/Write 前未 Read
 
-- Agent 响应后，hook 扫所有 sticky 的 `violation_keywords` / `violation_check`
-- 匹配到 → 记录到 `~/.claude/karma/violations.jsonl`
-- CLI 提醒（macOS 通知 / iTerm angle bracket / 简单 stderr 写）
-- 下次 user_prompt_submit 该规则标 RECENT_VIOLATION
+三个 hook 反馈点：
+- **PreToolUse**：Agent 调 tool 前实时拦截（deny + 显示原因）
+- **PostToolUse**：跟踪 session 状态（Read/Edit/Write 历史 + Bash PASS/FAIL）
+- **Stop**：扫 Agent response 字面违反
 
-### F4. 自用观察工具
+### F4. 自用观察工具 ✅
 
-- `karma stats` 显示每条规则违反次数、最近违反时间
-- 验证 karma 是否真减少了 Agent 的方向漂移
+- `karma stats` — 每条规则违反次数 + 最近触发时间
+- `karma violations recent [N]` — 最近 N 条违反详情
+- `karma doctor` — 检查环境（sticky 合法 + 4 个 hook 装机状态）
+- `karma install-hooks / uninstall-hooks` — 自动写/清 settings.json（idempotent + 备份 + 保留他人 hook）
+
+### M3 完整化补充（v0 MVP 之上的工程精细化）
+
+- **描述上下文统一豁免**（`karma/checks/description_context.py`）— `.md` / tests/ / `/tmp/` / probe-sample 命名文件下「描述触发模式」不算执行意图
+- **shell 引号字面 + heredoc 智能剥** — `git commit -m "..."` 引号字面是描述；`bash <<EOF` heredoc 内是 shell 命令保留扫；`python <<EOF` heredoc 内是数据剥
+- **background 任务证据自动接入** — `pytest > log.txt &` 后下次 hook 触发 catchup_pending_bg 读 log 接进 last_test_pass_ts，解决 evidence check 看不到 background 通过的死结
+- **`has_recent_test_pass` 新语义** — 「自最近一次代码改动以来跑过测试且通过」（时间戳比较代替最近 5 条 Bash 计数）
+- **post_tool_use 跳过失败 tool** — Read 失败不 record_read 防 read_first 检测被绕过
+- **跨语言注释 + docstring 扫描** — `# / // / -- / """ / ''' / /* */` 都被关键词层 Write/Edit 扫覆盖
 
 ## 验证标准（v0）
 
 karma v0 不追求精度数字 — 追求 **作者自用是否真感觉到「Agent 在长任务中少犯方向错」**。
 
-观察指标（一周自用）：
-1. **长任务中违反触发频次** — 装 karma 前 vs 后对比（粗略印象）
+观察指标：
+1. **长任务中违反触发频次** — 装 karma 前 vs 后对比
 2. **用户重复强调同一规则次数** — 减少
 3. **compact 后 Agent 是否还记得核心方向** — 通过几次 long-session 测试
 
-如果一周自用没明显改善 → karma 假设错了，需要进一步重新设计。
+如果一周自用没明显改善 → karma 假设错了，需要重新设计。
+
+### 验证标准的工作框架（M3 后更新）
+
+用户原话「咱们继续推就是观察期啊」— **「开发」和「自用观察」不是二元选择**。
+
+karma 的开发过程本身就是它最严酷的自用观察期：每次推进开发 Claude 都装着 karma 跑，每个 commit 都经历 hook 拦截。M3 六波累积了 30+ 条真实违反数据，6 个 sticky 全部触发过，假阳 / 假阴边界在 dogfooding 中持续暴露 + 修复。
+
+这比「装好等一周观察」更密集 / 真实 / 反馈快。
 
 ## 非功能性要求
 
