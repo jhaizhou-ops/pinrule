@@ -60,9 +60,12 @@ def main() -> int:
 
     # 每 turn 给 session_state.turn_count + 1 — 给后续按 turn 距离的违反统计
     # 同时重置 stop_block_count（新 user prompt = 新 turn，干预计数清 0）
+    # 顺便 catchup pending background 任务（task #8：catchup 之前只在 PostToolUse
+    # 跑，bg 完成后第一个触发的 hook 可能是这里 / pre_tool_use，要多 hook 都跑）
     session_id = payload.get("session_id", "") or "default"
     try:
         state = session_state.load(session_id)
+        state.catchup_pending_bg()
         state.turn_count += 1
         state.stop_block_count = 0
         session_state.save(state)

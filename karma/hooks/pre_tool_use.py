@@ -75,6 +75,8 @@ def main() -> int:
         return 0
 
     state = session_state.load(session_id)
+    # catchup pending background 任务（覆盖 PostToolUse 之外的 hook 触发场景）
+    state.catchup_pending_bg()
 
     # 工程层 violation_checks
     check_hits = []
