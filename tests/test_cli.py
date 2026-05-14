@@ -127,6 +127,36 @@ def test_install_hooks_idempotent(fake_home):
     assert len(karma_cmds_first) == 4
 
 
+def test_install_hooks_stop_entry_has_no_matcher(fake_home):
+    """Stop hook 不支持 matcher 字段 — Claude Code 会无声忽略整个 entry。
+
+    这是真实踩过的坑（详 HANDOFF.md「Stop hook 不跑 → 撤回错误诊断」）：
+    之前给所有 event 都加 matcher='*' 导致 Stop entry 被 Claude Code 忽略，
+    Stop hook 整个 session 都没装上。这条测试守护这个反向约束。
+    """
+    cli.cmd_install_hooks()
+    settings = _read_settings(fake_home)
+    stop_entries = [e for e in settings["hooks"].get("Stop", []) if cli._is_karma_entry(e)]
+    assert len(stop_entries) == 1, "Stop 应该有恰好 1 条 karma entry"
+    assert "matcher" not in stop_entries[0], (
+        "Stop entry 不能含 matcher 字段 — 否则 Claude Code 无声忽略整个 entry"
+    )
+
+
+def test_install_hooks_tool_events_keep_matcher(fake_home):
+    """PreToolUse / PostToolUse / UserPromptSubmit 必须有 matcher='*'。
+
+    与 Stop 形成对偶 — 工具相关 event 不加 matcher 也会让 Claude Code 不知道
+    针对哪些 tool 跑（PreToolUse / PostToolUse 至少需要）。
+    """
+    cli.cmd_install_hooks()
+    settings = _read_settings(fake_home)
+    for event in ("PreToolUse", "PostToolUse", "UserPromptSubmit"):
+        karma_entries = [e for e in settings["hooks"][event] if cli._is_karma_entry(e)]
+        assert len(karma_entries) == 1
+        assert karma_entries[0].get("matcher") == "*", f"{event} 必须 matcher='*'"
+
+
 def test_install_hooks_backs_up_first_time(fake_home):
     """第一次运行 → 创建 settings.json.before-karma 备份。"""
     original = {"model": "opus", "hooks": {}}
