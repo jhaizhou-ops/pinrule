@@ -68,6 +68,11 @@ def main() -> int:
         state.catchup_pending_bg()
         state.turn_count += 1
         state.stop_block_count = 0
+        # v0.4.32 中段注入 token 启发式：每 turn 起手 token 累积归零 +
+        # 上次注入位置归零，让 turn 内累积达阈值才中段注入第一次（每 turn
+        # 起手 sticky 已全量注入过 — 中段注入是「衰减后重新锚定」补丁）
+        state.tool_byte_seq = 0
+        state.last_reinject_byte_seq = 0
         session_state.save(state)
         current_turn = state.turn_count
     except Exception:

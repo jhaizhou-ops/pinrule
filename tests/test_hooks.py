@@ -135,6 +135,9 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     )], path=violations_path)
     state = session_state.SessionState(session_id="anchor_test")
     state.turn_count = 5
+    # v0.4.32 token 启发式：必须预设累积 token 达阈值（默认 8000）才注入
+    state.tool_byte_seq = 10000
+    state.last_reinject_byte_seq = 0
     session_state.save(state, base_dir=tmp_path)
 
     payload = json.dumps({
@@ -151,6 +154,15 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     ctx = out["hookSpecificOutput"]["additionalContext"]
     assert "long-term-fundamental" in ctx, "context 应包含触发过的 sticky id"
     assert "中段提醒" in ctx, "应有「中段提醒」标记"
+    # v0.4.32 注入后 last_reinject_byte_seq 真重置为当前 tool_byte_seq
+    # （main 自己又累加了 _estimate_tokens(tool_input, tool_response) 几字节，
+    # 所以最终 tool_byte_seq 略大于预设的 10000，但 last_reinject_byte_seq
+    # 必须等于注入时刻的 tool_byte_seq — 用相等比较真节流逻辑）
+    saved = session_state.load("anchor_test", base_dir=tmp_path)
+    assert saved.last_reinject_byte_seq == saved.tool_byte_seq, (
+        "v0.4.32 注入后 last_reinject_byte_seq 必须重置为当前 tool_byte_seq"
+    )
+    assert saved.tool_byte_seq >= 10000, "tool_byte_seq 应在预设 10000 基础上累加"
 
 
 def test_post_tool_use_no_reinject_when_clean(monkeypatch, tmp_path, capsys):

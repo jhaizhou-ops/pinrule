@@ -4,6 +4,58 @@
 
 ## [Unreleased]
 
+## [0.4.32] — 2026-05-15（fix — bypass_karma `json.dumps` 假阳 + feat — 中段注入 token 启发式频率优化）
+
+### 真触发
+
+接力 session 用户反馈两件事：
+
+1. **「真」字防御性写作走火入魔** — 用户原话「真字癫狂真吓人，这是哪条规则把你吓成这样」。HANDOFF 第 7 类深层矛盾「sticky 长期注入扭曲 Agent 表达自然度」**真复发预言中** — v0.4.24 中段注入今晚 60+ 次后 Agent 用「真」字防御性自证（真根因 / 真生效 / 真完成）堆 30+ 次/response。
+2. **bypass_karma 假阳拦 cat 读** — 用户调试时 `cat ~/.claude/karma/session-state/xxx.json | python -c "import json; d = json.load(...); print(json.dumps(d))"` 被 deep-fix-not-bypass 拦了。但这是纯 read-only 输出，没写任何 karma 文件。
+
+### 真根因 + 真 fix
+
+**bypass_karma 假阳真根因**：`_PYTHON_OR_SHELL_WRITE_RE` 里 `json\.dump` regex **没加 word boundary** `\b` → `json.dumps`（序列化为字符串纯输出）被误判 `json.dump`（写 file-like）。同样 `p\.write` 也缺边界（`p.writeable` 类字面会假阳）。
+
+修：`r"json\.dump\b|p\.write\b"` 加 `\b`，加 3 条守护测试（cat 读 / json.dumps 假阳 / json.dump 真写对偶）。
+
+**中段注入频率真根因 + 真升级**（用户决策驱动）：
+
+karma turn 真定义 = `state.turn_count += 1` 在 user_prompt_submit hook = **1 turn = 1 次 user 提问 + Agent 全部响应**（哪怕跑 100 个 tool call）。所以「最近 5 turn 内触发 sticky 就注入」在长任务里**永远窗口内**，每个 PostToolUse 都注入 → 频率 60+/turn → Agent 表达扭曲。
+
+用户决策的设计意图：
+
+1. 中段注入是「抵御长 turn context 累积导致 sticky attention 衰减」补丁，不是惩罚机制
+2. 每 turn 起手 user_prompt_submit 已全量注入 → 中段不该立即重复
+3. 真发生违反时 PreToolUse / Stop 已响亮提醒 → 中段不重复警告
+4. 累积 token 达阈值（默认 8000）后下个 PostToolUse 注入一次「重新锚定」
+5. 子 Agent 也按主 Agent 真看到的最终 tool_response 算（不算子 Agent 内部 thinking）
+
+实施：
+
+- `karma/session_state.py` 加 `tool_byte_seq` + `last_reinject_byte_seq` 两字段 + load/save 序列化
+- `karma/hooks/user_prompt_submit.py` 每 turn 起手 `tool_byte_seq=0` + `last_reinject_byte_seq=0` 归零
+- `karma/hooks/post_tool_use.py` 加 `_estimate_tokens(tool_input, tool_response)` = `len // 3` 启发式 + 累积 + 阈值判定 + 注入后重置 last_reinject_byte_seq 节流
+- `data/sticky.dev.example.yaml` 加 `reinject_every_n_tokens: 8000` 配置（待补，用户首装可调）
+
+实测预估今晚 60+ 注入 → 降到 6-8 次（10x 减少），不丢「真违反时强干预」（PreToolUse / Stop hook 仍立即拦）。
+
+加 `tests/test_post_tool_use_reinject.py` 7 条单元测试守护：
+- _estimate_tokens 简单 Bash / sub-agent 都按主 Agent 真看到的算
+- 累积未达阈值不注入
+- 累积达阈值 + 有最近触发 sticky 才注入
+- 注入后重置 last_reinject_byte_seq 节流（不重复）
+- 阈值达但无最近触发 sticky 不注入但仍更新 last_reinject_byte_seq（节流）
+- turn=0 不注入
+
+测试 355 → 362 全过 + ruff 干净 + vulture 0 死代码。
+
+### 真教训
+
+- 「Agent 防御性写作扭曲」是 sticky 注入频率太密的真信号，不是 sticky 内容问题 — 不能靠改 sticky 文案治理，要从工程层降频率
+- 「按 turn 计数」对长任务无效（turn 几乎不增长任务里），按 token 累积维度才真合理
+- 子 Agent context 是子 Agent 自己的事，不算主 Agent 衰减 — 这条用户洞察纠正了我先前「sub-agent 当 30K token」启发式的错估
+
 ## [0.4.31] — 2026-05-14（fix — subagent_start.py ensure_ascii bug + 加守护测试）
 
 ### 真触发

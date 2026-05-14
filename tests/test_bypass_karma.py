@@ -203,6 +203,46 @@ def test_python_subprocess_real_bypass_caught():
     assert _check(cmd) is not None, "python subprocess 真绕过应命中"
 
 
+def test_cat_read_session_state_not_blocked():
+    """v0.4.32 真触发：cat ~/.claude/karma/session-state/xxx.json 是 read-only 输出
+    内容 → 不该当绕过拦。dogfooding 实证：调试 session_state 真行为时跑这命令
+    被假阳拦了。
+
+    真根因：read-only cat / less / head / tail 不写文件，但路径含敏感字面
+    `.claude/karma/session-state` 满足 has_state_path → 只要 has_write 也 True
+    就命中。所以核心是 has_write 不能在纯读命令里被错触发。
+    """
+    cmd = "cat ~/.claude/karma/session-state/abc.json"
+    assert _check(cmd) is None, "纯 cat 读 session-state 不该被拦"
+
+
+def test_pipe_to_python_json_dumps_not_blocked():
+    """v0.4.32 真根因：`json.dumps`（序列化为字符串纯输出）跟 `json.dump`（写
+    file-like）regex 没加 word boundary 导致 `json.dumps` 被误判 `json.dump`。
+
+    dogfooding 实证：cat session-state.json | python -c "import json; d=json.load(...);
+    print(json.dumps(d, indent=2))" 是纯读 + pretty-print 输出，被假阳拦了。
+
+    fix：`r"json\\.dump\\b"` 加 \\b word boundary 让 `json.dumps` 不命中。
+    """
+    cmd = (
+        "cat ~/.claude/karma/session-state/abc.json | "
+        'python3 -c "import json, sys; d = json.load(sys.stdin); '
+        'print(json.dumps(d, indent=2, ensure_ascii=False))"'
+    )
+    assert _check(cmd) is None, "json.dumps (序列化为字符串纯读) 不该被 json.dump 模式假阳"
+
+
+def test_python_json_dump_real_write_still_caught():
+    """对偶：json.dump (无 s — 写 file-like) 真写文件应仍命中。
+
+    用 single quote 外层 + double quote 内层避免触发 strip 转义引号 limitation
+    （HANDOFF M3 第六波已知 limitation 跟本测无关）。
+    """
+    cmd = """python -c 'import json; json.dump({}, open(".claude/karma/session-state/x.json", "w"))'"""
+    assert _check(cmd) is not None, "json.dump 真写 file-like 应命中"
+
+
 def test_python_pathlib_unlink_real_bypass_caught():
     """v0.4.22：python -c 内 Path(x).unlink() 真绕过应拦。"""
     cmd = """python -c "from pathlib import Path; Path('~/.claude/karma/violations.jsonl').unlink()\""""

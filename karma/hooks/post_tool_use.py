@@ -75,6 +75,12 @@ def main() -> int:
 
     failed = _tool_failed(tool_response)
 
+    # v0.4.32 累积 token 估算 — 主 Agent 真看到的 tool_input + tool_response
+    # 字节数 // 3 约为 token 数（中英文混合粗略估，sub-agent 也按主 Agent 真
+    # 看到的最终 tool_response 算，子 Agent 内部 thinking 是子 Agent 自己
+    # context 不算主 Agent 衰减）
+    state.tool_byte_seq += _estimate_tokens(tool_input, tool_response)
+
     if tool_name == "Bash":
         # Bash 失败仍 record — has_recent_test_pass 由 _FAIL_RE 在 record_bash 内部判
         cmd = tool_input.get("command", "") or ""
@@ -104,13 +110,15 @@ def main() -> int:
             if not is_desc:
                 state.record_edit(fp)
 
+    # v0.4.24+v0.4.32：智能 sticky reinject — 按 token 累积阈值决定。
+    # 必须在 save 之前跑 — 它会修改 state.last_reinject_byte_seq 节流。
+    additional_context = _build_smart_reinject(session_id, state)
+
     try:
         session_state.save(state)
     except OSError as e:
         print(f"karma PostToolUse: 保存 session_state 失败 ({e})", file=sys.stderr)
 
-    # v0.4.24：智能 sticky reinject anchor — 仅最近触发过的 sticky 注入简化提醒
-    additional_context = _build_smart_reinject(session_id, state)
     output = {}
     if additional_context:
         output = {
@@ -123,11 +131,26 @@ def main() -> int:
     return 0
 
 
-def _build_smart_reinject(session_id: str, state) -> str:
-    """智能 sticky reinject — 仅最近 N turn 触发过的 sticky 注入简化提醒。
+def _estimate_tokens(tool_input, tool_response) -> int:
+    """启发式估算主 Agent 真看到的 token 数（bytes // 3 粗略中英文混合）。
 
-    返回空字符串 → PostToolUse 不注入 additionalContext（省 token）。
-    返回非空 → 给 Claude 看到「最近违反过的 sticky 提醒」作为中段 anchor。
+    sub-agent (Task) 也按主 Agent 看到的最终 tool_response 算 — 子 Agent
+    内部 thinking + 中间 tool 是子 Agent 自己 context，不算主 Agent 衰减。
+    """
+    return (len(str(tool_input or "")) + len(str(tool_response or ""))) // 3
+
+
+def _build_smart_reinject(session_id: str, state) -> str:
+    """智能 sticky reinject — 按 token 累积维度决定是否注入（v0.4.32 升级）。
+
+    设计意图（用户 v0.4.32 决策）：
+    1. 中段注入是「抵御长 turn context 累积导致 sticky attention 衰减」补丁
+    2. 每 turn 起手 user_prompt_submit 已全量注入 sticky → 中段不该立即重复
+    3. 真发生违反时已在 PreToolUse / Stop hook 响亮提醒 → 中段不重复警告
+    4. 累积 token 达阈值（默认 8000）后下个 PostToolUse 注入一次「重新锚定」
+    5. 注入只取最近触发过的 sticky（不是全 sticky）— 跟 v0.4.24 保持一致
+
+    返回空字符串 → PostToolUse 不注入 additionalContext。
     """
     try:
         from karma.sticky import load as _load_sticky
@@ -141,24 +164,40 @@ def _build_smart_reinject(session_id: str, state) -> str:
         return ""
     if not sticky_list or state.turn_count <= 0:
         return ""
+
     try:
         cfg = _load_config()
         window_turns = int(cfg.get("recent_violation_turns", 5))
+        reinject_threshold = int(cfg.get("reinject_every_n_tokens", 8000))
     except Exception:
         window_turns = 5
+        reinject_threshold = 8000
+
+    # v0.4.32 token 启发式：累积 token 距上次注入未达阈值 → 不注入
+    accumulated = state.tool_byte_seq - state.last_reinject_byte_seq
+    if accumulated < reinject_threshold:
+        return ""
+
     recent_v = recent_turns(session_id, state.turn_count, window_turns=window_turns)
     if not recent_v:
+        # 无最近触发 sticky → 即使达阈值也不注入（无内容可提醒）。
+        # 但更新 last_reinject_byte_seq 防止下个 PostToolUse 立即再判定（节流）
+        state.last_reinject_byte_seq = state.tool_byte_seq
         return ""
-    # 只注入最近触发过的 sticky 简化提醒（不是全 sticky 重灌）
+
     triggered_sticky_ids = set(recent_v.keys())
     triggered_sticky = [s for s in sticky_list if s.id in triggered_sticky_ids]
     if not triggered_sticky:
+        state.last_reinject_byte_seq = state.tool_byte_seq
         return ""
-    lines = ["[karma 中段提醒 — 最近 turn 触发过的 sticky 别再犯]"]
-    for s in triggered_sticky[:3]:  # 最多 3 条避免淹没
-        # 只注入 id + 第一行 preference（简化版省 token）
+
+    lines = [f"[karma 中段提醒 — context 累积 ~{accumulated // 1000}K token，sticky 易衰减]"]
+    for s in triggered_sticky[:3]:
         first_line = s.preference.strip().split("\n")[0]
         lines.append(f"  - {s.id}: {first_line}")
+
+    # 注入后更新 last_reinject_byte_seq — 下次累积重新计算
+    state.last_reinject_byte_seq = state.tool_byte_seq
     return "\n".join(lines)
 
 

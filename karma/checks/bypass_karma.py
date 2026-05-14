@@ -56,7 +56,10 @@ _PYTHON_OR_SHELL_WRITE_RE = re.compile(
     r"\.write_text\b|\.write\b|"          # Python 写文件
     r"write_text\s*\(|write\s*\("
     r"|\.unlink\b|\.replace\b"            # Python unlink / replace
-    r"|json\.dump|p\.write"
+    # word boundary 关键 — 否则 `json.dumps` (序列化为字符串纯读) 被误判为
+    # `json.dump` (写 file-like) 假阳爆发；`p.writeable` 类字面也会被 `p.write`
+    # 误匹配。v0.4.32 dogfooding 真触发 fix
+    r"|json\.dump\b|p\.write\b"
     # v0.4.22：补 python 调 shell 真绕过接口（v0.4.13 漏拦真根因）
     r"|os\.(?:system|remove|unlink|rmdir|rename|popen)\b"
     r"|subprocess\.(?:run|call|Popen|check_output|check_call)\b"

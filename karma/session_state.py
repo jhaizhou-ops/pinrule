@@ -109,6 +109,17 @@ class SessionState:
     # Stop hook 本 turn 累积 block 次数 — 防 keep-pushing 干预死循环
     # 每个 user_prompt_submit 重置 0；累积 ≥ max 后 Stop hook 放 Agent 停
     stop_block_count: int = 0
+    # v0.4.32 中段注入 token 启发式（karma v3 第七步）：
+    # tool_byte_seq 累积主 Agent 真看到的 tool_input + tool_response 字节数
+    # （估算 token = bytes // 3，粗略中英文混合）。每个 PostToolUse +=
+    # _estimate_tokens(...)。每 turn 起手 user_prompt_submit hook 重置 0。
+    # last_reinject_byte_seq 跟踪「上次中段注入时的累积值」— 累积差 >= 阈值
+    # （sticky.yaml reinject_every_n_tokens 默认 8000）下个 PostToolUse 注入。
+    # 设计意图：抵御长 turn context 累积导致 sticky attention 衰减，按 token
+    # 累积维度（不是 tool call 数）— sub-agent / 大 Bash 输出真按主 Agent 看到
+    # 的 token 大小算，简单 Edit 不被错算大 weight。
+    tool_byte_seq: int = 0
+    last_reinject_byte_seq: int = 0
 
     def has_read(self, file_path: str) -> bool:
         return _normalize_path(file_path) in self.read_files
@@ -285,6 +296,8 @@ def load(session_id: str, base_dir: Path | None = None) -> SessionState:
         pending_bg_tasks=list(d.get("pending_bg_tasks", []) or []),
         turn_count=int(d.get("turn_count", 0) or 0),
         stop_block_count=int(d.get("stop_block_count", 0) or 0),
+        tool_byte_seq=int(d.get("tool_byte_seq", 0) or 0),
+        last_reinject_byte_seq=int(d.get("last_reinject_byte_seq", 0) or 0),
     )
     return state
 
@@ -337,6 +350,8 @@ def save(state: SessionState, base_dir: Path | None = None) -> None:
         "pending_bg_tasks": state.pending_bg_tasks,
         "turn_count": state.turn_count,
         "stop_block_count": state.stop_block_count,
+        "tool_byte_seq": state.tool_byte_seq,
+        "last_reinject_byte_seq": state.last_reinject_byte_seq,
     }
     # tmp 名加 pid + nanosecond 避免并发 PostToolUse 同 session 写冲突
     import os
