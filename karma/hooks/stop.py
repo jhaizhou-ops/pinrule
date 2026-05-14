@@ -17,7 +17,11 @@ from karma import session_state
 from karma.checks import run_checks
 from karma.notify import notify
 from karma.sticky import StickyConfigError, load
-from karma.violations import Violation, append, detect
+from karma.violations import Violation, append, count_recent, detect
+
+# 累积告警阈值：30 分钟内同 sticky 违反 ≥ 3 次 → 升级严重度
+_ESCALATE_WINDOW_SEC = 1800
+_ESCALATE_THRESHOLD = 3
 
 
 def _read_last_assistant_response(transcript_path: str) -> str:
@@ -132,8 +136,20 @@ def main() -> int:
         notify_msgs.append(f"{v.sticky_id} — {v.trigger}")
 
     # 桌面通知（合并多条违反到一条 notification 避免轰炸；fail open）
+    # 累积告警：本次违反含 30 分钟内已累积 ≥3 次同 sticky → 升级严重度
     if notify_msgs:
-        notify("karma 检测违反", " / ".join(notify_msgs[:3]))
+        hit_sticky_ids = {h.sticky_id for h in check_hits} | {
+            v.sticky_id for v in keyword_violations if v.sticky_id not in seen_ids
+        }
+        counts = count_recent(window_sec=_ESCALATE_WINDOW_SEC)
+        escalated_ids = [sid for sid in hit_sticky_ids if counts.get(sid, 0) >= _ESCALATE_THRESHOLD]
+        if escalated_ids:
+            notify(
+                f"🚨 karma 严重 — 累积违反 {len(escalated_ids)} 条",
+                " / ".join(f"{sid} (×{counts[sid]})" for sid in escalated_ids[:3]),
+            )
+        else:
+            notify("karma 检测违反", " / ".join(notify_msgs[:3]))
 
     # 也可以通过 additionalContext 让 Claude 看到 — 但 Stop 后 Claude 已停，
     # 主要给下次 UserPromptSubmit 的 sticky 注入加 RECENT_VIOLATION 标记

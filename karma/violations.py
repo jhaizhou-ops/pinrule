@@ -177,6 +177,43 @@ def recent(
     return out
 
 
+def count_recent(
+    path: Path | None = None,
+    window_sec: int = 1800,
+    now: int | None = None,
+    tail_lines: int = 500,
+) -> dict[str, int]:
+    """返回 window_sec 内每条 sticky_id 的违反**次数**计数。
+
+    跟 `recent` 区别：recent 返回最新 ts，本函数返回累积 count。
+    用于累积警报判定（如 30 分钟内同 sticky ≥ 3 次升级严重度）。
+    """
+    if path is None:
+        path = DEFAULT_PATH
+    if not path.exists():
+        return {}
+    now = now or int(time.time())
+    cutoff = now - window_sec
+    out: dict[str, int] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()[-tail_lines:]
+    except OSError:
+        return {}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+            ts = int(d.get("ts", 0))
+            sid = d.get("sticky_id", "")
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if ts >= cutoff and sid:
+            out[sid] = out.get(sid, 0) + 1
+    return out
+
+
 def load_all(path: Path | None = None) -> list[Violation]:
     """读全部 violations（CLI stats 用）。"""
     if path is None:

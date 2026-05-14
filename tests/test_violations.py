@@ -180,3 +180,42 @@ def test_append_triggers_rotation_automatically(tmp_path: Path, monkeypatch) -> 
     append(items, path=p)
     # 应已自动 rotate
     assert (tmp_path / "violations.jsonl.1").exists(), "append 应自动触发 rotation"
+
+
+# ---- count_recent — 累积警报基础 ----
+
+def test_count_recent_returns_count_per_sticky(tmp_path: Path) -> None:
+    """count_recent 返回 window_sec 内每个 sticky_id 的违反次数（不是最新 ts）。"""
+    from karma.violations import count_recent
+    p = tmp_path / "violations.jsonl"
+    items = [
+        Violation(ts=1000, session_id="s", sticky_id="r1", trigger="x", snippet="."),
+        Violation(ts=1100, session_id="s", sticky_id="r1", trigger="x", snippet="."),
+        Violation(ts=1200, session_id="s", sticky_id="r1", trigger="x", snippet="."),
+        Violation(ts=1300, session_id="s", sticky_id="r2", trigger="x", snippet="."),
+    ]
+    append(items, path=p)
+    out = count_recent(p, window_sec=1000, now=2000)
+    assert out["r1"] == 3
+    assert out["r2"] == 1
+
+
+def test_count_recent_filters_outside_window(tmp_path: Path) -> None:
+    """超出 window_sec 的违反不算。"""
+    from karma.violations import count_recent
+    p = tmp_path / "violations.jsonl"
+    items = [
+        Violation(ts=1000, session_id="s", sticky_id="r1", trigger="x", snippet="."),  # 25 min 前
+        Violation(ts=2000, session_id="s", sticky_id="r1", trigger="x", snippet="."),  # 当前窗口内
+    ]
+    append(items, path=p)
+    # 窗口 500 秒，now=2200 → 只数 ts >= 1700 的
+    out = count_recent(p, window_sec=500, now=2200)
+    assert out["r1"] == 1
+
+
+def test_count_recent_no_file(tmp_path: Path) -> None:
+    """文件不存在 → 返回空 dict。"""
+    from karma.violations import count_recent
+    out = count_recent(tmp_path / "no.jsonl")
+    assert out == {}
