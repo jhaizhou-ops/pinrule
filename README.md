@@ -318,6 +318,16 @@ karma init --no-minimal # 强制 7 条完整
 - ❌ **不引入 LLM** — 全工程化（regex / 计数 / 上下文判定）
 - ❌ **不做奖惩 / 评分** — karma 是行为提示不是 RL
 
+## 诚实的工具边界
+
+karma 是 **regex 字面匹配 + 计数**的工程工具，不是大模型语义理解。这意味着：
+
+- **真有假阳**（误拦你的合法操作） — 表格 cell 引用术语 / `python -c` 内字符串字面 / commit message 描述违反字眼等场景都可能误拦。遇到时按 `karma audit` 看 `⚠️ 可能假阳` 标记，给作者反馈
+- **真有假阴**（漏拦真违反） — 用户故意伪装（假数字「9999 测试通过」/ kebab-case 包裹 ML 真 jargon 等）regex 分不清。karma 信任用户不蓄意作弊
+- **`karma audit` 修后 0 触发 ≠ 真根因 fix 正确** — 可能只是 fix 过宽把真阳吃了。dogfooding 数据是嫌疑提示不是 truth
+
+karma 是**让你注意自己偏好被 Agent 偏离时收到提示**，不是「绝对正确的行为审计」。把它当成 git 跟 lint 之间的工具用 — 给信号，不替决策。
+
 ## sticky.yaml 写法
 
 `~/.claude/karma/sticky.yaml`（`karma init` 会复制默认模板）:
