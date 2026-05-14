@@ -69,10 +69,46 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding 修真 bug。
   `sticky.example.yaml`（重命名后忘同步）。修正为 `sticky.dev.example.yaml`
   + `config.example.yaml`。
 
+### 评审驱动的发布质量打磨
+
+4 个独立 Opus 4.7 评审 Agent 跑出来的 P0 / P1 / P2 全部落地：
+
+**安全 / 隐私**：
+- `violations.py` 写入前 snippet 脱敏（`/Users/<name>/` → `~/`，长度上限 120 字符）
+- `notify.py` argv 清洗（剥前导 `-` + 限长 + 折叠换行）防 notify-send / msg
+  把用户 `violation_keywords` 当 flag 解析
+- `cli.py install-hooks` JSONDecodeError 改 abort + 提示（之前静默覆盖会清空
+  用户其他 settings.json 配置如 permissions / mcp / env）
+- `_save_settings` 改 tmp + `os.replace` 原子写防中断 truncate
+- 每次 install-hooks 额外写带时间戳备份（保留初次 `.before-karma` + ts 版本）
+
+**假阳收紧（首装最高频痛点）**：
+- `long_term --no-verify/--skip*/--force` 泛 flag 收紧到「git 危险动作 + 危险
+  flag 同句」（之前 pytest --skip-broken / pip install --skip-existing /
+  cmake --force / rsync --force 等合法 flag 全命中）
+- `non_blocking._WAIT_RE` 改 `_is_blocking_wait` helper（拆子命令独立看，
+  kubectl wait / docker wait / aws cloudformation wait / gcloud / az 豁免）
+- `bypass_karma._WRITE_OP_RE` 移除 `cp/mv/rm`（用户备份 karma 状态文件 /
+  清老 rotation 是合法自治，真 hack 路径用 `echo > / python write_text` 仍能 catch）
+- `keep_pushing` 加 `_SUCCESS_REPORT_RE` 豁免「数字 + 通过词」类汇报
+  （sticky #4「完成要有证据」鼓励的行为不该被 #7 罚）
+- `read_first` 路径规范化（`./foo.py` / `foo.py` / `/abs/foo.py` / `~/foo.py` 等价）
+
+**代码质量 refactor**：
+- `karma/checks/_types.py` 抽 `CheckHit` / `CheckFn` Protocol —— 消除 8 处
+  子模块函数体内反向 `from karma.checks import CheckHit` 循环依赖代码味道
+- `violations.py` 抽 `_scan_tail_jsonl` 用 `collections.deque(maxlen=N)`
+  真 tail（之前 `splitlines()[-N:]` 是全文件读再切片）；4 个 `recent_*`
+  从 20+ 行重复减到 8-12 行调用 helper
+- `run_checks` 加 `KARMA_DEBUG=1` 门控的 stderr trace（check 函数抛异常时
+  打 traceback 让用户调试自定义 check 不再黑盒）
+
 ### Test / Quality
 
-- 232 个测试全过；ruff lint 0 error；vulture 死代码扫 0 输出。
+- 241 个测试全过；ruff lint 0 error；vulture 死代码扫 0 输出。
 - `pip install -e ".[dev]"` 装 pytest + ruff + vulture。
+- `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
+  vulture + pytest + wheel build。
 
 [Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.1.0
