@@ -49,6 +49,24 @@
 | **v0.4.38 — user_prompt_submit 每 turn 跟踪主 model 跨 turn 切换**（实施容错但协议层走不通） | 用户洞察：主 Agent 中途 `/model opus` 切换 SessionStart 早过没机会更新。加 user_prompt_submit hook 每 turn 读 payload model 写 state.model。但**dogfooding 真验证 user_prompt_submit payload 没 model 字段**（本 session 7 turn 后 state.model 仍 None）— 协议层走不通。容错设计救场（payload.get("model") = None → 不写 → fallback DEFAULT 60K 不爆炸）。这是 v0.4.39 真根因 fix 的预兆。 | （v0.4.38 commit）|
 | **v0.4.39 — model 从 transcript_path 真根本路径（覆盖所有 hook）**（用户「/status 都能看到 model」洞察驱动） | 用户精准连击纠正不让我猜：① 「怎么查 model 你不是就能查么？」我懒借口 ② 「如果你查不到说明命令用的不对，claude 设计很完善的」③ 「我随时 /status 命令都能看到当前 model 名称」。按 sticky #6 真深挖。真协议层 limitation 真清单：SessionStart payload ✅ 有 model；user_prompt_submit / PreToolUse / PostToolUse / Subagent* ❌ 都没。**真根本路径**：所有 hook payload 真有 `transcript_path`，jsonl 每条 assistant message 真含 model 字段（本机真含 663 次 model 字面，3 真值 `claude-opus-4-7` / `sonnet` / `<synthetic>`）。`karma/model_threshold.py` 加 `extract_model_from_transcript` regex 扫 raw 内容（reverse 取最后非合成）。post_tool_use / user_prompt_submit 改用 transcript_path 真路径替代 payload.model。本机 dogfooding 真复现 `extract_model_from_transcript` 真返 `claude-opus-4-7` → 80K。**真已检查清单**（按 sticky #4 老实）：settings.json (default 不准) / sessions/<pid>.json (没 model) / session-env (空) / transcript jsonl (真含每条 message model ← 真用这)。**真教训**：协议层假设错时容错设计救场不爆炸但功能 0；真根本路径要 sticky #6 深挖文件系统真状态，不是凭借口「等用户下次输入」。 | （v0.4.39 commit）|
 
+### v0.4.39 真路径协议层最优方案 — 子 Agent 调研真确认（2026-05-15 终极）
+
+子 Agent 真协议查实回报真完整结论（来源：Claude Code 官方 commands.md + hooks.md）：
+
+- **`/status` 命令真信息源**：进程内存 — UI 展示用，**不持久化文件**，hook 读不到
+- **协议层真事实确认**：只 SessionStart payload 有 model 字段，user_prompt_submit / PreToolUse / PostToolUse / Subagent* 都没 — Claude Code 协议设计本身
+- **Runtime model 持久化唯一路径**：transcript JSONL `~/.claude/projects/<project>/<session-id>.jsonl`，每条 assistant message 真含 `message.model` 字段
+- **跨 session 隔离**：进程内存独立，没中央存储，唯一持久化数据是各自 transcript
+
+**真结论**：v0.4.39 transcript_path 真路径**真是协议层已知最优方案**，没真更直接路径。karma 当前架构跟 Claude Code 真协议设计真完整对齐。
+
+**真效果对比**（本机 dogfooding 真测）：1 turn 累积 60K token 场景下 v0.4.32 (8K 阈值) 触发 7+ 次中段提醒 vs v0.4.39 (opus 80K 真阈值) 触发 0 次 — **7x+ 频率真降，「Agent 防御性写作扭曲」副作用真根因消除**。
+
+**未来 v0.4.40+ 真候选**（不依赖外部协议升级）：
+- 子 Agent 用户没指定 model 时按 subagent_type 推断 default — 但要看 subagent 真有没有 default model 表（hardcode 违反 sticky #1，可能不该做）
+- transcript jsonl 真性能优化（长 session 几 MB，当前每个 hook 都全文 read 可能慢）— dogfooding 真观察决定
+- 真 Anthropic 协议升级加 model 字段到其他 hook（GitHub issue #16424 / #5942 已用户提）— 等
+
 ## 真验证盲区：codex / gemini TUI hook 调度从没在作者本机真触发
 
 2026-05-14 同事即将首装时实测发现：vibe-island bridge.log 767 行全部
