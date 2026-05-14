@@ -293,6 +293,29 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
    不在 0 字范围。
    - 接受：语义判断难做，记 HANDOFF
 
+### karma 下个 milestone 真根本方向（2026-05-14 dogfooding 自评触发）
+
+本 session 累积 33 次 keep-pushing + 11 次 chinese-plain + 各种其他违反 =
+我作为 Agent 多次真行为没符合 sticky。本回合 12 个 release 提高了 **karma 信号
+精度** 但**没真改 Agent 行为本身** — 所有 fix 都是 reactive（拦得更准），
+不是 proactive（让 Agent 自然按 sticky 行为）。
+
+karma v2 当前架构本质是「**事后审计 + 拦截**」工具：Agent 跑完一 turn → hook
+扫违反 → 警告 / force_block。但 Agent 写下一 turn 时不会自然「先想 sticky 再
+决定」— sticky 注入只是 UserPromptSubmit 时的提示，Agent 处理过程中没持续
+锚定。
+
+下个 milestone 可能方向（按价值排序）：
+1. **sticky 注入位置优化** — 当前 UserPromptSubmit 注入在 user prompt 头部，
+   Agent 长响应过程中 sticky 离 context 太远。可考虑在每个 tool call 前后
+   reinject sticky 关键词作 anchor（但要小心 token 成本）
+2. **proactive 内省 prompt** — Agent 输出每段 response 前自检 sticky 一遍。
+   工程：写 response 前 prompt 加「先复述 8 条 sticky 是否会违反任何一条 → 不
+   会才输出」— 这是 chain-of-thought 但守 v2 不用 LLM 边界？算不算？需思考
+3. **行为模式聚类** — 不是单 turn 检测，是跨 turn 看 Agent 是否真在按 sticky
+   行为。如「最近 10 turn 是不是 ≥ 80% 直接 tool call + ≤ 20% 等用户反馈」
+   作为「Agent 真按 sticky 8 行为」的指标
+
 ### Agent 在 karma 项目内汇报用词指南（2026-05-14 防 chinese-plain 38% 真违反复发）
 
 **为什么需要**：dogfooding 实测 chinese-plain 38% 触发 4 次是 **真违反不是
