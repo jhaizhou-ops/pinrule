@@ -130,7 +130,10 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
 
 ### 已知 bug / 待 fix 优先清单
 
-- **task #8 catchup 边缘 case 已修验证** — catchup_pending_bg 加到 UserPromptSubmit / PreToolUse / PostToolUse 三个 hook 后实战验证 pending=0、last_test_pass_ts 自动接进，fix 真生效。但极偶发场景可能仍漏，下个 session 注意 evidence 假阳是否再出现。
+- **task #8 catchup 多 hook fix 验证 OK** — catchup_pending_bg 加到 UserPromptSubmit / PreToolUse / PostToolUse 三个 hook 后实战验证 pending=0、last_test_pass_ts 自动接进。
+- **task #8.1 catchup race condition（本 session 末尾发现）** — 当 pending_bg_tasks 有滞留 entry（log file 仍存在），每次 hook 调用 catchup 都重复处理 → 反复推 ltp 到 pytest log 时间。如果同时手动 update ltp 到 future，后续 hook 会用 `_next_ts()` floor = max(ltp, le) 覆盖。
+  - **根因**：pending entry 没在 catchup 后被移除（看 catchup_pending_bg 代码 — 已经 still_pending list 应该 OK，但实战 ltp 仍被覆盖到旧值）
+  - **下个 session 优先**：dump 一次 catchup 调用前后的 pending_bg_tasks + ltp 变化，看是否是 race 还是 catchup 重复读同一 log
 - **历史假阳治理 workflow 验证** — 本 session 用 `karma violations clear --trigger <substring>` 选择性清掉 M4 fix 前累积的所有假阳：硬编码 / TODO / sleep 0 / quick fix 字面 / workaround / 先打个补丁 / 字面量列表 / 强制跳过验证 等。audit 从 33 → 11 条剩真违反，证明：
   1. fix 后立即清历史 = audit 视图干净
   2. 工具链完整：audit 找问题 → 修 pattern → clear 治理历史 → 进入纯 dogfooding 数据积累
