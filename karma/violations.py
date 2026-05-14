@@ -7,6 +7,7 @@ violations.jsonl 是 append-only 文件，每行一条 JSON：
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,22 @@ class Violation:
         }, ensure_ascii=False)
 
 
+def _sanitize_snippet(s: str, max_len: int = 120) -> str:
+    """snippet 脱敏 — 用户分享 violations.jsonl 排查时减少隐私泄漏。
+
+    - /Users/<name>/ → ~/    （macOS）
+    - /home/<name>/ → ~/     （Linux）
+    - 长度上限 max_len（避免响应正文整段进入记录）
+    - 换行折叠成空格（一行 jsonl 友好）
+    """
+    s = re.sub(r"/Users/[^/\s]+", "~", s)
+    s = re.sub(r"/home/[^/\s]+", "~", s)
+    s = s.replace("\n", " ").replace("\r", " ")
+    if len(s) > max_len:
+        s = s[: max_len - 1] + "…"
+    return s
+
+
 def detect(
     response: str,
     sticky_list: list[Sticky],
@@ -72,7 +89,7 @@ def detect(
                 session_id=session_id,
                 sticky_id=s.id,
                 trigger=kw,
-                snippet=response[start:end],
+                snippet=_sanitize_snippet(response[start:end]),
                 turn=turn,
             ))
             break  # 同一 sticky 多关键词命中只记第一个

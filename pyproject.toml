@@ -6,9 +6,29 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "jhz" }]
 license = { text = "MIT" }
+keywords = ["claude-code", "claude", "agent", "hook", "sticky", "preferences", "dogfooding"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
 dependencies = [
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jhaizhou-ops/karma"
+Repository = "https://github.com/jhaizhou-ops/karma"
+Issues = "https://github.com/jhaizhou-ops/karma/issues"
+Changelog = "https://github.com/jhaizhou-ops/karma/blob/main/CHANGELOG.md"
 
 [project.scripts]
 karma = "karma.cli:main"

@@ -22,6 +22,17 @@ def _escape_for_osascript(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
 
 
+def _sanitize_argv_text(s: str, max_len: int = 200) -> str:
+    """notify-send / msg 等命令行工具的参数清洗 — sticky.yaml 的
+    violation_keywords 是用户自定义不可信输入，传 argv 时可能含 `--icon=...`
+    类伪 flag 被 notifier 错误当 flag 处理。剥前导 `-`、合并换行、限长。
+    """
+    s = s.lstrip("-").replace("\n", " ").replace("\r", " ")
+    if len(s) > max_len:
+        s = s[: max_len - 1] + "…"
+    return s
+
+
 def _notify_macos(title: str, message: str) -> bool:
     script = (
         f'display notification "{_escape_for_osascript(message)}" '
@@ -44,7 +55,7 @@ def _notify_linux(title: str, message: str) -> bool:
         return False
     try:
         subprocess.run(
-            ["notify-send", title, message],
+            ["notify-send", _sanitize_argv_text(title, 80), _sanitize_argv_text(message)],
             timeout=2,
             check=False,
             capture_output=True,
@@ -60,8 +71,9 @@ def _notify_windows(title: str, message: str) -> bool:
     if not shutil.which("msg"):
         return False
     try:
+        combined = f"{_sanitize_argv_text(title, 80)}: {_sanitize_argv_text(message)}"
         subprocess.run(
-            ["msg", "*", f"{title}: {message}"],
+            ["msg", "*", combined],
             timeout=2,
             check=False,
             capture_output=True,

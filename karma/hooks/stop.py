@@ -9,6 +9,7 @@ Claude Code 实际协议:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -69,16 +70,17 @@ def main() -> int:
         print(json.dumps({}))
         return 0
 
-    # TEMP DEBUG: dump Stop hook 每次触发的 trace 到 /tmp/karma_stop_trace.log
-    # 验证 Claude Code Stop hook 是否在「user 立刻接 prompt 时」真跑
-    try:
-        import time as _t
-        from pathlib import Path as _P
-        _trace = _P("/tmp/karma_stop_trace.log")
-        with _trace.open("a", encoding="utf-8") as f:
-            f.write(f"[{_t.strftime('%H:%M:%S')}] Stop hook fired, session={payload.get('session_id', '')!r}\n")
-    except Exception:
-        pass
+    # 可选 debug trace — 仅当 KARMA_DEBUG_TRACE 环境变量指向可写路径时启用
+    # 不写死 /tmp 路径（跨平台 / 多用户机器互相覆盖）。production 默认完全关。
+    _trace_path = os.environ.get("KARMA_DEBUG_TRACE")
+    if _trace_path:
+        try:
+            import time as _t
+            from pathlib import Path as _P
+            with _P(_trace_path).open("a", encoding="utf-8") as f:
+                f.write(f"[{_t.strftime('%H:%M:%S')}] Stop hook fired, session={payload.get('session_id', '')!r}\n")
+        except OSError:
+            pass
 
     session_id = payload.get("session_id", "") or "default"
     transcript_path = payload.get("transcript_path", "")
@@ -180,23 +182,25 @@ def main() -> int:
     if notify_msgs:
         try:
             from karma.config import load as _load_config
-            cfg2 = _load_config()
-            force_threshold = int(cfg2.get("force_block_threshold", 5))
-            force_window = int(cfg2.get("escalate_window_turns", 3))
+            _cfg = _load_config()
+            force_threshold = int(_cfg.get("force_block_threshold", 5))
+            force_window = int(_cfg.get("escalate_window_turns", 3))
+            block_max = int(_cfg.get("stop_block_max_per_turn", 3))
         except Exception:
             force_threshold = 5
             force_window = 3
+            block_max = 3
         if force_threshold > 0 and state.turn_count > 0:
             counts_force = count_recent_turns(session_id, state.turn_count, window_turns=force_window)
             # force_block 豁免从 sticky.yaml 的 force_block_exempt 字段读
             # 「应该继续推进」类规则不该被「累积太多必须停下让用户介入」处罚
-            # （否则语义自我矛盾 — 用户作者实战发现 keep-pushing-no-stop 触发 4 次时该 bug）
+            # （否则语义自我矛盾 — 用户实战发现 keep-pushing-no-stop 触发该 bug）
             exempt_ids = {s.id for s in sticky_list if s.force_block_exempt}
             over_threshold = [
                 sid for sid, n in counts_force.items()
                 if n >= force_threshold and sid not in exempt_ids
             ]
-            if over_threshold and state.stop_block_count < int(cfg2.get("stop_block_max_per_turn", 3)) if "cfg2" in dir() else 3:
+            if over_threshold and state.stop_block_count < block_max:
                 state.stop_block_count += 1
                 try:
                     session_state.save(state)

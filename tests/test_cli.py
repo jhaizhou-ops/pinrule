@@ -157,6 +157,35 @@ def test_install_hooks_tool_events_keep_matcher(fake_home):
         assert karma_entries[0].get("matcher") == "*", f"{event} 必须 matcher='*'"
 
 
+def test_install_hooks_aborts_on_corrupted_settings(fake_home, capsys):
+    """settings.json 损坏（非合法 JSON）→ abort 不覆盖。
+
+    评审 D Agent 指出真风险：之前 JSONDecodeError 静默返回 {} → save 时
+    把用户其他配置（permissions / mcp / env）全清空。改成 abort + 提示
+    用户手工修复后重跑。
+    """
+    p = fake_home / ".claude" / "settings.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("{ not valid json", encoding="utf-8")
+    original_size = p.stat().st_size
+
+    rc = cli.cmd_install_hooks()
+    captured = capsys.readouterr()
+    assert rc == 1, "settings.json 损坏应返回非零退出码"
+    assert "解析失败" in captured.err or "解析失败" in captured.out
+    # 关键：损坏的 settings.json 没被覆盖
+    assert p.stat().st_size == original_size
+    assert "{ not valid json" in p.read_text(encoding="utf-8")
+
+
+def test_install_hooks_writes_atomic(fake_home):
+    """_save_settings 用 tmp + os.replace 原子写，无残留 tmp 文件。"""
+    cli.cmd_install_hooks()
+    settings_dir = fake_home / ".claude"
+    tmp_files = list(settings_dir.glob("*karma-tmp*"))
+    assert not tmp_files, f"原子写不该留 tmp 文件: {tmp_files}"
+
+
 def test_install_hooks_backs_up_first_time(fake_home):
     """第一次运行 → 创建 settings.json.before-karma 备份。"""
     original = {"model": "opus", "hooks": {}}

@@ -85,20 +85,36 @@ def _is_karma_entry(entry: dict) -> bool:
     return False
 
 
+class _SettingsParseError(Exception):
+    """settings.json 损坏 — 调用方需要 abort 不能静默覆盖。"""
+
+
 def _load_settings() -> dict:
+    """读 ~/.claude/settings.json。
+
+    文件不存在 → 返回 {}（首次 install 正常路径）。
+    JSON 损坏 → 抛 _SettingsParseError 让调用方 abort（绝不静默覆盖用户配置）。
+    """
     p = _settings_path()
     if not p.exists():
         return {}
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return {}
+    except json.JSONDecodeError as e:
+        raise _SettingsParseError(
+            f"settings.json 解析失败: {e}\n"
+            f"路径: {p}\n"
+            f"karma 不会覆盖损坏的配置。请手工修复 JSON 后重跑 install-hooks。"
+        ) from e
 
 
 def _save_settings(data: dict) -> None:
+    """原子写 settings.json — tmp + os.replace 防中断 truncate 半文件。"""
     p = _settings_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = p.with_suffix(p.suffix + f".karma-tmp.{os.getpid()}")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, p)
 
 
 def _remove_karma_entries(settings: dict) -> dict:
@@ -485,27 +501,17 @@ def cmd_doctor() -> int:
         except Exception:
             pass
 
-    # Stop hook 实战触发状态（trace 文件分析）— 验证 Claude Code Stop hook 是否真跑
-    from pathlib import Path as _Path
-    trace = _Path("/tmp/karma_stop_trace.log")
-    if trace.exists():
-        try:
-            lines = trace.read_text(encoding="utf-8").strip().splitlines()
-            real_session_lines = [
-                ln for ln in lines
-                if "session='" in ln and not any(
-                    f"session='{tag}'" in ln for tag in
-                    ("test", "s", "force", "block_test", "max_block", "stop_check", "stop_ok",
-                     "catchup_ups", "read_fail", "read_str_fail", "edit_fail", "bash_fail",
-                     "read_ok", "write_then_edit", "edit_only", "docs_edit", "code_edit", "yaml_write",
-                     "max_block", "no-patch", "test-session", "abc", "abc123", "x")
-                )
-            ]
-            print(f"  Stop hook 触发记录: 总 {len(lines)} 条，真实 session {len(real_session_lines)} 条")
-            if len(real_session_lines) == 0 and len(lines) > 0:
-                print("    ⚠️ Stop hook 在真实 session 中没触发 — Claude Code 协议层 limitation")
-        except OSError:
-            pass
+    # Stop hook trace 状态（仅当 KARMA_DEBUG_TRACE 指向可读文件时显示）
+    _trace_env = os.environ.get("KARMA_DEBUG_TRACE")
+    if _trace_env:
+        from pathlib import Path as _Path
+        trace = _Path(_trace_env)
+        if trace.exists():
+            try:
+                n_lines = sum(1 for _ in trace.open(encoding="utf-8"))
+                print(f"  Stop hook trace ({trace}): {n_lines} 条触发记录")
+            except OSError:
+                pass
 
     # hook 安装检测 — 每个 event 三项：wrapper 存在 / 可执行 / settings.json 含引用
     status = _check_hooks_installed()
@@ -554,15 +560,28 @@ def cmd_install_hooks() -> int:
         old_pr.unlink()
         print(f"  删除旧版: {old_pr}")
 
-    # 备份原 settings.json（仅首次，不覆盖已有备份）
+    # 备份原 settings.json — 保留「初次」备份 + 每次 install 写带 ts 的备份
+    # 防止：(1) 用户 settings 已 karma 化后再 install-hooks 二次覆盖丢配置
+    #       (2) 中途 install 出错后从最近备份恢复
     settings_path = _settings_path()
     backup_path = _settings_backup_path()
-    if settings_path.exists() and not backup_path.exists():
-        backup_path.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
-        print(f"  备份原 settings: {backup_path}")
+    if settings_path.exists():
+        if not backup_path.exists():
+            backup_path.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"  备份原 settings: {backup_path}")
+        ts_backup = settings_path.with_suffix(
+            settings_path.suffix + f".before-karma.{int(time.time())}"
+        )
+        ts_backup.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
+        print(f"  本次备份: {ts_backup}")
 
     # 改 settings.json — 先清旧 karma entry 再加新的（idempotent + 保留他人 hook）
-    settings = _load_settings()
+    # JSON 损坏时 _load_settings 会 raise _SettingsParseError，这里直接 abort
+    try:
+        settings = _load_settings()
+    except _SettingsParseError as e:
+        print(f"\n{e}", file=sys.stderr)
+        return 1
     _remove_karma_entries(settings)
     _add_karma_entries(settings)
     _save_settings(settings)
