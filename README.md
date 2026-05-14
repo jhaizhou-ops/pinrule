@@ -105,7 +105,7 @@ karma 做三件事：
 - **桌面通知（macOS / Linux / Windows）** — stop hook 检测违反时弹系统通知（用户离开 stderr 视野时的补充）。`KARMA_NO_NOTIFY=1` 或 `notify_enabled: false` 关
 - **累积告警按 turn 维度** — 最近 N turn 内同 sticky 违反 ≥ M 次 → 升级 🚨 严重通知
 - **⚠️ 标记按 turn 维度** — 最近 N turn 内违反过的 sticky 下次 user_prompt_submit 注入时标红
-- **Stop hook 真干预（keep-pushing）** — Agent 沉默式停下（末尾问号 / 停顿语气词 + 无推进信号）时 Stop hook 输出 `decision=block` 让 Agent 不真停下，继续生成下一步。Safeguard：单 turn 内累积 block ≥ N 次后真放停，防死循环。配置：`stop_block_max_per_turn: 3`（0 = 完全关）
+- **Stop hook 真干预（keep-pushing）** — Agent 沉默式停下时输出 `decision=block` 让 Agent 不真停下，继续生成下一步。检测逻辑：response 末尾 80 字按豁免优先级判：推进信号（我现在/接下来 + 动词）/ 问号（合理询问决策应鼓励）→ 豁免；停顿语气词（下次 / 先到这 / 告一段落）/ 默认（纯陈述完结无推进无问号 = 真停下）→ 命中。Safeguard：单 turn 内累积 block ≥ N 次后真放停，防死循环。配置：`stop_block_max_per_turn: 3`（0 = 完全关）
 
 **为啥按 turn 不按时间**：Agent 注意力漂移按 turn 累积。用户离开开会 30 分钟回来跟连续操作 30 分钟，Agent 状态完全不同 — 按人类时钟错维度。
 

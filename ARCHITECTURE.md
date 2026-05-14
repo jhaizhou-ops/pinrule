@@ -197,7 +197,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 | `loud_failure_with_evidence` | 完成证据 | 完成词 / weak claim 在代码任务上下文 + 无测试证据 |
 | `no_testset_no_future_leakage` | 不喂测试集 | gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值位置 |
 | `read_before_write` | 先读再写 | Edit/Write 前未 Read 该 file_path（Write 新文件豁免） |
-| `keep_pushing_no_stop` | 不主动停 | response 末尾 80 字含问号 / 停顿语气词（下次 / 先到这 / 告一段落 等）+ 无推进信号 → 疑似停下等用户 |
+| `keep_pushing_no_stop` | 不主动停 | response 末尾 80 字按豁免优先级判：1) 含推进信号（我现在/接下来 + 动词）→ 豁免（有下一步计划）2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中（明确暂停）4) 默认命中（纯陈述完结无推进无问号 = 真停下） |
 
 每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
 
