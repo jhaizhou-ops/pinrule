@@ -77,6 +77,29 @@ def test_read_only_inspection_passes():
     assert hit is None  # 没写操作
 
 
+def test_readonly_inspection_with_dev_null_redirect_passes():
+    """dogfooding 实测真假阳：`2>/dev/null` stderr 转黑洞不算写，
+    只读 inspection 含 karma 状态路径字面（`~/.claude/karma/session-state`）
+    不该被拦。
+
+    实际触发：`python -c "...session_state.load(...)" 2>/dev/null` 含 karma 内部
+    路径 + `2>/dev/null` 之前被 `>\\s*[/.~\\w]` pattern 误识别为写。修：lookahead
+    排除 /dev/null/zero/stderr/stdout 等丢弃目标。
+    """
+    for cmd in [
+        'python -c "from karma import session_state; print(session_state.load(\'x\').turn_count)" 2>/dev/null',
+        'ls ~/.claude/karma/session-state/*.json 2>/dev/null | head -1',
+        'cat ~/.claude/karma/violations.jsonl 2>/dev/null | head -3',
+    ]:
+        assert _check(cmd) is None, f"只读 inspection + dev/null 重定向不该拦: {cmd!r}"
+
+
+def test_real_write_to_dev_null_alternatives_still_blocked():
+    """对偶：真写 karma 状态到普通文件仍要拦（不能因放宽 /dev/null 全放过）。"""
+    cmd = 'echo bad > ~/.claude/karma/session-state/abc.json'
+    assert _check(cmd) is not None, "真写 karma 状态文件该拦"
+
+
 def test_user_backup_karma_files_passes():
     """评审 B Agent 真痛点：用户自己 cp / mv / rm karma 状态文件（备份 /
     清老 rotation）是合法操作，不该拦。攻击者用 echo > / python write

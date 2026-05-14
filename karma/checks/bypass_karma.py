@@ -49,7 +49,9 @@ _WRITE_OP_RE = re.compile(
     r"(?:"
     r"\.write_text\b|\.write\b|"          # Python 写文件
     r"write_text\s*\(|write\s*\("
-    r"|>\s*[/.~\w]"                       # shell 重定向写
+    # shell 重定向写 — `> file`。排除目标 /dev/null 等丢弃路径
+    # （`2>/dev/null` stderr 转黑洞不算写）。`2> /tmp/x.log` 写真文件仍算写。
+    r"|>\s*(?!/dev/(?:null|zero|stderr|stdout))[/.~\w]"
     r"|\.unlink\b|\.replace\b"            # Python unlink / replace
     r"|json\.dump|p\.write"
     r")",

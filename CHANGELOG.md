@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-05-14（patch — dogfooding 实测发现 bypass_karma 假阳）
+
+### Fixed
+
+`bypass_karma._WRITE_OP_RE` 误识别 `2>/dev/null` 类 stderr 重定向为写操作。
+
+**实测触发场景**：跑 `python -c "...session_state.load(...)" 2>/dev/null`
+只读 inspection karma 内部状态时被误拦 — 命令含 karma 状态路径字面
+（`~/.claude/karma/session-state`） + `2>/dev/null` 之前被
+`>\s*[/.~\w]` pattern 命中算「写」→ has_internal + has_write 都 True → 拦。
+
+修：regex 加 lookahead 排除 `/dev/null` / `/dev/zero` / `/dev/stderr` /
+`/dev/stdout` 等丢弃目标 — 它们不是真写到文件系统。
+
+```python
+>\s*(?!/dev/(?:null|zero|stderr|stdout))[/.~\w]
+```
+
+对偶守护：`2> /tmp/err.log` 这种真写日志文件**仍**算写（lookahead 只排除
+丢弃目标，普通文件路径不放过）；`echo bad > ~/.claude/karma/session-state/abc.json`
+真写 karma 状态仍要拦。
+
+加 2 条守护测试覆盖只读 inspection + 真写对偶。
+
+### Test
+
+测试 302 → 304 全过，ruff / mypy / vulture 0 issue。
+
 ## [0.4.1] — 2026-05-14（patch — 抽 JsonHooksBackend 共用基类降未来 backend 成本）
 
 ### Refactor
@@ -387,7 +415,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.2
 [0.4.1]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.1
 [0.4.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.0
 [0.3.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.3.0
