@@ -135,3 +135,27 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 - ❌ **不要破坏他人 hook 共存**（vibe-island / rtk 等同 event 多 entry 必须保留）
 - ❌ **配置文件原子写**（基类已实现 tmp + os.replace 不用动）
 - ❌ **不要硬编码 backend id 名字到核心逻辑** — 加 backend 不该改 cli.py 等核心代码
+
+## 候选 backend 清单（vibe-island 实证情报，待真装真测）
+
+读 `~/.vibe-island/bin/vibe-island-bridge` zsh 脚本第 28 行拿到的 vibe-island
+实证支持的客户端配置文件路径清单。**这是二手情报需要真装客户端实测协议字段**
+才能加 backend — 留这里给未来贡献者按列表挑：
+
+| 客户端 | 推测配置路径 | 状态 |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | ✓ v0.1.0 起 |
+| Codex CLI | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
+| Gemini CLI | `~/.gemini/settings.json` | ✓ v0.4.0 起 |
+| Cursor | `~/.cursor/hooks.json` | 待装 + 实测 |
+| Factory | `~/.factory/settings.json` | 待装 + 实测 |
+| Qoder | `~/.qoder/settings.json` | 待装 + 实测 |
+| GitHub Copilot | `~/.copilot/config.json` | 待装 + 实测（可能没 hook 协议） |
+| CodeBuddy | `~/.codebuddy/settings.json` | 待装 + 实测 |
+| Kimi CLI | `~/.kimi/config.toml`（TOML 不是 JSON！） | 待装 + 实测 — TOML 格式可能不能直接继承 JsonHooksBackend |
+
+**真测试每家**前看清这家 hook 协议文档（如有）+ vibe-island 那家用啥
+event 名 + 客户端版本号（vibe-island 情报可能过时 — 我们实测发现 Codex
+真 feature 名是 `hooks` 不是 vibe-island config.toml 用的 `codex_hooks`）。
+
+**加新 backend 跟踪本文件这表格**，确保后人看到当前哪些已支持哪些待做。
