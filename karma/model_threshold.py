@@ -79,7 +79,6 @@ def extract_model_from_transcript(transcript_path: str | None) -> str | None:
         # reverse scan jsonl 找最后一条真 model（性能：长 session 可能几 MB，
         # 全文 read + reverse iter 是简单方案；优化版可用 tail seek 但当前
         # 文件大小（典型 < 10 MB）真不是瓶颈）
-        import json
         import re
         # 性能保守：用 regex 扫 raw 内容比逐行 json.parse 快 10x
         content = p.read_text(encoding="utf-8", errors="ignore")
