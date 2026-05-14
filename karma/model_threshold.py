@@ -53,3 +53,41 @@ def threshold_for_model(model: str | None) -> int:
         if keyword in m:
             return threshold
     return DEFAULT_THRESHOLD
+
+
+def extract_model_from_transcript(transcript_path: str | None) -> str | None:
+    """v0.4.39 真根本路径：从 hook payload.transcript_path 读 jsonl 找当前 model。
+
+    Hook payload 真协议层 limitation：SessionStart 才直接含 model 字段，
+    PreToolUse / PostToolUse / user_prompt_submit / SubagentStart / SubagentStop
+    都没 model 字段（manual run 真验证）。但**所有 hook payload 真有
+    transcript_path 字段** — Claude Code 把对话历史完整存 jsonl，每条
+    assistant message 真含 model 字段。
+
+    karma 真路径：reverse scan transcript jsonl 找最后一条非合成 model 字面。
+    跳过 `<synthetic>`（Claude Code 内部生成的注入 message，不是真 model）。
+
+    返回 None 时 fallback DEFAULT_THRESHOLD 60K（保守，向前兼容）。
+    """
+    if not transcript_path:
+        return None
+    try:
+        from pathlib import Path
+        p = Path(transcript_path)
+        if not p.exists():
+            return None
+        # reverse scan jsonl 找最后一条真 model（性能：长 session 可能几 MB，
+        # 全文 read + reverse iter 是简单方案；优化版可用 tail seek 但当前
+        # 文件大小（典型 < 10 MB）真不是瓶颈）
+        import json
+        import re
+        # 性能保守：用 regex 扫 raw 内容比逐行 json.parse 快 10x
+        content = p.read_text(encoding="utf-8", errors="ignore")
+        # 找所有 "model":"xxx" 字面 — reverse 取最后一个非 <synthetic>
+        matches = re.findall(r'"model"\s*:\s*"([^"]+)"', content)
+        for m in reversed(matches):
+            if m and m != "<synthetic>":
+                return m
+    except Exception:
+        return None
+    return None

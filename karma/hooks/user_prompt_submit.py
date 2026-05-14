@@ -74,13 +74,18 @@ def main() -> int:
         # 起手 sticky 已全量注入过 — 中段注入是「衰减后重新锚定」补丁）
         state.tool_byte_seq = 0
         state.last_reinject_byte_seq = 0
-        # v0.4.38 跨 turn model 跟踪：用户中途 /model opus 切换主模型时
-        # SessionStart 已过没机会更新主 state.model → user_prompt_submit
-        # 每 turn 都看 payload model 字段（如果协议有就更新，没就保留之前）。
-        # 容错设计跟 v0.4.36 SessionStart 同 — 协议有就用没就 fallback 之前值。
-        payload_model = payload.get("model")
-        if payload_model:
-            state.model = payload_model
+        # v0.4.39 真根本路径：user_prompt_submit payload 没 model 字段（dogfooding
+        # 真验证 — 7 turn 跑下来 state.model 仍 None 证明 payload 没 model）。
+        # 改用 transcript_path 真路径 — 所有 hook payload 真有 transcript_path，
+        # 读 jsonl 找最后一条 assistant model 字面。这覆盖 SessionStart 后中途
+        # /model 切换场景（v0.4.38 user_prompt_submit payload model 字段路径走
+        # 不通的真根因 fix）。
+        transcript_path = payload.get("transcript_path")
+        if transcript_path:
+            from karma.model_threshold import extract_model_from_transcript
+            new_model = extract_model_from_transcript(transcript_path)
+            if new_model:
+                state.model = new_model
         session_state.save(state)
         current_turn = state.turn_count
     except Exception:

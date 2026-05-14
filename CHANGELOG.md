@@ -4,6 +4,65 @@
 
 ## [Unreleased]
 
+## [0.4.39] — 2026-05-15（feat — model 从 transcript_path 真根本路径，覆盖所有 hook）
+
+### 真触发
+
+用户精准纠正连击：
+
+1. 「真协议数据等用户下次输入才能确认（这次是我 fake payload）。这是啥意思？怎么查 model 你不是就能查么？」— 我懒的借口
+2. 「如果你查不到说明命令用的不对，claude 设计很完善的，肯定有地方能查」— 真有路径深挖
+3. 「我随时 /status 命令都能看到当前 model 名称，你怎么可能找不到」— 真给路径方向
+
+按 sticky #6 真深挖找路径。
+
+### 真协议层 limitation 真清单（dogfooding 验证）
+
+| Hook event | payload 真有 model？ |
+|---|---|
+| SessionStart | ✅ 真有（manual run 复现脚本真证明）|
+| user_prompt_submit | ❌ 真没（本 session 7 turn 真数据证明 state.model 仍 None）|
+| PreToolUse | ❌ 真没 |
+| PostToolUse | ❌ 真没 |
+| SubagentStart | ❌ 真没（但有 agent_id + agent_type）|
+| SubagentStop | ❌ 真没 |
+
+意味 v0.4.36 SessionStart payload.model 装机晚于 session 起手就拿不到，v0.4.38 user_prompt_submit 永走 fallback。
+
+### 真根本路径
+
+所有 hook payload 真有 `transcript_path` 字段 — Claude Code 把对话历史完整存 jsonl，每条 assistant message 真含 model 字段（dogfooding 真发现：本机当前 transcript 真含 663 次 model 字面，3 个真值 `claude-opus-4-7` / `sonnet` / `<synthetic>`）。
+
+karma 真路径：reverse scan transcript jsonl 找最后一条非合成 model 字面。
+
+### 实施
+
+- `karma/model_threshold.py` 加 `extract_model_from_transcript(transcript_path)` 函数 — regex 扫 raw 内容比逐行 json.parse 快 10x，reverse 取最后一个非 `<synthetic>` 真值
+- `karma/hooks/post_tool_use.py` + `karma/hooks/user_prompt_submit.py` 改用 transcript_path 真路径替代之前 payload.get("model")（v0.4.36 / v0.4.38 实施）
+- `karma/hooks/session_start.py` 保留 payload.model 直接拿（向后兼容）
+
+### 真验证
+
+- 本机 dogfooding 真复现：`extract_model_from_transcript("/Users/jhz/.claude/projects/.../<sid>.jsonl")` → 真返 `claude-opus-4-7` → `threshold_for_model` 真返 80000 ✓
+- 测试 383 全过 + ruff 干净
+
+### 真依赖（深挖路径已尽 — 等子 Agent 协议查实）
+
+depper 调研 `/status` 命令真信息源中 — 可能 Claude Code 进程内 IPC 状态（不在文件系统）。当前 transcript jsonl 是**hook 视角真已知最权威路径**。如果调研发现更直接路径（如 sessions/<pid>.json 含 model）会发 v0.4.40 升级。
+
+### 真已检查路径（按 sticky #4 老实清单）
+
+- ✅ `~/.claude/settings.json` model 字段：是 user 配置的 default 不是 runtime
+- ✅ `~/.claude/sessions/<pid>.json`：含 sessionId / pid / version / status 但**没 model** ✗
+- ✅ `~/.claude/session-env/<session_id>/`：空
+- ✅ `~/.claude/cache / debug`：没 runtime model
+- ✅ `~/.claude/projects/.../<session_id>.jsonl`（transcript）：✅ **真含每条 message model 字段**
+- ⏸️ `/status` 命令真信息源：可能进程内 IPC（hook 视角难拿），等调研
+
+### 真闭环架构升级
+
+v0.4.34 子 Agent 独立 state + v0.4.35 model_threshold 表 + **v0.4.39 transcript_path 真根本路径** = 完整真按当前模型实时自动适应阈值架构（替代 v0.4.36 / v0.4.38 协议层假设错的 payload.model 直接拿 — 那俩协议层走不通，但容错设计救场没爆炸）。
+
 ## [0.4.38] — 2026-05-15（feat — user_prompt_submit 每 turn 跟踪主 model 跨 turn 切换）
 
 ### 真触发

@@ -70,12 +70,16 @@ def main() -> int:
     tool_response = payload.get("tool_response", "") or ""
 
     state = session_state.load(session_id, agent_id=agent_id)
-    # v0.4.35 模型自适应阈值：从 payload 提 model 字段更新 state.model
-    # 协议层有 model 字段时每次 hook 都覆盖更新（容错 — 没字段就保留之前值，
-    # 全 None 时 threshold_for_model 走 DEFAULT_THRESHOLD 60K fallback）
-    payload_model = payload.get("model")
-    if payload_model:
-        state.model = payload_model
+    # v0.4.39 真根本路径：PostToolUse payload 没 model 字段（manual run 真验证），
+    # 但所有 hook payload 真有 transcript_path → 读 jsonl 找最后一条 assistant
+    # message 的 model 字面（每个 assistant message 都含 model 字段，跳合成）。
+    # 这才是协议层真路径 — 不依赖 payload 直接含 model 字段。
+    transcript_path = payload.get("transcript_path")
+    if transcript_path:
+        from karma.model_threshold import extract_model_from_transcript
+        new_model = extract_model_from_transcript(transcript_path)
+        if new_model:
+            state.model = new_model
 
     # 先 catchup 之前 pending 的 background 任务输出（任务可能在中间完成了）
     # 这样能在后续 record 之前更新 last_test_pass_ts，保证 evidence check 看见
