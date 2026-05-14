@@ -39,6 +39,45 @@ def _read_settings(home: Path) -> dict:
 
 # ---- install-hooks ----
 
+def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch):
+    """`--backend all` 只装本机检测到的客户端，不装没检测到的。
+
+    实测装机已验证三家全装的场景，本测试 mock 单 backend 装机覆盖代码路径。
+    """
+    from karma.backends import CodexBackend, GeminiCLIBackend
+    # mock Codex / Gemini 都没装，只装 Claude Code
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
+    rc = cli.cmd_install_hooks(backend_name="all")
+    assert rc == 0
+    # 只有 Claude Code 装了 wrapper，其他 backend 没装
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
+    assert len(cc_wrappers) == 4
+    # Codex / Gemini 目录可能不存在（client 没装）— 不该建
+    assert not (fake_home / ".codex" / "hooks").exists() or \
+        not list((fake_home / ".codex" / "hooks").glob("karma_*.py"))
+
+
+def test_uninstall_all_backend_iterates_each_installed(fake_home, monkeypatch):
+    """`--backend all` 卸装应对每个检测到的 backend 各跑一遍卸装流程。"""
+    from karma.backends import CodexBackend, GeminiCLIBackend
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
+    cli.cmd_install_hooks(backend_name="all")
+    rc = cli.cmd_uninstall_hooks(backend_name="all")
+    assert rc == 0
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
+    assert cc_wrappers == [], "uninstall all 后 Claude Code wrapper 应清空"
+
+
+def test_install_hooks_unknown_backend_errors(fake_home, capsys):
+    """未知 backend 名报错不 silent fail。"""
+    rc = cli.cmd_install_hooks(backend_name="not-real-backend")
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "未知 backend" in captured.err or "not-real-backend" in captured.err
+
+
 def test_init_explicit_no_minimal_installs_7_sticky(fake_home, capsys):
     """karma init --no-minimal 强制装 7 条 dev.example（覆盖自动检测）。"""
     import karma.sticky
