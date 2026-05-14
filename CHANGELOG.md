@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-14（patch — 凭假设没验证反查）
+
+按用户「为啥有问题不修好呢」精神持续反查我之前用「假设的成本」推迟过的问题：
+
+### Fixed
+
+- **`ARCHITECTURE.md` 加「配置」章节** — v0.2.0 README 重组让链接指向
+  `ARCHITECTURE.md#配置` 但实际**那节不存在**（凭假设没 grep 就写链接）。
+  补完整字段表（10 条 config 字段 + 默认值 + 含义）+ 3 个调试环境变量说明
+  （`KARMA_NO_NOTIFY` / `KARMA_DEBUG` / `KARMA_DEBUG_TRACE`）。
+- **mypy 类型化** — 之前我说「会改 200+ 行」推迟，**真跑后只有 3 个 error**
+  10 分钟修完（`testset.py` / `long_term.py` underscore 变量名跨类型重用 →
+  `_label`；`cli.py:_karma_event_entry` dict 异质 value → `dict[str, object]`
+  显式标注）。mypy 加进 `[project.optional-dependencies].dev` + CI 步骤守护。
+
+### Test / Quality
+
+- `run_checks` `KARMA_DEBUG=1` 门控加 3 条守护测试 — 之前加了功能没真验证过
+  实际行为属于 sticky #4 「完成要有证据」违反。
+- 测试 246 → 249，CI 跨平台跨 Python 版本全过，mypy 0 issue。
+
 ## [0.2.0] — 2026-05-14（minor — README 重组 + 新增真中性 sticky 模板）
 
 ### Added
@@ -142,7 +163,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.2.1
 [0.2.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.2.0
 [0.1.1]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.1.1
 [0.1.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.1.0
