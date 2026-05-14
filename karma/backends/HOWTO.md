@@ -25,6 +25,19 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 
 ### 第 2 步：在 `karma/backends/` 新建一个 backend 文件
 
+**第 1 步调研项 → 第 2 步类属性对照表**（让填表闭环）：
+
+| 调研项 | 类属性 | 例子（Codex） |
+|---|---|---|
+| hook 配置文件路径 | `_CONFIG_DIR_NAME` + `_SETTINGS_FILENAME` | `".codex"` + `"hooks.json"`（自动拼成 `~/.codex/hooks.json`） |
+| 客户端命令名（PATH 检测） | `_CLIENT_CMD` | `"codex"`（检测 `command -v codex`） |
+| backend 注册名 | `name` | `"codex"` |
+| 用户可见名 | `display_name` | `"Codex CLI"` |
+| hook event 名映射 | `_HOOK_EVENTS` | `{"UserPromptSubmit": "user_prompt_submit", ...}` |
+| 是否要 matcher / timeout 字段 | override `build_event_entry`（可选） | Codex 加 `timeout: 30` |
+| 是否要启用步骤 | override `pre_install_setup`（可选） | Codex 跑 `codex features enable hooks` |
+| stdin payload 字段差异 | 改 `karma/hooks/stop.py` fallback 链（可选） | Codex 用 `last_assistant_message` 而非 `transcript_path` |
+
 参考 `karma/backends/gemini_cli.py` 最简洁的样板（继承 `JsonHooksBackend`
 只填类属性）：
 
@@ -47,6 +60,9 @@ class CursorBackend(JsonHooksBackend):
         "PostToolUse": "post_tool_use",
         "Stop": "stop",
     }
+
+    # ✓ 最小 stub 写到这里就停 — 默认不需要 override
+    # build_event_entry / pre_install_setup。基类 _json_hooks.py 提供合理默认。
 ```
 
 如果 backend 需要 matcher / timeout 字段在 hook entry 里：override
