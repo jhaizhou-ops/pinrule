@@ -15,7 +15,8 @@ from karma.checks.common import strip_shell_quoted_literals
 
 _STICKY_ID = "non-blocking-parallel"
 
-_SLEEP_RE = re.compile(r"\bsleep\s+\d+", re.IGNORECASE)
+# sleep 0 是 no-op 不阻塞（也常用于 yield 调度），只拦 sleep N (N >= 1)
+_SLEEP_RE = re.compile(r"\bsleep\s+([1-9]\d*|0?\.\d+|[1-9]\d*\.\d+)", re.IGNORECASE)
 _WAIT_RE = re.compile(r"(?:^|\s|\&)wait(?:\s|$|\&)", re.IGNORECASE)
 # 「真长任务」— 通常运行时间 ≥ 30s 的命令。短测试命令（pytest / jest 等多数项目
 # 跑得快 < 5s）从默认列表移除，避免 audit 指出的高频假阳（karma 自身测试 0.1s

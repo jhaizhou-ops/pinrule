@@ -168,6 +168,20 @@ def test_non_blocking_detects_sleep():
     assert "sleep" in hit.trigger
 
 
+def test_non_blocking_sleep_zero_not_blocking():
+    """sleep 0 是 no-op (shell 立即返回，不阻塞)，不该拦。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    hit = fn(tool_name="Bash", tool_input={"command": "sleep 0"})
+    assert hit is None
+
+
+def test_non_blocking_sleep_fractional_caught():
+    """sleep 0.5 仍是阻塞（半秒）— 应拦。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    hit = fn(tool_name="Bash", tool_input={"command": "sleep 0.5"})
+    assert hit is not None
+
+
 def test_non_blocking_detects_long_task_no_background():
     fn = REGISTRY["non_blocking_parallel"]
     # 真长任务（docker run / build）— 不带 background 命中
