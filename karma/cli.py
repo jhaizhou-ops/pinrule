@@ -367,10 +367,43 @@ def cmd_violations_recent(n: int = 20) -> int:
     return 0
 
 
-def cmd_violations_clear() -> int:
+def cmd_violations_clear(sticky_filter: str | None = None) -> int:
+    """清违反历史。
+    无参数 → 清全部
+    --sticky <id> → 只清该 sticky 的，保留其他（fix 后清除假阳累积用）
+    """
     if not VIOLATIONS_PATH.exists():
         print("没有违反历史可清。")
         return 0
+    if sticky_filter:
+        # 选择性清 — 保留非匹配 sticky 的记录
+        lines = VIOLATIONS_PATH.read_text(encoding="utf-8").splitlines()
+        keep_lines = []
+        removed = 0
+        import json as _json
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            try:
+                d = _json.loads(line_stripped)
+                if d.get("sticky_id") == sticky_filter:
+                    removed += 1
+                    continue
+            except _json.JSONDecodeError:
+                pass
+            keep_lines.append(line)
+        if removed == 0:
+            print(f"没找到 sticky_id={sticky_filter!r} 的违反记录。")
+            return 0
+        confirm = input(f"确认清 {removed} 条 sticky={sticky_filter!r} 的违反（保留 {len(keep_lines)} 条其他）? [y/N] ").strip().lower()
+        if confirm != "y":
+            print("已取消")
+            return 0
+        VIOLATIONS_PATH.write_text("\n".join(keep_lines) + ("\n" if keep_lines else ""), encoding="utf-8")
+        print(f"已清 {removed} 条 sticky={sticky_filter!r} 违反，保留 {len(keep_lines)} 条其他。")
+        return 0
+    # 全清
     n = sum(1 for _ in VIOLATIONS_PATH.open())
     confirm = input(f"确认清空 {n} 条违反历史? [y/N] ").strip().lower()
     if confirm != "y":
@@ -553,7 +586,11 @@ def main(argv: list[str] | None = None) -> int:
             n = int(args[1]) if len(args) > 1 else 20
             return cmd_violations_recent(n)
         if args[0] == "clear":
-            return cmd_violations_clear()
+            # 支持 --sticky <id> 选择性清
+            sticky_filter = None
+            if len(args) >= 3 and args[1] == "--sticky":
+                sticky_filter = args[2]
+            return cmd_violations_clear(sticky_filter)
         print(f"未知 violations 子命令: {args[0]}", file=sys.stderr)
         return 1
     print(f"未知命令: {cmd}\n{__doc__}", file=sys.stderr)
