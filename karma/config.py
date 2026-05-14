@@ -23,7 +23,9 @@ from typing import Any
 
 import yaml
 
-DEFAULT_PATH = Path.home() / ".claude" / "karma" / "config.yaml"
+from karma.paths import karma_home
+
+DEFAULT_PATH = karma_home() / "config.yaml"
 
 DEFAULTS: dict[str, Any] = {
     "notify_enabled": True,

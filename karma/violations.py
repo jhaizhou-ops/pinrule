@@ -14,7 +14,9 @@ from pathlib import Path
 
 from karma.sticky import Sticky
 
-DEFAULT_PATH = Path.home() / ".claude" / "karma" / "violations.jsonl"
+from karma.paths import karma_home
+
+DEFAULT_PATH = karma_home() / "violations.jsonl"
 RECENT_WINDOW_SEC = 24 * 3600  # 24h 内的违反在 sticky 注入时标 ⚠️
 SNIPPET_RADIUS = 30  # 触发词前后多少字符当 snippet
 

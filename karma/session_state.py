@@ -12,7 +12,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_DIR = Path.home() / ".claude" / "karma" / "session-state"
+from karma.paths import karma_home
+
+DEFAULT_DIR = karma_home() / "session-state"
 MAX_RECENT_BASH = 15  # 保留最近 N 条 Bash 摘要
 
 # Claude Code 真实 background tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}

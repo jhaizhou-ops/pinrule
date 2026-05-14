@@ -42,7 +42,9 @@ from karma.sticky import HARD_MAX, MAX_STICKY, StickyConfigError, load
 from karma.violations import DEFAULT_PATH as VIOLATIONS_PATH
 from karma.violations import load_all
 
-KARMA_DIR = Path.home() / ".claude" / "karma"
+from karma.paths import karma_home
+
+KARMA_DIR = karma_home()
 EXAMPLE_STICKY = Path(__file__).parent.parent / "data" / "sticky.dev.example.yaml"
 EXAMPLE_STICKY_MINIMAL = Path(__file__).parent.parent / "data" / "sticky.dev.minimal.example.yaml"
 EXAMPLE_CONFIG = Path(__file__).parent.parent / "data" / "config.example.yaml"

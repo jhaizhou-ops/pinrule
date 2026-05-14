@@ -4,6 +4,39 @@
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-05-14（patch — KARMA_HOME 环境变量 + sub-agent 评审驱动改进）
+
+「同事即将首装」我 spawn 一个 sub-agent 扮演陌生用户跑首装清单**真测试**，
+找到 5 条真问题。本版修最关键 P0：
+
+### Added — `KARMA_HOME` 环境变量支持
+
+之前 `~/.claude/karma` 路径写死 5 个模块（cli / sticky / violations /
+session_state / config）— dry-run / CI / 多 profile 都污染默认 home。
+sub-agent 评审作为 v2 边界 bug 标出。
+
+新建 `karma/paths.py:karma_home()` 单一来源 + 所有模块用它。`KARMA_HOME`
+env 隔离用法：
+
+```bash
+KARMA_HOME=/tmp/karma-test karma init            # 不动 ~/.claude/karma/
+KARMA_HOME=~/karma-profile-A karma sticky list   # 多 profile
+```
+
+加 4 条 subprocess 测试守护（用新 Python 进程让 env 在 import karma 之前
+真生效）：default 路径 / env override / 5 module 一致 / `~` 展开。
+
+### Test
+
+测试 308 → 312 全过，4 件套全绿。
+
+### Pending（sub-agent 评审剩余 4 条 — 跟同事真实首装数据驱动再修）
+
+- 给同事清单「检查 Python」给具体命令（`python3 --version` / `command -v uv`）
+- 清单加 `karma init` 第 5 步明示（之前禁止 init 但 init 是必要步骤）
+- 提示 git / shell（fish 用 `activate.fish`）/ 网络（github+pypi）要求
+- README 装机示例 venv 后说明怎么退出 / deactivate
+
 ## [0.4.4] — 2026-05-14（patch — 首位真用户首装驱动的 3 个修）
 
 「同事即将首装 karma」消息触发 README 站陌生用户视角重审 + 实际触发 3 个真
@@ -476,7 +509,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.5
 [0.4.4]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.4
 [0.4.3]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.3
 [0.4.2]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.2

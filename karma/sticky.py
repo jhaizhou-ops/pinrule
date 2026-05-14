@@ -11,7 +11,9 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_PATH = Path.home() / ".claude" / "karma" / "sticky.yaml"
+from karma.paths import karma_home
+
+DEFAULT_PATH = karma_home() / "sticky.yaml"
 MAX_STICKY = 10  # 软上限，超过 12 抛错
 HARD_MAX = 12  # 注意力拐点，硬上限
 

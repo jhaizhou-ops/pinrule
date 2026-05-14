@@ -292,6 +292,24 @@ karma doctor                     # 检查环境 + 4 个 hook 安装状态
 - `KARMA_DEBUG_TRACE=<path>` — Stop hook 触发时 append 一行 trace 到指定文件
   （验证 Stop hook 是否真触发，production 默认完全关）
 
+## 状态目录路径（`KARMA_HOME` 环境变量）
+
+karma 状态默认存 `~/.claude/karma/`（含 `sticky.yaml` / `violations.jsonl` /
+`session-state/` / `config.yaml`）。通过 `KARMA_HOME` 环境变量可改路径 — 用
+于 dry-run / CI / 多 profile 隔离不污染默认 home：
+
+```bash
+KARMA_HOME=/tmp/karma-test karma init           # 不动 ~/.claude/karma/
+KARMA_HOME=~/karma-profile-A karma sticky list  # 多 profile 隔离
+```
+
+注：path 在 module-level 常量 import 时 freeze，所以 `KARMA_HOME` 必须在
+启动 karma 进程**前**set。已被 hook wrapper 调用的 karma 不会读这个 env
+（wrapper 不传 env），实际使用以 `~/.claude/karma/` 为主。
+
+实现单一来源：`karma/paths.py:karma_home()` — 所有 5 个 module（sticky /
+violations / session_state / config / cli）都用它读 env。
+
 ## 性能预算
 
 | 路径 | 预算 | 当前实测 |
