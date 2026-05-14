@@ -32,7 +32,7 @@ from karma.violations import DEFAULT_PATH as VIOLATIONS_PATH
 from karma.violations import load_all
 
 KARMA_DIR = Path.home() / ".claude" / "karma"
-EXAMPLE_STICKY = Path(__file__).parent.parent / "data" / "sticky.example.yaml"
+EXAMPLE_STICKY = Path(__file__).parent.parent / "data" / "sticky.dev.example.yaml"
 
 # karma hook 在 Claude Code settings.json 里的事件名 → wrapper 文件名 (snake_case)
 _KARMA_HOOK_EVENTS = {

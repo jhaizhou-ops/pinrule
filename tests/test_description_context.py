@@ -14,6 +14,16 @@ def test_markdown_doc_is_description():
     assert is_description_context("Write", {"file_path": "x.adoc"})[0]
 
 
+def test_data_config_files_are_description():
+    """yaml/json/toml 等数据文件 — 内容是描述性数据不是执行字面。"""
+    assert is_description_context("Write", {"file_path": "/x/sticky.yaml"})[0]
+    assert is_description_context("Write", {"file_path": "/x/config.yml"})[0]
+    assert is_description_context("Write", {"file_path": "/x/data.json"})[0]
+    assert is_description_context("Write", {"file_path": "/x/pyproject.toml"})[0]
+    assert is_description_context("Write", {"file_path": "/x/setup.ini"})[0]
+    assert is_description_context("Edit", {"file_path": "/x/data.csv"})[0]
+
+
 def test_tests_directory_is_description():
     """tests/ 下任何文件都是描述/测试上下文。"""
     assert is_description_context("Write", {"file_path": "/x/tests/test_foo.py"})[0]

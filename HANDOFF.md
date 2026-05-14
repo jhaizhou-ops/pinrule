@@ -50,7 +50,7 @@
 ```
 /Users/jhz/karma/
 ├── README / PRD / ARCHITECTURE / CLAUDE.md / HANDOFF.md
-├── data/sticky.example.yaml         # 6 条 sticky 模板
+├── data/sticky.dev.example.yaml     # 6 条 sticky 模板 (软件开发场景)
 ├── karma/
 │   ├── sticky.py                    # yaml 加载 + 校验
 │   ├── session_state.py             # 跨 hook 状态 + background catchup

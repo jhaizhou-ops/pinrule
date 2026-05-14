@@ -85,9 +85,9 @@ def test_load_rejects_over_hard_max(tmp_path: Path) -> None:
 
 
 def test_load_real_example() -> None:
-    """data/sticky.example.yaml 必须能加载，且是 6 条种子 sticky (M2 精简)。"""
+    """data/sticky.dev.example.yaml 必须能加载，且是 6 条种子 sticky（开发场景预设）。"""
     repo_root = Path(__file__).resolve().parents[1]
-    example = repo_root / "data" / "sticky.example.yaml"
+    example = repo_root / "data" / "sticky.dev.example.yaml"
     sticky = load(example)
     assert len(sticky) == 6
     ids = {s.id for s in sticky}

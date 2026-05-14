@@ -98,6 +98,16 @@ karma 做三件事：
 - **background 任务证据自动接入** — `pytest > log.txt &` 跑通后下次 hook 自动读 log 接入「最近测试通过」证据，解决长任务 evidence check 死结
 - **跨语言注释扫描** — Write/Edit 代码注释行 + docstring 扫意图字面（`# 先打个补丁`），代码主体（字符串数据）不扫
 
+## 场景化定位
+
+karma = **通用 hook 框架** + **场景规则集**。
+
+当前默认装的是「**软件开发场景**」预设（`data/sticky.dev.example.yaml`） — 6 条核心方向针对写代码时的注意力漂移：长期方案 / 不阻塞 / 完成证据 / 不喂测试集 / 先读再写 / 直白中文。
+
+其他场景（写作 / 研究 / 产品 / 设计 / 法律等）需要不同的规则集 — 用户可以自己写 sticky.yaml，或社区贡献更多场景预设。karma 框架本身（hook 注入 / 实时拦截 / 违反检测 / 自动 catchup）跨场景通用。
+
+工程检测层（`karma/checks/`）也偏开发场景（识别 pytest / Edit / Write / Bash 等开发工具）；其他场景可能需要不同 check 函数集。
+
 ## karma 不做的事
 
 为避免重蹈 [karma v1](https://github.com/jhaizhou-ops/karma-v1) 覆辙，karma 明确**不做**这些：

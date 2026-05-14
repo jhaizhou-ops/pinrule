@@ -22,11 +22,21 @@ from karma.checks.common import (
 
 _STICKY_ID = "chinese-plain-no-jargon"
 
-# 常见 jargon 术语（边界要求避免 e.g. `recall` 误匹配 `recalls`）
+# 常见 jargon 术语 — 软件开发场景的英文技术词（用户偏好直白中文时拦）
+# 边界要求避免 e.g. `recall` 误匹配 `recalls` / `dispatch` 误匹配 `dispatcher`
+# 包括：ML 词 + 通用编程词（并发 / 设计模式 / 异步 / 分布式）
 _JARGON_RE = re.compile(
-    r"\b(F1|F1\s*score|precision|recall|oracle|supervisor|heuristic|paradigm|"
+    r"\b("
+    # ML / 数据
+    r"F1|F1\s*score|precision|recall|oracle|supervisor|heuristic|paradigm|"
     r"retrieval|inference|threshold|baseline|ground\s*truth|embedding|"
-    r"transformer|tokenizer|softmax|gradient|epoch|hyperparameter)\b",
+    r"transformer|tokenizer|softmax|gradient|epoch|hyperparameter|"
+    # 通用编程：并发 / 同步
+    r"mutex|semaphore|coroutine|"
+    # 设计模式 / 架构
+    r"orchestrator|orchestration|dispatcher|observer|subscriber|publisher|"
+    r"scheduler|executor|coordinator"
+    r")\b",
     re.IGNORECASE,
 )
 

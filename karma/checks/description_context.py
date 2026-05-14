@@ -6,9 +6,10 @@
 
 豁免维度（按 file_path 判定，因为 hit 在 file_path 对应的语境里）：
 1. 文档后缀 — .md / .rst / .txt / .markdown / .adoc
-2. 测试目录 — 路径含 /tests/ 或 /test/
-3. 测试文件名 — test_*.py / *_test.py / *_test.go / *_test.rs
-4. 临时探针 — /tmp/ 路径或文件名含 probe / scratch / sample
+2. 数据/配置文件 — .yaml / .yml / .json / .toml / .ini / .csv / .tsv
+3. 测试目录 — 路径含 /tests/ 或 /test/
+4. 测试文件名 — test_*.py / *_test.py / *_test.go / *_test.rs
+5. 临时探针 — /tmp/ 路径或文件名含 probe / scratch / sample
 
 不豁免：
 - Bash command — 永远是执行意图
@@ -23,6 +24,9 @@ import re
 from pathlib import PurePosixPath
 
 _DOC_SUFFIXES = (".md", ".rst", ".txt", ".markdown", ".adoc")
+# 数据 / 配置文件 — 内容是描述性数据不是执行字面
+# 例：sticky.yaml 列违反字面、production config 含黑名单数据
+_DATA_SUFFIXES = (".yaml", ".yml", ".json", ".toml", ".ini", ".csv", ".tsv")
 _TEST_FILE_RE = re.compile(r"(?:^|[/_])test_[\w\-]+\.\w+$|[\w\-]+_test\.\w+$")
 _SCRATCH_NAME_RE = re.compile(r"(?:probe|scratch|sample|playground|fixture)", re.IGNORECASE)
 
@@ -55,21 +59,25 @@ def is_description_context(
     if fp_lower.endswith(_DOC_SUFFIXES):
         return True, f"文档文件 ({fp_lower.rsplit('.', 1)[-1]})"
 
-    # 2. 测试目录
+    # 2. 数据 / 配置文件 — 内容是描述性数据不是执行字面
+    if fp_lower.endswith(_DATA_SUFFIXES):
+        return True, f"数据/配置文件 ({fp_lower.rsplit('.', 1)[-1]})"
+
+    # 3. 测试目录
     parts = PurePosixPath(file_path).parts
     if any(p in ("tests", "test", "__tests__", "spec") for p in parts):
         return True, "测试目录"
 
-    # 3. 测试文件名
+    # 4. 测试文件名
     name = PurePosixPath(file_path).name
     if _TEST_FILE_RE.search(name):
         return True, "测试文件名模式"
 
-    # 4. 临时探针 — /tmp/ 路径
+    # 5. 临时探针 — /tmp/ 路径
     if file_path.startswith("/tmp/") or file_path.startswith("/var/tmp/"):
         return True, "临时探针路径 (/tmp)"
 
-    # 5. 文件名含 probe / scratch / sample
+    # 6. 文件名含 probe / scratch / sample
     if _SCRATCH_NAME_RE.search(name):
         return True, "探针/样本文件名"
 

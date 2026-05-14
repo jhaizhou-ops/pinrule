@@ -1,13 +1,19 @@
-# karma v2 sticky 模板 — 用户最高优先级方向（6 条精选）
+# karma sticky 模板 — 软件开发场景专用（6 条精选）
 #
-# 安装：复制本文件到 ~/.claude/karma/sticky.yaml
+# karma = 通用 hook 框架 + 场景规则集
+# 本文件是「软件开发」场景预设。其他场景（写作 / 研究 / 产品 / 设计等）
+# 需要不同的规则集 — 欢迎社区贡献。
+#
+# 安装：karma init 会复制本文件到 ~/.claude/karma/sticky.yaml
 # 上限：10 条（超过 12 hook 拒绝加载）
 #
 # 字段:
 #   id                  : kebab-case 短 slug
 #   preference          : 多行允许，建议「方向 + 例外 + 决策提示」
 #   violation_keywords  : 关键词列表（自然语言层扫描）
-#   violation_checks    : 工程检测函数名列表（从 karma.checks 注册表）
+#                         规则：用「意图主语 + 动作」格式（如「我先打个补丁」）
+#                         而非纯名词（如「硬编码」），减少描述类假阳
+#   violation_checks    : 工程检测函数名列表（karma.checks.REGISTRY 里）
 
 - id: long-term-fundamental
   preference: |
@@ -15,15 +21,17 @@
     不打补丁、不硬编码、不为追短期 KPI 牺牲长期质量。
     深挖到真根因再动手；遇到难题先想「最干净的解法是什么」而非「最快糊过去」。
   violation_keywords:
-    - 先打个补丁
-    - 快速绕过
-    - 硬编码
-    - 先这样
+    # 「意图前缀 + 动作」格式 — 区别于讨论这些概念
+    - 我先打个补丁
+    - 先打个补丁应付
+    - 我先硬编码
+    - 先硬编码一下
+    - 先快速绕过
     - 临时方案
-    - workaround
-    - 先 hack
+    - 先用 workaround
+    - 先这样
     - 暂时这样
-    - 短期目标
+    - 先 hack
   violation_checks:
     - long_term_fundamental
 
@@ -49,18 +57,18 @@
 
 - id: chinese-plain-no-jargon
   preference: |
-    用直白中文。不用英文技术术语（F1 / precision / supervisor / oracle 等）。
-    用「综合得分 / 精度 / 召回率」等完整汉字。
+    用直白中文。不用英文技术术语（precision / supervisor / dispatcher / mutex 等）。
+    用「精度 / 召回率 / 分发器 / 互斥锁」等完整汉字。
     必须用英文专有名词时短解释一下。用类比解释复杂概念，不堆 jargon。
-  violation_keywords: []  # 全靠工程检测，关键词版假阳性多
+  violation_keywords: []  # 全靠工程检测，jargon 列表在 karma/checks/chinese_plain.py
   violation_checks:
     - chinese_plain_no_jargon
 
 - id: loud-failure-with-evidence
   preference: |
     失败要响亮，完成要有证据。不确定就明说，不要用「应该」「可能」掩盖。
+    完成代码任务时必须附证据（test pass / build OK / 数据 / 截图）。
     「完成」但 skip / mock / 假数据不算完成。
-    每个「做完了」声明必须附证据（test pass / build OK / 数据 / 截图）。
   violation_keywords:
     - skip 了
     - 暂时假数据
@@ -70,14 +78,17 @@
 
 - id: no-testset-no-future-leakage
   preference: |
-    不能用测试集 / 评测结果反喂训练数据 — 任何精度提升如果靠 eval 数据回流就是作弊。
-    不能用未来数据喂当前模块 — turn N 的决策只能用 turn N-1 及之前的数据。
+    开发原则：不要让测试数据反喂主流程。
+    - mock 数据 / fixture 不能进真实业务路径
+    - 测试用例不要 hardcode 在主代码里
+    - 评测结果不能反喂训练（ML 场景）
     改 prompt / 算法后必须重跑评测，不能用旧 cache 看效果。
   violation_keywords:
+    - mock 数据复用
+    - 测试用例 hardcode
+    - fixture 闭环
+    - 用真数据测试
     - 反喂池子
-    - LLM judge 写回
-    - rerun 用最终池子
-    - 取巧验证
   violation_checks:
     - no_testset_no_future_leakage
 
