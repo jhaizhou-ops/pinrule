@@ -4,6 +4,57 @@
 
 ## [Unreleased]
 
+## [0.4.27] — 2026-05-14（patch — v0.4.26 过度推广修正：仅 keep-pushing + chinese-plain 反思式）
+
+### 真触发
+
+v0.4.26 把 4 类价值观规则（keep-pushing / chinese-plain / long-term / non-blocking）
+全改反思式。用户反馈细化判断：「补丁和 sleep 的我不认为要改，keep pushing 和
+中文这个可以改」。
+
+### 真根因
+
+我之前的「价值观类 vs 工程纪律类」二分太粗。用户的细化判断更准：
+
+- **表达风格类**（keep-pushing / chinese-plain）— 强硬执行会扭曲 Agent 表达，
+  反思式合理（Agent 自己判断风格合不合适）
+- **工程行为类**（long-term 补丁 / non-blocking sleep）— **正因为有合理变体
+  语境**，Agent 容易找借口合理化逃避真根因。命令式语气反而防 Agent 自我合理
+  化、保持工程纪律
+
+举例对比：
+- chinese-plain 「英文比例高」反思式 OK — Agent 自检是不是真技术专名
+- long-term 「先打个补丁」反思式 ❌ — Agent 太容易说服自己「这次真合理」，
+  补丁就成了既成事实
+
+### Fix
+
+回滚 v0.4.26 的两类改造：
+- `karma/checks/long_term.py` 5 处 suggested_fix 改回原命令式
+- `karma/checks/non_blocking.py` 4 处 suggested_fix 改回原命令式
+
+保留：
+- `karma/checks/keep_pushing.py` 反思式（2 处）
+- `karma/checks/chinese_plain.py` 反思式（2 处）
+- `karma/hooks/stop.py` force_block reason 反思式
+
+### 设计原则更新
+
+「**价值观引导用对话，工程行为 + 工程纪律用命令**」 — 比 v0.4.26 的「价值观 vs
+工程纪律」二分更精准。工程行为类 sticky 即使有合理变体语境，命令式反而保护
+Agent 不掉「自我合理化」陷阱。
+
+### 验证
+
+344 测试全过。
+
+### 教训
+
+v0.4.26 是个典型「设计层过度推广」案例 — 我推一个原则（反思式更尊重 Agent）
+就推到所有价值观类规则，没认真区分子类。用户细化判断比我推广更准。
+
+按 sticky #4 真诚响亮承认 — 这是设计判断错位不是工程实施错位。
+
 ## [0.4.26] — 2026-05-14（feat — karma v3 第三步：4 类价值观规则反思式语气改造）
 
 ### 真触发

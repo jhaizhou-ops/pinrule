@@ -130,9 +130,8 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             sticky_id=_STICKY_ID,
             trigger=f"Bash sleep 命令: {m.group()!r}",
             snippet=cmd_raw[:200],
-            suggested_fix="自检 sleep 用途 — 真等外部资源 / 节流 API 是合理的；只是为了"
-                          "看输出 / 怕太快是不合理的。合理就保留并明说；不合理改 "
-                          "run_in_background=True 让前端能并行。",
+            suggested_fix="不要 sleep 阻塞前端。用 run_in_background=True 启动任务，并行做其他事。"
+                          "需要等条件成立时用 Monitor + until 循环。",
         )
 
     # v0.4.18：wait 检测也豁免宿主语言 -c — python 代码里 `_WAIT_RE` / `wait_fn`
@@ -142,8 +141,9 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             sticky_id=_STICKY_ID,
             trigger="Bash wait 命令阻塞",
             snippet=cmd_raw[:200],
-            suggested_fix="想想这个 wait 是真有依赖必须等（如等子进程退出码再做下一步）"
-                          "还是能并行做别的？合理就保留；能并行就用 run_in_background=True。",
+            suggested_fix="不要 wait 阻塞前端。用 run_in_background=True，"
+                          "让前端能继续推进其他事。（kubectl/docker/aws wait 等同步"
+                          "原语已豁免）",
         )
 
     # 长任务且没标 background
@@ -153,8 +153,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             sticky_id=_STICKY_ID,
             trigger=f"长任务不带 run_in_background: {m.group()!r}",
             snippet=cmd_raw[:200],
-            suggested_fix=f"{m.group()} 是长任务。想想你需要立刻看结果还是能并行做其他事？"
-                          f"能并行就加 run_in_background=True 让前端不卡住。",
+            suggested_fix=f"{m.group()} 是长任务，加 run_in_background=True 让前端能继续做别的事。",
         )
 
     return None
