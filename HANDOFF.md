@@ -293,6 +293,28 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
    不在 0 字范围。
    - 接受：语义判断难做，记 HANDOFF
 
+### karma v3 第一步真已落地（2026-05-14 v0.4.24 dogfooding 真突破）
+
+之前 HANDOFF 说「下个 milestone 真根本方向是 proactive 行为锚定」但担心
+Claude Code 协议层 limitation。**v0.4.24 真实施 + 真测后验证 PostToolUse
+真接受 `additionalContext`** — 真打通 karma v2 → v3 真第一步。
+
+`karma/hooks/post_tool_use.py` `_build_smart_reinject()`：
+- 每次 tool call 后看最近 N turn (默认 5) 真触发过的 sticky
+- 触发过的注入简化版（id + 第一行 preference），最多 3 条
+- 没触发过的不注入省 token
+- session 没真触发过任何 sticky → 输出空 `{}` passthrough
+
+真闭环：违反某 sticky → 下次 tool call 后 reinject → Agent 中段持续看到提醒。
+
+真生效证据：本 session 真测 — 每次 Edit/Bash/Read 调用后 system-reminder
+真显示 `[karma 中段提醒]` + 当前最近触发 3 条 sticky（实测：non-blocking
+/ chinese-plain / loud-failure）。
+
+下个 session 接手观察方向：跨场景真用户使用 v0.4.24 后单 turn 累积违反率
+是否真下降。但按 sticky #5 反喂边界教训不当 truth 用（dogfooding 嫌疑提示
+非 fix 真有效证据）。
+
 ### karma 下个 milestone 真根本方向（2026-05-14 dogfooding 自评触发）
 
 本 session 累积 33 次 keep-pushing + 11 次 chinese-plain + 各种其他违反 =
