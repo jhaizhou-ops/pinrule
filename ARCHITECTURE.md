@@ -112,12 +112,15 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 - 加载 sticky.yaml
 - 读 violations.jsonl 按 turn 距离取最近违反过的 sticky_id（标 ⚠️）
 - 格式化 `[karma sticky — 用户最高优先级方向，请始终遵守]` + 编号规则
-- 顺带跑 `purge_old_states(max_age_days=30)` + `catchup_pending_bg`（异常吞掉不阻塞）
-- **强提醒 fallback**：检测上一 response 末尾是否含推进信号（用 keep_pushing.check）
-  → 命中（纯陈述完结无推进）→ 注入「强提醒」段。这是 Stop hook decision=block 在
-  user 立刻接 prompt 时不跑的协议 limitation 的 fix。
+- 顺带跑 `purge_old_states` + `catchup_pending_bg`（异常吞掉不阻塞）
+- **强提醒 fallback**（关键机制）：读 transcript 取上一 assistant message
+  → 跑所有 sticky 的 violation_checks → 命中的违反 + suggested_fix 注入「强提醒」段
+  覆盖 keep-pushing / chinese-plain / evidence 等所有 response 类 check
+  **这是 karma 实战层面唯一有效的事后干预** — Stop hook 在 user-continuous 对话中
+  根本不跑（trace 实证），所有依赖 Stop hook 的干预（decision=block / 累积强制 block）
+  协议层 OK 但实战不触发
 
-性能：< 50ms（sticky.yaml 通常 ≤ 1KB，violations 读尾 200 行）。
+性能：< 50ms。
 
 ### PreToolUse hook（实时拦截，最关键的干预层）
 
@@ -183,10 +186,14 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 4. **keep-pushing-no-stop 命中 → 输出 `{"decision": "block", "reason": "..."}`** 让 Agent
    不真停下继续生成（真干预 sticky #7「不主动停」）。Safeguard：单 turn 内累积 block ≥ N
    次（config `stop_block_max_per_turn` 默认 3）后放 Agent 真停，防死循环
-5. 否则输出 `additionalContext` 给下次 UserPromptSubmit 看（实际下次 sticky 注入会读
-   recent violations 自动加 ⚠️）
+5. 否则输出 `additionalContext` 给下次 UserPromptSubmit 看
 
 性能：< 200ms。
+
+**⚠️ 实战 limitation（dogfooding 实证）**：Claude Code Stop hook 在 user-continuous
+对话场景中**根本不触发**（`/tmp/karma_stop_trace.log` 验证：真实 session 0 条记录，
+只有 pytest mock session）。所有依赖 Stop hook 的干预协议层 OK 但实战不生效。
+karma 唯一有效干预时机 = UserPromptSubmit 强提醒 fallback。
 
 ## 6 个 violation_check 函数（工程层精准检测）
 
