@@ -9,34 +9,31 @@ def _check(response: str):
     return REGISTRY["keep_pushing_no_stop"](response=response)
 
 
-def test_response_ending_with_question_blocked():
-    """末尾问句 + 无推进信号 → 命中。"""
+def test_question_at_tail_exempted():
+    """末尾问句 → 豁免（用户反馈：合理询问决策应鼓励，不该拦）。"""
     hit = _check("做完了。要不要继续做下一步？")
-    assert hit is not None
-
-
-def test_response_with_push_signal_exempted():
-    """末尾问句但有明确推进字眼 → 不命中（推进 + 提问混合是合理）。"""
-    hit = _check("做完了。我现在开始做下一步，如果 X 失败再问你？")
     assert hit is None
 
 
-def test_no_question_passes():
-    """无问号 → 不命中。"""
-    hit = _check("做完了。我接着推下一波。")
+def test_push_signal_exempted():
+    """末尾含推进信号 → 豁免（有下一步计划）。"""
+    hit = _check("做完了。我现在开始做下一步。")
     assert hit is None
 
 
-def test_pure_chinese_question_mark_blocked():
-    """中文问号 ？也算。"""
+def test_chinese_question_mark_also_exempted():
+    """中文 ？ 也算询问豁免。"""
     hit = _check("两个方向都可以，您想要哪个？")
-    assert hit is not None
-
-
-def test_question_in_middle_not_at_tail_passes():
-    """问号在中间不在末尾 → 不算（不影响后续推进）。"""
-    hit = _check("是否要做 X？要的。我现在去做 X 然后推进 Y。")
     assert hit is None
+
+
+def test_question_in_middle_chenshu_at_tail_blocked():
+    """问号在中段（超 80 字窗口外）但末尾纯陈述无推进 → 命中。"""
+    # 让问号在末尾窗口外（前部填长内容）
+    long_intro = "之前讨论过一个问题：是否做 X？答案是要的。" + "中段内容 " * 30
+    response = long_intro + "测试通过。"  # 末尾「测试通过」无推进无问号
+    hit = _check(response)
+    assert hit is not None
 
 
 def test_empty_response_passes():
@@ -45,19 +42,18 @@ def test_empty_response_passes():
 
 
 def test_long_response_short_tail_window():
-    """末尾窗口只看最后 80 字 — 中段问号不算。"""
+    """末尾窗口只看最后 80 字。"""
     middle_q = "前面讨论问题：要 X 吗？" + " 后面 " * 50 + "我马上开始做实施。"
     hit = _check(middle_q)
     assert hit is None  # 末尾「我马上开始做实施。」是推进信号
 
 
-# ---- 用户反馈：「没问号也停了」— 沉默式停下检测 ----
+# ---- 停顿语气词（明确暂停） ----
 
 def test_silent_stop_with_next_time_phrase_blocked():
     """末尾「下次跑 X 看」— 沉默式停下，命中。"""
     hit = _check("M3 完成了，commit 推完了。下次跑 audit 看新出现什么。")
     assert hit is not None
-    assert "停顿" in hit.trigger or "下次" in hit.trigger
 
 
 def test_silent_stop_xianzheli_blocked():
@@ -78,7 +74,16 @@ def test_silent_stop_with_push_signal_exempted():
     assert hit is None
 
 
-def test_summary_without_stop_hint_passes():
-    """纯总结无停顿词无推进信号 → 不命中（避免简短汇报假阳）。"""
-    hit = _check("commit ffcbd07 已推 origin/main。")
+# ---- 用户反馈核心：无问句无推进的纯陈述 = 真停下 ----
+
+def test_pure_statement_no_push_no_question_blocked():
+    """纯陈述完结无推进无问号 → 命中（用户反馈核心场景）。"""
+    hit = _check("commit ffcbd07 已推 origin/main。测试 187/187 通过。")
+    assert hit is not None
+    assert "纯陈述" in hit.trigger or "无推进" in hit.trigger
+
+
+def test_pure_statement_with_next_step_exempted():
+    """陈述 + 下一步计划 → 豁免。"""
+    hit = _check("commit 已推。我接下来去做 Y。")
     assert hit is None

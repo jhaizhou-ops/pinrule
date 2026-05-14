@@ -1,13 +1,17 @@
 """#7 keep-pushing-no-stop — 不主动停下问用户。
 
-检测的行为模式（post_response / Stop hook 扫 Agent response）：
-末尾 60 字含问号（? 或 ？）+ 没有明确推进信号（「我现在/立刻/马上 + 动词」）
-→ 疑似停下等用户决定，违反 sticky #7「立即选下个推进点继续做」。
+用户精准定位（2026-05-14）：
+- **没有疑问句的停止**才是要监控的 — 陈述完结无下一步 = 真停下
+- 只是陈述而且有下一步计划 → 应鼓励 Agent 继续
+- 问号 → 合理询问决策，**豁免**（不该拦询问 ≠ 不该拦停止）
 
-设计权衡：
-- 真问号 + 真推进信号 → 不算（如「我现在去做 X。要是 Y 失败了怎么办？」末尾问号但前有推进）
-- 真问号 + 无推进信号 → 命中（如「下一步要 X 还是 Y？」）
-- 短回复无问号 → 不算（可能简短确认，可能内含推进，工程层难判，让关键词层兜底）
+检测设计（post_response / Stop hook 扫 Agent response）：
+1. 末尾 80 字含「推进信号」（我现在/立刻/马上 + 动词 等）→ 豁免（有下一步计划）
+2. 末尾 80 字含问号（? 或 ？）→ 豁免（合理询问用户决策）
+3. 末尾 80 字含「停顿语气词」（下次/先到这/告一段落）→ 命中（明确表达暂停）
+4. **既无推进 + 无问号 + 无停顿词 = 默认命中**（纯陈述完结无下一步 = 真停下）
+
+豁免顺序：推进 > 问号 > 停顿词检测 > 默认命中
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ _STOP_HINT_RE = re.compile(
 # 明确「推进信号」字眼 — 表达 Agent 主动继续推进
 _PUSH_SIGNAL_RE = re.compile(
     r"(?:"
-    r"我(?:现在|立刻|马上|立即|继续|先|来|接着|顺手)\s*(?:做|改|加|修|跑|去|开始|实施|实现|动手|推|搞|写|发|提交|测试|验证|跑测|读)"
+    r"我(?:现在|立刻|马上|立即|继续|先|来|接着|接下来|顺手)\s*(?:做|改|加|修|跑|去|开始|实施|实现|动手|推|搞|写|发|提交|测试|验证|跑测|读)"
     r"|立刻\s*(?:做|开始|实施|推|继续|动手)"
     r"|马上\s*(?:做|开始|实施|推|继续|动手)"
     r"|继续推进"
@@ -43,6 +47,7 @@ _PUSH_SIGNAL_RE = re.compile(
     r"|直接(?:做|改|开始|实施|推|动手|去做)"
     r"|不停"
     r"|一并(?:做|改|实施)"
+    r"|接下来\s*(?:去|做|改|加|修|跑|开始|实施|动手|推|测试|验证)"
     r")",
     re.IGNORECASE,
 )
@@ -52,39 +57,46 @@ _TAIL_WINDOW = 80
 
 
 def check(*, response: str = "", **_):
-    """Agent response 末尾窗口扫两类停下信号 + 无推进信号 → 疑似停下等用户：
-    1. 问号（? 或 ？）— 显式询问
-    2. 停顿语气词（下次 / 先到这 / 告一段落 等）— 沉默式停下（用户反馈：没问号也停）
+    """检测 Agent response 是不是「无下一步陈述完结」型停下。
+
+    豁免优先级：
+    1. 推进信号（我现在/立刻 + 动词）→ 豁免（有下一步计划）
+    2. 问号（? 或 ？）→ 豁免（合理询问用户决策，鼓励）
+    3. 停顿语气词（下次/先到这/告一段落）→ 命中（明确暂停）
+    4. 其他（纯陈述完结无下一步）→ 命中（用户反馈核心：无问句的停止才是要监控的）
     """
     if not response or not response.strip():
         return None
     text = response.strip()
     tail = text[-_TAIL_WINDOW:]
 
-    # 末尾窗口有明确推进信号 → 直接放过（无论有无问号 / 停顿词）
+    from karma.checks import CheckHit
+
+    # 豁免 1：明确推进信号
     if _PUSH_SIGNAL_RE.search(tail):
         return None
 
-    from karma.checks import CheckHit
-
-    # 信号 1：问号
+    # 豁免 2：问号（合理询问决策，鼓励）
     if _TAIL_QUESTION_RE.search(tail):
-        return CheckHit(
-            sticky_id=_STICKY_ID,
-            trigger="response 末尾问句无明确推进信号 — 疑似停下等用户决定",
-            snippet=tail[:200],
-            suggested_fix="去掉末尾问句，立即选下个推进点开始做 + 简短汇报。"
-                          "如确需用户决策，明确标出「这一步需要你定」。",
-        )
+        return None
 
-    # 信号 2：停顿语气词（用户的「没问号也停」反馈）
+    # 命中 1：明确停顿语气词
     m_stop = _STOP_HINT_RE.search(tail)
     if m_stop:
         return CheckHit(
             sticky_id=_STICKY_ID,
-            trigger=f"response 末尾含停顿语气 {m_stop.group()!r} — 沉默式停下，没立即推下个推进点",
+            trigger=f"response 末尾含停顿语气 {m_stop.group()!r} — 明确表达暂停",
             snippet=tail[:200],
             suggested_fix="去掉「下次/先到这/告一段落」等停顿词，直接说明现在去做啥。"
                           "汇报跟推进并行：写完汇报立刻开始下个 tool 调用。",
         )
-    return None
+
+    # 命中 2（默认）：纯陈述完结无下一步 — 用户反馈核心场景
+    # 「没有疑问句的停止才是该监控的」
+    return CheckHit(
+        sticky_id=_STICKY_ID,
+        trigger="response 纯陈述完结，无推进信号 / 无询问决策 — 真停下，没下一步计划",
+        snippet=tail[:200],
+        suggested_fix="response 末尾加「我接下来去做 X」类下一步计划，"
+                      "或直接开始下个 tool 调用。陈述完结无下一步 = 停下了。",
+    )
