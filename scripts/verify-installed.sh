@@ -1,5 +1,8 @@
 #!/bin/bash
-# 验证本机 .venv 装的 karma 版本跟 pyproject.toml 一致。
+# karma 发版工作流脚本集合。
+#
+# 1. 验证本机 .venv 装的 karma 版本跟 pyproject.toml 一致。
+# 2. 防 `&&` 链式 commit-tag-release 命令因 karma hook 拦截产生幽灵 release。
 # 防止「改了代码 + commit + push + gh release 都做了但忘 reinstall」类
 # 假完成（hook 仍跑旧字节码所有 fix 不生效）。
 #
