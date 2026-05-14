@@ -22,7 +22,7 @@ import time
 
 from karma import session_state
 from karma.checks import run_checks
-from karma.checks.common import extract_tool_text
+from karma.checks.common import extract_tool_text, strip_shell_quoted_literals
 from karma.sticky import StickyConfigError, load
 from karma.violations import Violation, append, detect
 
@@ -85,16 +85,14 @@ def main() -> int:
         )
         check_hits.extend(hits)
 
-    # 关键词层（兜底）— 只扫 Bash command（明确执行意图）。
-    # Write/Edit 的代码内容里出现关键词几乎全是「描述/注释/字符串字面」假阳：
-    #   - 代码注释讨论某个概念
-    #   - docstring 介绍函数行为
-    #   - 错误信息 / 帮助文本提到该词
-    # 而 Bash command 是直接要执行的 shell — 关键词出现就是真执行意图。
-    # Write/Edit 的真违反交给工程层 violation_checks（regex + 上下文判定）覆盖。
+    # 关键词层（兜底）— 只扫 Bash command 骨架，剥引号字面。
+    # Write/Edit 内容里关键词几乎全是描述/注释/字符串字面假阳。
+    # Bash 引号字面（commit message / echo 文本）也是描述不是执行意图 —
+    # 剥后再扫，命令引号内真违反由 long_term 工程层 _PATTERNS_BASH_ONLY 独立捕获。
     keyword_violations: list[Violation] = []
     if tool_name == "Bash":
-        scan_text = extract_tool_text(tool_name, tool_input)
+        raw_cmd = extract_tool_text(tool_name, tool_input)
+        scan_text = strip_shell_quoted_literals(raw_cmd)
         if scan_text.strip():
             keyword_violations = detect(scan_text, sticky_list, session_id=session_id)
 

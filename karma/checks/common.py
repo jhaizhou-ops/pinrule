@@ -9,6 +9,26 @@ _CODE_BLOCK_RE = re.compile(r"```[\w]*\n.*?\n```", re.DOTALL)
 # inline `code` 包裹
 _INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 
+# shell 引号字面 — git commit -m "..." / echo "..." 的内容是描述/数据不是执行意图
+_SHELL_QUOTED_RE = re.compile(r"""'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*\"""")
+# 间接 shell 执行 — bash -c '...' / sh -c "..." 内是真要执行的子命令
+_INDIRECT_SHELL_RE = re.compile(
+    r"\b(?:bash|sh|zsh|dash|ksh)\s+-c\s+(['\"])(.*?)\1",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def strip_shell_quoted_literals(cmd: str) -> str:
+    """剥 shell 命令里的引号字面（commit message / echo 文本等），保留命令骨架。
+
+    特殊处理：`bash -c '...'` / `sh -c '...'` 后引号是真执行子命令，剥时保留内容。
+    跨 non_blocking + 关键词层共用，统一描述上下文剥离逻辑。
+    """
+    def _keep_indirect(m: re.Match) -> str:
+        return " " + m.group(2) + " "
+    cmd = _INDIRECT_SHELL_RE.sub(_keep_indirect, cmd)
+    return _SHELL_QUOTED_RE.sub("", cmd)
+
 
 def extract_tool_text(tool_name: str, tool_input: dict) -> str:
     """从 tool_input 提取要扫违反的关键文本。

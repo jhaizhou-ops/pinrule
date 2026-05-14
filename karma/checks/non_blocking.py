@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 
+from karma.checks.common import strip_shell_quoted_literals
+
 _STICKY_ID = "non-blocking-parallel"
 
 _SLEEP_RE = re.compile(r"\bsleep\s+\d+", re.IGNORECASE)
@@ -22,14 +24,7 @@ _LONG_TASK_RE = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
-# 剥 shell 引号字面 — 避免 git commit message / echo 字面词被 _LONG_TASK_RE 假阳
-# 例：`git commit -m "...pytest..."` 里的 pytest 是 message 字面不是要执行 pytest
-_QUOTED_STR_RE = re.compile(r"""'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*\"""")
-
-
-def _strip_quoted_literals(cmd: str) -> str:
-    """剥掉 '...' 和 "..." 字符串字面，保留命令骨架。"""
-    return _QUOTED_STR_RE.sub("", cmd)
+# 复用 common.strip_shell_quoted_literals — 跟关键词层统一剥引号逻辑
 
 
 def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
@@ -40,7 +35,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         return None
     is_bg = bool((tool_input or {}).get("run_in_background"))
     # 扫命令骨架，跳过引号字面（commit message / echo 引号内容不是执行意图）
-    cmd = _strip_quoted_literals(cmd_raw)
+    cmd = strip_shell_quoted_literals(cmd_raw)
 
     from karma.checks import CheckHit
 
