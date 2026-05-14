@@ -28,7 +28,6 @@ def main() -> int:
         print(json.dumps({}))
         return 0
     
-    agent_type = payload.get("agent_type", "")
     agent_id = payload.get("agent_id", "")
     transcript_path = payload.get("transcript_path", "")
     
@@ -60,7 +59,7 @@ def main() -> int:
             f"  • {sticky_id} 违反词: {keyword!r}"
             for sticky_id, keyword in violations[:3]  # 只显示前 3 个
         )
-        context = f"""⚠️ Subagent {agent_id} ({agent_type}) 完成时检查：
+        context = f"""⚠️ Subagent {agent_id} 完成时检查：
 
 发现 {len(violations)} 条核心方向违反：
 {violation_text}

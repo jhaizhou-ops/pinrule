@@ -13,7 +13,6 @@ Claude Code 协议:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -65,7 +64,6 @@ def main() -> int:
         print(json.dumps({}))
         return 0
     
-    trigger = payload.get("trigger", "")
     transcript_path = payload.get("transcript_path", "")
     
     try:
