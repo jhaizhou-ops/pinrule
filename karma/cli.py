@@ -569,7 +569,21 @@ def cmd_install_hooks(backend_name: str = "claude-code") -> int:
         print(f"检测到客户端：{', '.join(installed)}")
         backends_to_install = [REGISTRY[name] for name in installed]
     elif backend_name in REGISTRY:
-        backends_to_install = [REGISTRY[backend_name]]
+        backend = REGISTRY[backend_name]
+        # 显式 backend 也必须查客户端是否真装 — sub-agent 排查发现的 P1 真 bug：
+        # 同事没装 Claude Code 跑 `karma install-hooks` 默认装 claude-code 静默
+        # 写 ~/.claude/settings.json 完全无反馈，他不知道 hook 不会触发。
+        # 修：检测不到客户端时报错 + 提示，要绕过装可用 --force（暂未加）。
+        if not backend.client_installed():
+            print(
+                f"没检测到 {backend.display_name} 客户端在本机（PATH 上没对应"
+                f"命令也没 {backend.settings_path().parent} 目录）。\n"
+                f"karma 不装 hook 配置避免静默写。要么先装 {backend.display_name}，"
+                f"要么换 `--backend all` 装所有检测到的客户端。",
+                file=sys.stderr,
+            )
+            return 1
+        backends_to_install = [backend]
     else:
         print(f"未知 backend: {backend_name!r}（支持: {list(REGISTRY.keys()) + ['all']}）",
               file=sys.stderr)

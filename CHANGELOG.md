@@ -4,6 +4,37 @@
 
 ## [Unreleased]
 
+## [0.4.7] — 2026-05-14（patch — sub-agent 排查 5 个 P0 全落地）
+
+「感觉还不是很有把握公开 + 给同事 collaborator 让他先用」触发 sub-agent
+站陌生同事视角全面排查首装隐患，找到 5 个真问题。本版全部落地。
+
+### Fixed — P1 真 bug
+
+- **`cmd_install_hooks` 默认 `claude-code` backend 不查 `client_installed()`
+  静默装 hook 配置** — 之前同事没装 Claude Code 跑 `karma install-hooks`
+  会闷头写 `~/.claude/settings.json`，完全无反馈他不知道 hook 不会触发。
+  修：单 backend 路径也加 `client_installed()` 门槛，检测不到时报错并提示。
+  加 `test_install_hooks_aborts_when_client_not_installed` 守护测试。
+
+### Docs — P2/P3/P4/P5 一并修
+
+- **P2**：README「让 AI 帮你装」段 AI prompt 块加 `gh auth status` 前置
+  检查 — 私有仓库期间同事 Claude Code 拿到 prompt 不会主动先看 auth 直接
+  跑 `git clone` 401 一头雾水。
+- **P3**：pyproject classifier 去掉 Windows 声明（karma wrapper 用 Unix
+  shebang Windows shell 不识别，未真测过先不声明）+ README 前置要求加
+  「Windows 建议 WSL」。
+- **P4**：README 新增「装完立即做：自定义 sticky 偏好」段 — 明示 karma
+  默认装的是「逐步确认型」（不含 keep-pushing），全权委托型用户要手动
+  加 `keep-pushing-no-stop` 这条（含 YAML 模板可复制）。
+- **P5**：README 「装完必读 2 条」整合 venv 警告到装完最显眼位置（原来
+  藏在「维护跟卸载」段末尾同事看不到）。
+
+### Test
+
+测试 313 → 314 全过，4 件套全绿。
+
 ## [0.4.6] — 2026-05-14（patch — `karma uninstall` 一键卸装 alias）
 
 ### Added
@@ -524,7 +555,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.6...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.7
 [0.4.6]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.6
 [0.4.5]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.5
 [0.4.4]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.4

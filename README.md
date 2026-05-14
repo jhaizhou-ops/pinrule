@@ -45,6 +45,9 @@ karma 解决的就是这个 — 不让你的最高优先级方向被淹没。
 前置检查：
 - Python ≥ 3.11: `python3 --version`
 - git: `command -v git`
+- **GitHub auth**: `gh auth status`（私有仓库期间必需；如果命令报 `gh:
+  command not found` 试 `git ls-remote https://github.com/jhaizhou-ops/karma.git`
+  — 列出分支就 OK，401/Permission denied 先配 SSH key 或 GitHub token）
 - 可选 uv: `command -v uv`
 
 步骤：
@@ -113,9 +116,16 @@ karma doctor    # 应看到对应 backend 的 4 个 hook event 全 ✓
 `karma doctor` 应该每个 backend 的 4 个 event 都 `✓`。如果有 `✗` 重跑
 `karma install-hooks --backend <对应名>`。
 
-**⚠️ 关键最后一步：装完必须重启 AI 客户端 karma 才生效**。Claude Code / Codex /
-Gemini CLI 都是 session 启动时**一次性**读 hook 配置，跑中修改不重载。当前正在
-跑的 session karma 不会触发，重启新 session 即可。
+**⚠️ 装完必读 2 条**：
+
+1. **必须重启 AI 客户端 karma 才生效** — Claude Code / Codex / Gemini CLI 都是
+   session 启动时**一次性**读 hook 配置不热重载。当前正在跑的 session karma
+   不会触发，重启新 session 即可。
+
+2. **删 / 移动 `.venv` 前必须先 `karma uninstall`** — karma hook wrapper 用
+   `#!/path/to/.venv/bin/python` 硬写 venv 路径，删了 .venv 后 hook 会指向
+   不存在的 python 让 AI 客户端启动报错。要重建 venv：先 `karma uninstall`,
+   再删 .venv 重建 + `pip install -e . && karma install-hooks --backend all`。
 
 接下来用 Claude Code / Codex / Gemini CLI 哪家，karma 自动工作。保留你已装
 的其他 hook 插件（vibe-island / rtk / 等），共存不冲突。
@@ -132,10 +142,34 @@ karma uninstall-hooks --backend all
 karma uninstall                            # 等同 --backend all 一键卸所有
 ```
 
-**⚠️ 重要**：karma hook wrapper 文件用 `#!/path/to/.venv/bin/python` 硬写
-venv 路径。**删 / 移动 / 重建 .venv 前先 `karma uninstall-hooks --backend all`**,
-否则 hook 会指向不存在的 python 让 AI 客户端启动报错。重建 venv 后再
-`pip install -e . && karma install-hooks --backend <你之前装的>`。
+**⚠️ 重要**：详情见前面「装完必读 2 条」第 2 条 — venv 重建前必须先
+`karma uninstall`。
+
+## 装完立即做：自定义 sticky 偏好
+
+karma 默认装的 5/7 条 sticky 是「跨用户合理」的中性版本，**不一定是你的真偏好**。
+装完立即跑 `karma sticky list` 看默认，然后 `karma sticky edit` 改成你自己的。
+
+特别注意 **karma 默认是「逐步确认型」** — Agent 完成一波后会停下问你下一步。如果
+你是「全权委托型」（希望 Agent 自主推进不等你确认），手动在 `sticky.yaml` 加：
+
+```yaml
+- id: keep-pushing-no-stop
+  preference: |
+    完成一波后不要停下汇报完等用户反馈 — 立刻选下一个推进点继续做。
+    我是全权委托型用户，期待自主推进；汇报跟推进可以同步进行不互斥。
+    例外：用户明确叫停（「停 / 不用了 / 明天再说 / 先到这」等）→ 才停。
+  violation_keywords:
+    - 等你叫停
+    - 等你决定
+    - 要不要继续
+  violation_checks:
+    - keep_pushing_no_stop
+  force_block_exempt: true   # 避免累积处罚自身矛盾
+```
+
+注：keep-pushing 是「让 Agent 不停」的强干预规则，作者本机一天累积 14 次触发
+表示生效，但对「逐步确认型」用户是 noise。**按你真偏好选**。
 
 ## 你会看到什么
 

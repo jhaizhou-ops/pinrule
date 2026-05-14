@@ -114,6 +114,23 @@ def test_uninstall_one_shot_alias(fake_home, monkeypatch, capsys):
     assert cc_wrappers == [], "karma uninstall 后 wrapper 应清空"
 
 
+def test_install_hooks_aborts_when_client_not_installed(fake_home, monkeypatch, capsys):
+    """显式 backend 也必须查 client_installed — 静默装到不存在客户端是真 bug。
+
+    sub-agent 排查发现 P1：同事没装 Claude Code 跑 `karma install-hooks` 默认
+    装 claude-code 静默写 settings.json 完全无反馈。修：检测不到客户端时报错。
+    """
+    from karma.backends import ClaudeCodeBackend
+    monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
+    rc = cli.cmd_install_hooks(backend_name="claude-code")
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "没检测到" in captured.err
+    # wrapper 不该被创建（拦在 client 检测就退了）
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
+    assert cc_wrappers == [], "拦在 client 检测后不该创建 wrapper"
+
+
 def test_install_hooks_unknown_backend_errors(fake_home, capsys):
     """未知 backend 名报错不 silent fail。"""
     rc = cli.cmd_install_hooks(backend_name="not-real-backend")
