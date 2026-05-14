@@ -29,6 +29,12 @@ _ACTION_CONTEXT_RE = re.compile(
 _CONTEXT_WINDOW = 40
 # pre_tool_use git commit 前的检查（共用此 check）
 _GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b", re.IGNORECASE)
+# conventional commit 前缀 — 非代码 commit 不需要测试证据
+# docs/chore/style/refactor 等不改业务行为，不该被 evidence check 拦
+_NON_CODE_COMMIT_PREFIX_RE = re.compile(
+    r"""git\s+commit[^"']*?["'](?:\s*)(docs|chore|style|build|ci|test)(?:\([^)]*\))?\s*:""",
+    re.IGNORECASE,
+)
 
 
 def _in_code_task_context(response: str, match) -> bool:
@@ -55,6 +61,9 @@ def check(
     if tool_name == "Bash":
         cmd = (tool_input or {}).get("command", "") or ""
         if _GIT_COMMIT_RE.search(cmd) and not has_recent_test:
+            # conventional commit 非代码类型（docs/chore/style 等）豁免测试证据要求
+            if _NON_CODE_COMMIT_PREFIX_RE.search(cmd):
+                return None
             return CheckHit(
                 sticky_id=_STICKY_ID,
                 trigger="git commit 前最近 session 内无测试通过证据",

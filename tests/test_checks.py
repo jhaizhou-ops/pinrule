@@ -329,6 +329,33 @@ def test_evidence_git_commit_without_test_fails():
     assert "commit" in hit.trigger.lower() or "证据" in hit.trigger
 
 
+def test_evidence_docs_commit_exempted():
+    """conventional commit `docs:` / `chore:` 不需要测试证据（非代码 commit）。"""
+    fn = REGISTRY["loud_failure_with_evidence"]
+    state = SessionState(session_id="s1")  # 没 test pass
+    # docs commit 豁免
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": 'git commit -m "docs: update README"'},
+        session_state=state,
+    )
+    assert hit is None
+    # chore commit 豁免
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": 'git commit -m "chore(deps): bump version"'},
+        session_state=state,
+    )
+    assert hit is None
+    # 但 feat: / fix: 仍需测试证据
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": 'git commit -m "feat: 加新功能"'},
+        session_state=state,
+    )
+    assert hit is not None
+
+
 def test_evidence_git_commit_with_test_passes():
     fn = REGISTRY["loud_failure_with_evidence"]
     state = SessionState(session_id="s1")
