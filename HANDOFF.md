@@ -31,26 +31,40 @@
 | **M4 user_prompt_submit 强提醒 fallback** | 用户反馈「你又停下来了，自己加的 sticky 也没拦」根因：Claude Code Stop hook 在 user 立刻接 prompt 时**不跑**（user_prompt_submit 优先级覆盖 Stop hook idle 触发）。fallback：user_prompt_submit hook 读 transcript last assistant message 跑 keep_pushing.check，命中（纯陈述完结无推进）→ 注入「强提醒」段告诉本 turn Claude 上次停了，本 turn 必须立即推进。这是 karma 当前能做的最强 keep-pushing 干预（不依赖 Stop hook 协议层 limitation） | 最新 |
 | **M4 Stop hook 不跑 → 撤回错误诊断**（重要错误教训） | 之前结论「Claude Code Stop hook 在 user-continuous 对话不跑」**错** — 用户质疑「stop hook 原理机制咱们没研究清楚」后重派 claude-code-guide 确认：**Stop hook 不支持 matcher 字段**，karma install-hooks 给所有 event 都加 `matcher: '*'` → Stop event 看到 matcher 会无声忽略整个 hook entry → Stop hook 根本没装上 → trace 0 条记录。**真根因**：karma 自身 install-hooks 配置 bug。修：_karma_event_entry 只对 PreToolUse/PostToolUse/UserPromptSubmit 加 matcher，Stop 不加。`karma install-hooks` 重装后修好。教训：单次 trace 0 条记录不能直接断言「协议 limitation」，要查配置先 | 最新 |
 
-## ✅ Stop hook matcher fix 已实战验证生效 + 一条经验
+## ✅ Stop hook matcher fix 已实战验证生效 + 一条 karma 管不到的元认知盲区
 
 **生效证据**：fix 后 Stop hook 真触发 decision=block 干预（用户在 UI 看到了
 karma 强制干预 reason 文案），说明 matcher fix 真根因正确。
 
-**经验（用户当场纠正）**：那次 decision=block 实际是**假阳** —
-触发条件是 violations.jsonl 里有 6 条 `read-before-write` 老违反满足
-force_block_threshold 阈值。深挖发现：
+**karma 管不到的层面（用户纠正 Agent 元认知）**：
 
-- 这 6 条都是 turn 维度引入**之前**的历史（`turn=None`）
-- Claude Code session compact 不换 session_id，老违反沿用到「新对话」
-- `count_recent_turns` 把 `turn=None` 通过 `.get('turn', 0)` fallback 成 0，
-  恰好落入 `current_turn - window_turns` 这个可能 ≤ 0 的窗口里被计数
+Stop hook 排查全过程暴露了一条 karma 工程检测**无法捕捉**的失败模式 ——
+「Agent 过早下结论 + 根因没挖透」。具体路径：
 
-但用户明确说 **「太容易下结论这个问题我估计 karma 管不到这么细节和深入的层面」** —
-session compact 跨界 + turn fallback 0 这种边界场景**不该 karma 来管**，
-继续修是过度工程。**只 clear 历史不修代码**（按用户「假阳直接清掉」授权，
-通过官方 `karma violations clear --sticky` 而不是手改 jsonl，否则 sticky #8 自拦）。
+1. trace 真实 session_id 0 条 → 我直接断言「Claude Code Stop hook 在
+   user-continuous 对话不跑，是协议 limitation」并写进 HANDOFF / ARCHITECTURE
+2. 用户质疑「stop hook 的原理和机制你好好研究下，我觉得不会是没有触发，
+   更像是原理机制咱们没研究清楚」
+3. 我才回头重派 claude-code-guide 查协议，发现真根因：**Stop event 不支持
+   matcher 字段，karma install-hooks 给所有 event 加 matcher='\*' → Stop entry
+   被 Claude Code 无声忽略**
 
-教训：发现假阳时先问「这是不是 karma 该管的层面」，不是所有 false positive 都要修 check。
+用户原话：**「太容易下结论这个问题我估计 karma 管不到这么细节和深入的层面，
+但这确实是个宝贵的经验值得咱们都吸取」**。指的是 Agent 自己根因挖没挖透
+这种**元认知判断** —— karma 工程检测器（关键词 / 正则 / 计数 / pattern）
+没法写出「Agent 这次思考是否收敛过早」的判定。这是 LLM 自身的元能力问题，
+karma 不该假装能管。
+
+附带的具体动作（不是经验主体）：那次 force_block 触发实际是**假阳** —
+6 条 turn=None 老违反跨 session compact 被 `count_recent_turns` 数到
+（`.get('turn', 0)` fallback 落入窗口）。只 clear 历史不修 count_recent_turns
+代码（用官方 `karma violations clear --sticky` 而不是手改 jsonl，否则
+sticky #8 自拦 — 这本身是 karma 工作正常的证据）。
+
+**教训（自警，不进 check）**：
+- 「单次观测 0 条」类的强结论永远先怀疑配置 / 装机 / 自身代码，再怀疑协议
+- 写「协议 limitation / 平台 bug」前必须有正式文档 / 多次复现 / 排除自身实现
+- 用户提出的「再研究下」「不太对劲」要严肃对待，那是元认知信号
 
 ### 真实工作证据 — 假阳治理后 audit 干净
 
