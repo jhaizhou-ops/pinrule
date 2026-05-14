@@ -247,6 +247,43 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
 
 避开 M2.2 时的「描述字面假阳」和 M3 第一波「全放又漏真违反」的两端 — 注释里写「先打个补丁」是真意图表达扫，代码主体字面赋值（数据）不扫。
 
+### Agent 在 karma 项目内汇报用词指南（2026-05-14 防 chinese-plain 38% 真违反复发）
+
+**为什么需要**：dogfooding 实测 chinese-plain 38% 触发 4 次是 **真违反不是
+check 假阳**。Agent（包括本人）写 release note / commit / 汇报响应时撒
+「release note / code identifier / jargon token / commit message」类英文
+复合词，没汉字解释 → 拉低中文比 < 40% 真违反 sticky #3。
+
+**真原则**：karma 项目术语 / 字段名（kebab-case / snake_case / 版本号）已经
+被 chinese-plain check v0.4.11/15 剥离豁免。但**英文复合词**（不含连字符）
+没被识别为项目术语，需要 Agent 自己用汉字解释或替换。
+
+**用词替换清单**（高频英文复合词 → 直白汉字）：
+
+| 英文复合词 | 直白汉字 |
+|---|---|
+| release note | 发布说明 |
+| code identifier | 代码标识符 / 标识符 |
+| jargon token | 英文术语词 |
+| commit message | 提交说明 |
+| dogfooding | 自用验证 |
+| timeline | 时间线 |
+| markdown | 标记格式 / md |
+| pattern | 模式 / 规则 |
+| force_block | 强制干预（项目术语保留反引号引用） |
+| sticky | 偏好规则 |
+| check | 检测 / 规则 |
+
+**例外（保留英文不强求汉字）**：
+- 命令名 / CLI flag — `karma audit --with-fix-timeline`（反引号引用是引用不是话术）
+- 版本号 — `v0.4.21`（已被 check 剥）
+- URL / GitHub 链接 — 已被 check 剥
+- 项目专有标识符 — `chinese-plain-no-jargon` / `_LANG_C_HEAD_RE`（已被 kebab/snake 剥）
+- 表格 cell 内引用 — 已被 v0.4.15 jargon 扫描豁免
+
+**自检**：写完 response 前看末尾段是否含 2+ 个**英文复合词**（连字符以外
+的空格分隔英文）且没汉字解释 → 改成上面替换清单或加括号说明。
+
 ### karma 设计层 4 类深层矛盾（2026-05-14 dogfooding 深度自省）
 
 本 session 6 个 release 治理（v0.4.11~16）触发的真深层问题清单。每条都有
