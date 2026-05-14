@@ -6,8 +6,11 @@ Usage:
                                    默认按系统语言偏好自动选：中文 → 7 条完整；
                                    非中文/检测不到 → 5 条精简（砍 chinese_plain）
                                    --minimal / --no-minimal 强制覆盖
-    karma install-hooks            自动配置 Claude Code hooks
-    karma uninstall-hooks          移除 hook 配置
+    karma install-hooks [--backend claude-code|codex|all]
+                                   自动配置 hooks（默认 claude-code 向后兼容）
+                                   codex 会同时启用 features.hooks；
+                                   all 装本机检测到的所有 AI 编程客户端
+    karma uninstall-hooks [--backend ...]   移除 hook 配置
     karma doctor                   检查环境 + hook 装机 + 当前生效 config
 
     karma sticky list              列出所有 sticky 规则
@@ -23,7 +26,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
@@ -43,125 +45,6 @@ KARMA_DIR = Path.home() / ".claude" / "karma"
 EXAMPLE_STICKY = Path(__file__).parent.parent / "data" / "sticky.dev.example.yaml"
 EXAMPLE_STICKY_MINIMAL = Path(__file__).parent.parent / "data" / "sticky.dev.minimal.example.yaml"
 EXAMPLE_CONFIG = Path(__file__).parent.parent / "data" / "config.example.yaml"
-
-# karma hook 在 Claude Code settings.json 里的事件名 → wrapper 文件名 (snake_case)
-_KARMA_HOOK_EVENTS = {
-    "UserPromptSubmit": "user_prompt_submit",
-    "PreToolUse": "pre_tool_use",
-    "PostToolUse": "post_tool_use",
-    "Stop": "stop",
-}
-
-
-def _hooks_dir() -> Path:
-    return Path.home() / ".claude" / "hooks"
-
-
-def _settings_path() -> Path:
-    return Path.home() / ".claude" / "settings.json"
-
-
-def _settings_backup_path() -> Path:
-    return Path.home() / ".claude" / "settings.json.before-karma"
-
-
-def _karma_wrapper_path(hook_name_lower: str) -> Path:
-    return _hooks_dir() / f"karma_{hook_name_lower}.py"
-
-
-def _karma_event_entry(hook_name_lower: str, event_name: str = "") -> dict:
-    """构造一条 karma hook entry — Claude Code settings.json hooks 字段格式。
-
-    Stop / SessionStart / SessionEnd 等不支持 matcher 字段（matcher 字段会被无声忽略
-    且可能导致 hook 不生效）。只对 PreToolUse / PostToolUse / UserPromptSubmit 等
-    工具相关 hook 加 matcher: "*"。
-    """
-    # dict[str, Any]：value 类型异质（list / str），显式标注让类型检查器接受
-    entry: dict[str, object] = {
-        "hooks": [{"type": "command", "command": str(_karma_wrapper_path(hook_name_lower))}]
-    }
-    if event_name in ("PreToolUse", "PostToolUse", "UserPromptSubmit"):
-        entry["matcher"] = "*"
-    return entry
-
-
-def _is_karma_entry(entry: dict) -> bool:
-    """判断 hook entry 是不是 karma 装的（任一 command 路径含 karma_ 前缀）。"""
-    for h in entry.get("hooks", []):
-        if "karma_" in h.get("command", ""):
-            return True
-    return False
-
-
-class _SettingsParseError(Exception):
-    """settings.json 损坏 — 调用方需要 abort 不能静默覆盖。"""
-
-
-def _load_settings() -> dict:
-    """读 ~/.claude/settings.json。
-
-    文件不存在 → 返回 {}（首次 install 正常路径）。
-    JSON 损坏 → 抛 _SettingsParseError 让调用方 abort（绝不静默覆盖用户配置）。
-    """
-    p = _settings_path()
-    if not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        raise _SettingsParseError(
-            f"settings.json 解析失败: {e}\n"
-            f"路径: {p}\n"
-            f"karma 不会覆盖损坏的配置。请手工修复 JSON 后重跑 install-hooks。"
-        ) from e
-
-
-def _save_settings(data: dict) -> None:
-    """原子写 settings.json — tmp + os.replace 防中断 truncate 半文件。"""
-    p = _settings_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(p.suffix + f".karma-tmp.{os.getpid()}")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, p)
-
-
-def _remove_karma_entries(settings: dict) -> dict:
-    """从 settings.hooks 移除所有 karma entry，保留其他 hook。"""
-    hooks = settings.get("hooks", {})
-    for event in list(hooks.keys()):
-        hooks[event] = [e for e in hooks[event] if not _is_karma_entry(e)]
-        if not hooks[event]:
-            del hooks[event]
-    return settings
-
-
-def _add_karma_entries(settings: dict) -> dict:
-    """给 settings.hooks 4 个 event 各加一条 karma entry。调用方负责先清旧。"""
-    settings.setdefault("hooks", {})
-    for event, fname in _KARMA_HOOK_EVENTS.items():
-        settings["hooks"].setdefault(event, [])
-        settings["hooks"][event].append(_karma_event_entry(fname, event_name=event))
-    return settings
-
-
-def _check_hooks_installed() -> dict[str, dict]:
-    """诊断每个 hook event 的安装状态 — wrapper 存在 + settings 含引用。"""
-    settings = _load_settings()
-    hooks = settings.get("hooks", {})
-    result: dict[str, dict] = {}
-    for event, fname in _KARMA_HOOK_EVENTS.items():
-        wrapper = _karma_wrapper_path(fname)
-        in_settings = any(
-            _is_karma_entry(e) for e in hooks.get(event, [])
-            if any(fname in h.get("command", "") for h in e.get("hooks", []))
-        )
-        result[event] = {
-            "wrapper_exists": wrapper.exists(),
-            "wrapper_executable": wrapper.exists() and os.access(wrapper, os.X_OK),
-            "in_settings": in_settings,
-        }
-    return result
-
 
 def cmd_init(minimal: bool | None = None) -> int:
     """创建 ~/.claude/karma/ + 复制 sticky 模板 + config 模板。
@@ -549,58 +432,85 @@ def cmd_doctor() -> int:
             except OSError:
                 pass
 
-    # hook 安装检测 — 每个 event 三项：wrapper 存在 / 可执行 / settings.json 含引用
-    status = _check_hooks_installed()
-    print("  hook 安装检测:")
+    # hook 安装检测 — 跨所有 backend 显示（claude-code / codex / 未来）
+    from karma.backends import REGISTRY as _BACKENDS
+    print("  hook 安装检测（多 backend）:")
     all_ok = True
-    any_missing = False
-    for event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"):
-        s = status[event]
-        if s["wrapper_exists"] and s["wrapper_executable"] and s["in_settings"]:
-            print(f"    {event}: ✓ wrapper + settings 都在")
-        else:
+    any_install_missing = False
+    for backend_name, backend in _BACKENDS.items():
+        installed_client = backend.client_installed()
+        marker = "✓" if installed_client else "✗"
+        print(f"    [{backend_name}] {backend.display_name} 客户端: {marker}")
+        if not installed_client:
+            continue
+
+        try:
+            settings = backend.load_settings()
+        except Exception as e:
+            print(f"      ⚠️ 配置加载失败: {e}")
             all_ok = False
-            any_missing = True
-            problems = []
-            if not s["wrapper_exists"]:
-                problems.append("wrapper 缺失")
-            elif not s["wrapper_executable"]:
-                problems.append("wrapper 不可执行")
-            if not s["in_settings"]:
-                problems.append("settings.json 未引用")
-            print(f"    {event}: ✗ {', '.join(problems)}")
-    if any_missing:
-        print("  → 运行 `karma install-hooks` 修复")
+            continue
+        hooks = settings.get("hooks", {})
+        any_event_missing = False
+        for event_name, hook_basename in backend.hook_events().items():
+            wrapper = backend.hooks_dir() / f"karma_{hook_basename}.py"
+            wrapper_ok = wrapper.exists() and os.access(wrapper, os.X_OK)
+            in_settings = any(
+                backend.is_karma_entry(e) for e in hooks.get(event_name, [])
+                if any(hook_basename in h.get("command", "") for h in e.get("hooks", []))
+            )
+            if wrapper_ok and in_settings:
+                print(f"      {event_name}: ✓")
+            else:
+                any_event_missing = True
+                all_ok = False
+                problems = []
+                if not wrapper.exists():
+                    problems.append("wrapper 缺失")
+                elif not os.access(wrapper, os.X_OK):
+                    problems.append("wrapper 不可执行")
+                if not in_settings:
+                    problems.append(f"{backend.settings_path().name} 未引用")
+                print(f"      {event_name}: ✗ {', '.join(problems)}")
+        if any_event_missing:
+            any_install_missing = True
+    if any_install_missing:
+        print("  → 运行 `karma install-hooks --backend all` 修复")
     return 0 if all_ok else 1
 
 
-def cmd_install_hooks() -> int:
-    """生成 wrapper + 自动写 settings.json（idempotent + 备份 + 保留其他 hook）。"""
-    hooks_dir = _hooks_dir()
+def _install_to_backend(backend) -> int:
+    """单 backend 装机流程：写 wrapper + 备份 + 改 settings + pre_install_setup。"""
+    from karma.backends._base import SettingsParseError
+
+    print(f"\n→ {backend.display_name}（{backend.name}）")
+
+    # backend 特有的前置步骤（如 Codex 启用 features.hooks）
+    for step in backend.pre_install_setup():
+        print(f"  {step}")
+
+    hooks_dir = backend.hooks_dir()
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    karma_python = sys.executable  # 用当前 venv python（含 karma 包），避免 PATH 问题
-    for hook_name in _KARMA_HOOK_EVENTS.values():
-        wrapper = hooks_dir / f"karma_{hook_name}.py"
+    karma_python = sys.executable
+    for hook_basename in backend.hook_events().values():
+        wrapper = hooks_dir / f"karma_{hook_basename}.py"
         wrapper.write_text(
             f"#!{karma_python}\n"
-            f"# karma {hook_name} hook wrapper (auto-generated)\n"
+            f"# karma {hook_basename} hook wrapper (auto-generated)\n"
             f"# python: {karma_python}\n"
             f"import sys\n"
-            f"sys.exit(__import__('karma.hooks.{hook_name}', fromlist=['main']).main())\n"
+            f"sys.exit(__import__('karma.hooks.{hook_basename}', fromlist=['main']).main())\n"
         )
         wrapper.chmod(0o755)
         print(f"  生成: {wrapper}")
-    # 清理旧版 post_response wrapper
     old_pr = hooks_dir / "karma_post_response.py"
     if old_pr.exists():
         old_pr.unlink()
         print(f"  删除旧版: {old_pr}")
 
-    # 备份原 settings.json — 保留「初次」备份 + 每次 install 写带 ts 的备份
-    # 防止：(1) 用户 settings 已 karma 化后再 install-hooks 二次覆盖丢配置
-    #       (2) 中途 install 出错后从最近备份恢复
-    settings_path = _settings_path()
-    backup_path = _settings_backup_path()
+    # 备份原 settings（保留初次 + 加 ts 的本次备份）
+    settings_path = backend.settings_path()
+    backup_path = backend.settings_backup_path()
     if settings_path.exists():
         if not backup_path.exists():
             backup_path.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
@@ -611,41 +521,125 @@ def cmd_install_hooks() -> int:
         ts_backup.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
         print(f"  本次备份: {ts_backup}")
 
-    # 改 settings.json — 先清旧 karma entry 再加新的（idempotent + 保留他人 hook）
-    # JSON 损坏时 _load_settings 会 raise _SettingsParseError，这里直接 abort
     try:
-        settings = _load_settings()
-    except _SettingsParseError as e:
+        settings = backend.load_settings()
+    except SettingsParseError as e:
         print(f"\n{e}", file=sys.stderr)
         return 1
-    _remove_karma_entries(settings)
-    _add_karma_entries(settings)
-    _save_settings(settings)
-    print(f"  已配置 {settings_path}（4 个 hook event）")
+
+    # 移除旧 karma entry（idempotent + 保留他人 hook）
+    hooks = settings.get("hooks", {})
+    for event in list(hooks.keys()):
+        hooks[event] = [e for e in hooks[event] if not backend.is_karma_entry(e)]
+        if not hooks[event]:
+            del hooks[event]
+
+    # 加新 karma entry
+    settings.setdefault("hooks", {})
+    for event_name, hook_basename in backend.hook_events().items():
+        settings["hooks"].setdefault(event_name, [])
+        settings["hooks"][event_name].append(
+            backend.build_event_entry(hook_basename, event_name)
+        )
+
+    backend.save_settings(settings)
+    print(f"  已配置 {settings_path}（{len(backend.hook_events())} 个 hook event）")
     return 0
 
 
-def cmd_uninstall_hooks() -> int:
-    hooks_dir = _hooks_dir()
+def cmd_install_hooks(backend_name: str = "claude-code") -> int:
+    """生成 wrapper + 自动写客户端配置（idempotent + 备份 + 保留他人 hook）。
+
+    backend_name:
+      - "claude-code"（默认，向后兼容）：装 Claude Code
+      - "codex": 装 Codex CLI
+      - "all": 装本机所有检测到的客户端
+    """
+    from karma.backends import REGISTRY, detect_installed_backends
+
+    if backend_name == "all":
+        installed = detect_installed_backends()
+        if not installed:
+            print("没检测到任何支持的 AI 编程客户端（claude / codex）", file=sys.stderr)
+            return 1
+        print(f"检测到客户端：{', '.join(installed)}")
+        backends_to_install = [REGISTRY[name] for name in installed]
+    elif backend_name in REGISTRY:
+        backends_to_install = [REGISTRY[backend_name]]
+    else:
+        print(f"未知 backend: {backend_name!r}（支持: {list(REGISTRY.keys()) + ['all']}）",
+              file=sys.stderr)
+        return 1
+
+    rc = 0
+    for backend in backends_to_install:
+        if _install_to_backend(backend) != 0:
+            rc = 1
+    return rc
+
+
+def _uninstall_from_backend(backend) -> int:
+    """单 backend 卸装：删 wrapper + 从 settings 移除 karma entry。"""
+    print(f"\n→ {backend.display_name}（{backend.name}）")
+    hooks_dir = backend.hooks_dir()
     n = 0
-    for hook_name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "stop", "post_response"):
-        wrapper = hooks_dir / f"karma_{hook_name}.py"
+    for hook_basename in list(backend.hook_events().values()) + ["post_response"]:
+        wrapper = hooks_dir / f"karma_{hook_basename}.py"
         if wrapper.exists():
             wrapper.unlink()
             n += 1
             print(f"  删除: {wrapper}")
-    # 从 settings.json 也移除 karma entry
-    settings_path = _settings_path()
+    settings_path = backend.settings_path()
     if settings_path.exists():
-        settings = _load_settings()
-        before = sum(len(e) for e in settings.get("hooks", {}).values())
-        _remove_karma_entries(settings)
+        try:
+            settings = backend.load_settings()
+        except Exception:
+            print(f"  ⚠️  {settings_path} 加载失败，跳过 entry 清理")
+            return 0
+        hooks = settings.get("hooks", {})
+        before = sum(len(e) for e in hooks.values())
+        for event in list(hooks.keys()):
+            hooks[event] = [e for e in hooks[event] if not backend.is_karma_entry(e)]
+            if not hooks[event]:
+                del hooks[event]
         after = sum(len(e) for e in settings.get("hooks", {}).values())
         if before > after:
-            _save_settings(settings)
-            print(f"  从 settings.json 移除 {before - after} 个 karma entry")
-    print(f"已删除 {n} 个 hook wrapper。")
+            backend.save_settings(settings)
+            print(f"  从 {settings_path.name} 移除 {before - after} 个 karma entry")
+    print(f"  删除 {n} 个 wrapper")
     return 0
+
+
+def cmd_uninstall_hooks(backend_name: str = "claude-code") -> int:
+    """卸 karma hook（默认 claude-code 向后兼容；--backend codex/all 同 install）。"""
+    from karma.backends import REGISTRY, detect_installed_backends
+
+    if backend_name == "all":
+        installed = detect_installed_backends()
+        backends_to_uninstall = [REGISTRY[name] for name in installed]
+    elif backend_name in REGISTRY:
+        backends_to_uninstall = [REGISTRY[backend_name]]
+    else:
+        print(f"未知 backend: {backend_name!r}", file=sys.stderr)
+        return 1
+
+    for backend in backends_to_uninstall:
+        _uninstall_from_backend(backend)
+    return 0
+
+
+def _parse_backend_arg(args: list[str]) -> str:
+    """从 CLI args 解析 --backend <name>，默认 'claude-code' 向后兼容。
+
+    支持 '--backend codex' / '--backend claude-code' / '--backend all'。
+    位置参数（不带 --backend）一律不识别为 backend 名。
+    """
+    if "--backend" not in args:
+        return "claude-code"
+    idx = args.index("--backend")
+    if idx + 1 >= len(args):
+        return "claude-code"
+    return args[idx + 1]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -679,9 +673,9 @@ def main(argv: list[str] | None = None) -> int:
     if cmd in ("reset", "reset-session"):
         return cmd_reset_session()
     if cmd == "install-hooks":
-        return cmd_install_hooks()
+        return cmd_install_hooks(backend_name=_parse_backend_arg(args))
     if cmd == "uninstall-hooks":
-        return cmd_uninstall_hooks()
+        return cmd_uninstall_hooks(backend_name=_parse_backend_arg(args))
     if cmd == "sticky":
         if not args:
             print("Usage: karma sticky <list|edit|remove>", file=sys.stderr)

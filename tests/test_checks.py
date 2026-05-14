@@ -103,6 +103,37 @@ def test_long_term_bash_with_no_verify_blocked():
     assert "验证" in hit.trigger or "verify" in hit.trigger.lower() or "git" in hit.trigger.lower()
 
 
+def test_long_term_cli_dispatch_kebab_passes():
+    """CLI dispatch 字符串字面（kebab-case 命令名）不该命中「长 ID if 分支」
+    pattern — 命令名是合法分发不是 ID 硬写。dogfooding 实证：karma cli.py
+    'if cmd == \"install-hooks\"' 之前误命中。"""
+    fn = REGISTRY["long_term_fundamental"]
+    for code in [
+        'if cmd == "install-hooks":\n    pass',
+        'if cmd == "uninstall-hooks":\n    pass',
+        'if name == "no-testset-no-future-leakage":\n    pass',
+        'if event == "UserPromptSubmit":\n    pass',
+    ]:
+        hit = fn(tool_name="Write", tool_input={
+            "file_path": "/x/cli.py", "content": code,
+        })
+        assert hit is None, f"CLI dispatch 字面不该拦: {code!r}"
+
+
+def test_long_term_uuid_hash_in_if_still_blocked():
+    """对偶：UUID / hash / 含数字长字面 if 分支硬编码 — 仍要拦（真违反）。"""
+    fn = REGISTRY["long_term_fundamental"]
+    for code in [
+        'if user_id == "abc-def-12345-uuid":\n    pass',
+        'if hash == "9f5687fc2ab975ea":\n    pass',
+        'if token == "tok_abc12345xyz":\n    pass',
+    ]:
+        hit = fn(tool_name="Write", tool_input={
+            "file_path": "/x/src/handler.py", "content": code,
+        })
+        assert hit is not None, f"含数字长字面 if 分支应拦: {code!r}"
+
+
 def test_long_term_pytest_skip_flag_passes():
     """评审 B Agent 真痛点：pytest / pip / cmake / rsync 等合法 --skip / --force
     flag 不该被错拦（之前泛 flag 匹配会误拦）。"""

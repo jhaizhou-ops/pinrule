@@ -331,6 +331,65 @@ def test_stop_hook_force_blocks_on_accumulated_violations(monkeypatch, tmp_path,
         f"reason 应说明强制累积，实际：{out.get('reason', '')}"
 
 
+def test_stop_hook_uses_codex_last_assistant_message_field(monkeypatch, tmp_path, capsys):
+    """Codex Stop payload 给 `last_assistant_message` 字段直接用，不读 transcript。
+
+    跨 backend 兼容验证：karma 在 Codex 下不需要 transcript_path 也能 catch
+    违反。实测 dogfooding：之前只读 transcript_path 在 Codex 下漏所有违反。
+    """
+    _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
+        {"id": "long-term-fundamental", "preference": "x",
+         "violation_keywords": ["先打个补丁"]},
+    ])
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    # Codex stdin 格式 — 无 transcript_path，直接给 last_assistant_message
+    payload = json.dumps({
+        "session_id": "codex-stop-test",
+        "cwd": "/Users/x",
+        "hook_event_name": "Stop",
+        "model": "gpt-5.5",
+        "turn_id": "t1",
+        "stop_hook_active": False,
+        "last_assistant_message": "我先打个补丁应付下",
+    })
+    monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+    stop.main()
+    captured = capsys.readouterr()
+    # 该 catch 关键词违反 — 写 violations + stderr 通知
+    assert violations_path.exists()
+    lines = violations_path.read_text(encoding="utf-8").splitlines()
+    assert any("先打个补丁" in ln for ln in lines), \
+        "Codex last_assistant_message 中的违反应被 catch"
+    assert "karma" in captured.err
+
+
+def test_stop_hook_falls_back_to_transcript_when_no_codex_field(monkeypatch, tmp_path, capsys):
+    """Claude Code Stop payload 没 last_assistant_message — fallback 读 transcript。
+
+    这是对偶 — Codex fix 不该破坏 Claude Code 原行为。
+    """
+    _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
+        {"id": "long-term-fundamental", "preference": "x",
+         "violation_keywords": ["先打个补丁"]},
+    ])
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    # Claude Code stdin — 给 transcript_path 不给 last_assistant_message
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(json.dumps({
+        "type": "assistant",
+        "message": {"content": [{"type": "text", "text": "我先打个补丁试下"}]},
+    }) + "\n", encoding="utf-8")
+    payload = json.dumps({
+        "session_id": "cc-stop-test",
+        "transcript_path": str(transcript),
+    })
+    monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+    stop.main()
+    lines = violations_path.read_text(encoding="utf-8").splitlines()
+    assert any("先打个补丁" in ln for ln in lines), \
+        "Claude Code transcript_path 路径仍要工作（向后兼容）"
+
+
 def test_stop_hook_debug_trace_written_when_env_set(monkeypatch, tmp_path, capsys):
     """KARMA_DEBUG_TRACE=<path> 环境变量启用时 Stop hook 触发应追加一行到 path。
     评审第二轮发现：v0.2.1 之前补了 KARMA_DEBUG 测试但 KARMA_DEBUG_TRACE 姊妹

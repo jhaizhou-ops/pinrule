@@ -21,7 +21,11 @@ from karma.checks.description_context import is_description_context
 # 适用所有 tool（Bash / Write / Edit）— 真违反不分上下文
 _PATTERNS_ALL = [
     (
-        re.compile(r"""if\s+\w+\s*==\s*['"][\w\-]{12,}['"]"""),
+        # 长 ID 字面写在 if 分支 — 必须含数字才命中
+        # 区分真违反（UUID / hash / 长数字串如 'abc-12345-def'）跟合法 CLI dispatch
+        # （字面如 'install-hooks' / 'no-testset-no-future-leakage' — kebab-case 命令
+        # 名 / sticky id 不含数字，是合法分发不是 ID 硬写）
+        re.compile(r"""if\s+\w+\s*==\s*(['"])(?=[\w\-]{12,}\1)[\w\-]*\d[\w\-]*\1"""),
         "长 ID 字面写在 if 分支（特例分支硬编码）",
         "把这种长 ID 字面提到配置 / 通用判定逻辑，不要硬写 if-elif 分支。",
     ),

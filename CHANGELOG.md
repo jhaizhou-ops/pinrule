@@ -4,6 +4,59 @@
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-14（minor — 多 backend 横向扩展：Codex CLI 适配）
+
+### Added — Codex CLI 装机支持
+
+karma 从「Claude Code 专用」升级为「多 AI 编程客户端通用」框架。新增 Codex
+CLI 适配 — 协议跟 Claude Code **几乎一对一兼容**，实测装机 / 卸装 / hook 真
+触发全跑通。
+
+- **`karma/backends/` 多 backend 抽象**：`Backend` Protocol 定义客户端无关的
+  装机接口（hooks_dir / settings_path / hook_events / build_event_entry 等）。
+  - `ClaudeCodeBackend`：refactor 老逻辑进 backend，0 行为变化
+  - `CodexBackend`：新建，`~/.codex/hooks.json` + 自动启用 `[features] hooks = true`
+- **`karma install-hooks --backend codex|claude-code|all`**：默认 claude-code
+  向后兼容；`--backend codex` 装 Codex；`--backend all` 装本机检测到的所有客户端。
+- **`karma uninstall-hooks --backend ...`**：同样支持，验证保留他人 hook
+  （vibe-island 等共存插件）。
+- **`karma doctor` 跨 backend 显示**：每个客户端 ✓/✗ 检测，含 hook 装机状态。
+- **Stop hook 跨协议适配**：优先用 Codex `last_assistant_message` 字段（直接
+  给最后一条 assistant message），fallback Claude Code `transcript_path` 反向读
+  transcript。Codex 性能更优（不用读文件）+ 向后兼容 Claude Code。
+
+### Technical findings（实测真跑得到的协议细节）
+
+- Codex feature flag 真名是 **`hooks`** 不是 `codex_hooks`（vibe-island
+  config.toml 用过时名 `codex_hooks` 误导）— 通过 `codex features list` 确认
+- Codex hook 只在 **interactive TUI 模式**触发，`codex exec` 非交互模式不触发
+  （GitHub issue #17532 描述的已知行为）
+- Codex 6 个 hook event vs Claude Code 4 个 — 共有 UserPromptSubmit / PreToolUse /
+  PostToolUse / Stop（karma 用这 4 个）；Codex 额外有 SessionStart / PermissionRequest
+- Codex stdin payload **没** `transcript_path`，但 Stop hook 直接给
+  `last_assistant_message` — karma 自动适配
+
+### Fixed
+
+- **long_term 「长 ID if 分支」假阳收紧**：之前 `if cmd == "install-hooks"` 类
+  合法 CLI dispatch 命中（13 字符 kebab-case 触发 12+ 字符门槛）。新 pattern
+  用 lookahead 要求字面同时**至少 12 字符 + 含数字**（UUID / hash 满足，CLI
+  命令名 / sticky id 不满足）。加 2 条守护测试。
+
+### Refactor / Quality
+
+- `cli.py` 旧硬编码 helper 函数（`_settings_path` / `_save_settings` /
+  `_remove_karma_entries` / `_add_karma_entries` / `_check_hooks_installed` /
+  `_karma_event_entry` / `_KARMA_HOOK_EVENTS` / `_SettingsParseError` 等）
+  全部移除 — 用 backend 接口替代。代码量减少 ~80 行，可维护性提升。
+- 测试 277 → 294（新增 backend 测试 15 条 + Codex stop 协议 2 条 + long_term 假阳 2 条）。
+
+### Test / Quality
+
+- 测试 294/294 全过，ruff / mypy（含 tests/）/ vulture 0 issue。
+- 实测装机：`karma install-hooks --backend codex` 真写 `~/.codex/hooks.json`，
+  vibe-island 4 个原 entry 全保留共存。卸装同样验证。
+
 ## [0.2.4] — 2026-05-14（minor — 跨平台 locale 自动检测）
 
 ### Added
@@ -246,7 +299,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.3.0
 [0.2.4]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.2.4
 [0.2.3]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.2.3
 [0.2.2]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.2.2

@@ -1,9 +1,13 @@
 """Stop hook — Agent 响应完成后扫违反。
 
-Claude Code 实际协议:
-- stdin payload: {session_id, transcript_path, cwd, ...}（没有 response 字段）
-- 要扫 response 需要读 transcript_path JSONL 文件取最后一条 assistant message
-- stdout: {"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "..."}}
+跨 backend 协议（Claude Code / Codex 兼容）：
+- Claude Code stdin: {session_id, transcript_path, cwd, ...}（没有 response 字段）
+  → 反向读 transcript_path JSONL 取最后一条 assistant message
+- Codex stdin: {session_id, cwd, hook_event_name, model, turn_id, stop_hook_active,
+                last_assistant_message}
+  → 直接用 last_assistant_message 字段（karma 不用读 transcript，性能更好）
+- 共享 stdout: {"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "..."}}
+  + 共享 decision/reason/continue 等 block 字段
 """
 
 from __future__ import annotations
@@ -83,8 +87,9 @@ def main() -> int:
             pass
 
     session_id = payload.get("session_id", "") or "default"
-    transcript_path = payload.get("transcript_path", "")
-    response = _read_last_assistant_response(transcript_path)
+    # 优先 Codex 直传字段（不用读文件更高效）；fallback Claude Code transcript
+    response = payload.get("last_assistant_message", "") or \
+        _read_last_assistant_response(payload.get("transcript_path", ""))
 
     try:
         sticky_list = load()

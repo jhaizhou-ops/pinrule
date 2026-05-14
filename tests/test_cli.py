@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from karma import cli
+from karma.backends import ClaudeCodeBackend
 
 
 # ---- 通用 fixtures ----
@@ -218,7 +219,7 @@ def test_install_hooks_stop_entry_has_no_matcher(fake_home):
     """
     cli.cmd_install_hooks()
     settings = _read_settings(fake_home)
-    stop_entries = [e for e in settings["hooks"].get("Stop", []) if cli._is_karma_entry(e)]
+    stop_entries = [e for e in settings["hooks"].get("Stop", []) if ClaudeCodeBackend().is_karma_entry(e)]
     assert len(stop_entries) == 1, "Stop 应该有恰好 1 条 karma entry"
     assert "matcher" not in stop_entries[0], (
         "Stop entry 不能含 matcher 字段 — 否则 Claude Code 无声忽略整个 entry"
@@ -234,7 +235,7 @@ def test_install_hooks_tool_events_keep_matcher(fake_home):
     cli.cmd_install_hooks()
     settings = _read_settings(fake_home)
     for event in ("PreToolUse", "PostToolUse", "UserPromptSubmit"):
-        karma_entries = [e for e in settings["hooks"][event] if cli._is_karma_entry(e)]
+        karma_entries = [e for e in settings["hooks"][event] if ClaudeCodeBackend().is_karma_entry(e)]
         assert len(karma_entries) == 1
         assert karma_entries[0].get("matcher") == "*", f"{event} 必须 matcher='*'"
 
@@ -364,15 +365,18 @@ def test_doctor_reports_missing_wrappers(fake_home, capsys):
     assert "✗" in out or "缺失" in out or "未安装" in out, f"doctor 应明确报告 hook 缺失: {out}"
 
 
-def test_doctor_reports_fully_installed(fake_home, capsys):
-    """install 后 doctor 应报告全部 ✓。"""
+def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
+    """install Claude Code 后 doctor 应报告 Claude Code 全部 ✓（mock Codex 没装）。"""
     sticky_path = fake_home / ".claude" / "karma" / "sticky.yaml"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
     sticky_path.write_text("- id: test\n  preference: x\n")
     import karma.sticky
     import karma.violations
+    from karma.backends import CodexBackend
     import unittest.mock
-    cli.cmd_install_hooks()
+    # mock Codex 没装（fake_home 是 tmp，本测试只关心 Claude Code 路径）
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
+    cli.cmd_install_hooks(backend_name="claude-code")
     with unittest.mock.patch.object(karma.sticky, "DEFAULT_PATH", sticky_path):
         with unittest.mock.patch.object(cli, "STICKY_PATH", sticky_path):
             with unittest.mock.patch.object(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
