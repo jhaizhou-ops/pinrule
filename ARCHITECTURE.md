@@ -1,25 +1,28 @@
-# karma 技术架构
+# karma 技术架构（M3 现状）
 
 ## 总览
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  ~/.claude/karma/                                        │
-│  ├── sticky.yaml           ← 用户手工维护核心方向          │
-│  ├── violations.jsonl      ← 违反历史 (append-only)        │
-│  └── stats.json            ← 聚合统计 (CLI 用)             │
-└──────────────────────────────────────────────────────────┘
-                       │
-                       │ 读
+┌───────────────────────────────────────────────────────────┐
+│  ~/.claude/karma/                                         │
+│  ├── sticky.yaml             ← 用户手工维护核心方向        │
+│  ├── violations.jsonl        ← 违反历史（5000 行自动 rotation）│
+│  └── session-state/          ← 每 session 一 json (30 天自动清理)│
+│      └── {session_id}.json   ← read_files / edit_files /  │
+│                                  recent_bash / last_test_pass_ts / │
+│                                  pending_bg_tasks ...     │
+└───────────────────────────────────────────────────────────┘
+                       │ 读 / 写
                        ▼
-┌──────────────────────────────────────────────────────────┐
-│  Claude Code hooks (~/.claude/hooks/)                    │
-│  ├── user_prompt_submit.py  ← 前置注入 sticky (永驻)      │
-│  ├── pre_tool_use.py         ← 实时拦截违反 tool 调用      │
-│  └── post_response.py        ← 兜底扫违反 + 记录          │
-└──────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│  Claude Code hooks (~/.claude/hooks/)                     │
+│  ├── karma_user_prompt_submit.py   ← 每条消息前注入 sticky │
+│  ├── karma_pre_tool_use.py         ← 实时拦截违反 tool 调用│
+│  ├── karma_post_tool_use.py        ← 跟踪状态 + catchup    │
+│  └── karma_stop.py                 ← 扫 response 违反      │
+└───────────────────────────────────────────────────────────┘
                        │
-                       │ inject / detect
+                       │ additionalContext / permissionDecision
                        ▼
               ┌─────────────────────┐
               │   Claude Code       │
@@ -29,301 +32,267 @@
 
 ## 数据模型
 
-### sticky.yaml
+### sticky.yaml（用户手工维护）
 
 ```yaml
-# 用户手工维护，5-10 条上限
-- id: long-term-thinking            # 短 slug，CLI 用
-  preference: |
-    用普适长期正确优雅方案，不打补丁不作弊不短视。
-    遇到复杂问题深挖根因，不绕过；评估方案时优先长期可维护性。
-  violation_keywords:                # 简单触发词列表
+- id: long-term-fundamental         # kebab-case slug，CLI 用
+  preference: |                     # 多行允许，注入 Claude 看到的就是这个
+    用最根本、最长期、最普适、最优雅的方案。
+    不打补丁、不硬编码、不为追短期 KPI 牺牲长期质量。
+  violation_keywords:               # 关键词数组（任一匹配算违反）
     - 先打个补丁
-    - 快速绕过
     - 硬编码
-    - 先这样
-    - 短期目标
-  # 可选高级检测（v1+ 实施）
-  # violation_check: english_density_above_0.3
+    - 临时方案
+  violation_checks:                 # 工程层 check 函数名（精确 pattern）
+    - long_term_fundamental
 ```
 
-字段说明：
-- `id`: kebab-case 短 slug，CLI 用 `karma sticky remove long-term-thinking`
-- `preference`: 多行允许，建议 30-80 字描述
-- `violation_keywords`: 数组，**任一匹配**算违反（不区分大小写）
-- `violation_check` (v1+): 命名内置检测函数（如 `english_density_above_X`）
+字段：
+- `id` — kebab-case 短 slug，唯一
+- `preference` — 一句或多行的方向描述
+- `violation_keywords` — 关键词数组（不区分大小写，子串匹配）
+- `violation_checks` — `karma/checks/__init__.py:REGISTRY` 里的函数名
+
+软上限 10 条，硬上限 12 条（超过 hook 拒绝加载，避免注意力稀释）。
 
 ### violations.jsonl
 
 ```jsonl
-{"ts": 1715617200, "session_id": "abc123", "sticky_id": "long-term-thinking", "trigger": "硬编码", "snippet": "...让我先 硬编码 这个值快速验证..."}
-{"ts": 1715617250, "session_id": "abc123", "sticky_id": "no-blocking-frontend", "trigger": "等测试完", "snippet": "...先 等测试完 再继续下一步..."}
+{"ts":1715617200,"session_id":"abc","sticky_id":"long-term-fundamental","trigger":"硬编码","snippet":"...先 硬编码 这个值..."}
+{"ts":1715617250,"session_id":"abc","sticky_id":"non-blocking-parallel","trigger":"Bash sleep 命令: 'sleep 30'","snippet":"sleep 30 && echo done"}
 ```
 
-append-only，CLI 用 `tail` 看最近违反。
+append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史，最老的删）。
 
-### stats.json (cache)
+### session-state/{session_id}.json
 
 ```json
 {
-  "long-term-thinking": {"count_total": 23, "count_7d": 5, "last_ts": 1715617200, "recent_triggers": ["硬编码", "先这样", "硬编码"]},
-  "no-blocking-frontend": {"count_total": 12, "count_7d": 3, "last_ts": 1715617250}
+  "session_id": "abc",
+  "read_files": ["/x/a.py", "/x/b.py"],
+  "edit_files": ["/x/a.py"],
+  "recent_bash": [
+    {"ts":..., "command_summary":"pytest tests/", "is_test_cmd":true, "output_passed":true, "output_failed":false},
+    ...
+  ],
+  "last_test_pass_ts": 1715617200.5,
+  "last_edit_ts": 1715617100.3,
+  "pending_bg_tasks": [
+    {"cmd":"pytest > log.txt 2>&1","output_file":"/tmp/log.txt","started_ts":...}
+  ]
 }
 ```
 
-由 CLI / hook 异步聚合，**hook 不读不写**（避免 IO 拖延 user prompt submit）。
+跨 hook 共享状态：
+- `read_files / edit_files` — read_first 检测用（Write/NotebookEdit 后自动 record_read）
+- `recent_bash` — Bash 历史摘要（PASS/FAIL 信号 + 是否测试命令）
+- `last_test_pass_ts vs last_edit_ts` — `has_recent_test_pass()` 用：「自最近代码改动以来跑过测试且通过」
+- `pending_bg_tasks` — background 任务启动时 record，下次 hook 触发 `catchup_pending_bg` 读 output_file 接进通过证据
 
-## Hook 集成
+文件 30 天没动自动清理（user_prompt_submit hook 每 turn 跑 purge）。
+保存用 `{stem}.{pid}.{ns}.json.tmp` + atomic rename，并发写不冲突。
 
-karma 通过 Claude Code 标准 hooks 接入，不需要 fork / patch Claude Code。
+## 4 个 Hook（Claude Code 标准协议）
 
-### user_prompt_submit hook
+### UserPromptSubmit hook
 
-时机：每次用户发消息 Claude Code 把消息送给模型**之前**调用。
+时机：用户发消息 → 模型看到消息前。
 
-实现：`~/.claude/hooks/karma_user_prompt_submit.py`
-
-```python
-#!/usr/bin/env python3
-"""karma user_prompt_submit hook — 前置注入 sticky 提示。
-
-输入：从 stdin 读 hook payload (含 user_text)
-输出：修改后的 user_text 到 stdout
-
-性能预算：< 50ms（影响每个 user prompt 响应）
-"""
-import json, sys, time, yaml
-from pathlib import Path
-
-STICKY_PATH = Path.home() / ".claude" / "karma" / "sticky.yaml"
-VIOLATIONS_PATH = Path.home() / ".claude" / "karma" / "violations.jsonl"
-RECENT_VIOLATION_WINDOW_SEC = 24 * 3600  # 24h 内的违反算 recent
-
-def load_sticky():
-    if not STICKY_PATH.exists():
-        return []
-    return yaml.safe_load(STICKY_PATH.read_text()) or []
-
-def recent_violations():
-    """返回 sticky_id → 最近违反时间戳的 dict（24h 内）。"""
-    if not VIOLATIONS_PATH.exists():
-        return {}
-    cutoff = time.time() - RECENT_VIOLATION_WINDOW_SEC
-    recent = {}
-    # 反向读最近 200 行就够（违反不会太频繁）
-    lines = VIOLATIONS_PATH.read_text().splitlines()[-200:]
-    for line in lines:
-        try:
-            v = json.loads(line)
-            if v["ts"] >= cutoff:
-                sid = v["sticky_id"]
-                recent[sid] = max(recent.get(sid, 0), v["ts"])
-        except (json.JSONDecodeError, KeyError):
-            continue
-    return recent
-
-def main():
-    payload = json.load(sys.stdin)
-    user_text = payload.get("user_text", "")
-
-    sticky = load_sticky()
-    if not sticky:
-        sys.stdout.write(user_text)  # 没配 sticky，原样返回
-        return
-
-    recent = recent_violations()
-    lines = ["[karma sticky — 用户最高优先级方向，请始终遵守]"]
-    for i, s in enumerate(sticky, 1):
-        marker = " ⚠️ 上次违反！" if s["id"] in recent else ""
-        lines.append(f"{i}. {s['preference'].strip()}{marker}")
-    lines.append("")
-    lines.append("[用户当前消息]")
-    lines.append(user_text)
-
-    sys.stdout.write("\n".join(lines))
-
-if __name__ == "__main__":
-    main()
-```
-
-注册：在 Claude Code 配置里：
-
+输入 stdin payload（Claude Code 协议）：
 ```json
-{
-  "hooks": {
-    "user_prompt_submit": "~/.claude/hooks/karma_user_prompt_submit.py"
-  }
-}
+{"prompt": "...", "session_id": "abc", "transcript_path": "...", "cwd": "..."}
 ```
 
-### pre_tool_use hook（实时拦截，最关键的干预层）
-
-时机：Agent 决定调 tool（Bash / Write / Edit）但**还没执行**前。
-
-跟 post_response 的差别：post_response 是事后通知（Agent 已经做完违反动作），
-pre_tool_use 是**事前拦截**（Agent 还没执行就被打回，让它重新规划）。
-
-实现：`~/.claude/hooks/karma_pre_tool_use.py` → 调 `karma.hooks.pre_tool_use:main`
-
-输入：stdin JSON `{tool_name, tool_input, session_id}`
-输出：stdout JSON `{decision: "allow"|"deny", reason?: "..."}`
-
-提取逻辑（不同 tool 不同字段）：
-- `Bash` → `tool_input.command`
-- `Write` → `tool_input.content`
-- `Edit` → `tool_input.new_string` (只扫 Agent 加的新内容，不扫已有 old_string)
-- 其他 tool → 整个 input JSON dump
-
-性能预算：< 100ms（影响每次 tool 调用响应）
-
-Fail open 原则：sticky.yaml 配置错或 payload JSON 解析失败 → 不阻塞 tool（避免坏
-karma 卡死 Agent）。
-
-### post_response hook
-
-时机：每次 Agent 响应**完成后**调用。
-
-实现：`~/.claude/hooks/karma_post_response.py`
-
-```python
-#!/usr/bin/env python3
-"""karma post_response hook — 扫违反，记录到 violations.jsonl。
-
-输入：从 stdin 读 hook payload (含 agent_response)
-输出：可选 stderr 通知
-
-性能预算：< 200ms（不阻塞用户感知）
-"""
-import json, sys, time, yaml
-from pathlib import Path
-
-STICKY_PATH = Path.home() / ".claude" / "karma" / "sticky.yaml"
-VIOLATIONS_PATH = Path.home() / ".claude" / "karma" / "violations.jsonl"
-
-def main():
-    payload = json.load(sys.stdin)
-    response = payload.get("agent_response", "")
-    session_id = payload.get("session_id", "unknown")
-    response_lower = response.lower()
-
-    if not STICKY_PATH.exists():
-        return
-    sticky = yaml.safe_load(STICKY_PATH.read_text()) or []
-    if not sticky:
-        return
-
-    violations = []
-    for s in sticky:
-        for kw in s.get("violation_keywords", []):
-            if kw.lower() in response_lower:
-                # 找 snippet (kw 前后 30 字)
-                idx = response_lower.find(kw.lower())
-                start = max(0, idx - 30)
-                end = min(len(response), idx + len(kw) + 30)
-                violations.append({
-                    "ts": int(time.time()),
-                    "session_id": session_id,
-                    "sticky_id": s["id"],
-                    "trigger": kw,
-                    "snippet": response[start:end],
-                })
-
-    if violations:
-        VIOLATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with VIOLATIONS_PATH.open("a") as f:
-            for v in violations:
-                f.write(json.dumps(v, ensure_ascii=False) + "\n")
-        # 通知用户
-        for v in violations:
-            print(f"⚠️ karma: Agent 违反 \"{v['sticky_id']}\" (触发: {v['trigger']})",
-                  file=sys.stderr)
-
-if __name__ == "__main__":
-    main()
-```
-
-注册：
-
+输出 stdout：
 ```json
-{
-  "hooks": {
-    "post_response": "~/.claude/hooks/karma_post_response.py"
-  }
-}
+{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "...sticky 注入..."}}
 ```
 
-## CLI 工具
+实现：`karma/hooks/user_prompt_submit.py`
+- 加载 sticky.yaml
+- 读 violations.jsonl 取 24h 内违反过的 sticky_id（标 ⚠️）
+- 格式化 `[karma sticky — 用户最高优先级方向，请始终遵守]` + 编号规则
+- 顺带跑 `purge_old_states(max_age_days=30)`（异常吞掉不阻塞）
 
-`karma` CLI 提供 sticky 管理 + 观察工具。
+性能：< 50ms（sticky.yaml 通常 ≤ 1KB，violations 读尾 200 行）。
 
-实现：`bin/karma`（Python 脚本，pip install . 后可用）
+### PreToolUse hook（实时拦截，最关键的干预层）
 
-### 命令
+时机：Agent 决定调 tool 但**还没执行**前。
+
+输入 stdin payload：
+```json
+{"tool_name": "Bash", "tool_input": {"command": "sleep 30"}, "session_id": "abc", ...}
+```
+
+输出 stdout（允许）：
+```json
+{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}
+```
+
+输出 stdout（拦截）：
+```json
+{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "..."}}
+```
+
+实现：`karma/hooks/pre_tool_use.py`
+
+两层检测：
+1. **工程层** — 跑 sticky 配的 `violation_checks` 函数集（精确 regex pattern）
+2. **关键词层（兜底）** — 扫 Bash command 骨架（剥引号字面 + heredoc 智能剥）+ Write/Edit 注释 + docstring
+
+优先工程层（更精确），命中即 deny。Fail open 原则（配置错 / payload 解析失败 → allow，不卡 Agent）。
+
+性能：< 100ms。
+
+### PostToolUse hook（状态跟踪 + catchup）
+
+时机：tool 调用完成后。
+
+输入 stdin payload：
+```json
+{"tool_name": "Bash", "tool_input": {...}, "tool_response": {"stdout": "...", "stderr": "...", "backgroundTaskId": "..."}, "session_id": "abc"}
+```
+
+实现：`karma/hooks/post_tool_use.py`
+
+主要逻辑：
+1. 先跑 `state.catchup_pending_bg()` — 读上轮 background 任务 log 接通过证据
+2. 判 `_tool_failed(tool_response)`（dict `isError`/`interrupted` 或 string 前缀）
+3. 成功的 Read → `record_read`；成功的 Write/NotebookEdit → `record_edit + record_read`；成功的 Edit → `record_edit`；Bash 总是 record（PASS/FAIL 内部判）
+4. 失败 tool 不 record（防 Read 失败也 record_read 让 read_first 被绕过）
+
+性能：< 30ms。
+
+### Stop hook（response 扫违反）
+
+时机：Agent 响应完成（这条 turn 结束）。
+
+输入 stdin payload（**没有** response 字段，要读 transcript）：
+```json
+{"session_id": "abc", "transcript_path": "/path/to/transcript.jsonl", "cwd": "..."}
+```
+
+实现：`karma/hooks/stop.py`
+1. 读 transcript_path JSONL，找最后一条 `type=assistant` 取所有 text content
+2. 扫 violation_keywords 关键词层 + 工程层 violation_checks（chinese_plain / evidence 主要在这层）
+3. 命中违反写 `violations.jsonl` + stderr 通知
+4. 输出 `additionalContext` 给下次 UserPromptSubmit 看（实际下次 sticky 注入会读 recent violations 自动加 ⚠️）
+
+性能：< 200ms。
+
+## 6 个 violation_check 函数（工程层精准检测）
+
+`karma/checks/__init__.py:REGISTRY` 映射 sticky.yaml 的 `violation_checks` 字符串 → 函数：
+
+| check 名 | sticky | 检测内容 |
+|---|---|---|
+| `long_term_fundamental` | 长期方案 | 长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 真注释 / 意图字面注释 / commit message 主语 hack 词 |
+| `non_blocking_parallel` | 不阻塞 | sleep / wait / 长任务无 background / 间接 shell 执行 |
+| `chinese_plain_no_jargon` | 中文 | 中文占比 + jargon 检测（剥 code block / inline code） |
+| `loud_failure_with_evidence` | 完成证据 | 完成词 / weak claim 在代码任务上下文 + 无测试证据 |
+| `no_testset_no_future_leakage` | 不喂测试集 | gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值位置 |
+| `read_before_write` | 先读再写 | Edit/Write 前未 Read 该 file_path（Write 新文件豁免） |
+
+每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
+
+返回 `None` = 无违反，返回 `CheckHit(sticky_id, trigger, snippet, suggested_fix)` = 违反命中。
+
+## 共用 helpers（`karma/checks/common.py`）
+
+跨 check 函数 + hook 共用：
+
+- `extract_tool_text(tool_name, tool_input)` — 不同 tool 不同字段提取（Bash.command / Write.content / Edit.new_string）
+- `strip_code_blocks(text)` — 剥 markdown ` ``` ` 代码块 + ` ` ` inline code
+- `strip_shell_quoted_literals(cmd)` — 剥 shell `'...'` `"..."` 引号字面 + heredoc 智能剥（区分头部命令 bash/sh 保留扫 vs python/cat 剥）+ 间接 shell（`bash -c '...'` 内保留扫）
+- `extract_natural_language(content, file_path)` — 抽出代码注释行（# / // / --）+ docstring（""" ''' /* */）
+
+## 描述上下文统一豁免（`karma/checks/description_context.py`）
+
+`is_description_context(tool_name, tool_input) → (bool, reason)`：
+
+| 维度 | 判定 |
+|---|---|
+| 文档后缀 | `.md` / `.rst` / `.txt` / `.markdown` / `.adoc` |
+| 测试目录 | path 含 `tests/` `test/` `__tests__` `spec` |
+| 测试文件名 | `test_*.py` / `*_test.py` / `*_test.go` 等 |
+| 临时探针 | `/tmp/` / `/var/tmp/` 路径 |
+| 探针/样本命名 | 文件名含 `probe / scratch / sample / playground / fixture` |
+
+命中即整段豁免工程层 `long_term` / `testset` + 关键词层（关键词层对 Write/Edit 也调此判定）。
+
+## CLI 工具（`karma/cli.py`）
 
 ```bash
+# 初始化
+karma init                       # 创建 ~/.claude/karma/ + 复制 sticky 模板
+
 # sticky 管理
-karma sticky list                       # 列出所有 sticky 规则
-karma sticky add                        # 交互式添加新 sticky（编辑器打开）
-karma sticky remove <id>                # 移除某条
-karma sticky edit <id>                  # 编辑某条（编辑器打开）
+karma sticky list                # 列出所有 sticky
+karma sticky edit                # $EDITOR 打开 sticky.yaml 编辑
+karma sticky remove <id>         # 移除某条
 
 # 观察
-karma stats                             # 列出每条规则的违反统计（7 天 / 总）
-karma violations recent                 # 最近 20 条违反详情
-karma violations clear                  # 清违反历史（确认）
+karma stats                      # 每条规则违反统计
+karma violations recent [N]      # 最近 N 条违反详情
+karma violations clear           # 清违反历史（需确认）
 
-# 安装 / 卸载
-karma install-hooks                     # 自动配置 Claude Code hooks
-karma uninstall-hooks                   # 移除 hook 配置
-karma doctor                            # 检查环境（hook 是否生效、sticky.yaml 是否合法等）
+# 装机
+karma install-hooks              # 生成 4 个 wrapper + 自动写 settings.json
+karma uninstall-hooks            # 删 wrapper + 清 settings.json 里 karma entry
+karma doctor                     # 检查环境 + 4 个 hook 安装状态
 ```
+
+`install-hooks` 关键特性：
+- idempotent — 多次运行结果一致
+- 首次运行备份 `settings.json` 到 `settings.json.before-karma`
+- 保留所有非 karma hook（vibe-island / rtk / codex-review 等共存）
+- 用 wrapper 路径含 `karma_` 前缀识别 karma entry
 
 ## 性能预算
 
-| 路径 | 预算 |
-|---|---|
-| user_prompt_submit hook | < 50ms (sticky.yaml 通常 ≤ 1KB，violations 200 行就够) |
-| post_response hook | < 200ms (sticky × response_len 简单 substring) |
-| CLI stats | < 500ms |
+| 路径 | 预算 | 当前实测 |
+|---|---|---|
+| UserPromptSubmit | < 50ms | 5-15ms（yaml 加载 + violations 读 200 行） |
+| PreToolUse | < 100ms | 10-30ms（regex 扫 + check 函数集） |
+| PostToolUse | < 30ms | 5-15ms（状态写 atomic rename） |
+| Stop | < 200ms | 20-50ms（transcript 反向找 assistant + 扫违反） |
 
-不需要 SQLite / cache 等复杂数据层 — 纯文本 IO 在小数据量下足够。
+性能没成瓶颈 — 实测远低于预算。
 
 ## 安全 / 隐私
 
-- karma 的所有数据都在 `~/.claude/karma/` 本地
-- 不上传任何数据到任何 LLM 或服务
-- 不调用 LLM（v0 完全无 LLM）
-- 用户随时可以 `rm -rf ~/.claude/karma/` 清空所有 karma 状态
+- 所有数据本地 `~/.claude/karma/`
+- 不上传任何数据
+- 不调用 LLM（karma v2 全项目坚定不用 LLM，含 v1+ 也不引入）
+- 用户随时 `rm -rf ~/.claude/karma/` 清空状态
+- `karma uninstall-hooks` 干净清理（删 wrapper + 清 settings.json）
 
-## v0 不做（明确边界）
+## v0 边界（明确不做）
 
-- ❌ 数据库（SQLite 之类）— violations.jsonl 文件级够用
-- ❌ LLM 调用 — v0 完全工程化
-- ❌ 多平台支持（先 Claude Code only）
-- ❌ Web UI / TUI — CLI + yaml 编辑器足够
-- ❌ 自动学习 sticky — 用户掌控
+- ❌ 引入 LLM — 全工程化（regex / 计数 / 上下文判定）
+- ❌ 数据库 — `violations.jsonl` + `session-state/*.json` 文本 IO 足够
+- ❌ 自动蒸馏新 sticky — 用户掌控
+- ❌ retrieval / cosine / scene 选规则 — 5-10 条 always-on
+- ❌ 跨平台支持 — 先 Claude Code only
+- ❌ Web UI / TUI — CLI + $EDITOR 足够
 
-## 实施 milestone
+## 已交付里程碑
 
-### M0: 骨架（这周内）
+| 里程碑 | 状态 |
+|---|---|
+| M0 骨架 + 4 文档 | ✅ |
+| M1 sticky 加载 + 2 hook 原型 + CLI 骨架 | ✅ |
+| M1.5 PreToolUse 实时拦截 | ✅ |
+| M2 6 个工程 check + session_state | ✅ |
+| M2.1 适配 Claude Code 真实协议 | ✅ |
+| M2.2 长 term check 按 tool 分组 + 文档豁免 | ✅ |
+| M3 1-6 波 全面降假阳 + 假阴对偶 + 装机自动化 + 长期质量 + 描述上下文完整化 + 加严审计 | ✅ |
 
-- [x] 项目初始化（仓库 / README / PRD / ARCHITECTURE）
-- [ ] sticky.yaml schema 定稿
-- [ ] user_prompt_submit hook 原型
-- [ ] post_response hook 原型
-- [ ] karma CLI 骨架（list / add / install-hooks）
-- [ ] sticky 5-10 条种子规则（作者自用）
+详见 [HANDOFF.md](./HANDOFF.md)。
 
-### M1: 自用验证（下周）
+## 持续观察 = 持续开发
 
-- [ ] 装好 hook 自用 1 周
-- [ ] 观察 violations.jsonl 增长 + Agent 在长任务中行为变化
-- [ ] 记录 5 个具体案例 → 评判 karma 是否真有用
+用户原话「咱们继续推就是观察期」— 每次推进都装着 karma 跑，每个 commit 都经历 hook 拦截。M3 累积 30+ 真实违反，6 个 sticky 全部触发过。
 
-### M2 (如果 M1 通过): 第一批种子分享
-
-- [ ] README 加 quickstart
-- [ ] 分享 sticky 模板（不强制使用，仅参考）
-- [ ] 给 2-3 个朋友试用收反馈
-
-如果 M1 验证失败 → karma 假设错，需要进一步重新设计。
+karma 不是「先开发完再观察」，是「开发即 dogfooding」。
