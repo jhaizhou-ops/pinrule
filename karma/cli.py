@@ -264,8 +264,22 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
                 timeline_suffix = (
                     f" [check 最新 fix {fix_date}: 修前 {pre_fix} / 修后 {post_fix}]"
                 )
+        # v0.4.25：字面多样性 — Agent 用多少种不同 snippet 末尾试探同一 sticky
+        # 比例高 = 字面试探行为（学换字面不被检测拦不是改行为）
+        diversity_suffix = ""
+        if total >= 5:
+            snippets_tail = {
+                v.snippet[-40:] for v in violations if v.sticky_id == sid
+            }
+            diversity = len(snippets_tail) / total
+            if diversity >= 0.7:
+                diversity_suffix = (
+                    f" 🎭 字面试探 ({len(snippets_tail)}/{total}={diversity*100:.0f}%)"
+                )
+            elif diversity >= 0.4:
+                diversity_suffix = f" ({len(snippets_tail)}/{total}={diversity*100:.0f}% 字面多样)"
         if is_md:
-            print(f"### [{sid}] {total} 条触发{timeline_suffix}\n")
+            print(f"### [{sid}] {total} 条触发{timeline_suffix}{diversity_suffix}\n")
             print("| 次数 | 占比 | 触发词 | 标记 |")
             print("|---|---|---|---|")
             for trigger, cnt in ctr.most_common(5):
@@ -276,7 +290,7 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
                 print(f"| {cnt} | {ratio*100:.0f}% | `{trigger_safe}` | {mark} |")
             print()
         else:
-            print(f"[{sid}] {total} 条触发{timeline_suffix}")
+            print(f"[{sid}] {total} 条触发{timeline_suffix}{diversity_suffix}")
             for trigger, cnt in ctr.most_common(5):
                 ratio = cnt / total
                 mark = " ⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""

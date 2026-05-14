@@ -4,6 +4,45 @@
 
 ## [Unreleased]
 
+## [0.4.25] — 2026-05-14（feat — karma v3 第二步：audit 字面多样性元行为监测）
+
+### 真触发
+
+用户问「绕过冲动」洞察 + dogfooding 数据证实：keep-pushing 35 次触发对应
+**32 种独立 snippet 末尾变体（91% 字面多样性）** — Agent 字面试探行为有
+实证。这是「Agent 学到换字面绕 check 不是真改行为」的真数据指标。
+
+### Feat
+
+`karma/cli.py` `cmd_audit` 加字面多样性列：
+
+- 算每个 sticky 的 `set(snippet[-40:])` 独立变体数 vs 总触发数
+- 比例 >= 70% 标 🎭 字面试探（Agent 字面规避行为强）
+- 比例 40-70% 标普通字面多样
+- < 40% 不标（字面相对集中说明 Agent 真撞同样 pattern 而非试探）
+
+### 已知 limitation
+
+字面多样性对**文本类 sticky**（chinese-plain / keep-pushing / loud-failure）
+有意义 — snippet 是 response 文本变体说明字面试探。
+
+对**Bash 命令类 sticky**（non-blocking / long-term / deep-fix）**会误标** —
+snippet 是 Bash 命令字面本来就千变万化（不同 commit message / sleep N 值 /
+绕过命令字面），100% 多样性不代表字面试探只代表自然命令多样。
+
+dogfooding 数据 v0.4.25 真跑：non-blocking 9/9=100% / long-term 8/8=100%
+都是误标。
+
+接受 limitation — 这是 dev 工具，作者看 audit 时知道按 sticky 类型解读。
+后续 fix 方向：按 sticky 类型（文本 / 命令）区分是否计算字面多样性。
+
+### 验证
+
+本回合 `keep-pushing 🎭 字面试探 (32/35=91%)` 是真有意义信号，跟用户洞察
+完全吻合。
+
+344 测试全过；ruff/mypy 全绿。
+
 ## [0.4.24] — 2026-05-14（feat — karma v3 真第一步：PostToolUse 中段 sticky reinject 锚定）
 
 ### 真突破
