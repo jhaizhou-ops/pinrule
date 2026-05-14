@@ -207,11 +207,11 @@ def main() -> int:
             _cfg = _load_config()
             force_threshold = int(_cfg.get("force_block_threshold", 5))
             force_window = int(_cfg.get("escalate_window_turns", 3))
-            block_max = int(_cfg.get("stop_block_max_per_turn", 3))
+            block_max = int(_cfg.get("stop_block_max_per_turn", 2))
         except Exception:
             force_threshold = 5
             force_window = 3
-            block_max = 3
+            block_max = 2
         if force_threshold > 0 and state.turn_count > 0:
             counts_force = count_recent_turns(session_id, state.turn_count, window_turns=force_window)
             # force_block 豁免从 sticky.yaml 的 force_block_exempt 字段读
@@ -248,9 +248,9 @@ def main() -> int:
     if keep_pushing_hit:
         try:
             from karma.config import load as _load_config
-            block_max = int(_load_config().get("stop_block_max_per_turn", 3))
+            block_max = int(_load_config().get("stop_block_max_per_turn", 2))
         except Exception:
-            block_max = 3
+            block_max = 2
         if block_max > 0 and state.stop_block_count < block_max:
             # 干预 — 让 Agent 继续推进
             state.stop_block_count += 1

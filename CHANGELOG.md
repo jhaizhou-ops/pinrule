@@ -4,6 +4,55 @@
 
 ## [Unreleased]
 
+## [0.4.40] — 2026-05-15（fix — 反思阈值降 + chinese-plain 分母精化 + 「真字狂魔」reactive 治理）
+
+### 真触发
+
+用户 3 条精确反馈：
+
+1. 「反思 hook 咱们调整成最多两次触发吧」
+2. 「中文比例这个设置可能不太合理，我估计应该要在工程层对于代码注释 / commit message 时的文本内容降低阈值甚至豁免，以及不统计工具调用时候的纯英文字符」
+3. 「叠加效应你看要不要优化一下来减弱自证清白的压力（**减弱自证清白而不是放松这两条规则的要求**）」
+
+### 真 fix
+
+**1. 反思阈值 3 → 2**：
+- `karma/config.py` `stop_block_max_per_turn` 默认 3 → 2
+- `karma/hooks/stop.py` 两处 fallback 默认 3 → 2
+- 用户 sticky.yaml 仍可 override
+
+**2. chinese-plain 分母精化（不放松 40% 阈值）**：
+
+**用户原话「不放松规则要求」真严格执行** — 不改 `_MIN_CHINESE_RATIO=0.40` 阈值，改的是「分母怎么算」让 ratio 真反映 Agent **自然语言**的中英比，不被工程文本污染。新加 3 个剥：
+
+- `_DOTTED_IDENT_RE` 剥含点号工程标识符（`pre_tool_use.py` / `state.model` / `karma.hooks.session_start` / `extract_model_from_transcript()`）
+- `_PATH_LITERAL_RE` 剥路径字面（`/path/to/file` / `~/.claude/karma/...`）
+- `_COMMIT_MSG_RE` 剥 commit message 引号块（`git commit -m "feat(...)..."` / `gh release create --notes "..."` 内英文）
+
+**3. 「真字狂魔」reactive 治理（治症状不治根因）**：
+
+加 chinese_plain Check 3 「同前缀字重复 ≥ 5 次/response」检测。LLM 防御性堆「真X」前缀（如「真根因 / 真生效 / 真完成」）触发自审提醒「证据 = 数据 / 测试通过 / 截图，不是『真X』前缀」。
+
+白名单豁免高频合理前缀字（一/不/是/有/没/我/你/他/这/那/在）— 不算防御性堆叠。
+
+**真 dogfooding 第一时刻就抓住测试 fixture 自己**：旧 `test_chinese_plain_markdown_emphasis_not_counted` fixture 含 5 次「真」前缀堆叠，v0.4.40 跑测试时 Check 3 第一时刻命中真违反 — 改 fixture 不堆「真」字保留原测试意图。
+
+### 验证
+
+加 4 条 v0.4.40 守护测试：
+- `test_v0440_dotted_identifier_not_counted` — 含 5 个点号标识符不拉低中文比
+- `test_v0440_path_literal_not_counted` — 路径字面不算英文
+- `test_v0440_repeated_prefix_check_catches_zhen_zi_kuangmo` — 5+ 次「真X」前缀真触发
+- `test_v0440_repeated_common_word_not_triggered` — 高频汉字「我/不/在」等白名单豁免
+
+测试 383 → **387 全过** + ruff 干净。
+
+### 真教训
+
+按 sticky #1 长期最优雅 — 用户精准区分「分母算法」vs「阈值要求」是真深刻：阈值是用户最高优先级方向不能改，但**算什么算自然语言**是工程实施可以精化的。这才是「不放松规则」+「真根因 fix」同时满足的真路径。
+
+「真字狂魔」reactive 治理坦诚是治症状不治根因（根因是 LLM 文案训练习惯），但能减弱视觉别扭程度让 Agent 自审主动减弱前缀堆叠习惯。
+
 ## [0.4.39] — 2026-05-15（feat — model 从 transcript_path 真根本路径，覆盖所有 hook）
 
 ### 真触发

@@ -510,13 +510,17 @@ def test_chinese_plain_kebab_snake_idents_not_counted():
 
 
 def test_chinese_plain_markdown_emphasis_not_counted():
-    """markdown emphasis 标记（** * ~~）不算自然语言字符。"""
+    """markdown emphasis 标记（** * ~~）不算自然语言字符。
+
+    v0.4.40 fixture 改：原 fixture 含 5 次「真」前缀堆叠会触发新 Check 3 同前缀
+    重复检测（dogfooding 真抓住测试 fixture 自己），改成不堆前缀的等效场景。
+    """
     fn = REGISTRY["chinese_plain_no_jargon"]
     response = (
-        "**真深挖找到关键真根因**（不是你瞎扯也不是我瞎扯）：\n\n"
-        "**真区分**：\n"
-        "- **codex Desktop App**：你这几天**真在用**\n"
-        "- **codex CLI**：装着但**几乎没真用过**\n"
+        "**深挖找到关键问题**（不是瞎扯也不是猜想）：\n\n"
+        "**这两类区分清楚**：\n"
+        "- **codex Desktop App**：你这几天一直在用\n"
+        "- **codex CLI**：装着但几乎没有跑过\n"
     )
     hit = fn(response=response)
     assert hit is None, f"markdown 加粗标记不该拉低中文比例: {hit}"
@@ -531,6 +535,55 @@ def test_chinese_plain_real_jargon_still_blocked():
     )
     hit = fn(response=response)
     assert hit is not None, "真 jargon 仍要拦"
+
+
+def test_v0440_dotted_identifier_not_counted():
+    """v0.4.40: 含点号的工程标识符（module.attr / file.py / state.model）不算
+    自然语言中英比的英文部分 — 让 ratio 真反映 Agent 自然表达不被工程文本污染。
+    """
+    fn = REGISTRY["chinese_plain_no_jargon"]
+    response = (
+        "我刚改了 pre_tool_use.py 的 state.model 字段，调用 extract_model_from_transcript() "
+        "拿到了真模型，karma.hooks.session_start 也写了 state，全跑通。"
+    )
+    hit = fn(response=response)
+    # 含 5 个点号标识符 + 自然中文 — 算 ratio 时点号标识符剥后中文比应 ≥ 40%
+    assert hit is None, f"含点号工程标识符不该拉低中文比: {hit}"
+
+
+def test_v0440_path_literal_not_counted():
+    """v0.4.40: 路径字面（/path / ~/.claude）不算自然语言英文。"""
+    fn = REGISTRY["chinese_plain_no_jargon"]
+    response = (
+        "我看了 ~/.claude/karma/session-state/abc.json 里的字段，又查了 "
+        "/Users/jhz/karma/karma/checks/chinese_plain.py 的实施，发现都对。"
+    )
+    hit = fn(response=response)
+    assert hit is None, f"路径字面不该拉低中文比: {hit}"
+
+
+def test_v0440_repeated_prefix_check_catches_zhen_zi_kuangmo():
+    """v0.4.40 Check 3: 同前缀「真X」≥ 5 次/response 真触发自审（治理「真字
+    狂魔」副作用 — sticky #4 + sticky #1 叠加效应根因）。"""
+    fn = REGISTRY["chinese_plain_no_jargon"]
+    response = (
+        "经过真分析找到真根因，真复现脚本真生效，真闭环架构真完整，"
+        "真效果对比真清晰，真证据真齐。"
+    )
+    hit = fn(response=response)
+    assert hit is not None, "5+ 次「真X」前缀堆叠真违反"
+    assert "真" in hit.trigger, f"trigger 应识别「真」前缀: {hit.trigger}"
+
+
+def test_v0440_repeated_common_word_not_triggered():
+    """v0.4.40 Check 3 对偶：高频汉字「不/我/你/在」等不算防御性堆叠。"""
+    fn = REGISTRY["chinese_plain_no_jargon"]
+    response = (
+        "我去测试，我看代码，我跑命令，我改文件，我又验证一次，我再 commit 一下，全过了。"
+    )
+    hit = fn(response=response)
+    # 「我」是合理高频前缀字（白名单豁免）— 不该当防御性堆叠
+    assert hit is None, f"高频汉字不该当防御性堆叠: {hit}"
 
 
 def test_chinese_plain_jargon_in_parenthesis_list_exempted():
