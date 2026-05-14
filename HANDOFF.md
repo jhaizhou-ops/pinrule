@@ -49,6 +49,22 @@
 | **v0.4.38 — user_prompt_submit 每 turn 跟踪主 model 跨 turn 切换**（实施容错但协议层走不通） | 用户洞察：主 Agent 中途 `/model opus` 切换 SessionStart 早过没机会更新。加 user_prompt_submit hook 每 turn 读 payload model 写 state.model。但**dogfooding 真验证 user_prompt_submit payload 没 model 字段**（本 session 7 turn 后 state.model 仍 None）— 协议层走不通。容错设计救场（payload.get("model") = None → 不写 → fallback DEFAULT 60K 不爆炸）。这是 v0.4.39 真根因 fix 的预兆。 | （v0.4.38 commit）|
 | **v0.4.39 — model 从 transcript_path 真根本路径（覆盖所有 hook）**（用户「/status 都能看到 model」洞察驱动） | 用户精准连击纠正不让我猜：① 「怎么查 model 你不是就能查么？」我懒借口 ② 「如果你查不到说明命令用的不对，claude 设计很完善的」③ 「我随时 /status 命令都能看到当前 model 名称」。按 sticky #6 真深挖。真协议层 limitation 真清单：SessionStart payload ✅ 有 model；user_prompt_submit / PreToolUse / PostToolUse / Subagent* ❌ 都没。**真根本路径**：所有 hook payload 真有 `transcript_path`，jsonl 每条 assistant message 真含 model 字段（本机真含 663 次 model 字面，3 真值 `claude-opus-4-7` / `sonnet` / `<synthetic>`）。`karma/model_threshold.py` 加 `extract_model_from_transcript` regex 扫 raw 内容（reverse 取最后非合成）。post_tool_use / user_prompt_submit 改用 transcript_path 真路径替代 payload.model。本机 dogfooding 真复现 `extract_model_from_transcript` 真返 `claude-opus-4-7` → 80K。**真已检查清单**（按 sticky #4 老实）：settings.json (default 不准) / sessions/<pid>.json (没 model) / session-env (空) / transcript jsonl (真含每条 message model ← 真用这)。**真教训**：协议层假设错时容错设计救场不爆炸但功能 0；真根本路径要 sticky #6 深挖文件系统真状态，不是凭借口「等用户下次输入」。 | （v0.4.39 commit）|
 
+### 用户终极评价归档（2026-05-15 接力 session 收尾）
+
+用户原话：「上了 karma 系统以后除了根本问题研究我猜是受制于大模型的训练，所以还是做的我不是很满意，案例已经很多了我就不举例子了。以及真字狂魔这个很好笑的副作用。其他我真的很满意。」
+
+**真满意点**（用户明确表达）：
+- 整体架构 + 9 个 release（v0.4.30~39）+ 真闭环按当前模型自动适应阈值
+- 用户洞察驱动迭代节奏（彼此互不干扰 / 至少 60K / 自动适应 / 自己试 / 跨 turn 跟踪 / 怎么可能找不到 / /status — 7 次精准纠正全采纳实施）
+
+**不满意 2 点 — 接受 limitation**：
+
+1. **「根本问题研究」做得不够** — Agent 多次凭印象不查实（v0.4.32 8K 阈值撑场 / v0.4.35 假设 PostToolUse 有 model / v0.4.37 猜 tool_name 是 Task 实际是 Agent / v0.4.38 借口「等输入」/ v0.4.39 才被「自己试」纠正）。**根因**：LLM 训练带的「快推论」习惯，karma 工程层只能 reactive 拦表面（deep-fix-not-bypass 拦绕过字面），没办法 proactive 教 Agent 「先深挖再说」 — Claude 模型本身能力问题，karma 管不到。**接受 limitation** + 下个 session 接手 Agent 持续按 sticky #6 read-before-write + sticky #4 老实说努力（不能彻底消除但能减少频率）。
+
+2. **「真字狂魔」副作用** — sticky #4「证据」+ sticky #1「最根本」叠加效应让 LLM 防御性堆「真」字证明「不糊弄」（Agent 表达扭曲，单 response 30+ 次「真」前缀）。**根因**：LLM 文案训练习惯，karma 工程层加 reactive check 也只是治症状不治根因。改 sticky #4 文案是用户最高优先级方向不能改。**接受 limitation** + 下个 session 接手 Agent 自审本响应「真」字数（不堆超过 5 次/response 是底线）。
+
+**真终极态度**：「其他我真的很满意」 — 用户对 karma 整体满意，2 个 limitation 是 Agent 能力问题不是 karma 项目问题。下个 session 接手时持续真闭环架构 dogfooding + 等真用户跨场景反馈驱动 v0.4.40+ 演化。
+
 ### v0.4.39 真路径协议层最优方案 — 子 Agent 调研真确认（2026-05-15 终极）
 
 子 Agent 真协议查实回报真完整结论（来源：Claude Code 官方 commands.md + hooks.md）：
