@@ -129,6 +129,21 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
 
 ## 下个 session 接手指引
 
+### 7+1 条 sticky 完整定位
+
+| # | id | 作用 |
+|---|---|---|
+| 1 | long-term-fundamental | 用最根本方案不打补丁 |
+| 2 | non-blocking-parallel | 测试 / 子 Agent 跑时并行推进 |
+| 3 | chinese-plain-no-jargon | 直白中文不堆 jargon |
+| 4 | loud-failure-with-evidence | 完成附测试证据 |
+| 5 | no-testset-no-future-leakage | 不喂测试集 |
+| 6 | read-before-write | 改代码前先读 |
+| 7 | keep-pushing-no-stop | 完成后立即推下个不停（作者 / 全权委托型用户）|
+| 8 | deep-fix-not-bypass | karma 拦截时深挖根因不绕（**元层监管**）|
+
+sticky #7/#8 跟 #1-#6 不同维度 — #1-#6 是「开发场景行为规则」，#7 是「Agent 协作节奏」，#8 是「Agent 不绕 karma 自身」元层规则。
+
 ### 已知 bug / 待 fix 优先清单
 
 - **task #8 catchup 多 hook fix 验证 OK** — catchup_pending_bg 加到 UserPromptSubmit / PreToolUse / PostToolUse 三个 hook 后实战验证 pending=0、last_test_pass_ts 自动接进。
