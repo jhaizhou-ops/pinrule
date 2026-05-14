@@ -62,6 +62,11 @@ karma 解决的就是这个 — 不让你的最高优先级方向被淹没。
 
 完成后告诉我：⚠️ 必须重启 AI 客户端 karma 才生效。fish shell 用户第 2 步
 用 activate.fish。想隔离试用：装前 `export KARMA_HOME=~/karma-test`。
+
+⚠️ **已知 codex 上游 bug**：codex Desktop App 0.129+ 起 hook 调度 regression
+（[github.com/openai/codex/issues/21639](https://github.com/openai/codex/issues/21639)），
+即便 karma 装机层就绪也不会真触发 — 等 OpenAI 修。Claude Code 这条线现版本
+真生效（karma 自身实测验证），先用这条。
 ````
 
 AI 会逐步检查环境、克隆代码、装依赖、装 hook、验证、提醒你重启客户端。
