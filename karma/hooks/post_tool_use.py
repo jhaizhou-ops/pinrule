@@ -32,6 +32,10 @@ def main() -> int:
 
     state = session_state.load(session_id)
 
+    # 先 catchup 之前 pending 的 background 任务输出（任务可能在中间完成了）
+    # 这样能在后续 record 之前更新 last_test_pass_ts，保证 evidence check 看见
+    state.catchup_pending_bg()
+
     if tool_name == "Read":
         fp = tool_input.get("file_path", "")
         state.record_read(fp)
@@ -40,7 +44,8 @@ def main() -> int:
         state.record_edit(fp)
     elif tool_name == "Bash":
         cmd = tool_input.get("command", "") or ""
-        state.record_bash(cmd, str(tool_response))
+        is_bg = bool(tool_input.get("run_in_background"))
+        state.record_bash(cmd, str(tool_response), run_in_background=is_bg)
 
     try:
         session_state.save(state)

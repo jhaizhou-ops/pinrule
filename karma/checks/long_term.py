@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from karma.checks.common import extract_tool_text
+from karma.checks.description_context import is_description_context
 
 # 检测规则按 tool 范围分组：避免文档 / 代码字符串里出现描述性字面被误判
 
@@ -24,11 +25,14 @@ _PATTERNS_ALL = [
         "把这种长 ID 字面提到配置 / 通用判定逻辑，不要硬写 if-elif 分支。",
     ),
     (
+        # 变量名带黑白名单语义 hint 才算「真黑/白名单字面量」
+        # 避免普通 samples=['a','b'] / examples=[...] 等探针 / 测试样本误判
         re.compile(
-            r"""=\s*\[\s*\n?\s*["'][^"'\n]{2,40}["']\s*,\s*\n?\s*["'][^"'\n]{2,40}["']""",
+            r"""\b\w*(?:blacklist|whitelist|stopwords?|badwords?|forbidden|banned|excluded?|ignored|filter_?words?|skip_?list|denylist|allowlist)\w*\s*=\s*\[\s*["']""",
+            re.IGNORECASE,
         ),
-        "字面量列表（疑似 surface-form 黑名单 / 测试集白名单）",
-        "用通用判定逻辑替代字面量列表，避免针对具体值打补丁。",
+        "黑/白名单字面量列表 (变量名匹配黑白名单语义)",
+        "把黑白名单提到配置或用规则代替，不要在代码里写死具体名单。",
     ),
 ]
 
@@ -66,6 +70,10 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     通用 → 长 ID if 分支 / 字面量黑名单
     """
     if tool_name not in ("Bash", "Write", "Edit", "NotebookEdit"):
+        return None
+    # 描述上下文（文档/测试代码/探针文件）整段豁免 — 那里出现 pattern 是描述不是执行
+    is_desc, _ = is_description_context(tool_name, tool_input or {})
+    if is_desc:
         return None
     text = extract_tool_text(tool_name, tool_input or {})
     if not text:

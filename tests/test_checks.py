@@ -77,6 +77,55 @@ def test_long_term_bash_with_todo_passes():
     assert hit is None
 
 
+def test_long_term_blacklist_literal_blocked():
+    """变量名含黑白名单语义 + 字面量列表 → 拦（真硬编码名单）。"""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(
+        tool_name="Write",
+        tool_input={
+            "file_path": "/x/src/filter.py",
+            "content": 'BLACKLIST = ["bot1", "bot2", "spammer"]',
+        },
+    )
+    assert hit is not None
+
+
+def test_long_term_samples_literal_passes():
+    """普通 samples=[..] / examples=[..] 测试样本数组 → 不拦。"""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(
+        tool_name="Write",
+        tool_input={
+            "file_path": "/x/src/util.py",
+            "content": 'samples = ["alice", "bob"]\nexamples = ["x", "y"]',
+        },
+    )
+    assert hit is None
+
+
+def test_long_term_description_context_exempts(tmp_path):
+    """描述上下文（.md / tests/ / /tmp/）下任何 pattern 都豁免。"""
+    fn = REGISTRY["long_term_fundamental"]
+    # .md 文档里写 if 长 ID 字面 → 豁免
+    hit = fn(
+        tool_name="Write",
+        tool_input={
+            "file_path": "/x/README.md",
+            "content": 'if user_id == "abc-def-12345":\n    pass',
+        },
+    )
+    assert hit is None
+    # tests/ 下同样 → 豁免
+    hit = fn(
+        tool_name="Edit",
+        tool_input={
+            "file_path": "/repo/tests/test_foo.py",
+            "new_string": 'BLACKLIST = ["a", "b", "c"]',
+        },
+    )
+    assert hit is None
+
+
 # -------- #2 non-blocking-parallel --------
 
 def test_non_blocking_detects_sleep():
@@ -103,6 +152,29 @@ def test_non_blocking_ignores_non_bash():
     fn = REGISTRY["non_blocking_parallel"]
     hit = fn(tool_name="Write", tool_input={"content": "sleep is a function"})
     assert hit is None
+
+
+def test_non_blocking_ignores_quoted_literals():
+    """命令引号字面里出现 pytest/sleep 等字面词不该假阳（commit message / echo）。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    # git commit message 含 pytest 字面 — 不是要跑 pytest
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": 'git commit -m "fix: pytest assertions passed"'},
+    )
+    assert hit is None
+    # echo "sleep 30" 是 echo 字面 — 不是要 sleep
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": 'echo "sleep 30 before retry"'},
+    )
+    assert hit is None
+    # 真要跑 pytest 仍命中
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": "pytest tests/"},
+    )
+    assert hit is not None
 
 
 # -------- #3 chinese-plain-no-jargon --------
@@ -166,11 +238,31 @@ def test_evidence_completion_with_test_passes():
     assert hit is None
 
 
-def test_evidence_weak_claim_without_test_fails():
+def test_evidence_weak_claim_in_code_context_fails():
+    """weak claim 出现在「代码任务行为词」附近 → 拦。"""
     fn = REGISTRY["loud_failure_with_evidence"]
     state = SessionState(session_id="s1")
-    hit = fn(response="应该可以了，应该没问题", session_state=state)
+    hit = fn(response="修复完了，代码应该可以了，应该没问题", session_state=state)
     assert hit is not None
+
+
+def test_evidence_weak_claim_in_chitchat_passes():
+    """weak claim 闲聊语境（无代码任务行为词）→ 不拦，避免日常对话假阳。"""
+    fn = REGISTRY["loud_failure_with_evidence"]
+    state = SessionState(session_id="s1")
+    hit = fn(response="这个方向应该可以，慢慢来", session_state=state)
+    assert hit is None
+
+
+def test_evidence_completion_in_chitchat_passes():
+    """完成词在非代码任务语境 → 不拦。
+
+    例：「先告一段落」「这事告一个完成了」等不针对代码任务的完成话语。
+    """
+    fn = REGISTRY["loud_failure_with_evidence"]
+    state = SessionState(session_id="s1")
+    hit = fn(response="今天先告一段落，明天再聊", session_state=state)
+    assert hit is None
 
 
 def test_evidence_git_commit_without_test_fails():
@@ -231,6 +323,46 @@ def test_testset_clean_code_passes():
     fn = REGISTRY["no_testset_no_future_leakage"]
     hit = fn(tool_name="Write", tool_input={"content": "def foo(): return train_data"})
     assert hit is None
+
+
+def test_testset_long_hash_in_if_blocked():
+    """长 hash 字面在 if 比较里 → 拦（真测试集 case ID 写死）。"""
+    fn = REGISTRY["no_testset_no_future_leakage"]
+    hit = fn(
+        tool_name="Edit",
+        tool_input={
+            "file_path": "/x/src/handler.py",
+            "new_string": 'if turn_id == "a1b2c3d4e5f6a7b8":\n    return special',
+        },
+    )
+    assert hit is not None
+    assert "hash" in hit.trigger.lower() or "UUID" in hit.trigger or "case" in hit.trigger.lower()
+
+
+def test_testset_long_hash_in_log_passes():
+    """长 hex 字面在 log 调用 / 普通赋值里 → 不拦（合法日志字段 / commit hash 引用）。"""
+    fn = REGISTRY["no_testset_no_future_leakage"]
+    hit = fn(
+        tool_name="Write",
+        tool_input={
+            "file_path": "/x/src/handler.py",
+            "content": 'logger.info("commit: a1b2c3d4e5f6a7b8")\ncommit_hash = "a1b2c3d4e5f6a7b8"',
+        },
+    )
+    assert hit is None
+
+
+def test_testset_case_id_assignment_blocked():
+    """case_id = "hash" 赋值 → 拦（测试 ID 写死）。"""
+    fn = REGISTRY["no_testset_no_future_leakage"]
+    hit = fn(
+        tool_name="Edit",
+        tool_input={
+            "file_path": "/x/src/runner.py",
+            "new_string": 'case_id = "a1b2c3d4e5f6a7b8"',
+        },
+    )
+    assert hit is not None
 
 
 # -------- #8 read-before-write --------

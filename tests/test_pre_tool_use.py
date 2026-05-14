@@ -73,8 +73,12 @@ def test_deny_bash_sleep(monkeypatch, tmp_path):
     assert violations_path.exists()
 
 
-def test_deny_write_with_hardcoded(monkeypatch, tmp_path):
-    """Agent 想 Write 含硬编码内容 → 拦截。"""
+def test_write_keyword_layer_skipped(monkeypatch, tmp_path):
+    """关键词层不再扫 Write/Edit 内容 — 代码里字面词几乎全是描述/注释/字符串字面假阳。
+
+    Write/Edit 真违反由工程层 violation_checks 用更精准的 pattern + 上下文判定捕获。
+    Stop hook 仍扫 Agent 自然语言 response（关键词表达意图算违反）。
+    """
     _patch(monkeypatch, tmp_path, [
         {
             "id": "long-term",
@@ -82,68 +86,84 @@ def test_deny_write_with_hardcoded(monkeypatch, tmp_path):
             "violation_keywords": ["硬编码", "先打个补丁"],
         },
     ])
+    # Write 任何含关键词的代码内容 → allow（关键词层不扫）
     out = _run_hook(monkeypatch, {
         "tool_name": "Write",
         "tool_input": {
-            "file_path": "/tmp/x.py",
+            "file_path": "/x/src/foo.py",
             "content": "# 先打个补丁\nMAGIC = 42",
-        },
-    })
-    assert out["permissionDecision"] == "deny"
-    assert "long-term" in out["permissionDecisionReason"]
-
-
-def test_deny_edit_only_scans_new_string(monkeypatch, tmp_path):
-    """Edit 应该只扫 new_string (Agent 加的)，不扫 old_string (已有的代码)。"""
-    _patch(monkeypatch, tmp_path, [
-        {"id": "no-patch", "preference": "x", "violation_keywords": ["先打个补丁"]},
-    ])
-    # old_string 含违反词 (旧代码) → 不该 deny
-    out = _run_hook(monkeypatch, {
-        "tool_name": "Edit",
-        "tool_input": {
-            "file_path": "/tmp/x.py",
-            "old_string": "# 先打个补丁",  # 旧代码原本就有 → 不该触发
-            "new_string": "# 修复根因",     # 新加的内容干净
         },
     })
     assert out["permissionDecision"] == "allow"
 
-    # new_string 含违反词 (Agent 想加) → 该 deny
+    # Edit 同理 — 关键词层不再扫 new_string
     out = _run_hook(monkeypatch, {
         "tool_name": "Edit",
         "tool_input": {
-            "file_path": "/tmp/x.py",
+            "file_path": "/x/src/foo.py",
             "old_string": "# OLD",
             "new_string": "# 先打个补丁 fix",
         },
     })
+    assert out["permissionDecision"] == "allow"
+
+
+def test_bash_keyword_layer_still_scans(monkeypatch, tmp_path):
+    """Bash command 关键词层仍扫 — 这是明确执行意图，关键词出现就是真违反。"""
+    _patch(monkeypatch, tmp_path, [
+        {
+            "id": "no-sleep",
+            "preference": "不要 sleep",
+            "violation_keywords": ["sleep 30"],
+        },
+    ])
+    out = _run_hook(monkeypatch, {
+        "tool_name": "Bash",
+        "tool_input": {"command": "sleep 30 && echo done"},
+    })
     assert out["permissionDecision"] == "deny"
 
 
-def test_doc_write_exempts_keyword_layer(monkeypatch, tmp_path):
-    """Write .md / .rst 等文档时关键词层豁免 — 文档里描述触发词字面不是真违反。
+def test_description_context_exempts_engine_checks(monkeypatch, tmp_path):
+    """描述上下文（.md / tests/ / /tmp/）→ 工程 check 整段豁免。
 
-    根因：HANDOFF.md / README.md 描述 sticky 触发词时关键词层会误判。
+    根因：HANDOFF.md / README.md 描述触发模式时 long_term/testset 会误判；
+    探针/测试代码里写触发模式样本也被误判。统一抽象一次解决。
     """
     _patch(monkeypatch, tmp_path, [
-        {"id": "long-term", "preference": "x", "violation_keywords": ["硬编码", "workaround"]},
+        {
+            "id": "long-term",
+            "preference": "x",
+            "violation_keywords": [],
+            "violation_checks": ["long_term_fundamental"],
+        },
     ])
+    # .md 文档里写 if id 长 hash 字面 → 豁免
     out = _run_hook(monkeypatch, {
         "tool_name": "Write",
         "tool_input": {
-            "file_path": "/tmp/HANDOFF.md",
-            "content": "# 触发词说明\n这条规则拦截「硬编码」「workaround」等字面",
+            "file_path": "/x/README.md",
+            "content": 'if u == "abc123def456789":\n    pass',
         },
     })
-    assert out["permissionDecision"] == "allow"  # 文档豁免
+    assert out["permissionDecision"] == "allow"
 
-    # 同样内容但写 .py 文件 → 该拦（不是文档语境）
+    # tests/ 下写同样代码 → 豁免（测试样本）
     out = _run_hook(monkeypatch, {
         "tool_name": "Write",
         "tool_input": {
-            "file_path": "/tmp/foo.py",
-            "content": "x = '硬编码'",
+            "file_path": "/x/tests/test_foo.py",
+            "content": 'if u == "abc123def456789":\n    pass',
+        },
+    })
+    assert out["permissionDecision"] == "allow"
+
+    # 正常源码下写同样代码 → 拦（真违反）
+    out = _run_hook(monkeypatch, {
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": "/x/src/handler.py",
+            "content": 'if u == "abc123def456789":\n    pass',
         },
     })
     assert out["permissionDecision"] == "deny"

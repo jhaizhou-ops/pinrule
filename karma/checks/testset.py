@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 
 from karma.checks.common import extract_tool_text
+from karma.checks.description_context import is_description_context
 
 _STICKY_ID = "no-testset-no-future-leakage"
 
@@ -43,15 +44,25 @@ _PATTERNS = [
         "用 train/test split 配置而不是硬编码 turn_idx 阈值。",
     ),
     (
-        re.compile(r"""['"][a-f0-9]{16,}-?[a-f0-9]{0,12}['"]"""),  # UUID/长 hash 字面
-        "长 hash / UUID 字面（疑似测试集 case ID 写死）",
-        "不要把测试集 case 的 ID 写死到代码 / prompt。用通用判定。",
+        # 长 hash / UUID 字面要算违反，必须出现在「针对该值的判定 / 赋值给 case_id」位置
+        # 而非任意字符串字面（git short hash log / commit_hash 变量赋值等都合法）
+        re.compile(
+            r"""\b(?:if|elif|while|case|when)\s+\w+\s*==\s*['"][a-f0-9]{16,}-?[a-f0-9]{0,12}['"]"""
+            r"""|\b(?:case_id|test_id|eval_id|gold_id|fixture_id)\s*=\s*['"][a-f0-9]{16,}""",
+            re.IGNORECASE,
+        ),
+        "长 hash / UUID 字面在比较或 case_id 赋值里（测试集 case ID 写死）",
+        "不要把测试集 case 的 ID 写死到 if 分支或 case_id 常量。用通用判定逻辑。",
     ),
 ]
 
 
 def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     if tool_name not in ("Bash", "Write", "Edit", "NotebookEdit"):
+        return None
+    # 描述上下文（文档 / 测试目录 / 探针文件）整段豁免
+    is_desc, _ = is_description_context(tool_name, tool_input or {})
+    if is_desc:
         return None
     text = extract_tool_text(tool_name, tool_input or {})
     if not text:
