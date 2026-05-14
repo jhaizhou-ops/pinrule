@@ -110,9 +110,12 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 
 实现：`karma/hooks/user_prompt_submit.py`
 - 加载 sticky.yaml
-- 读 violations.jsonl 取 24h 内违反过的 sticky_id（标 ⚠️）
+- 读 violations.jsonl 按 turn 距离取最近违反过的 sticky_id（标 ⚠️）
 - 格式化 `[karma sticky — 用户最高优先级方向，请始终遵守]` + 编号规则
-- 顺带跑 `purge_old_states(max_age_days=30)`（异常吞掉不阻塞）
+- 顺带跑 `purge_old_states(max_age_days=30)` + `catchup_pending_bg`（异常吞掉不阻塞）
+- **强提醒 fallback**：检测上一 response 末尾是否含推进信号（用 keep_pushing.check）
+  → 命中（纯陈述完结无推进）→ 注入「强提醒」段。这是 Stop hook decision=block 在
+  user 立刻接 prompt 时不跑的协议 limitation 的 fix。
 
 性能：< 50ms（sticky.yaml 通常 ≤ 1KB，violations 读尾 200 行）。
 
