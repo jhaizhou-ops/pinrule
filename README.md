@@ -25,7 +25,37 @@ karma 解决的就是这个 — 不让你的最高优先级方向被淹没。
 
 **前置要求**：Python ≥ 3.11 + 已装 Claude Code / Codex CLI / Gemini CLI 至少一家。
 
-3 步上手（< 5 分钟）：
+### 推荐：让 AI 客户端帮你装
+
+如果你已经在用 Claude Code / Codex / Gemini CLI 任意一家，最简单的装机方式是
+**把下面这段话发给它，让它帮你跑装机命令**：
+
+````
+帮我装 karma（github.com/jhaizhou-ops/karma） — Claude Code / Codex / Gemini CLI
+通用偏好提醒系统。
+
+前置检查：
+- Python ≥ 3.11: `python3 --version`
+- git: `command -v git`
+- 可选 uv: `command -v uv`
+
+步骤：
+1. `mkdir -p ~/code && cd ~/code && git clone https://github.com/jhaizhou-ops/karma.git
+   && cd karma`
+2. 建 venv + 装：方式 A `python3 -m venv .venv && source .venv/bin/activate &&
+   pip install -e .`，或方式 B（Python <3.11 但有 uv）`uv venv --python 3.11 .venv
+   && uv pip install -e .`
+3. `karma init` 初始化 ~/.claude/karma/
+4. `karma install-hooks --backend all` 装 hook 到所有检测到的 AI 客户端
+5. 验证：跑 `karma --version` `karma doctor` `karma sticky list` 把输出贴给我
+
+完成后告诉我：⚠️ 必须重启 AI 客户端 karma 才生效。fish shell 用户第 2 步
+用 activate.fish。想隔离试用：装前 `export KARMA_HOME=~/karma-test`。
+````
+
+AI 会逐步检查环境、克隆代码、装依赖、装 hook、验证、提醒你重启客户端。
+
+### 手动装机（< 5 分钟）：
 
 ```bash
 # 1. 拉代码 + 装依赖（Python ≥ 3.11）
