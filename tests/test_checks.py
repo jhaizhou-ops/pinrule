@@ -96,11 +96,34 @@ def test_long_term_write_with_no_verify_string_passes():
 
 
 def test_long_term_bash_with_no_verify_blocked():
-    """Bash 真跑 --no-verify → 该拦。"""
+    """Bash 真跑 git commit --no-verify → 该拦。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(tool_name="Bash", tool_input={"command": "git commit --no-verify -m 'fix'"})
     assert hit is not None
-    assert "验证" in hit.trigger or "verify" in hit.trigger.lower() or "skip" in hit.trigger.lower()
+    assert "验证" in hit.trigger or "verify" in hit.trigger.lower() or "git" in hit.trigger.lower()
+
+
+def test_long_term_pytest_skip_flag_passes():
+    """评审 B Agent 真痛点：pytest / pip / cmake / rsync 等合法 --skip / --force
+    flag 不该被错拦（之前泛 flag 匹配会误拦）。"""
+    fn = REGISTRY["long_term_fundamental"]
+    for cmd in [
+        "pytest --skip-broken-isolation tests/",
+        "pip install --skip-existing requirements.txt",
+        "cmake --build . --force",
+        "rsync --force /src /dst",
+        "tar --skip-old-files -xf x.tar",
+        "cargo build --force",
+    ]:
+        hit = fn(tool_name="Bash", tool_input={"command": cmd})
+        assert hit is None, f"不该拦合法 flag: {cmd!r}, 实际触发 {hit.trigger if hit else ''}"
+
+
+def test_long_term_git_push_no_verify_blocked():
+    """git push --no-verify 也该拦（不只 commit）。"""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(tool_name="Bash", tool_input={"command": "git push --no-verify origin main"})
+    assert hit is not None
 
 
 def test_long_term_bash_with_todo_passes():
@@ -166,6 +189,28 @@ def test_non_blocking_detects_sleep():
     hit = fn(tool_name="Bash", tool_input={"command": "sleep 30"})
     assert hit is not None
     assert "sleep" in hit.trigger
+
+
+def test_non_blocking_wait_blocking_blocked():
+    """裸 wait / wait $pid 阻塞当前 shell → 该拦。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    for cmd in ["wait", "wait $!", "wait $pid", "jobs; wait"]:
+        hit = fn(tool_name="Bash", tool_input={"command": cmd})
+        assert hit is not None, f"裸 wait 应拦: {cmd!r}"
+
+
+def test_non_blocking_kubectl_wait_passes():
+    """评审 B Agent 真痛点：kubectl wait / docker wait / aws cloudformation wait
+    是 CI/CD 合法同步原语，不该拦。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    for cmd in [
+        "kubectl wait --for=condition=ready pod/foo",
+        "docker wait container_id",
+        "aws cloudformation wait stack-create-complete --stack-name foo",
+        "gcloud compute operations wait my-op",
+    ]:
+        hit = fn(tool_name="Bash", tool_input={"command": cmd})
+        assert hit is None, f"不该拦合法 wait: {cmd!r}"
 
 
 def test_non_blocking_sleep_zero_not_blocking():

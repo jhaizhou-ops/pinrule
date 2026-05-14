@@ -77,6 +77,19 @@ def test_read_only_inspection_passes():
     assert hit is None  # 没写操作
 
 
+def test_user_backup_karma_files_passes():
+    """评审 B Agent 真痛点：用户自己 cp / mv / rm karma 状态文件（备份 /
+    清老 rotation）是合法操作，不该拦。攻击者用 echo > / python write
+    才是真 hack 路径仍能 catch。"""
+    for cmd in [
+        "cp ~/.claude/karma/sticky.yaml ~/backup/sticky.yaml.bak",
+        "mv ~/.claude/karma/violations.jsonl ~/old-violations.jsonl",
+        "rm ~/.claude/karma/violations.jsonl.3",
+        "cp ~/.claude/karma/sticky.yaml ./snapshot/",
+    ]:
+        assert _check(cmd) is None, f"用户合法备份/清理不该拦: {cmd!r}"
+
+
 def test_keep_pushing_workflow_not_blocked():
     """sticky #7 keep-pushing 干预时 Agent 写 reason 不该被这个 check 误判。"""
     cmd = 'echo "我接下来去做 X"'

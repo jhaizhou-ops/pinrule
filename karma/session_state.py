@@ -24,6 +24,21 @@ MAX_RECENT_BASH = 15  # 保留最近 N 条 Bash 摘要
 _REDIRECT_RE = re.compile(r"(?:^|\s)>{1,2}\s*([/.\w][^\s|;&]*)")
 
 
+def _normalize_path(file_path: str) -> str:
+    """规范化文件路径用于 read/edit set 比较 — 让 './foo.py' / 'foo.py' /
+    '/abs/foo.py' / '~/foo.py' 等价（仅当指向同一文件时）。
+
+    用 abspath 解相对 + 用户目录展开。失败（特殊字符 / OSError）时保留原值。
+    """
+    if not file_path:
+        return file_path
+    try:
+        import os.path
+        return os.path.abspath(os.path.expanduser(file_path))
+    except (OSError, ValueError):
+        return file_path
+
+
 def _parse_redirect_target(command: str) -> str | None:
     """从 shell 命令解析最后一个 stdout 重定向路径。
 
@@ -94,7 +109,7 @@ class SessionState:
     stop_block_count: int = 0
 
     def has_read(self, file_path: str) -> bool:
-        return file_path in self.read_files
+        return _normalize_path(file_path) in self.read_files
 
     def has_recent_test_pass(self) -> bool:
         """本 session 是否「自最近一次代码改动以来跑过测试且通过」。
@@ -108,7 +123,7 @@ class SessionState:
 
     def record_read(self, file_path: str) -> None:
         if file_path:
-            self.read_files.add(file_path)
+            self.read_files.add(_normalize_path(file_path))
 
     def _next_ts(self) -> float:
         """生成严格大于已有 last_*_ts 的时间戳。
@@ -124,7 +139,7 @@ class SessionState:
 
     def record_edit(self, file_path: str) -> None:
         if file_path:
-            self.edit_files.append(file_path)
+            self.edit_files.append(_normalize_path(file_path))
             self.last_edit_ts = self._next_ts()
 
     def record_bash(self, command: str, output, run_in_background: bool = False,

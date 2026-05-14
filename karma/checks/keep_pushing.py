@@ -23,6 +23,16 @@ _STICKY_ID = "keep-pushing-no-stop"
 # 末尾问号（中英文）— 限定 response 最后 80 字（多数「停下问」signal 在末尾）
 _TAIL_QUESTION_RE = re.compile(r"[?？]")
 
+# 成功汇报（数字证据 + 通过词）— 这是 sticky #4「loud-failure-with-evidence」
+# 鼓励的行为，不该被 #7 keep-pushing 处罚为「停下」。
+# 命中如「100/100 通过」「测试 232 passed」「全部跑过」等汇报句。
+_SUCCESS_REPORT_RE = re.compile(
+    r"\d+\s*[/／]\s*\d+\s*(?:通过|passed|pass|绿|过)"
+    r"|\d+\s*(?:passed|tests?\s+passed)"
+    r"|测试\s*\d+",
+    re.IGNORECASE,
+)
+
 # 停顿语气词 — Agent 明确表达「暂停 / 等下次 / 告一段落」类
 # 这些词出现在末尾窗口且无推进信号 → 沉默式停下（用户的「没问号也停了」反馈）
 _STOP_HINT_RE = re.compile(
@@ -80,7 +90,8 @@ def check(*, response: str = "", **_):
     if _TAIL_QUESTION_RE.search(tail):
         return None
 
-    # 命中 1：明确停顿语气词
+    # 命中 1：明确停顿语气词 — 比成功汇报豁免优先级高（「测试通过。先到这。」
+    # 仍是真停下，数字证据不能盖过明确停顿语气）
     m_stop = _STOP_HINT_RE.search(tail)
     if m_stop:
         return CheckHit(
@@ -90,6 +101,12 @@ def check(*, response: str = "", **_):
             suggested_fix="去掉「下次/先到这/告一段落」等停顿词，直接说明现在去做啥。"
                           "汇报跟推进并行：写完汇报立刻开始下个 tool 调用。",
         )
+
+    # 豁免 3（晚于停顿词检测）：成功汇报（数字证据 + 通过词）— 跟 sticky #4
+    # 「完成要有证据」一致，这种汇报应该被鼓励而不是处罚。
+    # 例如「测试 232/232 通过」「100 passed」
+    if _SUCCESS_REPORT_RE.search(tail):
+        return None
 
     # 命中 2（默认）：纯陈述完结无下一步 — 用户反馈核心场景
     # 「没有疑问句的停止才是该监控的」

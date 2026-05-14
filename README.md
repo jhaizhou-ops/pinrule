@@ -204,8 +204,9 @@ karma = **通用 hook 框架** + **场景规则集**。
 
 - [PRD.md](./PRD.md) — 产品需求 + 验证标准
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — 技术架构
-- [HANDOFF.md](./HANDOFF.md) — 当前里程碑 + 接力棒
+- [CHANGELOG.md](./CHANGELOG.md) — 版本变更
 - [CLAUDE.md](./CLAUDE.md) — 给 Claude Code 协作的项目宪章
 - [karma v1 归档](https://github.com/jhaizhou-ops/karma-v1) — v1 探索过程与反思
+- HANDOFF.md — 内部开发接力文档（非最终用户文档）
 
-karma v2 已完成 M0-M4（多波 commit + 多轮 dogfooding 修真 bug），232 个测试全绿。验证标准是「开发过程能否减少 Agent 在长任务中的方向漂移」— 而**开发 karma 的过程本身就是它最严酷的自用观察期**。
+karma v2 已完成 M0-M4（多波 commit + 多轮 dogfooding 修真 bug），234 个测试全绿。验证标准是「开发过程能否减少 Agent 在长任务中的方向漂移」— 而**开发 karma 的过程本身就是它最严酷的自用观察期**。

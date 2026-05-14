@@ -1,5 +1,11 @@
 # karma v2 交接 — 2026-05-14（M3 六波结束）
 
+> **⚠️ 这是 karma 内部开发的「Agent 接力文档」，不是最终用户文档。**
+> 如果你是想用 karma 的 Claude Code 用户，请看 [README.md](README.md) /
+> [PRD.md](PRD.md) / [ARCHITECTURE.md](ARCHITECTURE.md)。
+> 本文档保留各 milestone 阶段未解 bug / 错误诊断教训 / 下次 session 的 TODO，
+> 是给「接力开发的下一个 Agent」看的。
+
 > 给下个 session 的快速接手指引。
 
 ## 当前状态：M3 第六波完成，karma 装到本机并经历完整 dogfooding

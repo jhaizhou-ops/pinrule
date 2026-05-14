@@ -77,10 +77,28 @@ def test_silent_stop_with_push_signal_exempted():
 # ---- 用户反馈核心：无问句无推进的纯陈述 = 真停下 ----
 
 def test_pure_statement_no_push_no_question_blocked():
-    """纯陈述完结无推进无问号 → 命中（用户反馈核心场景）。"""
-    hit = _check("commit ffcbd07 已推 origin/main。测试 187/187 通过。")
+    """纯陈述完结无推进无问号 → 命中（用户反馈核心场景）。
+
+    注：成功汇报（数字 + 通过词）有专门豁免（跟 sticky #4 鼓励的「完成要有
+    证据」一致），所以这里用「目前情况如此」类纯文字陈述，没数字证据。
+    """
+    hit = _check("commit ffcbd07 已推 origin/main。目前情况就这样了。")
     assert hit is not None
     assert "纯陈述" in hit.trigger or "无推进" in hit.trigger
+
+
+def test_success_report_with_numbers_exempted():
+    """成功汇报（数字 + 通过词）→ 豁免。这是 sticky #4 鼓励的行为不该被罚。
+    评审 B Agent 发现：'测试 100/100 通过' 类汇报被错拦是真痛点。
+    """
+    hit = _check("commit 已推。测试 232/232 通过。")
+    assert hit is None
+
+
+def test_success_report_passed_count_exempted():
+    """'N passed' 风格成功汇报也豁免。"""
+    hit = _check("All good. 232 passed.")
+    assert hit is None
 
 
 def test_pure_statement_with_next_step_exempted():

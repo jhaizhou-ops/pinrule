@@ -57,9 +57,17 @@ _PATTERNS_BASH_ONLY = [
         "改标题行清楚说明改了什么 + 为什么。这不是 hot fix 类改动。",
     ),
     (
-        re.compile(r"--no-verify\b|--skip[\w-]*|--force(?:\s+|$)", re.IGNORECASE),
-        "强制跳过验证 flag",
-        "不要跳过 pre-commit / 测试 / 验证。先把验证修对再提交。",
+        # 收紧到「git 危险动作 + 危险 flag 同句」— 之前泛 flag 匹配会误拦
+        # pytest --skip-broken / pip install --skip-existing / cmake --force /
+        # rsync --force / tar --skip-old-files 等合法 flag。
+        # 真正想拦的是 git commit/push/merge/rebase 跳过验证。
+        re.compile(
+            r"git\s+(?:commit|push|merge|rebase|tag)\s+[^|;\n]*?"
+            r"(?:--no-verify\b|--force(?!-with-lease)\b|--skip-hooks\b)",
+            re.IGNORECASE,
+        ),
+        "git 危险动作跳过验证 flag",
+        "不要 git commit/push 时跳过 pre-commit / hook 验证。先修对再提交。",
     ),
 ]
 

@@ -7,6 +7,14 @@
 # 安装：karma init 会复制本文件到 ~/.claude/karma/sticky.yaml
 # 上限：10 条（超过 12 hook 拒绝加载）
 #
+# ⚠️ 不是每条都对每个用户合适，按场景取舍：
+#   - 第 3 条 chinese-plain-no-jargon：**中文用户**生效。英文母语用户应
+#     `karma sticky remove chinese-plain-no-jargon` 删掉，避免持续假阳。
+#   - 第 5 条 no-testset-no-future-leakage：**ML / 数据 / 评测**场景生效。
+#     普通后端 / 前端 / 工具开发用不上，可删。
+#   - 其他 5 条（long-term / non-blocking / loud-failure / deep-fix /
+#     read-before-write）跨场景通用，建议保留。
+#
 # 字段:
 #   id                  : kebab-case 短 slug
 #   preference          : 多行允许，建议「方向 + 例外 + 决策提示」

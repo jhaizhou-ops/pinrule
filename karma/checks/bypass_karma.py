@@ -39,14 +39,17 @@ _KARMA_STATE_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
-# 写文件操作信号
+# 写文件操作信号 — 不含 cp/mv/rm 这种「合法备份 / 清老 rotation」操作。
+# 用户 `cp ~/.claude/karma/sticky.yaml ~/backup/` / `rm ~/karma/violations.jsonl.3`
+# 是日常 karma 状态自治，不是绕开检测。攻击者 hack 用 cp/mv 改 karma 状态
+# 是极少数 case；为它拦合法操作得不偿失。真 hack 路径（echo > file / python
+# 直接写）仍能 catch。
 _WRITE_OP_RE = re.compile(
     r"(?:"
     r"\.write_text\b|\.write\b|"          # Python 写文件
     r"write_text\s*\(|write\s*\("
     r"|>\s*[/.~\w]"                       # shell 重定向写
-    r"|\bcp\b|\bmv\b|\brm\b"              # 文件操作
-    r"|\.unlink\b|\.replace\b"            # Python unlink
+    r"|\.unlink\b|\.replace\b"            # Python unlink / replace
     r"|json\.dump|p\.write"
     r")",
     re.IGNORECASE,
