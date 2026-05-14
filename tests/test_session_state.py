@@ -158,6 +158,40 @@ def test_bg_failed_task_catchup_marks_failed(tmp_path):
     assert not s.has_recent_test_pass()
 
 
+def test_catchup_idempotent_no_race(tmp_path):
+    """task #8.1 fix：catchup 用 log mtime 当 ts，多次跑 ltp 不漂移。
+
+    Race condition：手动 update ltp 到 future 后，catchup 不应把 ltp 拉回。
+    """
+    import os
+    s = SessionState(session_id="s")
+    log_path = tmp_path / "bg.log"
+    log_path.write_text("===== 99 passed in 0.05s =====")
+    s.pending_bg_tasks = [{
+        "cmd": "pytest tests/",
+        "output_file": str(log_path),
+        "started_ts": 0,
+    }]
+    # 第一次 catchup
+    s.catchup_pending_bg()
+    log_mtime = os.path.getmtime(log_path)
+    assert abs(s.last_test_pass_ts - log_mtime) < 0.01, "第一次 catchup ltp 应 = log mtime"
+    # 手动 update ltp 到 future（模拟用户 / hook 之后 update）
+    import time
+    future_ts = time.time() + 3600
+    s.last_test_pass_ts = future_ts
+    # 重新加 pending（模拟 race — 同一 log 被 catchup 重复处理）
+    s.pending_bg_tasks = [{
+        "cmd": "pytest tests/",
+        "output_file": str(log_path),
+        "started_ts": 0,
+    }]
+    s.catchup_pending_bg()
+    # 第二次 catchup 不该把 ltp 拉回 mtime — force_ts > 当前 ltp 才推
+    assert s.last_test_pass_ts == future_ts, \
+        f"catchup 不该把 ltp 从 future 拉回 mtime: {s.last_test_pass_ts} vs {future_ts}"
+
+
 def test_bg_no_redirect_no_pending(tmp_path):
     """background 任务命令没有 > 重定向 → pending 不能定位 output file，跳过 record。
 

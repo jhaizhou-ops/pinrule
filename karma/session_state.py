@@ -127,7 +127,10 @@ class SessionState:
             self.edit_files.append(file_path)
             self.last_edit_ts = self._next_ts()
 
-    def record_bash(self, command: str, output, run_in_background: bool = False) -> None:
+    def record_bash(self, command: str, output, run_in_background: bool = False,
+                    force_ts: float | None = None) -> None:
+        """force_ts: catchup 用 log file mtime 强制 ltp = mtime，避免多次 catchup
+        通过 _next_ts(max(ltp, le)+epsilon) 把 ltp 推到 future 的 race。"""
         if not command:
             return
         is_test = bool(_TEST_CMD_RE.search(command))
@@ -170,9 +173,16 @@ class SessionState:
             output_passed=passed,
             output_failed=failed,
         ))
-        # 测试通过 → 推进 last_test_pass_ts（严格大于 last_edit_ts，分清先后）
+        # 测试通过 → 推进 last_test_pass_ts
+        # catchup 用 force_ts (log file mtime) 设定，避免重复 catchup race
+        # 正常路径用 _next_ts (严格大于 last_edit_ts，分清先后)
         if is_test and passed and not failed:
-            self.last_test_pass_ts = self._next_ts()
+            if force_ts is not None:
+                # catchup 路径：只在 force_ts > 当前 ltp 时推（不倒退也不重复推 future）
+                if force_ts > self.last_test_pass_ts:
+                    self.last_test_pass_ts = force_ts
+            else:
+                self.last_test_pass_ts = self._next_ts()
         # 保留最近 N 条
         self.recent_bash = self.recent_bash[-MAX_RECENT_BASH:]
 
@@ -210,8 +220,13 @@ class SessionState:
             except OSError:
                 still_pending.append(task)
                 continue
-            # 用普通 record_bash 路径处理（已读到真实输出，不会再命中 bg marker）
-            self.record_bash(cmd, output)
+            # 用普通 record_bash 路径处理 + force_ts=log mtime 防 race
+            # 多次 catchup 同一 log → ltp 永远 = mtime 不倒退也不重复推 future
+            try:
+                log_mtime = p.stat().st_mtime
+            except OSError:
+                log_mtime = None
+            self.record_bash(cmd, output, force_ts=log_mtime)
             caught_up += 1
         self.pending_bg_tasks = still_pending
         return caught_up
