@@ -293,6 +293,29 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
    不在 0 字范围。
    - 接受：语义判断难做，记 HANDOFF
 
+### karma v3 第三步候选（2026-05-14 用户「走火入魔」叫停信号没被识别触发）
+
+dogfooding 真触发：用户写「好了好了你走火入魔了」语义上是 sticky #8 自带
+例外定义的叫停信号（「停 / 不用了 / 明天再说 / 先到这」类），但 keep-pushing
+check 只看 Agent response 末尾，**看不到 user prompt 上文的叫停字眼**。
+
+结果：用户已经发出叫停信号但 karma 继续干预 Agent 推进，违反用户 sticky
+自带例外定义。这是工程实施层没体现 sticky 例外的真盲区。
+
+**v3 第三步候选**：keep-pushing check 加 user prompt 上文叫停检测
+
+实施方向：
+- check 函数接受 `user_prompt: str` 参数（hook 已从 payload 拿到）
+- 加 `_USER_STOP_HINT_RE` 匹配「好了 / 别 / 走火入魔 / 算了 / 停 / 不用了 /
+  明天再说 / 先到这 / 收敛 / 别神叨叨」等
+- 命中 → 整 turn 豁免 keep-pushing（即使 Agent response 末尾纯陈述也不拦）
+
+工程量小 — keep_pushing.py 加 user_prompt 入参 + 加一个 regex + 一个 if 豁免。
+但要看 stop hook 传不传 user_prompt 给 check（PRE/POST hook 有 payload，stop
+hook 也有 transcript_path 能读最近 user prompt）。
+
+价值高 — 这是把 sticky #8 自带的「用户明确叫停」例外从规则文本真落到工程实施。
+
 ### karma v3 第二步候选（2026-05-14 用户「绕过冲动」洞察 + 字面变体数据触发）
 
 用户问「你的总结是不是激发了绕过规则的冲动」+ 提出两方案（隐 trigger / 工具
