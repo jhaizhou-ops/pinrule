@@ -4,6 +4,33 @@
 
 ## [Unreleased]
 
+## [0.4.33] — 2026-05-15（fix — strip_shell_quoted_literals 复合 shell 嵌套真根因）
+
+### 真触发
+
+v0.4.32 commit + tag + push 都成功，但 `gh release create` 命令被自己的 deep-fix-not-bypass check 拦了 — release notes 里描述用户场景的 markdown 反引号包字面 `` `cat ~/.claude/karma/session-state/xxx.json` `` 被错当 shell command substitution 保留扫到外层 cmd。
+
+### 真根因
+
+strip_shell_quoted_literals 函数 Step 顺序错：
+
+- 之前：Step 0 双引号 hoist substitution → Step 1 indirect 抽 backtick / $() 到 placeholder → Step 2 heredoc 剥
+- 问题：heredoc 内 markdown 反引号 `` ` ` `` 在 Step 1 被先抽到 placeholder → Step 2 heredoc 剥时 placeholder 已不在 heredoc 内容里 → Step 4 替回保留扫漏
+
+附带：`_heredoc_prefix_command` 计算 heredoc head 命令时 boundary 不含 `(` → `$(cat <<EOF)` / `(cat <<EOF)` 子 shell 嵌套时 prefix 取错（取外层 `gh` 而不是真 heredoc 头 `cat`）。
+
+### 真 fix
+
+- strip Step 顺序：**heredoc 先于 indirect 处理** — 让 heredoc 内一切字面（含反引号 / 引号 / `$()`）跟 heredoc 一起按 prefix 命令决定剥/保留
+- `_heredoc_prefix_command` 加 `(` 到 boundary 集合 — 正确识别子 shell 嵌套 heredoc 头
+- 加 2 条守护测试：release notes markdown 反引号路径不漏 + `$(cat <<EOF)` 嵌套 prefix 真识别 cat
+
+### 验证
+
+- 真复现脚本 `gh release create --notes "$(cat <<'EOF' ...`cat ~/.claude/karma/session-state/...` ... EOF)"` strip 后**完全干净** ✓
+- 测试 362 → 364 全过 + ruff 干净 + vulture 0 死代码
+- v0.4.32 同时 release 真触发 v0.4.33 真根因 fix
+
 ## [0.4.32] — 2026-05-15（fix — bypass_karma `json.dumps` 假阳 + feat — 中段注入 token 启发式频率优化）
 
 ### 真触发

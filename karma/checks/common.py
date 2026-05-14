@@ -47,13 +47,19 @@ _SHELL_INTERPRETER_RE = re.compile(r"^(bash|sh|zsh|dash|ksh|fish)$", re.IGNORECA
 
 
 def _heredoc_prefix_command(prefix: str) -> str:
-    """从 `<<` 之前的字串里取最近一条命令的第一个 token（命令名）。"""
-    # 找命令边界 — 行首 / ; / | / && / ||
+    """从 `<<` 之前的字串里取最近一条命令的第一个 token（命令名）。
+
+    边界含 `(` — 处理 `$( cat <<EOF ...)` / `(cat <<EOF ...)` 子 shell 嵌套
+    （v0.4.33 真根因 fix：之前不含 `(` 边界导致 `gh ... --notes "$(cat <<EOF ...)"`
+    被误识 prefix=gh 不是 cat → heredoc 内容被错误处理）。
+    """
+    # 找命令边界 — 行首 / ; / | / && / || / 子 shell `(` / 子 shell `$(`
     boundary_pos = max(
         prefix.rfind("\n"),
         prefix.rfind(";"),
         prefix.rfind("|"),
         prefix.rfind("&"),
+        prefix.rfind("("),  # v0.4.33 加：子 shell 嵌套 `$(cmd <<EOF)` / `(cmd <<EOF)`
     )
     line = prefix[boundary_pos + 1:] if boundary_pos >= 0 else prefix
     tokens = line.strip().split()
@@ -72,16 +78,31 @@ def strip_shell_quoted_literals(cmd: str) -> str:
 
     跨 non_blocking + 关键词层共用，统一描述上下文剥离逻辑。
     """
-    # Step 0：先把双引号内的 substitution 「提升」到外层（shell 双引号真行为
-    # 就是展开 $() 和反引号执行，不展开 $'string' 字面）。如果不先提升，后续
-    # _SHELL_QUOTED_RE 会把整个 "..." 连同 substitution 一起剥掉造成漏报。
-    # 实测漏报场景：'echo "result: $(sleep 30)"' 整段被吞 → non_blocking 漏报 sleep。
-    # 单引号字面 shell 不展开（语义就是字面文本），不处理。
+    # Step 1：先剥 heredoc 内容（早于 hoist / indirect 处理）— v0.4.33 真根因 fix。
+    # 之前顺序错：indirect 先抽 → heredoc 内的反引号 / $() 字面被先抽到 placeholder
+    # → heredoc 剥时 placeholder 已不在内容里 → 最终替回保留扫漏 markdown 字面。
+    # 真触发：`gh release create --notes "$(cat <<'EOF' ...`cat ~/.claude/karma/...`
+    # ... EOF)"` 里 markdown 反引号包的路径字面被错当 shell substitution 保留扫。
+    # 修：heredoc 先剥（按 prefix 命令决定 python/cat 剥 / bash 保留），让 heredoc
+    # 内一切字面跟 heredoc 一起处理。
+    def _maybe_strip_heredoc(m: re.Match) -> str:
+        head_cmd = _heredoc_prefix_command(cmd[:m.start()])
+        if _SHELL_INTERPRETER_RE.match(head_cmd):
+            # bash/sh 等 heredoc — 内容是真 shell 命令，保留当真命令扫
+            return " " + m.group(2) + " "
+        # python/cat 等头部，heredoc 内容是数据 — 剥掉
+        return ""
+
+    cmd = _HEREDOC_RE.sub(_maybe_strip_heredoc, cmd)
+
+    # Step 2：双引号内 substitution「提升」到外层（shell 双引号真行为是展开
+    # $() 和反引号执行）。如果不先提升，后续 _SHELL_QUOTED_RE 会把整个 "..."
+    # 连同 substitution 一起剥造成漏报。实测漏报：'echo "result: $(sleep 30)"'
+    # 整段被吞 → non_blocking 漏报 sleep。单引号字面 shell 不展开不处理。
     hoisted_subst: list[str] = []
 
     def _hoist_subst_in_double_quoted(m: re.Match) -> str:
         body = m.group(0)[1:-1]  # 去掉两端双引号
-        # body 内的 $() / 反引号 → 内容追加到外层；原位置空字符串
         def _grab(sub_m: re.Match) -> str:
             hoisted_subst.append(sub_m.group(1))
             return ""
@@ -93,11 +114,8 @@ def strip_shell_quoted_literals(cmd: str) -> str:
     if hoisted_subst:
         cmd = cmd + " ; " + " ; ".join(hoisted_subst)
 
-    # 抽 indirect shell 内容到 placeholder（防内部 'x' 引号被 _SHELL_QUOTED_RE 误剥）
-    # 三种 indirect 形态都捕获：bash -c '...' / bash -c sleep30 / `cmd` / $(cmd)
-    # 注意：经过 Step 0 后双引号内的 substitution 已经被提取到 cmd 外层，
-    # 这里捕获的反引号 / $() 都是「裸暴露」位置（不在双引号内）— 仍然需要保护
-    # 防止 _SHELL_QUOTED_RE 跨界匹配。
+    # Step 3：抽 indirect shell 内容到 placeholder（防内部引号被 _SHELL_QUOTED_RE 误剥）
+    # 三种形态：bash -c '...' / bash -c sleep30 / `cmd` / $(cmd)
     indirect_contents: list[str] = []
 
     def _capture_indirect_quoted(m: re.Match) -> str:
@@ -105,7 +123,6 @@ def strip_shell_quoted_literals(cmd: str) -> str:
         return f"\x00INDIRECT_{len(indirect_contents) - 1}\x00"
 
     def _capture_indirect_simple(m: re.Match) -> str:
-        # group(1) 是单 token 子命令（bash -c X / `X` / $(X)）
         indirect_contents.append(m.group(1))
         return f"\x00INDIRECT_{len(indirect_contents) - 1}\x00"
 
@@ -114,15 +131,6 @@ def strip_shell_quoted_literals(cmd: str) -> str:
     cmd = _BACKTICK_SUBST_RE.sub(_capture_indirect_simple, cmd)
     cmd = _DOLLAR_PAREN_SUBST_RE.sub(_capture_indirect_simple, cmd)
 
-    def _maybe_strip_heredoc(m: re.Match) -> str:
-        head_cmd = _heredoc_prefix_command(cmd[:m.start()])
-        if _SHELL_INTERPRETER_RE.match(head_cmd):
-            # bash/sh 等 heredoc — 内容是真 shell 命令，保留当真命令扫
-            return " " + m.group(2) + " "
-        # python/cat 等头部，heredoc 内容是数据 — 剥掉
-        return ""
-
-    cmd = _HEREDOC_RE.sub(_maybe_strip_heredoc, cmd)
     cmd = _SHELL_QUOTED_RE.sub("", cmd)
     # 替回 indirect 内容（含内部所有字面）
     for i, content in enumerate(indirect_contents):

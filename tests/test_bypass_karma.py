@@ -233,6 +233,39 @@ def test_pipe_to_python_json_dumps_not_blocked():
     assert _check(cmd) is None, "json.dumps (序列化为字符串纯读) 不该被 json.dump 模式假阳"
 
 
+def test_release_notes_markdown_backtick_path_not_leaked():
+    """v0.4.33 真根因 fix：`gh release create --notes "$(cat <<'EOF' ... EOF)"`
+    里 markdown 反引号包的 `cat ~/.claude/karma/session-state/xxx.json` 字面
+    不该被错当 shell substitution 保留扫到外层 cmd。
+
+    真触发：v0.4.32 release create 命令被自己拦了 — release notes 里描述用户
+    场景的 markdown 反引号被先抽到 placeholder → heredoc 剥时 placeholder 已
+    不在内容里 → 最终替回保留扫漏。
+
+    fix：strip Step 顺序 — heredoc 先于 indirect / hoist 处理，让 heredoc 内
+    一切字面跟 heredoc 一起按 prefix 命令决定剥/保留。
+    """
+    cmd = """gh release create v0.4.32 --notes "$(cat <<'EOF'
+描述场景：`cat ~/.claude/karma/session-state/xxx.json` 被拦
+EOF
+)" """
+    assert _check(cmd) is None, "release notes markdown 反引号包路径不该被算执行意图"
+
+
+def test_heredoc_in_subshell_recognizes_inner_command():
+    """v0.4.33：`$(cat <<EOF)` / `(cat <<EOF)` 子 shell 嵌套时，heredoc 头识别
+    应该取 cat（内层命令）而不是外层 gh / 别的。
+
+    真根因 fix：_heredoc_prefix_command 加 `(` 到 boundary 集合。
+    """
+    # cat heredoc 内容是数据应剥 — 即使在 $(...) 嵌套
+    cmd = """echo "$(cat <<'EOF'
+.claude/karma/session-state/x.json
+EOF
+)" """
+    assert _check(cmd) is None, "$(cat <<EOF) 嵌套 heredoc 内容应被剥"
+
+
 def test_python_json_dump_real_write_still_caught():
     """对偶：json.dump (无 s — 写 file-like) 真写文件应仍命中。
 
