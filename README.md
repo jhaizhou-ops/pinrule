@@ -78,7 +78,8 @@ Claude 看到你消息前会先看到你的 sticky.yaml 6-10 条核心方向：
 ```bash
 karma stats              # 每条规则违反次数 + 最近触发时间
 karma violations recent  # 详细看最近 20 条违反
-karma doctor             # 检查环境 + hook 装机状态
+karma audit              # 审计 violations 历史 — 自动标可疑假阳（同触发词占 ≥ 50%）
+karma doctor             # 检查环境 + hook 装机状态 + 当前生效 config
 karma sticky list        # 看当前 sticky 配置
 karma sticky edit        # 用 $EDITOR 编辑规则
 ```
