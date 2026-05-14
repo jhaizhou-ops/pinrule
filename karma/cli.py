@@ -367,16 +367,18 @@ def cmd_violations_recent(n: int = 20) -> int:
     return 0
 
 
-def cmd_violations_clear(sticky_filter: str | None = None) -> int:
+def cmd_violations_clear(sticky_filter: str | None = None, trigger_filter: str | None = None) -> int:
     """清违反历史。
     无参数 → 清全部
-    --sticky <id> → 只清该 sticky 的，保留其他（fix 后清除假阳累积用）
+    --sticky <id> → 只清该 sticky 的，保留其他
+    --trigger <substring> → 只清触发词含该 substring 的（精细化 fix 后清假阳）
+    两个 filter 都给 → 都匹配才清
     """
     if not VIOLATIONS_PATH.exists():
         print("没有违反历史可清。")
         return 0
-    if sticky_filter:
-        # 选择性清 — 保留非匹配 sticky 的记录
+    if sticky_filter or trigger_filter:
+        # 选择性清
         lines = VIOLATIONS_PATH.read_text(encoding="utf-8").splitlines()
         keep_lines = []
         removed = 0
@@ -387,21 +389,33 @@ def cmd_violations_clear(sticky_filter: str | None = None) -> int:
                 continue
             try:
                 d = _json.loads(line_stripped)
-                if d.get("sticky_id") == sticky_filter:
+                match_sticky = sticky_filter is None or d.get("sticky_id") == sticky_filter
+                match_trigger = trigger_filter is None or trigger_filter in d.get("trigger", "")
+                if match_sticky and match_trigger:
                     removed += 1
                     continue
             except _json.JSONDecodeError:
                 pass
             keep_lines.append(line)
         if removed == 0:
-            print(f"没找到 sticky_id={sticky_filter!r} 的违反记录。")
+            filters = []
+            if sticky_filter:
+                filters.append(f"sticky={sticky_filter!r}")
+            if trigger_filter:
+                filters.append(f"trigger contains {trigger_filter!r}")
+            print(f"没找到 {' AND '.join(filters)} 的违反记录。")
             return 0
-        confirm = input(f"确认清 {removed} 条 sticky={sticky_filter!r} 的违反（保留 {len(keep_lines)} 条其他）? [y/N] ").strip().lower()
+        filter_desc = []
+        if sticky_filter:
+            filter_desc.append(f"sticky={sticky_filter!r}")
+        if trigger_filter:
+            filter_desc.append(f"trigger~{trigger_filter!r}")
+        confirm = input(f"确认清 {removed} 条 {' AND '.join(filter_desc)} 的违反（保留 {len(keep_lines)} 条其他）? [y/N] ").strip().lower()
         if confirm != "y":
             print("已取消")
             return 0
         VIOLATIONS_PATH.write_text("\n".join(keep_lines) + ("\n" if keep_lines else ""), encoding="utf-8")
-        print(f"已清 {removed} 条 sticky={sticky_filter!r} 违反，保留 {len(keep_lines)} 条其他。")
+        print(f"已清 {removed} 条，保留 {len(keep_lines)} 条其他。")
         return 0
     # 全清
     n = sum(1 for _ in VIOLATIONS_PATH.open())
@@ -586,11 +600,20 @@ def main(argv: list[str] | None = None) -> int:
             n = int(args[1]) if len(args) > 1 else 20
             return cmd_violations_recent(n)
         if args[0] == "clear":
-            # 支持 --sticky <id> 选择性清
+            # 支持 --sticky <id> / --trigger <substring> 选择性清
             sticky_filter = None
-            if len(args) >= 3 and args[1] == "--sticky":
-                sticky_filter = args[2]
-            return cmd_violations_clear(sticky_filter)
+            trigger_filter = None
+            i = 1
+            while i < len(args):
+                if args[i] == "--sticky" and i + 1 < len(args):
+                    sticky_filter = args[i + 1]
+                    i += 2
+                elif args[i] == "--trigger" and i + 1 < len(args):
+                    trigger_filter = args[i + 1]
+                    i += 2
+                else:
+                    i += 1
+            return cmd_violations_clear(sticky_filter, trigger_filter)
         print(f"未知 violations 子命令: {args[0]}", file=sys.stderr)
         return 1
     print(f"未知命令: {cmd}\n{__doc__}", file=sys.stderr)
