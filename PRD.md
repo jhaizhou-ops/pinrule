@@ -173,7 +173,10 @@ karma = **通用 hook 框架** + **场景规则集**。
 - ❌ retrieval / cosine / scene 路由
 - ❌ 多用户协作 / 同步
 - ❌ Web UI / 图形配置（CLI 编辑 yaml 够了）
-- ❌ 跨 IDE / 跨 AI 平台支持（先 Claude Code only）
+- ~~❌ 跨 IDE / 跨 AI 平台支持（先 Claude Code only）~~ — **v0.4+ 已支持**：
+  Claude Code / Codex CLI / Gemini CLI 三家通用，基类抽象未来加 Cursor /
+  Factory / Qoder / Copilot / CodeBuddy / Kimi 等成「填表」工作。详
+  [`karma/backends/HOWTO.md`](./karma/backends/HOWTO.md)。
 - ❌ 评测体系 / accuracy 指标（自用观察够了）
 
 ## 后续可能（v1+）

@@ -136,7 +136,12 @@ window=3 时 cutoff=-2 → 老违反 turn=0 ≥ -2 被数 → 触发 force_block
 │   │   ├── read_first.py
 │   │   ├── keep_pushing.py          # 推进信号 / 问号 / 停顿词检测
 │   │   └── bypass_karma.py          # 元层监管 — 绕开 karma 的字面 + 写操作
-│   └── hooks/                       # 4 个 Claude Code hook
+│   ├── backends/                    # 3 家 AI 客户端装机抽象 (v0.4+)
+│   │   ├── _base.py                 # Backend Protocol
+│   │   ├── _json_hooks.py           # 通用 JSON hooks 基类（90% 共用实现）
+│   │   ├── claude_code.py / codex.py / gemini_cli.py
+│   │   └── HOWTO.md                 # 加新 backend 5 步走指南
+│   └── hooks/                       # 4 个 hook 入口（跨 backend 复用）
 │       ├── user_prompt_submit.py    # sticky 注入 + 每 turn purge + 强提醒 fallback
 │       ├── pre_tool_use.py          # 实时拦截
 │       ├── post_tool_use.py         # 跟踪状态 + catchup
@@ -152,6 +157,20 @@ window=3 时 cutoff=-2 → 老违反 turn=0 ≥ -2 被数 → 触发 force_block
 ├── violations.jsonl                 # append-only + 5000 行自动 rotation
 └── session-state/                   # 每 session 一 json，30 天自动清理
 ```
+
+### AI 客户端 hook 配置（v0.4+ 三家通用）
+
+karma backend 抽象支持 **3 家客户端**：
+
+| Backend | 配置路径 | 启用方式 |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | 默认 |
+| Codex CLI | `~/.codex/hooks.json` | `karma install-hooks --backend codex`<br/>自动启用 `[features] hooks = true` |
+| Gemini CLI | `~/.gemini/settings.json` | `karma install-hooks --backend gemini-cli` |
+
+`--backend all` 一次装齐本机检测到的所有客户端。
+
+详 [karma/backends/HOWTO.md](karma/backends/HOWTO.md) 加新 backend 5 步走。
 
 ### Claude Code hook 配置
 
