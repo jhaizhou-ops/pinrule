@@ -229,4 +229,4 @@ karma init --no-minimal # 强制 7 条完整
 - [karma v1 归档](https://github.com/jhaizhou-ops/karma-v1) — v1 探索过程与反思
 - HANDOFF.md — 内部开发接力文档（非最终用户文档）
 
-karma v2 已完成 M0-M4 + 多轮评审 Agent 交叉评审 + 多轮 dogfooding 修真 bug，252 个测试全绿。验证标准是「开发过程能否减少 Agent 在长任务中的方向漂移」— 而**开发 karma 的过程本身就是它最严酷的自用观察期**。
+karma v2 已完成 M0-M4 + 多轮评审 Agent 交叉评审 + 多轮 dogfooding 修真 bug，275 个测试全绿（含 17 条跨平台 locale 检测守护）。验证标准是「开发过程能否减少 Agent 在长任务中的方向漂移」— 而**开发 karma 的过程本身就是它最严酷的自用观察期**。

@@ -34,7 +34,9 @@ jobs:
         run: vulture karma/ --min-confidence 60
 
       - name: Type check (mypy)
-        run: mypy karma/ --ignore-missing-imports
+        run: |
+          mypy karma/ --ignore-missing-imports
+          mypy tests/ --ignore-missing-imports
 
       - name: Test
         run: pytest tests/ -q
