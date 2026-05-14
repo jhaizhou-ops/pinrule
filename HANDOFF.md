@@ -316,6 +316,27 @@ hook 也有 transcript_path 能读最近 user prompt）。
 
 价值高 — 这是把 sticky #8 自带的「用户明确叫停」例外从规则文本真落到工程实施。
 
+### karma v3 第五步候选：PreCompact 落盘 + 两端夹击 compact 失忆（2026-05-14 子 Agent 9 hook 研究触发）
+
+子 Agent 研究 Claude Code 9 个未用 hook 真协议发现：**PostCompact 不支持
+additionalContext** — 之前以为可以 PostCompact 注入解决 compact 失忆走不通。
+
+真路径：**PreCompact + SessionStart(source=compact) 两端夹击**：
+
+- **PreCompact**（v3 第五步候选）— compact 触发前 hook，支持 additionalContext
+  + 支持 exit 2 阻止 compact。可做：
+  - 落盘 sticky 完整状态到 `~/.claude/karma/pre_compact_snapshot.md`
+  - 给 Claude 注入 additionalContext「即将 compact，sticky 务必留在记忆里」
+  - 极端场景 exit 2 阻止自动 compact（仅用户开 hook flag 时启用）
+- **SessionStart(source=compact)**（v0.4.28 已落地）— compact 后重起时强注入
+  sticky baseline + 警示语「compact 后 sticky 容易被压缩淡化」
+
+两端夹击让 sticky 跨 compact 不丢。
+
+工程量小 — 加 `karma/hooks/pre_compact.py` 文件 + claude_code.py `_HOOK_EVENTS`
+加 `"PreCompact": "pre_compact"` + matcher 处理（PreCompact 有 `matcher`
+区分 manual / auto）。
+
 ### karma v3 第二步候选（2026-05-14 用户「绕过冲动」洞察 + 字面变体数据触发）
 
 用户问「你的总结是不是激发了绕过规则的冲动」+ 提出两方案（隐 trigger / 工具
