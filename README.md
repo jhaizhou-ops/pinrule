@@ -1,5 +1,10 @@
 # karma
 
+[![CI](https://github.com/jhaizhou-ops/karma/actions/workflows/ci.yml/badge.svg)](https://github.com/jhaizhou-ops/karma/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-275%20passed-brightgreen)](https://github.com/jhaizhou-ops/karma/actions)
+
 > **让 Agent 不在长任务中遗忘你最重视的几条原则。**
 
 karma 是 Claude Code 的一个轻量插件，把你**反复强调过但 Agent 总忘**的几条核心方向偏好「钉」在每次对话最显眼的位置，并在 Agent 违反时实时拦截 / 事后提醒。
