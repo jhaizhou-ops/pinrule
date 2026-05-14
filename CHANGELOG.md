@@ -4,6 +4,45 @@
 
 ## [Unreleased]
 
+## [0.4.4] — 2026-05-14（patch — 首位真用户首装驱动的 3 个修）
+
+「同事即将首装 karma」消息触发 README 站陌生用户视角重审 + 实际触发 3 个真
+问题修。这是 dogfooding → real-user 转折点的标志性 patch。
+
+### Fixed
+
+- **`karma --version` 输出错版本号** — `__init__.py` 硬写 `__version__ = "0.1.0"`
+  跟 pyproject 双维护失同步，bump 到 0.4.3 后 `--version` 还是输出 v0.1.0
+  让用户疑惑。修：`__init__.py` 用 `importlib.metadata.version("karma")`
+  单一来源读 pyproject metadata（editable install 后重 `pip install -e .`
+  让 metadata 同步）。加 `test_version_matches_pyproject` 守护防回归。
+- **`karma install-hooks --help` 漏列 `gemini-cli` backend** — `--backend
+  claude-code|codex|all` 应该是 `claude-code|codex|gemini-cli|all`。Gemini
+  CLI backend v0.4.0 加了但 help 文本忘更新。
+- **CI 4 platform × Python 版本全 fail** — `test_install_hooks_all_backend_only_installs_detected`
+  + `test_uninstall_all_backend_iterates_each_installed` 两条测试只 mock 了
+  `CodexBackend` / `GeminiCLIBackend` 的 `client_installed`，没 mock
+  `ClaudeCodeBackend`。作者本机有 `claude` 命令 + `~/.claude/` 目录 → 通过；
+  CI hosted runner 没装任何 AI 客户端 → 全 False → exit 1。修：mock 全 3 个
+  backend 让测试 isolation 跟环境无关。
+
+### Docs — 首位真用户首装清单驱动 README 改进
+
+- 加 Python ≥ 3.11 前置要求（pyproject 要求但 README 没提）
+- 加 **⚠️ 关键最后一步「装完必须重启 AI 客户端」** — Claude Code / Codex /
+  Gemini CLI 都是 session 启动时一次性读 hook 配置不重载，跑中 session karma
+  不触发。新用户最容易踩坑。
+- 加「维护跟卸载」段警告 wrapper 硬写 venv 路径 — 删 / 移动 / 重建 `.venv`
+  前必须先 `karma uninstall-hooks --backend all`，否则 hook 指向不存在的
+  python 让 AI 客户端启动报错。
+- README 文末「状态」段加「**真实非作者用户使用期**」起点标记。
+
+### Test
+
+测试 307 → 308 全过（加 `test_version_matches_pyproject` 守护）。
+**CI 跨 ubuntu/macos × py3.11/3.12 全绿** — 之前作者本机过但 CI fail 的 bug
+真修对。
+
 ## [0.4.3] — 2026-05-14（patch — chinese-plain 表格 / URL 假阳修）
 
 ### Fixed
@@ -437,7 +476,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.4
 [0.4.3]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.3
 [0.4.2]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.2
 [0.4.1]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.1

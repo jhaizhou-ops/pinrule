@@ -1,6 +1,6 @@
 [project]
 name = "karma"
-version = "0.4.3"
+version = "0.4.4"
 description = "Sticky core directional preferences for Claude Code — keep Agent on track in long sessions"
 readme = "README.md"
 requires-python = ">=3.11"
