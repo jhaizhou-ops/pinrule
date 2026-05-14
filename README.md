@@ -23,7 +23,15 @@ karma 解决的就是这个 — 不让你的最高优先级方向被淹没。
 
 ## 安装
 
-**前置要求**：Python ≥ 3.11 + 已装 Claude Code / Codex CLI / Gemini CLI 至少一家。
+**前置要求**：
+- Python ≥ 3.11
+- 已装 Claude Code / Codex CLI / Gemini CLI **至少一家**（不装 karma 装上也没用）
+- 操作系统：**macOS / Linux**（Windows 兼容未真测，wrapper 用 Unix shebang，
+  Windows 用户建议先 WSL 跑）
+- 仓库**私有**期间：访问需 GitHub collaborator 权限 + 配好 git auth
+  （SSH key 或 HTTPS token）。看 `gh auth status` 确认登入，或试
+  `git clone https://github.com/jhaizhou-ops/karma.git` 看是否提示输入密码 /
+  token。clone 失败先解决 auth。
 
 ### 推荐：让 AI 客户端帮你装
 

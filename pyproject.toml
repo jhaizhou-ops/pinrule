@@ -13,7 +13,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
-    "Operating System :: Microsoft :: Windows",
+    # Windows 兼容未真测（wrapper 用 Unix shebang `#!python`，Windows shell
+    # 不识别），暂不声明支持。WSL 下可工作。
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
