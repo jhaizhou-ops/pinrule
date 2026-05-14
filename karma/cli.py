@@ -263,6 +263,8 @@ def cmd_doctor() -> int:
     print(f"  KARMA_DIR: {KARMA_DIR} ({'存在' if KARMA_DIR.exists() else '不存在'})")
     print(f"  sticky.yaml: {STICKY_PATH} ({'存在' if STICKY_PATH.exists() else '不存在'})")
     print(f"  violations.jsonl: {VIOLATIONS_PATH} ({'存在' if VIOLATIONS_PATH.exists() else '不存在'})")
+    config_path = KARMA_DIR / "config.yaml"
+    print(f"  config.yaml: {config_path} ({'存在' if config_path.exists() else '不存在 (用默认值)'})")
     try:
         sticky = load()
         print(f"  sticky 加载: ✓ {len(sticky)} 条")
@@ -271,6 +273,13 @@ def cmd_doctor() -> int:
     except StickyConfigError as e:
         print(f"  sticky 加载: ✗ {e}")
         return 1
+
+    # 显示当前生效配置
+    from karma.config import load as _load_config
+    cfg = _load_config()
+    print(f"  当前生效配置:")
+    for k, v in cfg.items():
+        print(f"    {k}: {v}")
 
     # hook 安装检测 — 每个 event 三项：wrapper 存在 / 可执行 / settings.json 含引用
     status = _check_hooks_installed()
