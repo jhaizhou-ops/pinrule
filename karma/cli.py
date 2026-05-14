@@ -383,6 +383,20 @@ def cmd_doctor() -> int:
     for k, v in cfg.items():
         print(f"    {k}: {v}")
 
+    # 显示活跃 session 简况（turn / stop_block 状态）
+    from karma import session_state as _ss
+    from karma.violations import load_all as _load_v
+    all_v = _load_v()
+    if all_v:
+        active_session = all_v[-1].session_id
+        try:
+            state = _ss.load(active_session)
+            print(f"  最近活跃 session: {active_session}")
+            print(f"    turn={state.turn_count}, stop_block={state.stop_block_count}, "
+                  f"read={len(state.read_files)} files, edit={len(state.edit_files)} files")
+        except Exception:
+            pass
+
     # hook 安装检测 — 每个 event 三项：wrapper 存在 / 可执行 / settings.json 含引用
     status = _check_hooks_installed()
     print(f"  hook 安装检测:")
