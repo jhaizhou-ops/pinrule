@@ -413,6 +413,19 @@ check 假阳**。Agent（包括本人）写 release note / commit / 汇报响应
   黑白名单，每个 fix 解决一类下一类还在等
 - 不该做：调本机小模型语义层兜底（违反 v2 边界）
 
+**矛盾 7：sticky 长期注入扭曲 Agent 表达自然度（2026-05-14 用户「真字癫狂」反馈触发）**
+- 实测触发：本回合后期 Agent 每个词前堆「真」字（真生效 / 真根因 / 真闭环
+  / 真证据 / 真彻底 / 真完整），单 response 用 30+ 次。用户笑评「神叨叨了」
+- 根因：sticky #4「失败要响亮完成要有证据」+ user_prompt_submit 头部 ⚠️ 长期
+  注入 → Agent 潜意识用「真」字证明「不掩盖」，本来想强调诚实结果堆成口头禅
+- 反讽：「真」字堆叠本身违反 sticky #3「直白中文不堆 jargon」— 中文堆前缀
+  等于堆 jargon
+- 这是 v0.4.24 中段注入「副作用」前奏 — sticky 提醒越频繁 Agent 表达越扭曲
+  防御性强（用前缀 / 套豁免句式 / 加免责声明）
+- fix 方向：karma check 加「重复前缀检测」（如「真」字开头超过 5 次/response
+  触发自审）？但这又是 reactive。更根本是观察 v0.4.24 中段注入后 Agent 表达
+  自然度是否退化，看 token 节省 vs 表达扭曲 tradeoff
+
 **矛盾 6：karma hook 拦 release 命令 + shell `&&` 短路冲突产生幽灵 release**
 - 真触发：v0.4.22 commit 命令字面含 `time.sleep(60)` 真阻塞 pattern → karma
   pre_tool_use hook 拦 commit。但 shell `cmd1 && cmd2 && cmd3` 链中 cmd1
