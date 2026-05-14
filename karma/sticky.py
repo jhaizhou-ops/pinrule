@@ -26,6 +26,9 @@ class Sticky:
     preference: str  # 多行允许
     violation_keywords: tuple[str, ...] = ()
     violation_checks: tuple[str, ...] = ()  # 工程检测函数名列表（从 karma.checks 注册表）
+    # force_block 累积强制干预豁免 — 「应该继续推进」类规则不该被「累积太多必须停下」处罚
+    # 典型例：keep-pushing-no-stop / non-blocking-parallel（语义反向，累积处罚会自我矛盾）
+    force_block_exempt: bool = False
 
 
 @dataclass(slots=True)
@@ -93,11 +96,18 @@ def load(path: Path | None = None) -> list[Sticky]:
             raise StickyConfigError(f"sticky {sid!r} violation_checks 必须是 list")
         vcs_clean = tuple(str(v).strip() for v in vcs if str(v).strip())
 
+        fbe_raw = item.get("force_block_exempt", False)
+        if not isinstance(fbe_raw, bool):
+            raise StickyConfigError(
+                f"sticky {sid!r} force_block_exempt 必须是 bool，实际 {type(fbe_raw).__name__}"
+            )
+
         sticky_list.append(Sticky(
             id=sid,
             preference=pref,
             violation_keywords=kws_clean,
             violation_checks=vcs_clean,
+            force_block_exempt=fbe_raw,
         ))
 
     return sticky_list

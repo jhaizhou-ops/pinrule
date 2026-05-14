@@ -188,12 +188,13 @@ def main() -> int:
             force_window = 3
         if force_threshold > 0 and state.turn_count > 0:
             counts_force = count_recent_turns(session_id, state.turn_count, window_turns=force_window)
-            # keep-pushing-no-stop 自身豁免 force_block — 语义矛盾：
-            # 「累积停下太多 → 必须停下让用户介入」恰好违反 keep-pushing 本身
-            _FORCE_BLOCK_EXEMPT = {"keep-pushing-no-stop"}
+            # force_block 豁免从 sticky.yaml 的 force_block_exempt 字段读
+            # 「应该继续推进」类规则不该被「累积太多必须停下让用户介入」处罚
+            # （否则语义自我矛盾 — 用户作者实战发现 keep-pushing-no-stop 触发 4 次时该 bug）
+            exempt_ids = {s.id for s in sticky_list if s.force_block_exempt}
             over_threshold = [
                 sid for sid, n in counts_force.items()
-                if n >= force_threshold and sid not in _FORCE_BLOCK_EXEMPT
+                if n >= force_threshold and sid not in exempt_ids
             ]
             if over_threshold and state.stop_block_count < int(cfg2.get("stop_block_max_per_turn", 3)) if "cfg2" in dir() else 3:
                 state.stop_block_count += 1

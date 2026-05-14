@@ -344,6 +344,7 @@ def test_stop_hook_force_block_exempts_keep_pushing(monkeypatch, tmp_path, capsy
             "preference": "不停下",
             "violation_keywords": [],
             "violation_checks": ["keep_pushing_no_stop"],
+            "force_block_exempt": True,  # 关键 — 这条字段控制豁免
         },
     ])
     monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
