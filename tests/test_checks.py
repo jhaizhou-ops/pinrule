@@ -273,6 +273,16 @@ def test_chinese_plain_detects_low_chinese_ratio():
     assert hit is not None
 
 
+def test_chinese_plain_jargon_in_parenthesis_list_exempted():
+    """jargon 在括号列表里（描述 jargon 不是用 jargon）→ 豁免。
+    例：「扩通用编程词（mutex / orchestrator / dispatcher / observer）」
+    用户在列举 jargon，不是堆 jargon 跟用户交流。"""
+    fn = REGISTRY["chinese_plain_no_jargon"]
+    response = "扩通用编程词（mutex / orchestrator / dispatcher / observer），加进 jargon 列表。"
+    hit = fn(response=response)
+    assert hit is None, "括号内列举的 jargon 是描述不是堆词，应豁免"
+
+
 def test_chinese_plain_jargon_with_explanation_passes():
     """术语后跟中文解释 → 豁免。"""
     fn = REGISTRY["chinese_plain_no_jargon"]

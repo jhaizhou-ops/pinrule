@@ -77,6 +77,18 @@ def check(*, response: str = "", **_):
     # 严格判定：术语紧跟 0-12 字内出现括号 ( 或 （ + 内部含 ≥2 中文字 = 算解释
     # 仅靠后续中文连接词不算（「oracle 不行」不豁免）
     for m in _JARGON_RE.finditer(natural):
+        # 豁免：jargon 在括号 / 列表里（用户已用括号或列表举例 = 描述 jargon 不是用 jargon）
+        # 检测：术语前 N 字内有 ( / （ 开括号 + 当前位置不在闭括号之后
+        before = natural[max(0, m.start() - 40): m.start()]
+        open_paren = max(before.rfind("("), before.rfind("（"))
+        close_paren = max(before.rfind(")"), before.rfind("）"))
+        if open_paren > close_paren and open_paren >= 0:
+            # 当前 jargon 在某个括号里 — 检查括号是不是开放（未闭合）
+            after_text = natural[m.end():]
+            if ")" in after_text[:60] or "）" in after_text[:60]:
+                # 括号在 60 字内闭合 → jargon 在「括号说明」里 → 豁免
+                continue
+
         after_window = natural[m.end(): m.end() + 12]  # 紧邻 12 字内
         has_paren_explanation = False
         for bracket_open, bracket_close in [("(", ")"), ("（", "）")]:
