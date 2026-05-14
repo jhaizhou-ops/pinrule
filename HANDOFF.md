@@ -124,6 +124,14 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
 
 ## 下个 session 接手指引
 
+### 已知 bug / 待 fix 优先清单
+
+- **task #8 catchup 边缘 case** — 本 session 多次需要手动 update `last_test_pass_ts` 让 git commit 通过 evidence check（手动接证据 5+ 次）。catchup_pending_bg 已加到 UserPromptSubmit / PreToolUse / PostToolUse 三个 hook，但实战仍有时不生效。可能根因（待 dump 真实 hook payload 验证）：
+  - bg pytest 启动时 `record_bash` 没识别为 bg（`_parse_redirect_target` 漏 / `run_in_background` 字段未传）→ pending entry 没加
+  - 或者 catchup 跑了但 `record_bash(cmd, output)` 内部 `_PASS_RE` 没命中真实 log
+  - **下个 session 优先 fix**：跑一次 bg pytest 后立即 dump session_state.pending_bg_tasks 实际内容 + cat output file 看格式，对比 catchup 处理逻辑找漏点
+- **evidence check 假阳累积历史**：audit 显示 evidence 100% 触发都是「git commit 前无测试证据」— 已在 M4 加 conventional commit (docs/chore) 豁免 + docs Edit 不推 last_edit_ts，但**历史 violations.jsonl 数据保留**，下次 audit 看新增 violations 是否真减少
+
 ### karma 自用持续观察 = 持续推进开发
 
 用户原话「咱们继续推就是观察期」— 不要把「开发」和「观察」当二元选择。每次推进都是 dogfooding 数据点。
