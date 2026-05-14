@@ -44,11 +44,13 @@ jobs:
       - name: Verify wheel contains yaml templates
         run: |
           python -c "
-          import zipfile, sys
-          z = zipfile.ZipFile('dist/karma-0.1.0-py3-none-any.whl')
+          import glob, zipfile, sys
+          wheels = glob.glob('dist/karma-*-py3-none-any.whl')
+          if not wheels: sys.exit('wheel build 失败 — dist/ 无 wheel')
+          z = zipfile.ZipFile(wheels[0])
           names = z.namelist()
           expected = ['data/sticky.dev.example.yaml', 'data/config.example.yaml']
           missing = [n for n in expected if n not in names]
           if missing: sys.exit(f'wheel 缺文件: {missing}')
-          print('wheel 含全部模板 ✓')
+          print(f'{wheels[0]} 含全部模板 ✓')
           "

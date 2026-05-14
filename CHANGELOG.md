@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-14（patch — 评审 Agent B 第 4 条盲区一次修对）
+
+### Fixed
+
+`karma/checks/common.py:strip_shell_quoted_literals` 三个真违反假阴漏报修复 ——
+之前 v0.1.0 评审时这条被判「等真用户碰到再修」，但用户当场纠正这是 sticky #1
+「最根本长期方案」违反，应当现在修对：
+
+- **反引号命令替换** `` `cmd` `` 现在显式按 indirect shell 处理 —— 内容是真
+  执行子命令（之前没有专门捕获，依赖偶然不被剥）。
+- **`$(...)` 命令替换** 同上 —— 跟反引号等价，`echo $(sleep 30)` 实际会执行
+  sleep。
+- **`bash -c sleep30` 无引号形式** —— POSIX 合法但之前 `_INDIRECT_SHELL_RE`
+  要求引号包裹漏掉。新 `_INDIRECT_SHELL_NOQUOTE_RE` 取 `-c` 之后第一个 token。
+- **`<<-EOF` tab 缩进 heredoc 终结符** —— bash `<<-` 允许 tab 缩进，之前
+  `_HEREDOC_RE` 终结符前不允许空白会让 heredoc 不被识别 → 内容没剥 → 数据
+  当真 shell 误判。修：终结符前允许 `[\t ]*` 空白。
+
+加 4 条守护测试（`test_false_negative_regression.py`）。测试 241 → 245 全过。
+
 ## [0.1.0] — 2026-05-14（首个公开版本）
 
 karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 评审 Agent
@@ -97,5 +117,6 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.1.1
 [0.1.0]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.1.0
