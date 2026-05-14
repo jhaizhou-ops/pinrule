@@ -87,3 +87,35 @@ def test_pure_statement_with_next_step_exempted():
     """陈述 + 下一步计划 → 豁免。"""
     hit = _check("commit 已推。我接下来去做 Y。")
     assert hit is None
+
+
+# ---- edge cases ----
+
+def test_single_char_response_blocked():
+    """极短回复无任何信号 → 命中（用户反馈：陈述完结无下一步 = 真停下）。"""
+    hit = _check("✓")
+    assert hit is not None
+
+
+def test_response_with_markdown_codeblock_blocked():
+    """末尾 markdown 代码块结束，无推进 → 命中。"""
+    hit = _check("做完了。\n```python\nprint('hi')\n```")
+    assert hit is not None
+
+
+def test_response_with_tail_period_only_blocked():
+    """末尾就是「。」陈述结束 → 命中。"""
+    hit = _check("commit 已推到远程。")
+    assert hit is not None
+
+
+def test_response_with_xianzheli_in_quote_still_blocked():
+    """引号里的「先到这」也命中（不能引号绕开 — 整体语气还是停下）。"""
+    hit = _check("用户说要「先到这」休息。")
+    assert hit is not None
+
+
+def test_response_with_action_then_summary_passes():
+    """先汇报再下一步推进 → 豁免（标准格式）。"""
+    hit = _check("测试 203 通过。我现在去做 X 推进。")
+    assert hit is None
