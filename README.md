@@ -31,8 +31,13 @@ karma 解决的就是这个 — 不让你的最高优先级方向被淹没。
 # 1. 拉代码 + 装依赖（Python ≥ 3.11）
 git clone https://github.com/jhaizhou-ops/karma.git
 cd karma
-python3.11 -m venv .venv && source .venv/bin/activate   # 用 python3.11+
-pip install -e .
+
+# 建 venv 用以下任一方式（看你机器装 Python 的方法）：
+python3 -m venv .venv                              # 系统 python3 是 3.11+
+# 或者 python3.11 -m venv .venv                    # 装了 python3.11 命令
+# 或者 uv venv --python 3.11 .venv                 # 用 uv 按需下载 Python 3.11
+source .venv/bin/activate
+pip install -e .                                    # 没 pip 用 `uv pip install -e .`
 
 # 2. 初始化（创建 ~/.claude/karma/ + 复制 sticky 模板）
 #    默认按系统语言偏好自动选 7 条完整（中文）或 5 条精简（其他）。
