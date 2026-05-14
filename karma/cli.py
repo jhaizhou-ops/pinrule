@@ -456,6 +456,10 @@ def cmd_doctor() -> int:
         print(f"  sticky 加载: ✓ {len(sticky)} 条")
         if len(sticky) > MAX_STICKY:
             print(f"    ⚠️ 超过软上限 {MAX_STICKY} (但未达硬上限 {HARD_MAX})")
+        exempt_ids = [s.id for s in sticky if s.force_block_exempt]
+        if exempt_ids:
+            print(f"    force_block 豁免: {', '.join(exempt_ids)} "
+                  "（累积违反不触发 Stop 强制 block）")
     except StickyConfigError as e:
         print(f"  sticky 加载: ✗ {e}")
         return 1
