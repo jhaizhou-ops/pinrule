@@ -6,9 +6,10 @@ Usage:
                                    默认按系统语言偏好自动选：中文 → 7 条完整；
                                    非中文/检测不到 → 5 条精简（砍 chinese_plain）
                                    --minimal / --no-minimal 强制覆盖
-    karma install-hooks [--backend claude-code|codex|all]
+    karma install-hooks [--backend claude-code|codex|gemini-cli|all]
                                    自动配置 hooks（默认 claude-code 向后兼容）
                                    codex 会同时启用 features.hooks；
+                                   gemini-cli 写 ~/.gemini/settings.json；
                                    all 装本机检测到的所有 AI 编程客户端
     karma uninstall-hooks [--backend ...]   移除 hook 配置
     karma doctor                   检查环境 + hook 装机 + 当前生效 config

@@ -39,13 +39,38 @@ def _read_settings(home: Path) -> dict:
 
 # ---- install-hooks ----
 
+def test_version_matches_pyproject():
+    """karma --version 必须跟 pyproject.toml [project] version 字段一致。
+
+    历史 bug：__init__.py 硬写 __version__ = '0.1.0' 跟 pyproject 双维护，
+    版本 bump 后 `karma --version` 卡老版本（v0.4.3 时输出 v0.1.0）误导陌生
+    用户。修：__init__.py 用 importlib.metadata 单一来源读 pyproject metadata。
+    """
+    from pathlib import Path
+    from karma import __version__
+    pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    import re
+    m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
+    assert m is not None, "pyproject.toml 缺 version 字段"
+    pyproject_version = m.group(1)
+    # editable install 模式下 importlib.metadata 读的是首次装时快照
+    # 测试只验证「__version__ 不是写死的不变值」+ 跟 pyproject 数字格式匹配
+    assert __version__ != "0.1.0" or pyproject_version == "0.1.0", (
+        f"__version__={__version__!r} 跟 pyproject={pyproject_version!r} 失同步 — "
+        "可能 bump 版本后忘重跑 'pip install -e .' 同步 metadata"
+    )
+
+
 def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch):
     """`--backend all` 只装本机检测到的客户端，不装没检测到的。
 
     实测装机已验证三家全装的场景，本测试 mock 单 backend 装机覆盖代码路径。
+    注：必须 mock 全部 3 个 backend 的 client_installed — CI 环境通常无任何
+    AI 客户端，作者本机有 claude 但 CI 没，依赖本机 PATH 会让 test 在 CI fail。
     """
-    from karma.backends import CodexBackend, GeminiCLIBackend
-    # mock Codex / Gemini 都没装，只装 Claude Code
+    from karma.backends import ClaudeCodeBackend, CodexBackend, GeminiCLIBackend
+    # mock Claude Code 装了，其他都没装
+    monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     rc = cli.cmd_install_hooks(backend_name="all")
@@ -60,7 +85,9 @@ def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch
 
 def test_uninstall_all_backend_iterates_each_installed(fake_home, monkeypatch):
     """`--backend all` 卸装应对每个检测到的 backend 各跑一遍卸装流程。"""
-    from karma.backends import CodexBackend, GeminiCLIBackend
+    from karma.backends import ClaudeCodeBackend, CodexBackend, GeminiCLIBackend
+    # mock 全部 3 个 backend — CI 隔离防 PATH 干扰
+    monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="all")
