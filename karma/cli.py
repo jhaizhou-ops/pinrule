@@ -305,7 +305,20 @@ def cmd_stats() -> int:
 
     print(f"karma 违反统计 (总 {len(violations)} 条):")
     if current_turn > 0:
-        print(f"本 session 当前 turn={current_turn}，「最近 {turns_window} turn」列代表 Agent 注意力漂移近况\n")
+        # 顺便显示本 session stop_block_count（Stop hook 干预次数）
+        from karma import session_state as ss
+        try:
+            state = ss.load(current_session)
+            if state.stop_block_count > 0:
+                print(
+                    f"本 session 当前 turn={current_turn}，Stop hook 已干预 {state.stop_block_count} 次"
+                    f"（keep-pushing 不主动停）"
+                )
+            else:
+                print(f"本 session 当前 turn={current_turn}")
+        except Exception:
+            print(f"本 session 当前 turn={current_turn}")
+        print(f"「最近 {turns_window} turn」列代表 Agent 注意力漂移近况\n")
     else:
         print()
     print(f"{'sticky_id':<35} {'总':>6} {'7d':>6} {'最近 ' + str(turns_window) + ' turn':>14} {'最近违反':>20}")
