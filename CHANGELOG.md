@@ -4,6 +4,75 @@
 
 ## [Unreleased]
 
+## [0.4.37] — 2026-05-15（feat — 子 Agent model 真捕获从主 Agent Task tool input）
+
+### 真触发
+
+用户精准纠正：「你刚才问的这俩问题都是不需要我回答的，你自己试一下就知道答案了...」
+
+按 sticky #4 老实做实验拿真数据：临时给 PreToolUse hook 加 debug dump 所有 payload → 派 sonnet 子 Agent → 看真 tool_name + tool_input。
+
+### 真发现（manual run 实验真数据）
+
+```
+PreToolUse 真 payload (派 sonnet 子 Agent 时):
+  tool_name: "Agent"  ← 真名是 "Agent" 不是 "Task"
+  tool_input keys: ["description", "prompt", "subagent_type", "model"]
+  tool_input.model: "sonnet"  ← 真捕获子 Agent 模型!
+  agent_id: None (主 Agent 视角)
+```
+
+意味 v0.4.36 没修的子 Agent 模型真盲区**真有路径解决** — 不是 SubagentStart payload（确实没 model），而是主 Agent **PreToolUse(tool_name="Agent")** 触发时 tool_input 真含 model 字段。
+
+### 真实施
+
+完整流程：
+
+```
+主 Agent 跑 Agent tool (model=sonnet) 派子 Agent
+  ↓
+主 PreToolUse(Agent, model=sonnet) → karma 入队 main_state.pending_subagent_models
+  ↓
+SubagentStart(agent_id=uuid) → karma pop 队首 → 写子 Agent state.model = "sonnet"
+  ↓
+子 Agent 内 PostToolUse → 用子 state.model → threshold_for_model("sonnet") = 60K
+  ↓
+SubagentStop → purge_subagent_state（v0.4.34 已实施）
+```
+
+代码改动：
+
+- `karma/session_state.py`: `SessionState` 加 `pending_subagent_models: list[str]` 字段 + load/save 序列化
+- `karma/hooks/pre_tool_use.py`: if `tool_name == "Agent"` and `tool_input.get("model")` → `main_state.pending_subagent_models.append(model)` + save
+- `karma/hooks/subagent_start.py`: load 主 state → pop 队首 → 写子 Agent state.model + save 主 state（清队列）+ save 子 state
+
+### FIFO 假设
+
+主 Agent 派多个并行子 Agent 时假设 SubagentStart 触发顺序跟主 PreToolUse 入队顺序一致（FIFO）。dogfooding 持续观察验证 — 如果真 Claude Code 协议层并行 Task 顺序非确定就需要换 agent_type 匹配（更复杂）。
+
+### 真验证
+
+- 加 2 条 `tests/test_subagent_isolation.py` 守护测试：
+  - `test_pending_subagent_models_fifo_queue`：3 个并行 Task FIFO 队列真行为
+  - `test_subagent_state_model_drives_threshold`：主 opus 80K + 子 sonnet 60K + 子 haiku 30K 真各自独立阈值
+- 测试 380 → **382 全过** + ruff 干净
+
+### 真闭环
+
+v0.4.34 子 Agent 独立 state（agent_id 路由）+ v0.4.35 model_threshold 表 + v0.4.36 SessionStart 主 model 拿取 + v0.4.37 子 Agent model 真捕获 = **完整真按模型自动适应阈值架构**：
+
+| Agent 类型 | model 来源 | 阈值真路径 |
+|---|---|---|
+| 主 Agent | SessionStart payload.model | state.model → threshold_for_model |
+| 子 Agent (主指定 model) | 主 PreToolUse Agent tool_input.model | pending 队 → SubagentStart pop → 子 state.model → threshold |
+| 子 Agent (主没指定 model) | 拿不到 | 子 state.model=None → DEFAULT 60K fallback |
+
+### 真教训
+
+- 不要凭印象猜协议字段名 — 我之前以为 tool_name 是 "Task"，实际是 "Agent"
+- manual run 实验拿真数据比派子 Agent 调研协议文档**更精准** — 文档可能滞后或漏字段
+- 用户「你自己试一下就知道答案了」是真智慧 — sticky #6 read-before-write 在协议层就是 manual run 真数据
+
 ## [0.4.36] — 2026-05-15（fix — v0.4.35 真协议层 limitation 修：SessionStart 拿 model 写 state）
 
 ### 真触发

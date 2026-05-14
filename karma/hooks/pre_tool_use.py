@@ -66,6 +66,22 @@ def main() -> int:
     # 主 Agent payload 没 agent_id 字段；子 Agent (Task tool 启动) payload 含 uuid
     agent_id = payload.get("agent_id") or None
 
+    # v0.4.37 子 Agent model 真捕获 — manual run 实验真验证：
+    # PreToolUse 派子 Agent 时 tool_name == "Agent"（不是 "Task"，dogfooding 真名）
+    # tool_input 真含 model 字段（如 "sonnet" / "opus" / "haiku"）。
+    # 主 Agent 派子 Agent 流程：主 PreToolUse(Agent, model=X) → SubagentStart(agent_id) →
+    # 子 Agent 内 PostToolUse → SubagentStop。karma 在主 PreToolUse 时把 model
+    # 入队 pending，SubagentStart 时 pop 出队写子 Agent state.model 让按真模型阈值。
+    if tool_name == "Agent":
+        sub_model = tool_input.get("model")
+        if sub_model:
+            try:
+                main_state = session_state.load(session_id)
+                main_state.pending_subagent_models.append(sub_model)
+                session_state.save(main_state)
+            except Exception as e:
+                print(f"karma PreToolUse: 入队子 Agent model 失败 ({e})", file=sys.stderr)
+
     try:
         sticky_list = load()
     except StickyConfigError as e:

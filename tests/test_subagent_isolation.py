@@ -84,6 +84,58 @@ def test_purge_subagent_state_main_path_unaffected(tmp_path):
     assert loaded.turn_count == 5
 
 
+def test_pending_subagent_models_fifo_queue(tmp_path):
+    """v0.4.37: 主 Agent 派多个子 Agent 时 pending_subagent_models 按 FIFO 入队。
+    主 PreToolUse(Agent, model=X) 入队 → SubagentStart pop 队首写子 state。
+    """
+    main_state = session_state.SessionState(session_id="sess1")
+    # 模拟主 Agent 派 3 个并行子 Agent (Opus / Sonnet / Haiku)
+    main_state.pending_subagent_models = ["opus", "sonnet", "haiku"]
+    session_state.save(main_state, base_dir=tmp_path)
+
+    # 第一次 SubagentStart pop "opus"
+    loaded = session_state.load("sess1", base_dir=tmp_path)
+    first = loaded.pending_subagent_models.pop(0)
+    session_state.save(loaded, base_dir=tmp_path)
+    assert first == "opus"
+
+    # 第二次 pop "sonnet"
+    loaded = session_state.load("sess1", base_dir=tmp_path)
+    second = loaded.pending_subagent_models.pop(0)
+    assert second == "sonnet"
+    assert loaded.pending_subagent_models == ["haiku"]
+
+
+def test_subagent_state_model_drives_threshold(tmp_path):
+    """v0.4.37 真闭环：主 PreToolUse 入队 → SubagentStart pop → 子 state.model
+    写入 → 后续子 Agent 内 PostToolUse 用 threshold_for_model(state.model)。
+    """
+    from karma.model_threshold import threshold_for_model
+
+    # 模拟 SubagentStart 写完子 Agent state.model
+    sub_state = session_state.SessionState(session_id="sess1", agent_id="sub-1")
+    sub_state.model = "haiku"
+    session_state.save(sub_state, base_dir=tmp_path)
+
+    # 后续子 Agent 内 PostToolUse load 子 state → 用 model 算阈值
+    loaded = session_state.load("sess1", base_dir=tmp_path, agent_id="sub-1")
+    assert loaded.model == "haiku"
+    assert threshold_for_model(loaded.model) == 30_000  # haiku 真阈值
+
+    # 对偶：主 Agent 是 opus，子 Agent 是 sonnet — 真各自独立阈值
+    main = session_state.SessionState(session_id="sess1")
+    main.model = "claude-opus-4-7"
+    session_state.save(main, base_dir=tmp_path)
+    sub2 = session_state.SessionState(session_id="sess1", agent_id="sub-2")
+    sub2.model = "claude-sonnet-4-6"
+    session_state.save(sub2, base_dir=tmp_path)
+
+    main_loaded = session_state.load("sess1", base_dir=tmp_path)
+    sub2_loaded = session_state.load("sess1", base_dir=tmp_path, agent_id="sub-2")
+    assert threshold_for_model(main_loaded.model) == 80_000  # opus
+    assert threshold_for_model(sub2_loaded.model) == 60_000  # sonnet
+
+
 def test_violation_agent_id_serialized_when_subagent():
     """Violation 含 agent_id 时 to_json 真写字段；agent_id=None 时不写省体积。"""
     import json

@@ -29,11 +29,32 @@ def _passthrough() -> None:
 
 def main() -> int:
     try:
-        _payload = json.load(sys.stdin)
+        payload = json.load(sys.stdin)
     except json.JSONDecodeError as e:
         print(f"karma SubagentStart: 输入 JSON 解析失败 ({e})", file=sys.stderr)
         _passthrough()
         return 0
+
+    # v0.4.37 子 Agent model 真捕获：主 Agent PreToolUse(Agent, model=X) 入队
+    # pending_subagent_models，本 SubagentStart pop 队首写子 Agent state.model
+    # 让按真模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。FIFO 假设并行 Task
+    # 触发顺序跟 PreToolUse 入队顺序一致（dogfooding 持续观察）。
+    session_id = payload.get("session_id", "") or "default"
+    agent_id = payload.get("agent_id") or None
+    if agent_id:
+        try:
+            from karma import session_state
+            main_state = session_state.load(session_id)
+            if main_state.pending_subagent_models:
+                sub_model = main_state.pending_subagent_models.pop(0)
+                session_state.save(main_state)
+                # 写子 Agent 独立 state（agent_id 路由）
+                sub_state = session_state.load(session_id, agent_id=agent_id)
+                sub_state.model = sub_model
+                session_state.save(sub_state)
+        except Exception as e:
+            print(f"karma SubagentStart: pop 子 Agent model 失败 ({e})", file=sys.stderr)
+            # 失败不阻塞 sticky baseline 注入
 
     try:
         sticky_list = load_sticky()
