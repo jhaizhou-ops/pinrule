@@ -4,6 +4,49 @@
 
 ## [Unreleased]
 
+## [0.4.8] — 2026-05-14（patch — CI fix + codex Desktop App 上游 regression 真根因记录）
+
+### Fixed
+
+- **CI 跨平台测试 fail 修** — v0.4.7 P1 加 `client_installed()` 门槛后所有
+  `cmd_install_hooks()` 测试在 CI 环境（无 claude 命令也无 `~/.claude/`）
+  集体 fail。修：`fake_home` fixture 默认显式 mock 3 个 backend
+  （Claude=True / Codex=False / Gemini=False），测试 isolation 跟环境无关。
+
+### Docs — codex hook 上游 regression 真根因深挖记录
+
+用户挑战「这几天 vibe island 一直能调用 codex cli 的 hook」驱动 4 步深挖：
+
+1. 我看 bridge.log 200 行推「0 条 codex 触发」→ 错（没看 rotated `.log.1`）
+2. 看 `.log.1` 仍 0 条 → 推「作者从没用过 codex」→ 错（用户确认用 Desktop App）
+3. WebSearch 找到 [GitHub codex issue #21639](https://github.com/openai/codex/issues/21639)
+   「Hooks no longer run after Codex Desktop update」
+4. WebFetch issue 真细节：**regression 仅影响 codex Desktop App**
+   （build 26.506.21252+ / cli_version 0.129.0-alpha.15+），**CLI 不受影响**
+
+**真状态**：
+- karma 装在 `~/.codex/hooks.json` 对应 codex **CLI** — 用 `codex` 终端命令
+  跑 TUI 真触发 hook（按 issue 推断，需真终端验证）
+- 用 codex **Desktop App** GUI → 命中上游 regression → hook 不调度 → 等
+  OpenAI 修（issue 未分配 / 未 milestone）
+
+README 客户端表 + 给同事 AI prompt 块 + HANDOFF 都加上游 bug 说明 + 「用
+CLI 终端跑绕过 Desktop App regression」指引。
+
+### Verified
+
+- karma 在 codex 协议下 5/5 真生效（模拟 codex payload 跑 4 wrapper 全过 +
+  sticky 注入 1186 字 + decision=block 真输出 + violations 真写入）
+- codex 端启动条件 3/3 齐全（features.hooks=true / config.toml / wrappers
+  可执行）
+- 唯一未真验证层：codex CLI TUI 真完成一个 turn 的 hook 调度证据 — Bash
+  expect 自动化模拟两次都失败（一次 turn 立即 close / 一次 codex panic），
+  需真终端 5 秒手动验证
+
+### Test
+
+测试 314 全过，4 件套全绿，CI 跨平台真转绿。
+
 ## [0.4.7] — 2026-05-14（patch — sub-agent 排查 5 个 P0 全落地）
 
 「感觉还不是很有把握公开 + 给同事 collaborator 让他先用」触发 sub-agent
@@ -555,7 +598,8 @@ karma v2 的第一个可发布版本，经历多轮 dogfooding + 4 个 Opus 4.7 
 - `.github/workflows/ci.yml` 跨 ubuntu / macOS × py3.11 / 3.12 跑 lint +
   vulture + pytest + wheel build。
 
-[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/jhaizhou-ops/karma/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.8
 [0.4.7]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.7
 [0.4.6]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.6
 [0.4.5]: https://github.com/jhaizhou-ops/karma/releases/tag/v0.4.5
