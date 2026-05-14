@@ -247,6 +247,52 @@ Claude Code 真实 `tool_response` 是 dict `{stdout, stderr, backgroundTaskId}`
 
 避开 M2.2 时的「描述字面假阳」和 M3 第一波「全放又漏真违反」的两端 — 注释里写「先打个补丁」是真意图表达扫，代码主体字面赋值（数据）不扫。
 
+### 已知 fix 过宽 limitation（2026-05-14 v0.4.22 自审后接受）
+
+按用户视角真测发现部分 fix 仍有边界 case 过宽 — 工程难做，接受 limitation
+作为长期持续观察对象。下个 session 接手时如果真实用户报漏拦 case，按对应
+方向治理。
+
+1. **v0.4.11 chinese-plain ML 真 jargon 豁免过宽** — `zero-shot learning` /
+   `few-shot prompt-engineering` / `chain-of-thought reasoning` / `self-
+   attention` / `multi-head attention` 等 ML 标准 jargon 是 kebab-case 形式
+   但**实质是真 jargon**，被错豁免。
+   - 真原因：v0.4.11 剥 kebab-case 是为豁免**项目自身标识符**（force_block /
+     chinese-plain-no-jargon），跟 ML 真 jargon 形式相同语义不同
+   - fix 方向：维护「常见 ML kebab jargon 黑名单」（zero-shot / few-shot /
+     chain-of-thought / self-attention / multi-head / layer-norm 等）作为
+     不剥例外。但黑名单总有遗漏 — 接受工程代价
+   - 或者：调本机小模型语义判定（违反 v2 边界，不做）
+
+2. **v0.4.12 keep-pushing 假数字攻击** — 「9999 测试通过」假数字骗 `_SUCCESS_
+   REPORT_RE` 豁免。罕见 anti-pattern 接受 limitation。
+   - 真 fix 难：karma 不知道实际测试数 — 除非接 pytest plugin 实时报告
+   - 接受：用户 Agent 不会蓄意伪造测试数字（sticky #4「完成要有证据」前提下
+     trust）
+
+3. **v0.4.13 deep-fix `shutil.rmtree('~/.claude/karma')` 整目录漏拦** —
+   `_KARMA_STATE_PATH_RE` 只匹配具体文件（session-state / violations.jsonl /
+   sticky.yaml）不匹配整目录 `.claude/karma/`。
+   - 真原因：v0.4.13 之前就有的 path regex limitation 不是本回合引入
+   - 接受：用户极少 rmtree 整 karma 目录，且 sticky #4「数据销毁需 flag」用户层
+     兜底
+
+4. **v0.4.16 force_block 协议层 placeholder 漏洞** — Agent 蓄意当前 turn 给
+   短回复 placeholder（如 `done.`）→ 不真触发该 sticky → 不 force_block →
+   历史累积没真处理。
+   - 接受：sticky #7 信任前提下不防 Agent 蓄意作弊。这种 placeholder 行为本
+     身违反 sticky #7
+
+5. **v0.4.17/21 audit timeline 粒度** — `check 文件最新 commit ts` 不区分
+   「真根因 fix commit」vs「注释 / 重构 commit」。可能误标「修后 0」但实际是
+   commit 之后没新触发不是 fix 真生效。
+   - 接受：dev hint 工具不追求精准，dogfooding 数据观察靠人工判断
+
+6. **v0.4.19 keep-pushing「下次 X 这事吧」推卸语气漏拦** — `(?!\s*[吧行])`
+   负向前瞻只覆盖紧邻「吧」字，「下次治理这事吧」中「吧」前有「这事」隔开
+   不在 0 字范围。
+   - 接受：语义判断难做，记 HANDOFF
+
 ### Agent 在 karma 项目内汇报用词指南（2026-05-14 防 chinese-plain 38% 真违反复发）
 
 **为什么需要**：dogfooding 实测 chinese-plain 38% 触发 4 次是 **真违反不是
