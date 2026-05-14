@@ -186,6 +186,20 @@ karma = **通用 hook 框架** + **场景规则集**。
 
 软上限 10 条，硬上限 12 条（超过 karma 拒绝加载）。
 
+### 默认 7 条开发场景 sticky + 2 条元层 sticky
+
+`data/sticky.dev.example.yaml` 默认装 7 条：
+1. `long-term-fundamental` 用最根本方案不打补丁
+2. `non-blocking-parallel` 测试 / 子 Agent 跑时并行推进
+3. `chinese-plain-no-jargon` 直白中文不堆 jargon
+4. `loud-failure-with-evidence` 完成附测试证据
+5. `no-testset-no-future-leakage` 不喂测试集 / mock 反喂主流程
+6. `read-before-write` 改代码前先读
+7. `deep-fix-not-bypass`（**元层**）karma 拦截时深挖根因，禁止手动改 karma 内部状态绕开
+
+可选个人 sticky（全权委托型用户）：
+- `keep-pushing-no-stop`（**元层**）完成一波后立即推下个，不停下等用户决定。Stop hook 配合 `decision=block` 让 Agent 不真停继续生成（safeguard：单 turn 累积 ≥ 3 次后真放停）。
+
 ## 状态
 
 - [PRD.md](./PRD.md) — 产品需求 + 验证标准
