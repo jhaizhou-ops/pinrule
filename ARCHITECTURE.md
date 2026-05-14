@@ -116,9 +116,8 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 - **强提醒 fallback**（关键机制）：读 transcript 取上一 assistant message
   → 跑所有 sticky 的 violation_checks → 命中的违反 + suggested_fix 注入「强提醒」段
   覆盖 keep-pushing / chinese-plain / evidence 等所有 response 类 check
-  **这是 karma 实战层面唯一有效的事后干预** — Stop hook 在 user-continuous 对话中
-  根本不跑（trace 实证），所有依赖 Stop hook 的干预（decision=block / 累积强制 block）
-  协议层 OK 但实战不触发
+  这是「Stop hook 在 user 立刻接 prompt 时不一定跑」场景的事后兜底
+  （Stop hook 装机正确时实战会跑 — matcher fix 后 trace 已实证 5 条真 session 触发）
 
 性能：< 50ms。
 
