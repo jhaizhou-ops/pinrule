@@ -113,7 +113,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 
 - `karma stats` — 每条规则违反次数 + 最近触发时间
 - `karma violations recent [N]` — 最近 N 条违反详情
-- `karma doctor` — 检查环境（sticky 合法 + 4 个 hook 装机状态）
+- `karma doctor` — 检查环境（sticky 合法 + 全部 hook 装机状态，Claude Code 8 个 event）
 - `karma install-hooks / uninstall-hooks` — 自动写/清 settings.json（idempotent + 备份 + 保留他人 hook）
 
 ### M3 完整化补充（v0 MVP 之上的工程精细化）

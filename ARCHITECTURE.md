@@ -254,9 +254,9 @@ karma violations recent [N]      # 最近 N 条违反详情
 karma violations clear           # 清违反历史（需确认）
 
 # 装机
-karma install-hooks              # 生成 4 个 wrapper + 自动写 settings.json
+karma install-hooks              # 生成 wrapper + 自动写 settings.json (Claude Code 8 个 event)
 karma uninstall-hooks            # 删 wrapper + 清 settings.json 里 karma entry
-karma doctor                     # 检查环境 + 4 个 hook 安装状态
+karma doctor                     # 检查环境 + 全部 hook 安装状态（Claude Code 8 个）
 ```
 
 `install-hooks` 关键特性：
