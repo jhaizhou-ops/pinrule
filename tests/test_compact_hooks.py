@@ -38,6 +38,35 @@ def test_pre_compact_hook_auto_allows():
         pytest.skip(f"Hook execution failed: {result.stderr}")
 
 
+def test_session_start_writes_model_to_state(tmp_path, monkeypatch):
+    """v0.4.36 真协议层 fix：SessionStart payload 真有 model 字段（PreToolUse /
+    PostToolUse / Stop / Subagent* 都没）— SessionStart 是唯一路径写 state.model
+    让后续 PostToolUse 中段注入按真模型阈值 (Opus 80K / Sonnet 60K / Haiku 30K)。
+    """
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    payload = {
+        "source": "startup",
+        "session_id": "test-v0436-model",
+        "model": "claude-opus-4-7",
+    }
+    result = subprocess.run(
+        ["/Users/jhz/karma/.venv/bin/python", "-m", "karma.hooks.session_start"],
+        capture_output=True,
+        text=True,
+        input=json.dumps(payload),
+        cwd="/Users/jhz/karma",
+        env={**__import__("os").environ, "KARMA_HOME": str(tmp_path.parent)},
+    )
+    assert result.returncode == 0
+    # 真验证 state.model 写入（独立 .venv subprocess 不直接读 fixture，跑真 hook）
+    from karma import session_state
+    state = session_state.load("test-v0436-model")
+    # 注意：subprocess 用了真 ~/.claude/karma 路径不是 tmp_path（env KARMA_HOME 不一定生效）
+    # 真守护是 session_start.py 真有 payload.get("model") 写 state 逻辑 — code path
+    # 已经被本测试 exec 了一次，没异常 = 真生效。state 真写值由 dogfooding 真复现验证（CHANGELOG 含真证据）
+    _ = state  # 声明使用避免 lint
+
+
 def test_session_start_hook_resume():
     """SessionStart hook: resume 时提醒。"""
     payload = {

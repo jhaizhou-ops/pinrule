@@ -45,6 +45,23 @@ def main() -> int:
 
     source = payload.get("source", "")  # startup / resume / clear / compact
 
+    # v0.4.36 真协议层 fix：SessionStart payload 真有 model 字段（PreToolUse /
+    # PostToolUse / SubagentStart / SubagentStop / Stop 都没）— SessionStart 是
+    # Claude Code 本地协议下唯一暴露 model 的事件。拿 model 写主 state 让后续
+    # PostToolUse 中段 sticky 注入按真模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。
+    # 子 Agent 模型仍真盲区（SubagentStart 没 model 字段），走 DEFAULT 60K fallback。
+    payload_model = payload.get("model")
+    session_id = payload.get("session_id", "") or "default"
+    if payload_model:
+        try:
+            from karma import session_state
+            state = session_state.load(session_id)
+            state.model = payload_model
+            session_state.save(state)
+        except Exception as e:
+            print(f"karma SessionStart: 写 state.model 失败 ({e})", file=sys.stderr)
+            # 失败不阻塞 sticky baseline 注入
+
     try:
         sticky_list = load_sticky()
     except StickyConfigError as e:

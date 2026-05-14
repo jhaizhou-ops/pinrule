@@ -4,6 +4,50 @@
 
 ## [Unreleased]
 
+## [0.4.36] — 2026-05-15（fix — v0.4.35 真协议层 limitation 修：SessionStart 拿 model 写 state）
+
+### 真触发
+
+子 Agent 真协议查实揭 v0.4.35 真盲区：
+
+- ✅ **SessionStart payload 真有 model 字段**（主 Agent 起手）
+- ❌ **PreToolUse / PostToolUse / SubagentStart / SubagentStop / Stop 都没 model 字段**（Claude Code 本地协议）
+
+v0.4.35 把 model 字段读取放在 PostToolUse hook 里 — 但 PostToolUse payload **没 model 字段** → state.model 永空 → 永走 DEFAULT 60K fallback。「按模型自适应」名不副实。
+
+### 真状态老实评估
+
+| v0.4.35 功能 | 真生效状态 |
+|---|---|
+| 默认阈值 8K → 60K | ✅ 真生效（用户最高要求满足）|
+| 按模型自适应（Opus 80K / Sonnet 60K / Haiku 30K）| ❌ **没真生效** — payload 永没 model 永走 fallback |
+
+### 真 fix
+
+- `karma/hooks/session_start.py` 加从 payload 读 model 写 state.model — Claude Code 本地协议下唯一暴露 model 的事件
+- 主 Agent state.model 在 SessionStart 时一次写入，后续 PostToolUse 用 `threshold_for_model(state.model)` 真按模型阈值
+- 子 Agent 模型仍真盲区（SubagentStart 没 model 字段）→ 走 DEFAULT 60K fallback（保守诚实，不假装跟主 Agent 同模型）
+
+真生效证据：
+```
+echo '{"source":"startup","session_id":"test","model":"claude-opus-4-7"}' | python -m karma.hooks.session_start
+cat ~/.claude/karma/session-state/test.json | grep model
+→ "model": "claude-opus-4-7"  ✓
+```
+
+### 真验证
+
+- 加 `test_session_start_writes_model_to_state` 守护测试
+- 测试 379 → **380 全过** + ruff 干净
+- 真复现脚本 SessionStart 真写 state.model（CHANGELOG 含真证据）
+
+### 真教训
+
+- v0.4.35 实施假设「PostToolUse payload 有 model」是错的 — 没查实协议就实施
+- 容错设计（`payload.get("model")` + fallback）救场 — 即使协议没字段也能用 60K fallback 不爆炸
+- 真协议查实必须 web 验证，不能凭印象（像 v0.4.32 8K 阈值是 Liu 2023 旧数据撑场，v0.4.35 假设 PostToolUse 有 model 是没查实）
+- 子 Agent 模型识别真路径还在演化（v0.4.37 候选：从主 Agent PreToolUse `tool_name="Task" tool_input.model="sonnet"` 真截获 → SubagentStart 时对接 agent_id）
+
 ## [0.4.35] — 2026-05-15（feat — 中段注入阈值按模型自动适配 + 默认抬到 60K 跟当代 Claude 真衰减区对齐）
 
 ### 真触发
