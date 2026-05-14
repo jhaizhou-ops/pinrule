@@ -29,6 +29,39 @@ def test_long_term_detects_quick_fix_commit():
     assert "quick fix" in hit.trigger.lower() or "fix" in hit.trigger
 
 
+def test_long_term_commit_message_describe_pattern_passes():
+    """commit message 长描述区里讨论 hack/quick-fix 概念 → 不算真违反。
+
+    真违反是「字眼作为 commit 主语」（前 80 字内），不是长描述里偶然提到。
+    """
+    fn = REGISTRY["long_term_fundamental"]
+    # 字眼在描述区（120 字之后）— 不算真违反
+    long_msg = (
+        'feat(x): 实现新功能 X\n\n'
+        '本提交做了三件事：\n'
+        '1. 加了 A 功能\n'
+        '2. 改了 B 测试\n'
+        '3. 重构了 C 模块的逻辑\n\n'
+        '附带说明：这里讨论一下 quick fix 这个反 pattern，'  # 这里字眼在 message 后部
+        '我们不应该这么做。'
+    )
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": f'git commit -m "{long_msg}"'},
+    )
+    assert hit is None, "commit message 后部讨论字眼不该被认成真违反"
+
+
+def test_long_term_commit_message_subject_quick_fix_blocked():
+    """commit message 主语区（80 字内）含 hack 词 → 真违反，拦。"""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": 'git commit -m "hack: 临时修个 bug"'},
+    )
+    assert hit is not None
+
+
 def test_long_term_detects_no_verify():
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(
@@ -175,6 +208,25 @@ def test_non_blocking_ignores_quoted_literals():
         tool_input={"command": "pytest tests/"},
     )
     assert hit is not None
+
+
+def test_non_blocking_ignores_heredoc_content():
+    """heredoc 内是程序数据 — pytest / sleep 字面不算执行意图。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    # Python heredoc 含 'pytest' / 'sleep' 字面（regex pattern 内）— 不命中
+    cmd = """python <<'PYEOF'
+import re
+pat = re.compile(r'\\b(pytest|sleep)\\b')
+print(pat.search('foo'))
+PYEOF"""
+    hit = fn(tool_name="Bash", tool_input={"command": cmd})
+    assert hit is None, "heredoc 内字面不算执行意图"
+    # 但 heredoc **外**（命令头）含 pytest 仍命中
+    cmd_with_pytest = """pytest tests/ <<'EOF'
+some input
+EOF"""
+    hit = fn(tool_name="Bash", tool_input={"command": cmd_with_pytest})
+    assert hit is not None, "heredoc 外命令头含 pytest 仍是真执行"
 
 
 # -------- #3 chinese-plain-no-jargon --------

@@ -49,9 +49,12 @@ _PATTERNS_ALL = [
 # 仅 Bash tool 检测 — 这些 flag 在文档/代码字符串里出现是描述，不是真违反
 _PATTERNS_BASH_ONLY = [
     (
-        re.compile(r"""git\s+commit.*?["'](?:[^"']*?)(quick\s*fix|hack\b|temp\b|workaround|临时|凑数)""", re.IGNORECASE),
-        "git commit message 含 quick fix / hack / temp / 临时",
-        "改 commit message 清楚说明改了什么 + 为什么。这不是临时改动。",
+        # 限定字眼出现在 commit message 标题行（开始 80 字内、第一行）—
+        # git 规范标题行 < 72 字。后部长描述里讨论字眼是元层面 ≠ 真违反。
+        # `[^"'\n]{0,80}?` 要求字眼前最多 80 个非引号非换行字符。
+        re.compile(r"""git\s+commit.*?["'](?:[^"'\n]{0,80}?)(quick\s*fix|hack\b|temp\b|workaround|临时|凑数)""", re.IGNORECASE),
+        "git commit 标题行含 quick fix / hack / temp / 临时 字眼",
+        "改标题行清楚说明改了什么 + 为什么。这不是 hot fix 类改动。",
     ),
     (
         re.compile(r"--no-verify\b|--skip[\w-]*|--force(?:\s+|$)", re.IGNORECASE),

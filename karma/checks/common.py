@@ -16,17 +16,28 @@ _INDIRECT_SHELL_RE = re.compile(
     r"\b(?:bash|sh|zsh|dash|ksh)\s+-c\s+(['\"])(.*?)\1",
     re.IGNORECASE | re.DOTALL,
 )
+# heredoc 多行字符串 — `<<EOF ... EOF` 内容是程序数据不是执行字面
+# 支持 `<<EOF` / `<<'EOF'` / `<<"EOF"` / `<<-EOF` 几种变体
+_HEREDOC_RE = re.compile(
+    r"<<[-~]?\s*['\"]?(\w+)['\"]?[ \t]*\n.*?\n\1\b",
+    re.DOTALL,
+)
 
 
 def strip_shell_quoted_literals(cmd: str) -> str:
-    """剥 shell 命令里的引号字面（commit message / echo 文本等），保留命令骨架。
+    """剥 shell 命令里的引号字面 + heredoc 内容，保留命令骨架。
 
-    特殊处理：`bash -c '...'` / `sh -c '...'` 后引号是真执行子命令，剥时保留内容。
+    特殊处理：
+    - `bash -c '...'` / `sh -c '...'` 后引号是真执行子命令，剥时保留内容。
+    - heredoc `<<EOF ... EOF` 是数据传 stdin，剥整段内容。
+
     跨 non_blocking + 关键词层共用，统一描述上下文剥离逻辑。
     """
     def _keep_indirect(m: re.Match) -> str:
         return " " + m.group(2) + " "
     cmd = _INDIRECT_SHELL_RE.sub(_keep_indirect, cmd)
+    # heredoc 先剥（连同 `<<EOF` 头一起去掉），避免内部 `'...'` 被误当 shell 引号
+    cmd = _HEREDOC_RE.sub("", cmd)
     return _SHELL_QUOTED_RE.sub("", cmd)
 
 
