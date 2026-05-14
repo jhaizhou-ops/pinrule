@@ -5,7 +5,19 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from karma.locale_detect import detect_user_language, is_chinese_user
+
+
+@pytest.fixture(autouse=True)
+def _clean_locale_env(monkeypatch):
+    """每个测试前清掉本机所有 LC_* / LANG 环境变量 — 否则作者本机
+    LC_MESSAGES=en_US.UTF-8 会让 setenv("LC_ALL", "C") + setenv("LANG", "zh_CN")
+    类测试拿到本机 LC_MESSAGES 假 hit 'en' 而不是预期的 'zh'。
+    """
+    for var in ("LC_ALL", "LC_MESSAGES", "LC_CTYPE", "LANG", "LANGUAGE"):
+        monkeypatch.delenv(var, raising=False)
 
 
 # ---- macOS: defaults read AppleLanguages 路径 ----

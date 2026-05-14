@@ -86,8 +86,9 @@ def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch
     assert rc == 0
     # 只有 Claude Code 装了 wrapper，其他 backend 没装
     cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
-    # v0.4.28 加 SessionStart hook (karma v3 第四步) — 5 个 wrapper
-    assert len(cc_wrappers) == 6
+    # 动态从 _HOOK_EVENTS 算 — 避免每次加 hook 改测试硬编码（v0.4.28 SessionStart /
+    # v0.4.29 PreCompact / v0.4.30 SubagentStart+Stop 都得改这数字是反 pattern）
+    assert len(cc_wrappers) == len(ClaudeCodeBackend._HOOK_EVENTS)
     # Codex / Gemini 目录可能不存在（client 没装）— 不该建
     assert not (fake_home / ".codex" / "hooks").exists() or \
         not list((fake_home / ".codex" / "hooks").glob("karma_*.py"))
@@ -316,8 +317,8 @@ def test_install_hooks_idempotent(fake_home):
     )
 
     assert karma_cmds_first == karma_cmds_second
-    # v0.4.28 加 SessionStart — 5 个 karma 命令，每个一次
-    assert len(karma_cmds_first) == 6
+    # 动态从 _HOOK_EVENTS 算（每个 event 一个 karma 命令）
+    assert len(karma_cmds_first) == len(ClaudeCodeBackend._HOOK_EVENTS)
 
 
 def test_install_hooks_stop_entry_has_no_matcher(fake_home):
@@ -417,8 +418,8 @@ def test_uninstall_removes_wrappers_and_settings_entries(fake_home):
         for h in m.get("hooks", [])
         if "karma_" in h["command"]
     ]
-    # v0.4.28 加 SessionStart — 5 个 karma hook 命令
-    assert len(karma_cmds) == 6
+    # 动态从 _HOOK_EVENTS 算（每个 event 一个 karma 命令）
+    assert len(karma_cmds) == len(ClaudeCodeBackend._HOOK_EVENTS)
 
     cli.cmd_uninstall_hooks()
     settings_after = _read_settings(fake_home)

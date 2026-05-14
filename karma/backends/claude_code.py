@@ -31,12 +31,21 @@ class ClaudeCodeBackend(JsonHooksBackend):
         # 注：不用 exit 2 阻止 compact — compact 是 Claude Code 保护机制，karma
         # 不该干扰，只做纯落盘 + 提醒。
         "PreCompact": "pre_compact",
+        # v0.4.30（karma v3 第六步）: SubagentStart / SubagentStop 让 sticky 跨
+        # 子 Agent 边界传递。SubagentStart 注入 sticky baseline（子 Agent 跑
+        # 任务时也按这些方向）；SubagentStop 给主 Agent 一行透明度提醒（不扫
+        # transcript 内容 — substring match 假阳爆发，真违反检测交给主 Agent
+        # 处理子 Agent 结果时的 PreToolUse / PostToolUse / Stop 三道 hook）。
+        # 注：PostCompact 不支持 additionalContext 协议层走不通，karma 不装。
+        "SubagentStart": "subagent_start",
+        "SubagentStop": "subagent_stop",
     }
 
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
         """Claude Code 特有：PreToolUse / PostToolUse / UserPromptSubmit 加
         `matcher: "*"`；PreCompact matcher 区分 manual / auto（用 `*` 匹配两种）；
-        Stop / SessionStart 等 lifecycle event 不加 matcher（加了会被无声忽略）。
+        Stop / SessionStart / SubagentStart / SubagentStop 等 lifecycle event
+        不加 matcher（加了会被无声忽略）。
         """
         wrapper = self.hooks_dir() / f"karma_{hook_name_lower}.py"
         entry: dict[str, object] = {
