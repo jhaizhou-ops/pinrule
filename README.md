@@ -76,12 +76,16 @@ Claude 看到你消息前会先看到你的 sticky.yaml 6-10 条核心方向：
 ### 3. 累积观察
 
 ```bash
-karma stats              # 每条规则违反次数 + 最近触发时间
-karma violations recent  # 详细看最近 20 条违反
-karma audit              # 审计 violations 历史 — 自动标可疑假阳（同触发词占 ≥ 50%）
-karma doctor             # 检查环境 + hook 装机状态 + 当前生效 config
-karma sticky list        # 看当前 sticky 配置
-karma sticky edit        # 用 $EDITOR 编辑规则
+karma stats                              # 每条规则违反次数 + 本 session turn 漂移
+karma violations recent                  # 详细看最近 20 条违反
+karma violations clear                   # 清全部历史
+karma violations clear --sticky <id>     # 选择性清某 sticky 历史
+karma violations clear --trigger <text>  # 按触发词 substring 清（fix 后清假阳累积）
+karma audit                              # 审计 + 自动改进建议（同触发词占 ≥ 50% 标 ⚠️）
+karma reset                              # 清 session-state 漂移实验重启
+karma doctor                             # 检查环境 + hook 装机 + 当前生效 config + 活跃 session
+karma sticky list                        # 看当前 sticky 配置
+karma sticky edit                        # 用 $EDITOR 编辑规则
 ```
 
 ## 设计
