@@ -10,6 +10,40 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-05-15 (docs — v0.8.x cumulative sync + 1 dead-code leftover from v0.8.2 audit)
+
+### Why this pass
+
+After v0.8.0 → v0.8.3 in rapid succession, user asked for an "E" pass: re-audit all docs to make sure the cumulative v0.8.x picture (i18n signals, 7 of 7 detection signals, English coverage) is consistently reflected — not partially-stuck at v0.8.0 or v0.8.1 in some places.
+
+### Sync gaps caught
+
+**Stale "6 signals" counts** (v0.8.0/v0.8.1 numbers, should be 7 after v0.8.2 added `completion_words`):
+
+- `README.md` Performance table → updated to "7 detection signals" / "~7 small files"
+- `README.zh.md` 性能表 → same
+- `docs/PRD.md` F6 listening-side → "All 7 detection signals externalized" (was "6")
+- `docs/PRD.zh.md` F6 同步
+- `docs/ARCHITECTURE.md` i18n system section → adds `completion_words` to the `.txt` list + bumps version range to "v0.8.0 → v0.8.2"
+- `docs/ARCHITECTURE.zh.md` i18n 系统段 → same
+
+### Real dead code v0.8.2 audit missed
+
+`karma/checks/__init__.py:run_checks()` had a `sticky_id: str = ""` parameter whose own inline comment said "v0.5.0 deprecated alias, removed in v0.6.0" — never actually removed. 0 callers passed it (grep verified). Removed parameter + the `rule_id=rule_id or sticky_id` fallback that referenced it. Now the function signature is just `rule_id: str = ""`.
+
+This is the same pattern as the 3 dead-code items v0.8.2 caught (`KARMA_RULE_SKILL_SRC`, `_claude_skills_dir`, `_install_karma_rule_skill`) — comments said "v0.6.0 removed" but never were. v0.8.4 catches the 4th instance the manual grep missed last round.
+
+### What did NOT change
+
+- CHANGELOG / HANDOFF historical entries with "6 signals" counts — those describe what was true at that release, archive integrity preserved (rule 5)
+- README "Older versions" banner mentioning v0.6.0 `karma.sticky` removal — legitimate migration guidance for users on pre-v0.6 versions
+
+### Verification
+
+- 455/455 passing (removing `sticky_id` parameter required updating the internal `rule_id=rule_id or sticky_id` fallback line)
+- `ruff`: 0 issues
+- `vulture --min-confidence 70`: 0 dead code
+
 ## [0.8.3] — 2026-05-15 (refactor — long hook main functions split + cli.py import dedup)
 
 ### Internal refactor only (no user-visible change)

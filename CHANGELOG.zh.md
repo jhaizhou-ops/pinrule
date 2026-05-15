@@ -6,6 +6,40 @@
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-05-15（docs — v0.8.x 累积同步 + v0.8.2 audit 漏的 1 处死代码）
+
+### 为什么做这一轮
+
+v0.8.0 → v0.8.3 连发后用户要求做「E」轮：再 audit 全部文档，确保 v0.8.x 累积全貌（i18n signals、7/7 检测信号、英文覆盖）一致反映 — 不要某些地方还卡在 v0.8.0 / v0.8.1。
+
+### 同步 gap 抓到
+
+**「6 个信号」过时数字**（v0.8.0/v0.8.1 时期，v0.8.2 加 `completion_words` 后该是 7）：
+
+- `README.md` 性能表 → 改「7 detection signals」/「~7 small files」
+- `README.zh.md` 性能表 → 同步
+- `docs/PRD.md` F6 听话端 → 「All 7 detection signals externalized」（之前 6）
+- `docs/PRD.zh.md` F6 同步
+- `docs/ARCHITECTURE.md` i18n 系统段 → `.txt` 列表加 `completion_words` + 版本范围改「v0.8.0 → v0.8.2」
+- `docs/ARCHITECTURE.zh.md` i18n 系统段 → 同步
+
+### v0.8.2 audit 漏的真死代码
+
+`karma/checks/__init__.py:run_checks()` 有个 `sticky_id: str = ""` 参数，自己内联注释写「v0.5.0 deprecated alias, removed in v0.6.0」— 没真删。0 调用者传过这参数（grep 实证）。删掉参数 + 引用它的 `rule_id=rule_id or sticky_id` 兼容垫层。函数签名现在干净为 `rule_id: str = ""`。
+
+这是 v0.8.2 抓的 3 个死代码（`KARMA_RULE_SKILL_SRC` / `_claude_skills_dir` / `_install_karma_rule_skill`）同款 pattern — 注释说「v0.6.0 移除」但没真删。v0.8.4 抓到上一轮手工 grep 漏的第 4 处。
+
+### 没改的
+
+- CHANGELOG / HANDOFF 历史 entry 里「6 信号」字眼 — 那描述的是当时 release 的状态，归档完整性保留（rule 5）
+- README「历史版本」banner 提的 v0.6.0 `karma.sticky` 移除 — 合理的迁移指引给 pre-v0.6 用户
+
+### 验证
+
+- 455/455 通过（删 `sticky_id` 参数顺带改了内部 `rule_id=rule_id or sticky_id` fallback）
+- `ruff`：0 issue
+- `vulture --min-confidence 70`：0 死代码
+
 ## [0.8.3] — 2026-05-15（refactor — 长 hook main 函数拆 helper + cli.py 函数内重复 import 整理）
 
 ### 纯内部 refactor（无用户面变化）

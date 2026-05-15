@@ -46,11 +46,10 @@ def run_checks(
     user_prompt: str = "",
     session_state=None,
     rule_id: str = "",
-    sticky_id: str = "",  # v0.5.0 deprecated alias, 用 rule_id (v0.6.0 移除)
 ) -> list[CheckHit]:
     """跑一组 check 函数，返回所有命中。
 
-    缺失的 check 名静默跳过（防 sticky.yaml 写错名 deny 所有 tool）。
+    缺失的 check 名静默跳过（防 rules.yaml 写错名 deny 所有 tool）。
     check 函数自己崩了静默吞错（不阻塞 hook），但 `KARMA_DEBUG=1` 时往
     stderr 打 traceback 让用户能调试自定义 check / 内部 bug。
     """
@@ -73,7 +72,7 @@ def run_checks(
                 response=response,
                 user_prompt=user_prompt,
                 session_state=session_state,
-                rule_id=rule_id or sticky_id,  # 向后兼容
+                rule_id=rule_id,
             )
         except Exception as e:
             # check 函数自己崩了不该阻塞 hook（fail open）

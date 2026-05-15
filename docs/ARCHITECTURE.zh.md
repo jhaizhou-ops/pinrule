@@ -237,14 +237,14 @@ karma **说给 Agent 听**的内容 — hook 注入文本、suggested_fix 字符
 KARMA_LOCALE env > config.yaml `locale` 字段 > 自动检测（中文比例）> en fallback
 ```
 
-### 听话端：`karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}`（v0.8.0 + v0.8.1）
+### 听话端：`karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}`（v0.8.0 → v0.8.2）
 
 karma **从对话里听**的内容 — `keep_pushing` / `evidence` check 用的检测字眼。两种存储格式：
 
-- **`.txt` 平面字眼**（一行一个，`#` 注释）：`user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims`
+- **`.txt` 平面字眼**（一行一个，`#` 注释）：`user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims` / `completion_words`
 - **`.yaml` cartesian DSL**：`push_signals` — `templates` 含 `{subject}` / `{verb}` 占位符 + 词集 + 不需 cartesian 的 `phrases`
 
-loader（`compile_alternation()`）扫信号目录所有语言文件，去重 + union + 编译成单 regex（长字眼优先；`.txt` 字面走 `re.escape`；`.yaml` 模板保 raw regex）。跨语言字符集不重叠 → 无误命中。
+7 个检测信号全部外部化。loader（`compile_alternation()`）扫信号目录所有语言文件，去重 + union + 编译成单 regex（长字眼优先；`.txt` 字面走 `re.escape`；`.yaml` 模板保 raw regex）。跨语言字符集不重叠 → 无误命中。
 
 **加新语言**：每个 signal 目录扔一个 `xx.txt` / `xx.yaml`。零 Python 代码，零 LLM 在循环里。
 
@@ -409,6 +409,7 @@ violations / session_state / config / cli）都从它读 env。
 | **v0.8.1 `push_signals` 用 YAML DSL i18n — cartesian 模板 + 词集 + 平面字眼**。v0.8.0 的 `.txt` 平面字眼格式跟 `_PUSH_SIGNAL_RE` 的「主语 + 副词 + 动词」cartesian 结构对不上。新 `.yaml` schema：`templates` 字段含 `{subject}` `{verb}` 占位符，`subjects` / `verbs` 词集做 cartesian 展开，加 `phrases` 整句平面字眼。`karma/signals.py` 加 `load_patterns()` + `_expand_yaml_signals()`（单数 → 复数占位符解析；yaml 模板保 raw regex 不 escape，`.txt` 字眼 `re.escape`）。1106 个展开 phrase（中英文合并）。历史 `(?!\s*[吧行])` lookahead 移出 regex 到 `check()` 后处理 `_PUSHBACK_TAIL_RE` — yaml 保持简洁。**6 个检测信号全 i18n 外部化**；加新语言 = ~6 个小文件，零 Python。6 个新 signals 测试 + 2 个英文推进测试。| ✅ |
 | **v0.8.2 代码审查 — 死代码 + 命名一致 + bug fix**。用户要求 audit。工具扫干净（vulture / ruff）但手工 grep 找到 3 个死代码（注释自己说「v0.6.0 移除」但没真删 — `KARMA_RULE_SKILL_SRC` / `_claude_skills_dir` / `_install_karma_rule_skill`）。v0.6.0 BREAKING 后大量 `sticky` → `rule` 命名残留也一并清：`cmd_sticky_*` → `cmd_rule_*`、`STICKY_PATH` → `RULES_PATH`（18 处）、`doctor` / `audit` / `violations clear` / `rule list` / 3 个 hook stderr 输出。audit 中发现真 bug：`cmd_violations_clear` 直接读 `d.get("sticky_id")` 绕过 v0.5.0+ rule_id/sticky_id 兼容垫层 — 改用 `extract_rule_id()` helper 修。i18n 一致性补：加 `completion_words` 信号（v0.8.0 跟 `weak_claims` 一起漏的）；**7 个检测信号全 i18n 外部化**。3 个新测试。| ✅ |
 | **v0.8.3 内部 refactor — 长 hook main 拆 helper + cli.py import 去重**。`stop.py:main` 223→123（3 个 helper：`_emit_notifications`/`_handle_force_block`/`_handle_keep_pushing_block`），`user_prompt_submit.py:main` 159→68（2 个 helper：`_advance_turn_state`/`_build_strong_reminder`），`pre_tool_use.py:main` 128→90（2 个 helper 去重 parallel deny 逻辑）。cli.py：4 处函数级重复 import 删；module 顶部统一 alias `load as load_rules` + `format_for_injection`；3 处裸 `load()` 改 `load_rules()` 一致命名。455/455 通过，0 行为变化。| ✅ |
+| **v0.8.4 v0.8.x 累积文档同步 + v0.8.2 audit 漏的 1 处死代码**。README / PRD / ARCHITECTURE 里过时的「6 个信号」数字（v0.8.0+v0.8.1 时期数字；v0.8.2 加 `completion_words` 后该是 7）全更新到 7。`karma/checks/__init__.py:run_checks()` 有个 `sticky_id` 参数注释自己写「v0.6.0 移除」但没真删 — 0 调用者，删参数 + 引用它的 `rule_id or sticky_id` fallback 行。是 v0.8.2「注释说移除但还活着」死代码 pattern 的第 4 例。455/455 通过。| ✅ |
 
 详见 [CHANGELOG.md](../CHANGELOG.md) 每版本的设计动机；[HANDOFF.md](./HANDOFF.md) 内部接力 context。
 

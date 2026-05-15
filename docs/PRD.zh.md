@@ -153,13 +153,13 @@ karma 有**双向 i18n**：说话端（karma 注入到 Agent prompt 里的文本
 - `Violation.trigger_key` + `CheckHit.trigger_key`（v0.5.7+）— locale-agnostic 稳定标识符让 `karma audit` 跨 locale 分组（用户中途切语言仍能正确聚合）
 - `karma init` 按 detected locale 选规则模板（中文用户装 `rules.dev.example.zh.yaml`，其他用英文 default）
 
-**听话端 — 检测信号**（v0.8.0 + v0.8.1）：
+**听话端 — 检测信号**（v0.8.0 → v0.8.2）：
 - `karma/signals.py` 含 `load_phrases()`（`.txt` 平面字眼）+ `load_patterns()`（`.yaml` cartesian 模板）+ `compile_alternation()` union 编译（长字眼优先，`re.escape` 字面 vs raw regex 模板）
-- 6 个检测信号外部化到 `data/signals/<name>/{zh,en}.{txt,yaml}`：
-  - `.txt` 平面：`user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims`
+- 7 个检测信号全外部化到 `data/signals/<name>/{zh,en}.{txt,yaml}`：
+  - `.txt` 平面：`user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims` / `completion_words`
   - `.yaml` cartesian DSL（`templates` + `subjects`/`verbs` 词集 + `phrases`）：`push_signals`
 - 跨语言字符集不重叠（中文 vs 拉丁 vs 假名 vs 谚文）→ 无误命中
-- **加新语言 = 每个 signal 目录写 ~6 个小文件，零 Python，零 LLM 在循环里**
+- **加新语言 = 每个 signal 目录写 ~7 个小文件，零 Python，零 LLM 在循环里**
 
 ### F7. `keep_pushing` 用户叫停豁免（v0.4.41 + v0.7.4）✅
 

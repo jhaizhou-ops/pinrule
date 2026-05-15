@@ -225,14 +225,14 @@ What karma **says to the Agent** — hook injection text, suggested_fix strings,
 KARMA_LOCALE env > config.yaml `locale` field > auto-detect (chinese ratio) > en fallback
 ```
 
-### Listening side: `karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}` (v0.8.0 + v0.8.1)
+### Listening side: `karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}` (v0.8.0 → v0.8.2)
 
 What karma **listens for in dialogue** — detection phrases for `keep_pushing` / `evidence` checks. Two storage formats:
 
-- **`.txt` flat phrases** (one per line, `#` comments): `user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims`
+- **`.txt` flat phrases** (one per line, `#` comments): `user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims` / `completion_words`
 - **`.yaml` Cartesian DSL**: `push_signals` — `templates` with `{subject}` / `{verb}` placeholders + vocabulary lists + non-Cartesian `phrases`
 
-Loader (`compile_alternation()`) reads all language files in a signal directory, dedupes, unions, compiles to a single regex (long-phrase priority; `re.escape` for `.txt` literals; raw regex preserved for `.yaml` templates). Cross-language character sets don't overlap → no false matches.
+All 7 detection signals are externalized. Loader (`compile_alternation()`) reads all language files in a signal directory, dedupes, unions, compiles to a single regex (long-phrase priority; `re.escape` for `.txt` literals; raw regex preserved for `.yaml` templates). Cross-language character sets don't overlap → no false matches.
 
 **Adding a new language**: drop in `xx.txt` / `xx.yaml` per signal directory. Zero Python code, zero LLM in the loop.
 
@@ -387,6 +387,7 @@ Performance hasn't been a bottleneck — measured far below budget.
 | **v0.8.1 `push_signals` i18n via YAML DSL — Cartesian templates + word vocabularies + flat phrases**. v0.8.0's `.txt` flat-phrase format didn't fit `_PUSH_SIGNAL_RE`'s `主语 + 副词 + 动词` Cartesian structure. New `.yaml` schema: `templates` field with `{subject}` `{verb}` placeholders, `subjects` / `verbs` vocabulary lists for Cartesian expansion, plus `phrases` for non-Cartesian flat fallback. `karma/signals.py` adds `load_patterns()` + `_expand_yaml_signals()` (singular → plural placeholder resolution; raw-regex preservation from yaml templates while .txt phrases get `re.escape`). 1106 expanded phrases (zh + en combined). Historical `(?!\s*[吧行])` lookahead moved out of regex into `check()` post-processing as `_PUSHBACK_TAIL_RE` — yaml stays simple. **All 6 detection signals now i18n-externalized**; adding a new language = ~6 small files, zero Python. 6 new signals tests + 2 English push tests. | ✅ |
 | **v0.8.2 code audit — dead code + naming consistency + bug fix**. User-requested audit pass. Tools clean (vulture / ruff) but manual grep found 3 dead-code items whose own comments said "removed in v0.6.0" but were never actually removed (`KARMA_RULE_SKILL_SRC`, `_claude_skills_dir`, `_install_karma_rule_skill`). Also broad `sticky` → `rule` naming cleanup that v0.6.0 BREAKING left behind: `cmd_sticky_*` → `cmd_rule_*`, `STICKY_PATH` → `RULES_PATH` (18 callsites), user-facing strings in `doctor` / `audit` / `violations clear` / `rule list` / 3 hook stderr outputs. Real bug found: `cmd_violations_clear` was reading `d.get("sticky_id")` directly, bypassing the v0.5.0+ rule_id/sticky_id compat shim — fixed via `extract_rule_id()` helper. i18n consistency: added `completion_words` signal (v0.8.0 missed it alongside `weak_claims`); **7 of 7 detection signals now i18n-externalized**. 3 new tests. | ✅ |
 | **v0.8.3 internal refactor — long hook main split + cli.py import dedup**. `stop.py:main` 223→123 (3 helpers: `_emit_notifications`/`_handle_force_block`/`_handle_keep_pushing_block`), `user_prompt_submit.py:main` 159→68 (2 helpers: `_advance_turn_state`/`_build_strong_reminder`), `pre_tool_use.py:main` 128→90 (2 helpers deduping parallel deny logic). cli.py: 4 function-level duplicate imports removed; module-top now aliases `load as load_rules` + `format_for_injection` once; bare `load()` → `load_rules()` standardized at 3 callsites. 455/455 passing, 0 behavior change. | ✅ |
+| **v0.8.4 v0.8.x cumulative doc sync + 1 dead-code v0.8.2 audit missed**. Stale "6 signals" counts in README / PRD / ARCHITECTURE (v0.8.0+v0.8.1 numbers; should be 7 after v0.8.2 added `completion_words`) all updated to 7. `karma/checks/__init__.py:run_checks()` had `sticky_id` parameter whose own comment said "v0.6.0 removed" but never was — 0 callers, removed parameter + the `rule_id or sticky_id` fallback line. 4th instance of the v0.8.2 "comment says removed but actually alive" dead-code pattern. 455/455 passing. | ✅ |
 
 Details in [CHANGELOG.md](../CHANGELOG.md) for per-release rationale; [HANDOFF.md](./HANDOFF.md) for internal context.
 

@@ -148,13 +148,13 @@ karma has **two-way i18n**: speaking-side (what karma injects into the Agent pro
 - `Violation.trigger_key` + `CheckHit.trigger_key` (v0.5.7+) — locale-agnostic stable identifier for `karma audit` cross-locale grouping (users switching locale mid-week still see correct aggregation)
 - `karma init` selects rule template by detected locale (`rules.dev.example.zh.yaml` for Chinese users, English default otherwise)
 
-**Listening side — detection signals** (v0.8.0 + v0.8.1):
+**Listening side — detection signals** (v0.8.0 → v0.8.2):
 - `karma/signals.py` with `load_phrases()` (`.txt` flat phrases) + `load_patterns()` (`.yaml` Cartesian templates) + `compile_alternation()` union compile (long-phrase priority, `re.escape` literals vs raw regex templates)
-- 6 detection signals externalized to `data/signals/<name>/{zh,en}.{txt,yaml}`:
-  - `.txt` flat: `user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims`
+- All 7 detection signals externalized to `data/signals/<name>/{zh,en}.{txt,yaml}`:
+  - `.txt` flat: `user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims` / `completion_words`
   - `.yaml` Cartesian DSL (`templates` + `subjects`/`verbs` vocab + `phrases`): `push_signals`
 - Cross-language character sets don't overlap (Chinese vs Latin vs kana vs hangul) → no false matches
-- **Adding a new language = ~6 small files per signal directory, zero Python code, zero LLM in the loop**
+- **Adding a new language = ~7 small files per signal directory, zero Python code, zero LLM in the loop**
 
 ### F7. `keep_pushing` user-stop exemption (v0.4.41 + v0.7.4) ✅
 
