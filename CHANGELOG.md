@@ -10,6 +10,43 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-05-15 (fix — `record_edit` exempts non-code paths; first real-user bug from issue #1)
+
+### Real-user bug fix — docker pytest + edit README + git commit no longer blocked
+
+**Bug** (issue #1, real user `@fyn1320068837-source`): `docker exec <container> python -m pytest tests/` passes (e.g. 1190 passed) → user edits any file (even README.md / .gitignore / IDE auto-save) → `git commit` blocked by `loud-failure-with-evidence` with "no recent passing-test evidence."
+
+**Root cause** (real-test reproduced): `has_recent_test_pass()` returns `last_test_pass_ts >= last_edit_ts`. Any `record_edit()` call pushes `last_edit_ts` to "now," instantly flipping `has_recent_test_pass` to False — including edits to documentation, `.gitignore`, `LICENSE` etc. that have zero impact on whether pytest needs re-running. The by-intent design ("changed code without re-testing → block commit") was over-applied to non-code edits.
+
+The reporter's proposed fix (`_TEST_CMD_RE` adding optional docker prefix) addressed the wrong layer — the regex already matches `docker exec ... pytest` correctly (4-layer end-to-end test confirms). Real fix needed at the `record_edit` time-tracking layer.
+
+### Fix
+
+`karma/session_state.py` adds `_NON_CODE_EDIT_RE` exemption list — `record_edit()` no longer pushes `last_edit_ts` when the file is documentation / metadata / top-level repo text:
+
+- Documentation suffixes: `.md` / `.rst` / `.txt` / `.markdown` / `.adoc`
+- Metadata files: `.gitignore` / `.gitattributes` / `.editorconfig`
+- Top-level path patterns: `docs/` / `.github/` directories; root-level `CHANGELOG` / `README` / `LICENSE` / `CONTRIBUTING` / `CODE_OF_CONDUCT` / `SECURITY` / `HANDOFF` (with any extension)
+
+**Still invalidates** (by-intent preserved):
+- `src/**/*.py` / business code → must re-run pytest before commit
+- `tests/**/*.py` / test files → changed tests means tests haven't run on the new versions
+- `*.yaml` / `*.toml` / production config / build files → re-test before commit
+
+### Verification
+
+- 6 new regression tests in `tests/test_session_state.py` (`test_v061_*`):
+  - 4 exemption cases: README.md / CHANGELOG.md / docs/*.md / .gitignore all keep `has_recent_test_pass = True` after edit
+  - 2 dual-control cases: src/*.py and tests/*.py still flip to False (preserve by-intent design)
+- `pytest`: 429/429 passing (423 prior + 6 new)
+- `ruff`: 0 issues
+
+### Real-user collaboration value
+
+karma's first real outside contributor (`@fyn1320068837-source`) reported a bug they actually hit in their `henghai-backend` workflow — `docker exec container python -m pytest` + edit + commit. Their initial root-cause diagnosis ("regex doesn't match docker prefix") was wrong, but the bug itself was real. End-to-end docker pytest testing on the maintainer's machine reproduced the actual bug in Candidate A scenario (`last_edit_ts > last_test_pass_ts` after non-code edit). v0.6.1 fixes the real root cause at the right layer.
+
+Issue #1 closed by this release — full thread documents the real-user collaboration → real-test → real-root-cause arc.
+
 ## [0.6.0] — 2026-05-15 ⚠️ BREAKING — Remove backward-compat scaffolding for `sticky` → `rule` rename
 
 ### What's removed (breaking)

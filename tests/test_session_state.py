@@ -358,3 +358,63 @@ def test_get_current_session_id_excludes_subagent(tmp_path):
     os.utime(tmp_path / "main-session__sub-1.json", (2000, 2000))
     # 仍然返回主 Agent session
     assert get_current_session_id(base_dir=tmp_path) == "main-session"
+
+
+# -------- v0.6.1: 非代码 edit 路径豁免 (issue #1 真根因 fix) --------
+
+def test_v061_edit_readme_after_test_pass_keeps_fresh():
+    """v0.6.1 真根因 fix (issue #1 真复现):
+    docker pytest 通过 → 改 README.md → has_recent_test_pass 仍 True.
+    """
+    from karma.session_state import SessionState
+    state = SessionState(session_id="test")
+    state.record_bash("docker exec c1 python -m pytest tests/", "1190 passed in 42s")
+    assert state.has_recent_test_pass(), "pytest 通过应 True"
+    state.record_edit("/repo/README.md")
+    assert state.has_recent_test_pass(), "改 README 不该让 has_recent_test_pass 翻 False"
+
+
+def test_v061_edit_changelog_keeps_fresh():
+    from karma.session_state import SessionState
+    state = SessionState(session_id="test")
+    state.record_bash("pytest", "5 passed in 1s")
+    state.record_edit("/repo/CHANGELOG.md")
+    assert state.has_recent_test_pass()
+
+
+def test_v061_edit_docs_dir_keeps_fresh():
+    from karma.session_state import SessionState
+    state = SessionState(session_id="test")
+    state.record_bash("pytest", "5 passed in 1s")
+    state.record_edit("/repo/docs/ARCHITECTURE.md")
+    assert state.has_recent_test_pass()
+
+
+def test_v061_edit_gitignore_keeps_fresh():
+    from karma.session_state import SessionState
+    state = SessionState(session_id="test")
+    state.record_bash("pytest", "5 passed in 1s")
+    state.record_edit("/repo/.gitignore")
+    assert state.has_recent_test_pass()
+
+
+def test_v061_edit_src_code_still_invalidates():
+    """v0.6.1 对偶: 业务代码 edit 仍按设计让 has_recent_test_pass 翻 False.
+
+    不该松开「改完没重测就 commit」的核心拦截语义.
+    """
+    from karma.session_state import SessionState
+    state = SessionState(session_id="test")
+    state.record_bash("pytest", "5 passed in 1s")
+    assert state.has_recent_test_pass()
+    state.record_edit("/repo/src/handler.py")
+    assert not state.has_recent_test_pass(), "改 src/*.py 仍应让 has_recent_test_pass 翻 False"
+
+
+def test_v061_edit_tests_dir_still_invalidates():
+    """v0.6.1 对偶: 改测试文件本身也算「测试还没重跑」状态."""
+    from karma.session_state import SessionState
+    state = SessionState(session_id="test")
+    state.record_bash("pytest", "5 passed in 1s")
+    state.record_edit("/repo/tests/test_x.py")
+    assert not state.has_recent_test_pass()

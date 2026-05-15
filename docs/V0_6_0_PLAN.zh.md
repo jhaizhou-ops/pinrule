@@ -95,5 +95,5 @@ v0.6.0 之后：
 
 ## 开放问题
 
-1. **`karma sticky` CLI alias 要不要多活一个 release？** 跟 module/attribute alias 不一样，这是用户在 shell 里敲的肌肉记忆。可以多留一个 release 周期。**暂定答案**：v0.6.0 就删但加「你是不是想用？」hint — 跟其他一刀切，反而干净
-2. **v0.6.0 要不要顺手默认关掉非中文用户的 `chinese_plain_no_jargon` check？** 现在 check 是装好的但 `karma init` 模板选择时被剔除。这不算 backward-compat 问题，更像 scope 问题。**暂定答案**：v0.6.0 不管 — 另做决定
+1. **`karma sticky` CLI alias 要不要多活一个 release？** ✅ **v0.6.0 已解决** — 按计划删除，并在「未知命令」路径加了「💡 你是不是想用 `karma rule`？」hint（`karma/cli.py:1262`）。一行肌肉记忆救援，不需保留整个子命令分支。
+2. **v0.6.0 要不要顺手默认关掉非中文用户的 `chinese_plain_no_jargon` check？** ✅ **判定 out-of-scope** — v0.6.0 不动（check 仍装着，`karma init` 模板选择仍剔除非中文用户）。如果下次 dogfood 真摸到摩擦点再重新评估。

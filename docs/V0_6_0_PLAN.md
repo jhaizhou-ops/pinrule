@@ -95,5 +95,5 @@ After v0.6.0:
 
 ## Open questions
 
-1. **Should the `karma sticky` CLI alias survive longer?** Different from module/attribute aliases because it's user-facing muscle memory (typing on the command line). Could keep one more release cycle. **Tentative answer**: drop it in v0.6.0 with a "did you mean?" hint — same cliff as the rest is cleaner.
-2. **Should v0.6.0 also drop the `chinese_plain_no_jargon` check for non-Chinese users by default?** Currently the check ships installed but gets stripped via `karma init` template selection. Not really a backward-compat issue, more a scope question. **Tentative answer**: out of scope for v0.6.0 — separate decision.
+1. **Should the `karma sticky` CLI alias survive longer?** ✅ **Resolved in v0.6.0** — dropped as planned, with a "💡 你是不是想用 `karma rule`？" hint on the now-unknown command path (`karma/cli.py:1262`). One-line muscle-memory rescue without keeping the full subcommand alive.
+2. **Should v0.6.0 also drop the `chinese_plain_no_jargon` check for non-Chinese users by default?** ✅ **Resolved as out-of-scope** — v0.6.0 ships unchanged (check stays installed, `karma init` template selection still strips it for non-Chinese users). Re-evaluate if the next dogfood pass surfaces a real friction point.

@@ -6,6 +6,43 @@
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-05-15（fix — `record_edit` 豁免非代码路径；issue #1 真用户 bug 真根因 fix）
+
+### 真用户 bug — docker pytest + 改 README + git commit 不再被误拦
+
+**Bug**（issue #1，真用户 `@fyn1320068837-source`）：`docker exec <container> python -m pytest tests/` 通过（如 1190 passed）→ 用户改任何文件（甚至 README.md / .gitignore / IDE auto-save）→ `git commit` 被 `loud-failure-with-evidence` 拦截，trigger 是「最近 session 内无测试通过证据」。
+
+**真根因**（真测复现）：`has_recent_test_pass()` 返 `last_test_pass_ts >= last_edit_ts`。任何 `record_edit()` 调用把 `last_edit_ts` 推到「现在」，立即让 `has_recent_test_pass` 翻 False — 包括对文档 / `.gitignore` / `LICENSE` 等**改了不影响 pytest 是否需要重跑**的文件的编辑。by-intent 设计（「代码改了没重测就该拦 commit」）被无差别应用到非代码 edit。
+
+reporter 提议的 fix（`_TEST_CMD_RE` 加 docker 可选前缀）修错层 — regex 已正确匹配 `docker exec ... pytest`（4 层端到端真测确认）。真根因需要在 `record_edit` 时间跟踪层 fix。
+
+### Fix
+
+`karma/session_state.py` 加 `_NON_CODE_EDIT_RE` 豁免清单 — `record_edit()` 在 file 是文档 / 元数据 / 顶级仓库文本时不推 `last_edit_ts`：
+
+- 文档后缀：`.md` / `.rst` / `.txt` / `.markdown` / `.adoc`
+- 元数据文件：`.gitignore` / `.gitattributes` / `.editorconfig`
+- 顶级路径模式：`docs/` / `.github/` 目录；仓库根的 `CHANGELOG` / `README` / `LICENSE` / `CONTRIBUTING` / `CODE_OF_CONDUCT` / `SECURITY` / `HANDOFF`（任意扩展名）
+
+**仍触发**（by-intent 保留）：
+- `src/**/*.py` / 业务代码 → commit 前必须重跑 pytest
+- `tests/**/*.py` / 测试文件本身 → 测试改了表示之前的测试在新版没跑过
+- `*.yaml` / `*.toml` / 生产配置 / 构建文件 → commit 前重测
+
+### 验证
+
+- `tests/test_session_state.py` 新增 6 个回归测试（`test_v061_*`）：
+  - 4 个豁免 case：README.md / CHANGELOG.md / docs/*.md / .gitignore edit 后 `has_recent_test_pass` 仍 True
+  - 2 个对偶 case：src/*.py 和 tests/*.py edit 后仍翻 False（保留 by-intent 设计）
+- `pytest`：429/429 通过（之前 423 + 新 6）
+- `ruff`：0 issues
+
+### 真用户协作价值
+
+karma 第一个外部贡献者 `@fyn1320068837-source` 报了他在 `henghai-backend` 工作流真踩的 bug — `docker exec container python -m pytest` + edit + commit。他最初的根因诊断（「regex 不 match docker 前缀」）是错的，但 **bug 本身是真的**。maintainer 本机端到端 docker pytest 实测在候选 A 场景（`last_edit_ts > last_test_pass_ts` 在非代码 edit 后）真复现。v0.6.1 在正确层修真根因。
+
+Issue #1 由本 release 关闭 — 完整 thread 记录真用户协作 → 真测 → 真根因弧线。
+
 ## [0.6.0] — 2026-05-15 ⚠️ BREAKING — 删 `sticky` → `rule` 改名留的 backward-compat 脚手架
 
 ### 删了啥（破坏性）

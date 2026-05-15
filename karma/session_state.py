@@ -81,6 +81,31 @@ _TEST_CMD_RE = re.compile(
     re.IGNORECASE,
 )
 
+# v0.6.1: 非代码 edit 路径豁免 — record_edit 不更新 last_edit_ts.
+# 真根因（issue #1 dogfooding 真复现）: has_recent_test_pass 语义是
+# `last_test_pass_ts >= last_edit_ts`, 测试通过后改 README/docs/.gitignore
+# 等非代码文件也无差别让 has_recent_test_pass 翻 False, 导致 git commit
+# 被 loud-failure-with-evidence 误拦. 真业务代码改了仍按设计该重测.
+#
+# 豁免清单（cross-language 通用）:
+# - 文档: .md / .rst / .txt / .markdown / .adoc
+# - 元数据: .gitignore / .gitattributes / .editorconfig
+# - 顶级配置 / 文档目录: docs/ / .github/ / 仓库根的 README / CHANGELOG / LICENSE / CONTRIBUTING
+# 不豁免: src/*.py / tests/*.py / *.yaml (生产配置改动该重测) / *.toml (build config) 等
+_NON_CODE_EDIT_RE = re.compile(
+    r"\.(?:md|rst|txt|markdown|adoc|gitignore|gitattributes|editorconfig)$"
+    r"|/(?:docs|\.github)/"
+    r"|/(?:CHANGELOG|README|LICENSE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|HANDOFF)(?:\.\w+)?$",
+    re.IGNORECASE,
+)
+
+
+def _is_non_code_edit_path(file_path: str) -> bool:
+    """文档 / 元数据 / 顶级文本文件 edit 不该让 has_recent_test_pass 翻 False."""
+    if not file_path:
+        return False
+    return bool(_NON_CODE_EDIT_RE.search(file_path))
+
 
 @dataclass
 class BashSnapshot:
@@ -172,9 +197,16 @@ class SessionState:
         return ts
 
     def record_edit(self, file_path: str) -> None:
-        if file_path:
-            self.edit_files.append(_normalize_path(file_path))
-            self.last_edit_ts = self._next_ts()
+        if not file_path:
+            return
+        self.edit_files.append(_normalize_path(file_path))
+        # v0.6.1: 非代码 edit (README / docs / .gitignore 等) 不推 last_edit_ts.
+        # 否则 docker pytest 1190 passed 后改 README 再 commit 会被 evidence
+        # check 误拦 (issue #1 真复现根因). 业务代码 edit 仍正常推, 设计 by
+        # intent 让「改完没重测」拦截保留.
+        if _is_non_code_edit_path(file_path):
+            return
+        self.last_edit_ts = self._next_ts()
 
     def record_bash(self, command: str, output, run_in_background: bool = False,
                     force_ts: float | None = None) -> None:
