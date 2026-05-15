@@ -10,6 +10,65 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-15 (refactor — treat root cause: rewrite "真X" defensive prefixes in karma source rule texts)
+
+### Root cause user identified
+
+User caught a real architectural failure mode: I (the Agent under karma) was repeatedly stacking "真X" prefixes ("真根因 / 真违反 / 真饱和 / 真测") as defensive-evidence language. User's diagnosis was sharp — adding a `defensive_prefix_stacking` check function would have been **treating the symptom** while leaving the **source of the mimicry** untouched.
+
+The source: karma's own rule texts and locale strings used "真X" patterns throughout (e.g. `rules.dev.example.zh.yaml` line "想清楚是真违反 / 修真根因", `data/locales/zh.yaml` reflection prompts mentioned "任务真饱和"). LLMs read the karma headers every turn and copied the prefix style in their responses — in-context mimicry of the rule text itself.
+
+### Fix — multi-diversified rewrite of "真X" prefixes
+
+Replaced ~140 occurrences across user-facing docs and templates with diversified natural expressions (avoiding new single-prefix mimicry pattern):
+
+| Before | After |
+|---|---|
+| 真根因 | 根本原因 |
+| 真违反 | 实际违反 |
+| 真饱和 | 任务到饱和 |
+| 真测 | 实测 |
+| 真用户 | 真实用户 |
+| 真完成 | 完整完成 |
+| 真触发 | 实际触发 |
+| 真生效 | 实际生效 |
+| 真证据 | 实际证据 |
+| 真复现 | 端到端复现 |
+| 真识别 | 正确识别 |
+| 真匹配 | 正确匹配 |
+| 真豁免 | 实际豁免 |
+| 真闭环 | 完整闭环 |
+| 真深挖 | 深挖到底 |
+| 真痛点 | 实际痛点 |
+| 真做 | 真正做 |
+| 真推 | 继续推 |
+| ... | ... (30+ diversified substitutions) |
+
+**Preserved as natural Chinese expressions** (NOT mimicry): `真实 / 真心 / 真人 / 真技术专名 / 真不确定 / 真读 / 真踩` — these are adjective/adverb modifiers in natural collocations, removing them would harm readability.
+
+### Files touched
+
+- Rule templates: `data/rules.dev.example.zh.yaml`, `data/rules.dev.minimal.example.zh.yaml`
+- i18n locale: `data/locales/zh.yaml` (hook injection strings, reflection prompts, suggested_fix texts)
+- User-facing docs (Chinese): `README.zh.md`, `CLAUDE.zh.md`, `SECURITY.zh.md`, `CODE_OF_CONDUCT.zh.md`
+- Internal docs (Chinese): `docs/PRD.zh.md`, `docs/ARCHITECTURE.zh.md`, `docs/V0_6_0_PLAN.zh.md`, `docs/REFACTOR_PLAN_RULE_AND_I18N.zh.md`, `docs/RULES_REDESIGN_PROPOSAL.zh.md`, `karma/backends/HOWTO.zh.md`
+
+### What did NOT happen (correctness restraint)
+
+- **Did not add `defensive_prefix_stacking` engine-layer check** — initially started but reverted after user pointed out it's a treat-symptom reaction. The reactive monitor would have caught Agent symptoms while leaving the karma-itself-induced mimicry source intact. Correct fix is at the source text level.
+- **Did not touch `karma/*.py` source code comments** (~200 occurrences) — these don't enter Agent prompt context, so they don't drive mimicry. Lower-priority cleanup deferred to v0.7.1+.
+- **Did not touch CHANGELOG / HANDOFF historical entries** — rule 5 (eval cleanliness) applies metaphorically: historical archive entries shouldn't be rewritten retroactively.
+
+### Verification
+
+- `pytest`: 429/429 passing (no code change to test logic — pure text content of templates / docs)
+- `ruff`: 0 issues
+- Mimicry source reduction: rule text + i18n + user-facing docs total "真X" mimicry-style prefixes from ~140 → ~60 (natural language modifiers, not mimicry)
+
+### Real karma value
+
+User identified this as a **真根因 vs 真表征** distinction (... using the exact pattern karma was inducing — confirming the source is the rule text itself, not the Agent's instinct). The fact that even a careful Agent under heavy rule context drifts toward "真X" style speaks to how strong in-context mimicry is from rule text → response text. Cleaning the source is the only durable fix.
+
 ## [0.6.1] — 2026-05-15 (fix — `record_edit` exempts non-code paths; first real-user bug from issue #1)
 
 ### Real-user bug fix — docker pytest + edit README + git commit no longer blocked

@@ -356,7 +356,7 @@ violations / session_state / config / cli）都用它读 env。
 | v0.5.1 `karma rule add` / `rule preview` CLI + Claude Code skill 自然语言录入 | ✅ |
 | v0.5.2 i18n MVP — `karma/i18n.py` + 5 个 hook 注入路径双语切换 | ✅ |
 | v0.5.3 + v0.5.4 i18n 全覆盖 — 28 处 `suggested_fix` + 28 处 `CheckHit.trigger` 全 tr() | ✅ |
-| v0.5.5 testset check `python -c` 字符串字面豁免（dogfooding 真根因 fix）| ✅ |
+| v0.5.5 testset check `python -c` 字符串字面豁免（dogfooding 根本原因 fix）| ✅ |
 | v0.5.6 `keep_pushing._PUSH_SIGNAL_RE` 补「下一推进点 / 下一步是」类未来规划短语 | ✅ |
 | v0.5.7 `CheckHit` + `Violation` 加 `trigger_key` 字段 — `karma audit` 跨 locale 稳定分组 | ✅ |
 | v0.5.8 + v0.5.9 Bash heredoc → 描述上下文路径豁免，从 testset.py 局部 helper 提到 `description_context.py` 共享层 | ✅ |
@@ -366,13 +366,13 @@ violations / session_state / config / cli）都用它读 env。
 | v0.5.13 audit 驱动 dedup — `is_python_c_command` helper 共享 + 34 处 `.sticky_id` callsite 清理 + `karma doctor` 报 skill 状态 | ✅ |
 | v0.5.14 skill 教会 Agent 用 `remove + add` 现有命令组合做 modify（不加新 CLI；用户原则：不要为低频场景扩 CLI 表面）| ✅ |
 | v0.5.15 v0.6.0 准备 — 计划稿 `docs/V0_6_0_PLAN.md` + 内部 11+4 处 `from karma.sticky` import 迁到 `from karma.rule` 让 v0.6.0 可以纯删除 commit | ✅ |
-| v0.5.16 `/karma <自然语言>` skill 第一次真工作 — 多 backend 装机（Claude Code / Codex / Gemini）含 Markdown → TOML 格式适配给 Gemini commands 路径；v0.5.1-15 诚实披露（装机路径错 → skill 从未真触发）| ✅ |
+| v0.5.16 `/karma <自然语言>` skill 第一次真工作 — 多 backend 装机（Claude Code / Codex / Gemini）含 Markdown → TOML 格式适配给 Gemini commands 路径；v0.5.1-15 诚实披露（装机路径错 → skill 从未实际触发）| ✅ |
 | v0.5.17 README narrative 重写 — `/karma <NL>` skill 提升为顶级 section 而不是 patch 式提及；PRD F5 重写；ARCHITECTURE + HANDOFF 同步到 v0.5.16 现实 | ✅ |
-| v0.5.18 `bypass_karma` false positive fix（dogfood 真触发驱动）— redirect target 必须真是 karma 路径才算绕过，不是「命令含 karma 路径 + 任何 write op」一刀切；`has_internal` field-name 维度对称收紧 | ✅ |
-| v0.5.19 `keep_pushing` Agent 饱和声明豁免（dogfood 真触发驱动）— 强饱和信号字眼 (`真饱和` / `卡在 X` / `明天接力` 等) 豁免反思 hook，跟 v0.4.41 用户叫停豁免对偶；无强饱和信号的柔性停顿 (`今天到此为止` / `就这样吧`) 仍按 v0.4.22 拦 | ✅ |
+| v0.5.18 `bypass_karma` false positive fix（dogfood 实际触发驱动）— redirect target 必须真是 karma 路径才算绕过，不是「命令含 karma 路径 + 任何 write op」一刀切；`has_internal` field-name 维度对称收紧 | ✅ |
+| v0.5.19 `keep_pushing` Agent 饱和声明豁免（dogfood 实际触发驱动）— 强饱和信号字眼 (`任务到饱和` / `卡在 X` / `明天接力` 等) 豁免反思 hook，跟 v0.4.41 用户叫停豁免对偶；无强饱和信号的柔性停顿 (`今天到此为止` / `就这样吧`) 仍按 v0.4.22 拦 | ✅ |
 | v0.5.20 rule 10 自审 follow-up — 同步 v0.5.19 漏的 ARCHITECTURE + HANDOFF（用户授权自审 catch，CHANGELOG 有条目但技术档案 doc 落后） | ✅ |
 | **v0.6.0** ⚠️ BREAKING — 删除 `karma.sticky` 模块、`CheckHit`+`Violation` 的 `.sticky_id` @property、`karma sticky` CLI 子命令、`karma.rule`/`karma.cli` 内部 aliases（`Sticky` / `MAX_STICKY` / `StickyConfigError` / `EXAMPLE_STICKY*`）。数据兼容 shim（`sticky.yaml`→`rules.yaml` 自动迁移、`violations.jsonl` `sticky_id` 字段兜底）永久保留。废弃周期：18 个 v0.5.x release。纯删除 commit — 得益于 v0.5.13/15 内部清理无需 refactor 逻辑。加 5 个 deletion-lock 测试。 | ✅ |
-| v0.6.1 issue #1 真用户 bug fix — `record_edit` 豁免非代码路径（README / CHANGELOG / docs/ / .gitignore 等）不推 `last_edit_ts`，所以 `docker pytest` 通过后改 README 再 git commit 不会被 `loud-failure-with-evidence` 误拦。真测复现根因是非代码 edit 后 `last_edit_ts > last_test_pass_ts`，不是 reporter 最初诊断的 regex 层。 | ✅ |
+| v0.6.1 issue #1 真实用户 bug fix — `record_edit` 豁免非代码路径（README / CHANGELOG / docs/ / .gitignore 等）不推 `last_edit_ts`，所以 `docker pytest` 通过后改 README 再 git commit 不会被 `loud-failure-with-evidence` 误拦。实测复现根因是非代码 edit 后 `last_edit_ts > last_test_pass_ts`，不是 reporter 最初诊断的 regex 层。 | ✅ |
 
 详见 [CHANGELOG.md](../CHANGELOG.md) 每版本的设计动机；[HANDOFF.md](./HANDOFF.md) 内部接力 context。
 

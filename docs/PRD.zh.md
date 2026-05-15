@@ -120,7 +120,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - `karma install-hooks / uninstall-hooks` — 自动写/清 settings.json（idempotent + 备份 + 保留他人 hook）
 - `karma install-skill [--force]` — 装 / 升级 `karma-rule` Claude Code skill（`karma init` 自动跑过；独立命令给升级用）
 
-### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次真触发的 release）
+### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次实际触发的 release）
 
 **触发方式**：用户在 Claude Code / Codex CLI / Gemini CLI 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
 
@@ -142,7 +142,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - Gemini CLI: `~/.gemini/skills/karma/SKILL.md`（auto-trigger）**加** `~/.gemini/commands/karma.toml`（显式 `/karma` slash，通过 `karma/skill_packaging.py` Markdown → TOML 转换生成，含 `$ARGUMENTS` ↔ `{{args}}` 语法翻译）
 - `karma init` 自动装到所有三家；`karma install-skill [--force] [--backend <name>]` 给升级用；`karma doctor` 报每个 backend skill 状态
 
-**诚实历史**：v0.5.1 ship 了 skill 模板但路径错（`<name>.md` 裸文件而不是 Claude Code 协议要求的 `<name>/SKILL.md` 目录结构）。v0.5.1 ~ v0.5.15 skill 从未真触发 — 手工 CLI 测试能用，但自然语言 → 自动 refine 路径是空气。v0.5.16 按 Claude Code 协议重建装机；ship v0.5.16 那个 session 的 SessionStart hook 是 karma skill 第一次出现在 available skills 列表里。完整披露见 [CHANGELOG.md v0.5.16](../CHANGELOG.md)。
+**诚实历史**：v0.5.1 ship 了 skill 模板但路径错（`<name>.md` 裸文件而不是 Claude Code 协议要求的 `<name>/SKILL.md` 目录结构）。v0.5.1 ~ v0.5.15 skill 从未实际触发 — 手工 CLI 测试能用，但自然语言 → 自动 refine 路径是空气。v0.5.16 按 Claude Code 协议重建装机；ship v0.5.16 那个 session 的 SessionStart hook 是 karma skill 第一次出现在 available skills 列表里。完整披露见 [CHANGELOG.md v0.5.16](../CHANGELOG.md)。
 
 ### F6. 国际化（v0.5.2+）✅
 

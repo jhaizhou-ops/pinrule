@@ -136,3 +136,4 @@ check.testset.detail_append.trigger: "Appending eval detail to training file"
 check.testset.split_hardcode.trigger: "Data-split boundary hard-coded (turn_idx >= N)"
 check.testset.hash_branch.trigger: "Long hash / UUID literal in comparison or case_id assignment (test-set case ID hard-coded)"
 check.testset.case_list_hash.trigger: "Test-set / case list contains hard-coded long-hash literal"
+

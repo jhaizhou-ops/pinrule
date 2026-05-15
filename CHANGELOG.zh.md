@@ -6,6 +6,65 @@
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-15（refactor — 治根：改写 karma 源规则文本里「真X」防御性前缀堆叠）
+
+### 用户识别的真根因
+
+用户抓到一个实际架构失败模式：我（karma 监督下的 Agent）反复堆「真X」前缀（「真根因 / 真违反 / 真饱和 / 真测」）作为防御性证据语言。用户诊断很犀利 — 加 `defensive_prefix_stacking` check 函数是**治表**，留下 **mimicry 源头**不动。
+
+源头：karma 自己规则文本和 locale 字符串通篇用「真X」模式（如 `rules.dev.example.zh.yaml` 里「想清楚是真违反 / 修真根因」、`data/locales/zh.yaml` 反思提示「任务真饱和」）。LLM 每个 turn 读 karma 头部，在响应里复制前缀风格 — in-context mimicry 把规则文本本身的语言模式复制到 Agent 表达上。
+
+### Fix — 多样化改写「真X」前缀
+
+跨用户面文档和模板替换 ~140 处，用多样化自然表达（避免新单一前缀 mimicry pattern）：
+
+| 之前 | 之后 |
+|---|---|
+| 真根因 | 根本原因 |
+| 真违反 | 实际违反 |
+| 真饱和 | 任务到饱和 |
+| 真测 | 实测 |
+| 真用户 | 真实用户 |
+| 真完成 | 完整完成 |
+| 真触发 | 实际触发 |
+| 真生效 | 实际生效 |
+| 真证据 | 实际证据 |
+| 真复现 | 端到端复现 |
+| 真识别 | 正确识别 |
+| 真匹配 | 正确匹配 |
+| 真豁免 | 实际豁免 |
+| 真闭环 | 完整闭环 |
+| 真深挖 | 深挖到底 |
+| 真痛点 | 实际痛点 |
+| 真做 | 真正做 |
+| 真推 | 继续推 |
+| ... | ... (30+ 多样化替换) |
+
+**保留为自然中文表达**（不是 mimicry）：`真实 / 真心 / 真人 / 真技术专名 / 真不确定 / 真读 / 真踩` — 这些是 adjective/adverb 修饰自然搭配，删掉反而损害可读性。
+
+### 改动文件
+
+- 规则模板：`data/rules.dev.example.zh.yaml`、`data/rules.dev.minimal.example.zh.yaml`
+- i18n locale：`data/locales/zh.yaml`（hook 注入字符串、反思提示、suggested_fix 文案）
+- 用户面文档（中文）：`README.zh.md`、`CLAUDE.zh.md`、`SECURITY.zh.md`、`CODE_OF_CONDUCT.zh.md`
+- 内部文档（中文）：`docs/PRD.zh.md`、`docs/ARCHITECTURE.zh.md`、`docs/V0_6_0_PLAN.zh.md`、`docs/REFACTOR_PLAN_RULE_AND_I18N.zh.md`、`docs/RULES_REDESIGN_PROPOSAL.zh.md`、`karma/backends/HOWTO.zh.md`
+
+### 没做的事（正确性克制）
+
+- **没加 `defensive_prefix_stacking` 工程层 check** — 一开始动手了，被用户「这是应激反应，要治根不治表」点醒后撤销。反应式监控只能事后捕捉 Agent 症状，留 karma 自己引发的 mimicry 源头不动。正确 fix 在源头文本层
+- **没动 `karma/*.py` 源代码注释**（~200 处）— 这些不进 Agent prompt context，不驱动 mimicry。低优清理留 v0.7.1+
+- **没动 CHANGELOG / HANDOFF 历史条目** — rule 5（评测干净度）精神适用：历史档案不该回溯重写
+
+### 验证
+
+- `pytest`：429/429 通过（无代码逻辑改动 — 纯模板 / doc 文本内容）
+- `ruff`：0 issues
+- Mimicry 源头削减：规则文本 + i18n + 用户面 doc 总「真X」mimicry 风格前缀 ~140 → ~60（自然语言修饰，不是 mimicry）
+
+### 实际 karma 价值
+
+用户用「治根 vs 治表」一句话精准命中真问题。Agent 在重 rule context 下仍然漂移到「真X」风格，说明从 rule text → response text 的 in-context mimicry 力量很强。**清洁源头是唯一持久的 fix**。
+
 ## [0.6.1] — 2026-05-15（fix — `record_edit` 豁免非代码路径；issue #1 真用户 bug 真根因 fix）
 
 ### 真用户 bug — docker pytest + 改 README + git commit 不再被误拦

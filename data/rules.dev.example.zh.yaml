@@ -54,7 +54,7 @@
     起完 background 任务立刻推进下一件能做的（读相关文件 / 起另一个子 Agent /
     设计下一步）— 任务完成你会被通知到。多个独立任务优先并发起，不要串行排队。
   # 设计原则：用「我先 X / 现在 X」一人称行动声明字面，区分「等 X 完成后做 Y」
-  # 描述顺序依赖 vs 「我先等 X」真阻塞声明 — 后者才是 sticky 真要拦的行为。
+  # 描述顺序依赖 vs 「我先等 X」实际阻塞声明 — 后者才是 sticky 真要拦的行为。
   violation_keywords:
     - 我先等测试
     - 我现在等测试
@@ -115,11 +115,11 @@
 
 - id: deep-fix-not-bypass
   preference: |
-    karma 拦你时，第一反应别想着绕 — 先停下看 trigger 字面，想清楚是真违反
+    karma 拦你时，第一反应别想着绕 — 先停下看 trigger 字面，想清楚是实际违反
     还是 karma 自身 bug。手动改 session-state 让 commit 通过 / 临时改
     sticky.yaml 让规则不触发 / hack 字面绕检测 — 这些都是给用户演戏，
     短期通过但他会发现。
-    被拦的正确流程：看 trigger → 深挖 pattern 或系统 bug → 修真根因
+    被拦的正确流程：看 trigger → 深挖 pattern 或系统 bug → 修根本原因
     （pattern 过宽就收紧，系统 bug 就 fix 自身）。这样下次别人遇到同样
     场景就不会被同样拦了。
     例外：用户明确说「绕一下先 commit」→ 才能绕。

@@ -174,7 +174,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 - ❌ **配置文件原子写**（基类已实现 tmp + os.replace 不用动）
 - ❌ **不要硬编码 backend id 名字到核心逻辑** — 加 backend 不该改 cli.py 等核心代码
 
-## 候选 backend 清单（vibe-island 实证情报，待真装真测）
+## 候选 backend 清单（vibe-island 实证情报，待真装实测）
 
 读 `~/.vibe-island/bin/vibe-island-bridge` zsh 脚本第 28 行拿到的 vibe-island
 实证支持的客户端配置文件路径清单。**这是二手情报需要真装客户端实测协议字段**
@@ -192,7 +192,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 | CodeBuddy | `~/.codebuddy/settings.json` | 待装 + 实测 |
 | Kimi CLI | `~/.kimi/config.toml`（TOML 不是 JSON！） | 待装 + 实测 — TOML 格式可能不能直接继承 JsonHooksBackend |
 
-**真测试每家**前看清这家 hook 协议文档（如有）+ vibe-island 那家用啥
+**端到端测试每家**前看清这家 hook 协议文档（如有）+ vibe-island 那家用啥
 event 名 + 客户端版本号（vibe-island 情报可能过时 — 我们实测发现 Codex
 真 feature 名是 `hooks` 不是 vibe-island config.toml 用的 `codex_hooks`）。
 
