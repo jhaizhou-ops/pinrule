@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from karma.signals import compile_alternation, load_phrases, reset_cache
+from karma.signals import compile_alternation, load_patterns, load_phrases, reset_cache
 
 
 def setup_function():
@@ -101,20 +101,25 @@ def test_compile_alternation_re_escape_works():
     assert m is not None
 
 
-def test_all_five_signals_loadable():
-    """v0.8.0 所有 5 个信号目录都能加载（不空）。"""
-    for name in (
+def test_all_seven_signals_loadable():
+    """所有 7 个信号目录都能加载（v0.8.0 5 个 .txt + v0.8.1 push_signals .yaml +
+    v0.8.2 completion_words .txt）。"""
+    txt_signals = (
         "user_stop_hints",
         "agent_saturation",
         "stop_hints",
         "explicit_handoff",
         "weak_claims",
-    ):
+        "completion_words",  # v0.8.2
+    )
+    for name in txt_signals:
         phrases = load_phrases(name)
-        assert len(phrases) > 0, f"signal {name!r} 应非空"
+        assert len(phrases) > 0, f"signal {name!r} 应非空（.txt）"
         pat = compile_alternation(name)
-        # pattern 非 never-match
-        assert pat.pattern != r"(?!)"
+        assert pat.pattern != r"(?!)", f"signal {name!r} pattern 应非 never-match"
+    # push_signals 是 .yaml 格式，走 load_patterns 不是 load_phrases
+    pat = compile_alternation("push_signals")
+    assert pat.pattern != r"(?!)"
 
 
 def test_lru_cache_reused():
@@ -145,7 +150,6 @@ def test_regex_compile_flags_ignorecase():
 
 def test_load_patterns_push_signals_yaml_cartesian():
     """v0.8.1: push_signals/zh.yaml + en.yaml cartesian 展开成大量字眼。"""
-    from karma.signals import load_patterns
     patterns = load_patterns("push_signals")
     # 中文 templates × subjects × verbs + phrases 应该有几百个
     # 英文 templates × subjects × verbs + phrases 又加一批
@@ -154,7 +158,6 @@ def test_load_patterns_push_signals_yaml_cartesian():
 
 def test_load_patterns_push_signals_contains_chinese_cartesian():
     """中文 cartesian 字眼应展开 — 「我现在 + 做」「我接下来 + 验证」等。"""
-    from karma.signals import load_patterns
     patterns = load_patterns("push_signals")
     # yaml 模板 `{subject}\s*{verb}` 展开后 raw pattern 形如「我现在\s*做」
     # 因 yaml escape 处理，输出含字面 \s*
@@ -164,7 +167,6 @@ def test_load_patterns_push_signals_contains_chinese_cartesian():
 
 def test_load_patterns_push_signals_contains_english_cartesian():
     """英文 cartesian 字眼应展开 — 「I'll + fix」「Next I'll + start」等。"""
-    from karma.signals import load_patterns
     patterns = load_patterns("push_signals")
     english_combos = [p for p in patterns if "I'll" in p or "Let me" in p]
     assert len(english_combos) >= 10, "应有多个英文 push cartesian 展开"
@@ -190,7 +192,6 @@ def test_compile_alternation_push_signals_matches_both_languages():
 
 def test_load_patterns_singular_to_plural_placeholder_resolution():
     """v0.8.1 yaml DSL: 模板用单数 `{subject}` 自动匹配复数字段 `subjects`。"""
-    from karma.signals import load_patterns
     # push_signals yaml 模板用 `{subject}\s+{verb}`，对应 yaml 字段 `subjects` / `verbs`
     # 加载成功说明单数→复数解析 work
     patterns = load_patterns("push_signals")
@@ -205,3 +206,34 @@ def test_compile_alternation_pure_txt_signals_still_works():
     pat = compile_alternation("user_stop_hints")
     assert pat.search("不错不错") is not None
     assert pat.search("LGTM") is not None
+
+
+# ===== v0.8.2: completion_words i18n =====
+
+
+def test_completion_words_chinese_phrases():
+    """v0.8.2: 中文完成词「完成 / 搞定 / 做完 / 修复完成」可识别。"""
+    pat = compile_alternation("completion_words")
+    assert pat.search("修复完成，测试也过了") is not None
+    assert pat.search("搞定了") is not None
+    assert pat.search("做完了") is not None
+
+
+def test_completion_words_english_phrases():
+    """v0.8.2: 英文完成词「done / fixed / all set / shipped」可识别。"""
+    pat = compile_alternation("completion_words")
+    assert pat.search("Done with the refactor") is not None
+    assert pat.search("Bug fixed") is not None
+    assert pat.search("All set for review") is not None
+    assert pat.search("shipped to main") is not None
+
+
+def test_completion_words_used_by_evidence_check():
+    """v0.8.2 集成: evidence check 用 _COMPLETION_RE 识别完成声称。"""
+    from karma.checks import REGISTRY
+    from karma.session_state import SessionState
+    fn = REGISTRY["loud_failure_with_evidence"]
+    state = SessionState(session_id="s1")
+    # 完成词 + 代码 action context + 无证据 → 拦
+    hit = fn(response="Fixed the bug in evidence.py", session_state=state)
+    assert hit is not None, "英文「Fixed the bug」+ 无测试证据 应拦"

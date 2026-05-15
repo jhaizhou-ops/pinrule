@@ -155,7 +155,7 @@ def test_init_explicit_no_minimal_installs_7_sticky(fake_home, capsys):
     import karma.rule
     monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
     import unittest.mock
-    with unittest.mock.patch.object(cli, "STICKY_PATH", monkeypatch_path):
+    with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
             rc = cli.cmd_init(minimal=False)
     assert rc == 0
@@ -169,7 +169,7 @@ def test_init_explicit_minimal_installs_5_sticky(fake_home, capsys):
     import karma.rule
     monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
     import unittest.mock
-    with unittest.mock.patch.object(cli, "STICKY_PATH", monkeypatch_path):
+    with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
             rc = cli.cmd_init(minimal=True)
     assert rc == 0
@@ -186,7 +186,7 @@ def test_init_auto_chinese_user_installs_7_sticky(fake_home, capsys):
     import karma.locale_detect
     monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
     import unittest.mock
-    with unittest.mock.patch.object(cli, "STICKY_PATH", monkeypatch_path):
+    with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
             with unittest.mock.patch.object(karma.locale_detect, "detect_user_language",
                                             return_value="zh"):
@@ -205,7 +205,7 @@ def test_init_auto_non_chinese_user_installs_5_sticky(fake_home, capsys):
     import karma.locale_detect
     monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
     import unittest.mock
-    with unittest.mock.patch.object(cli, "STICKY_PATH", monkeypatch_path):
+    with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
             with unittest.mock.patch.object(karma.locale_detect, "detect_user_language",
                                             return_value="en"):
@@ -223,7 +223,7 @@ def test_init_auto_unknown_locale_fallback_to_minimal(fake_home, capsys):
     import karma.locale_detect
     monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
     import unittest.mock
-    with unittest.mock.patch.object(cli, "STICKY_PATH", monkeypatch_path):
+    with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
             with unittest.mock.patch.object(karma.locale_detect, "detect_user_language",
                                             return_value=None):
@@ -470,7 +470,7 @@ def test_doctor_reports_missing_wrappers(fake_home, capsys):
     import karma.violations
     import unittest.mock
     with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
-        with unittest.mock.patch.object(cli, "STICKY_PATH", sticky_path):
+        with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
             with unittest.mock.patch.object(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
                 with unittest.mock.patch.object(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl"):
                     cli.cmd_doctor()
@@ -492,7 +492,7 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
     monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="claude-code")
     with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
-        with unittest.mock.patch.object(cli, "STICKY_PATH", sticky_path):
+        with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
             with unittest.mock.patch.object(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
                 with unittest.mock.patch.object(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl"):
                     rc = cli.cmd_doctor()
@@ -509,7 +509,7 @@ def _patch_rules_path(monkeypatch, fake_home):
     """共享 helper: monkeypatch rules.yaml DEFAULT_PATH 避免污染真 karma 配置."""
     import karma.rule
     monkeypatch.setattr(karma.rule, "DEFAULT_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
-    monkeypatch.setattr(cli, "STICKY_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
+    monkeypatch.setattr(cli, "RULES_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
 
 
 def test_v0516_init_auto_installs_karma_skill_all_backends(fake_home, monkeypatch, capsys):

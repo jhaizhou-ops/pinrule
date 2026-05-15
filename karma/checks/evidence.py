@@ -16,10 +16,11 @@ from karma.signals import compile_alternation
 
 _STICKY_ID = "loud-failure-with-evidence"
 
-_COMPLETION_RE = re.compile(
-    r"(完成了?|搞定了?|搞好了|做完了?|fix\s*了?|fixed|done\b|all set|搞好啦|修复完成|搞好了)",
-    re.IGNORECASE,
-)
+# v0.8.2: 字眼从 data/signals/completion_words/{zh,en}.txt 加载
+# v0.8.0 漏了这个跟 weak_claims 一致性的字眼集，v0.8.2 补齐。
+# 中文「完成了 / 搞定 / 做完」+ 英文「done / fixed / all set / shipped」
+_COMPLETION_RE = compile_alternation("completion_words")
+
 # v0.8.0: 字眼从 data/signals/weak_claims/{zh,en}.txt 加载
 # 中文「应该可以 / 大概率」+ 英文「should work / probably fine」对偶
 _WEAK_CLAIM_RE = compile_alternation("weak_claims")

@@ -10,6 +10,65 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-05-15 (refactor — code audit: dead code purge + `sticky` → `rule` naming consistency + missing i18n consistency + 1 bug fix)
+
+### Why a code audit pass
+
+After shipping v0.8.0/v0.8.1, user asked: "再做一轮代码审查咋样，看看有没有废弃代码还在潜伏或者调用逻辑还不优雅". Ran `vulture` + `ruff` + manual grep for legacy patterns. Tools came back clean (0 vulture / 0 ruff F401/F841/F811), but manual audit found multiple categories of issues.
+
+### Dead code — comments said "removed in v0.6.0" but were still alive
+
+- `KARMA_RULE_SKILL_SRC` in `cli.py` — v0.5.x deprecated alias, comment self-said "removed in v0.6.0" but never deleted. 0 external usage
+- `_claude_skills_dir()` in `cli.py` — docstring self-said "v0.5.16 deprecated, removed in v0.6.0" but kept. 0 external usage
+- `_install_karma_rule_skill()` in `cli.py` — same self-said v0.6.0 removal, 0 callers
+
+### Naming consistency — v0.6.0 BREAKING left `sticky` shrapnel
+
+The sticky → rule rename in v0.5.0 + v0.6.0 BREAKING focused on the public API surface. Internal names and user-facing output strings were partially left in `sticky` naming, creating user-visible inconsistency:
+
+- **Functions**: `cmd_sticky_list` / `cmd_sticky_edit` / `cmd_sticky_remove` → `cmd_rule_*` (renamed; tests synced)
+- **Module-level constant**: `STICKY_PATH` (alias of `karma.rule.DEFAULT_PATH`) → `RULES_PATH`. Used in 10 cli.py + 8 test_cli.py places
+- **`karma doctor` output**: `"sticky.yaml: <path>"` was printing the path to `rules.yaml` — name and content disagreed. Now prints `"rules.yaml: <path>"`. Also `"sticky 加载: ✓"` → `"规则加载: ✓"`
+- **`karma audit` output**: column header `'sticky_id'` → `'rule_id'`; "未触发的 sticky" section title → "未触发的规则"
+- **`karma violations clear` output**: filter description `"sticky={id}"` → `"rule={id}"` (CLI flag `--sticky` kept for backward compat per past deprecation discipline)
+- **`karma rule list` output**: `"karma sticky (N/M)"` → `"karma 规则 (N/M)"`; local var `sticky = load()` → `rules = load()`
+- **Hook stderr output**: `pre_compact.py` / `session_start.py` / `subagent_start.py` all printed `"sticky 加载失败"` on errors → now `"规则加载失败"`; local variable `sticky_list` → `rule_list`
+- **`cli.py` top docstring**: removed obsolete `karma sticky <...>` entry (the command's hint logic at L1252 still handles the legacy invocation)
+
+### Real bug found during audit
+
+`cli.py:853` in `cmd_violations_clear` was reading `d.get("sticky_id")` directly when matching the `--sticky` filter — bypassing the v0.5.0+ rule_id/sticky_id compatibility shim. Result: filtering by rule_id wouldn't match newer violation entries that use `rule_id` instead of `sticky_id`. Fixed by using the `extract_rule_id(d)` helper (also exposed as public — was `_extract_rule_id` private with multiple module-internal callers).
+
+### i18n consistency follow-up
+
+v0.8.0 externalized `_WEAK_CLAIM_RE` to `data/signals/weak_claims/` but missed `_COMPLETION_RE` (the parallel phrase set for completion claims like "done / fixed / 完成了 / 搞定"). v0.8.2 closes this gap:
+
+- New `data/signals/completion_words/{zh,en}.txt`
+- `evidence.py:_COMPLETION_RE` now uses `compile_alternation("completion_words")`
+- English completion words covered: `done / fixed / all set / shipped / tests pass / build green / working now / ...`
+
+Now **7 of 7 detection signals fully i18n-externalized** (was 6 in v0.8.1):
+
+| Signal | Format | Languages |
+|---|---|---|
+| `user_stop_hints` | `.txt` | zh, en |
+| `agent_saturation` | `.txt` | zh, en |
+| `stop_hints` | `.txt` | zh, en |
+| `explicit_handoff` | `.txt` | zh, en |
+| `weak_claims` | `.txt` | zh, en |
+| `completion_words` (v0.8.2) | `.txt` | zh, en |
+| `push_signals` | `.yaml` (Cartesian) | zh, en |
+
+### Verification
+
+- 3 new tests for `completion_words` signal + integration with `evidence` check
+- Total: 455/455 passing (was 452 in v0.8.1)
+- `ruff` clean, `vulture --min-confidence 70` finds 0 dead code
+
+### Why this matters
+
+`karma audit` and `karma doctor` outputs are what new users see first when something looks off. Mixed `sticky` / `rule` naming there signals "this project hasn't kept up with itself" — exactly the impression rule 9 doc-sync discipline is meant to prevent. v0.8.2 makes the user-facing output consistent with the v0.6.0 BREAKING reality.
+
 ## [0.8.1] — 2026-05-15 (feat — `push_signals` i18n via YAML DSL: cartesian templates + word vocabularies, English Agent push phrases now recognized)
 
 ### What was left over from v0.8.0

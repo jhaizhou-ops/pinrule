@@ -26,7 +26,6 @@ Usage:
     karma rule add --from-stdin             从 stdin 读 yaml 追加 (Claude Code skill 用)
     karma rule preview --from-yaml <file>   预览注入头部样子 (不写入)
     karma rule preview --from-stdin         预览 stdin yaml (不写入)
-    karma sticky <...>             v0.5.0 起 deprecated alias, v0.6.0 移除
 
     karma stats                    每条规则违反计数（含本 session 最近 5 turn）
     karma violations recent [N]    最近 N 条违反详情（默认 20）
@@ -50,7 +49,7 @@ from datetime import datetime
 from pathlib import Path
 
 from karma import __version__
-from karma.rule import DEFAULT_PATH as STICKY_PATH
+from karma.rule import DEFAULT_PATH as RULES_PATH
 from karma.rule import HARD_MAX, MAX_RULES, RuleConfigError, load
 from karma.violations import DEFAULT_PATH as VIOLATIONS_PATH
 from karma.violations import load_all
@@ -71,8 +70,6 @@ EXAMPLE_CONFIG = _DATA_DIR / "config.example.yaml"
 # all detected backends with format conversion (Markdown → TOML for Gemini commands path).
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
 KARMA_SKILL_SRC = _SKILLS_DIR / "karma" / "SKILL.md"
-# v0.5.x deprecated alias for v0.5.12 attribute (removed in v0.6.0)
-KARMA_RULE_SKILL_SRC = KARMA_SKILL_SRC
 
 
 def _select_rule_template(minimal: bool) -> Path:
@@ -81,13 +78,6 @@ def _select_rule_template(minimal: bool) -> Path:
     if is_chinese_user():
         return EXAMPLE_RULES_MINIMAL_ZH if minimal else EXAMPLE_RULES_ZH
     return EXAMPLE_RULES_MINIMAL_EN if minimal else EXAMPLE_RULES_EN
-
-def _claude_skills_dir() -> Path:
-    """v0.5.16 deprecated — 用 ClaudeCodeBackend.skill_install_targets() 替代.
-
-    保留是 doctor 显示 + 老测试兼容. v0.6.0 移除.
-    """
-    return Path.home() / ".claude" / "skills"
 
 
 def _write_skill_target(
@@ -160,18 +150,6 @@ def _install_karma_skill_multi_backend(
             out.append((name, dest, changed, reason))
     return out
 
-
-def _install_karma_rule_skill(force: bool = False) -> tuple[bool, str]:
-    """v0.5.16 deprecated single-backend shim — 走 multi-backend 路径只装 Claude Code.
-
-    保留是为了 cmd_init 不破 v0.5.12-15 的测试. cmd_init 现在改调 multi-backend
-    版本. v0.6.0 移除.
-    """
-    results = _install_karma_skill_multi_backend(force=force, backend_filter="claude-code")
-    if not results or results[0][0] == "source":
-        return False, results[0][3] if results else "source-missing"
-    _name, _dest, changed, reason = results[0]
-    return changed, reason
 
 
 def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
@@ -250,9 +228,9 @@ def cmd_init(minimal: bool | None = None) -> int:
     label = "minimal 5 cross-user-neutral" if minimal else "full 7 dev-scenario"
 
     # v0.5.0 migration: 检测旧 sticky.yaml 自动迁移到 rules.yaml
-    # STICKY_PATH 来自 karma.rule.DEFAULT_PATH (fallback 优先 rules.yaml)
-    # 测试 monkeypatch STICKY_PATH 仍生效
-    rules_path = STICKY_PATH
+    # RULES_PATH 来自 karma.rule.DEFAULT_PATH (fallback 优先 rules.yaml)
+    # 测试 monkeypatch RULES_PATH 仍生效
+    rules_path = RULES_PATH
     legacy_sticky_path = rules_path.parent / "sticky.yaml"
     if legacy_sticky_path.exists() and not rules_path.exists() and rules_path.name == "rules.yaml":
         # 旧用户 — migrate sticky.yaml → rules.yaml + backup 老文件
@@ -301,35 +279,35 @@ def cmd_init(minimal: bool | None = None) -> int:
     return 0
 
 
-def cmd_sticky_list() -> int:
+def cmd_rule_list() -> int:
     try:
-        sticky = load()
+        rules = load()
     except RuleConfigError as e:
         print(f"配置错误: {e}", file=sys.stderr)
         return 1
-    if not sticky:
-        print("没配置 sticky。运行 'karma init' 复制模板。")
+    if not rules:
+        print("没配置规则。运行 'karma init' 复制模板。")
         return 0
-    print(f"karma sticky ({len(sticky)}/{MAX_RULES} 软上限, {HARD_MAX} 硬上限):\n")
-    for i, s in enumerate(sticky, 1):
-        print(f"{i}. [{s.id}]")
-        for line in s.preference.split("\n"):
+    print(f"karma 规则 ({len(rules)}/{MAX_RULES} 软上限, {HARD_MAX} 硬上限):\n")
+    for i, r in enumerate(rules, 1):
+        print(f"{i}. [{r.id}]")
+        for line in r.preference.split("\n"):
             print(f"   {line}")
-        print(f"   触发词: {', '.join(s.violation_keywords) if s.violation_keywords else '(无)'}")
+        print(f"   触发词: {', '.join(r.violation_keywords) if r.violation_keywords else '(无)'}")
         print()
     return 0
 
 
-def cmd_sticky_edit() -> int:
-    if not STICKY_PATH.exists():
-        print("sticky.yaml 不存在，先 'karma init'", file=sys.stderr)
+def cmd_rule_edit() -> int:
+    if not RULES_PATH.exists():
+        print("rules.yaml 不存在，先 'karma init'", file=sys.stderr)
         return 1
     editor = os.environ.get("EDITOR", "vim")
-    subprocess.run([editor, str(STICKY_PATH)])
+    subprocess.run([editor, str(RULES_PATH)])
     # 编辑后验证
     try:
-        sticky = load()
-        print(f"编辑成功，当前 {len(sticky)} 条 sticky。")
+        rules = load()
+        print(f"编辑成功，当前 {len(rules)} 条规则。")
     except RuleConfigError as e:
         print(f"⚠️ 编辑后配置错误: {e}", file=sys.stderr)
         return 1
@@ -440,21 +418,21 @@ def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
 
     # Step 6: 追加写回 rules.yaml
     try:
-        raw_existing = yaml.safe_load(STICKY_PATH.read_text(encoding="utf-8")) if STICKY_PATH.exists() else []
+        raw_existing = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8")) if RULES_PATH.exists() else []
     except yaml.YAMLError as e:
         print(f"❌ 读 rules.yaml 失败: {e}", file=sys.stderr)
         return 1
     if not isinstance(raw_existing, list):
         raw_existing = []
     raw_existing.append(new_rule)
-    STICKY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STICKY_PATH.write_text(
+    RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RULES_PATH.write_text(
         yaml.safe_dump(raw_existing, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
 
     # Step 7: 反馈 (按用户要求: 优化后内容 / 已通过测试 / 当前总数 / 是否需删改)
-    print(f"✓ 新规则已通过 karma schema 测试 + 写入 {STICKY_PATH}")
+    print(f"✓ 新规则已通过 karma schema 测试 + 写入 {RULES_PATH}")
     print()
     print(f"--- 新增规则 [{validated_rule.id}] ---")
     print(f"preference: {validated_rule.preference.strip()[:200]}")
@@ -535,22 +513,22 @@ def cmd_rule_preview(yaml_path: str | None = None, stdin_yaml: bool = False) -> 
     return 0
 
 
-def cmd_sticky_remove(rule_id: str) -> int:
+def cmd_rule_remove(rule_id: str) -> int:
     """简单删除 — 读 yaml，过滤，写回。"""
     import yaml
-    if not STICKY_PATH.exists():
-        print("sticky.yaml 不存在", file=sys.stderr)
+    if not RULES_PATH.exists():
+        print("rules.yaml 不存在", file=sys.stderr)
         return 1
-    raw = yaml.safe_load(STICKY_PATH.read_text(encoding="utf-8")) or []
+    raw = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8")) or []
     filtered = [item for item in raw if item.get("id") != rule_id]
     if len(filtered) == len(raw):
         print(f"没找到 id={rule_id!r}", file=sys.stderr)
         return 1
-    STICKY_PATH.write_text(
+    RULES_PATH.write_text(
         yaml.safe_dump(filtered, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
-    print(f"已删除 sticky {rule_id!r} ({len(filtered)} 条剩余)")
+    print(f"已删除规则 {rule_id!r} ({len(filtered)} 条剩余)")
     return 0
 
 
@@ -558,7 +536,7 @@ def cmd_reset_session() -> int:
     """清所有 session-state JSON — Agent 注意力漂移实验重启。
 
     用法场景：观察「干净 session 起步」vs「累积 N turn 后」Agent 行为差异。
-    不动 violations.jsonl（历史保留）+ 不动 sticky.yaml / config.yaml。
+    不动 violations.jsonl（历史保留）+ 不动 rules.yaml / config.yaml。
     """
     from karma.session_state import DEFAULT_DIR as SS_DIR
     if not SS_DIR.exists():
@@ -812,7 +790,7 @@ def cmd_stats() -> int:
     else:
         print()
     print(
-        f"{'sticky_id':<35} {'本 ses':>7} {'历史':>6} "
+        f"{'rule_id':<35} {'本 ses':>7} {'历史':>6} "
         f"{'7d':>6} {'最近 ' + str(turns_window) + ' turn':>14} {'最近违反':>20}"
     )
     print("-" * 92)
@@ -822,13 +800,13 @@ def cmd_stats() -> int:
             f"{sid:<35} {current_session_count.get(sid, 0):>7} {historical_count.get(sid, 0):>6} "
             f"{week.get(sid, 0):>6} {recent_turns_count.get(sid, 0):>14} {recent_str:>20}"
         )
-    # 未触发的 sticky 显示 ✓ 让作者看到正面证据（哪些规则没违反）
+    # 未触发的规则显示 ✓ 让作者看到正面证据（哪些规则没违反）
     try:
-        from karma.rule import load as _load_sticky
-        all_sticky_ids = {s.id for s in _load_sticky()}
-        untriggered = sorted(all_sticky_ids - set(total))
+        from karma.rule import load as _load_rules
+        all_rule_ids = {r.id for r in _load_rules()}
+        untriggered = sorted(all_rule_ids - set(total))
         if untriggered:
-            print("\n=== 未触发的 sticky（✓ 没违反过）===")
+            print("\n=== 未触发的规则（✓ 没违反过）===")
             for sid in untriggered:
                 print(f"  ✓ {sid}")
     except Exception:
@@ -872,9 +850,10 @@ def cmd_violations_clear(sticky_filter: str | None = None, trigger_filter: str |
                 continue
             try:
                 d = _json.loads(line_stripped)
-                match_sticky = sticky_filter is None or d.get("sticky_id") == sticky_filter
+                from karma.violations import extract_rule_id
+                match_rule = sticky_filter is None or extract_rule_id(d) == sticky_filter
                 match_trigger = trigger_filter is None or trigger_filter in d.get("trigger", "")
-                if match_sticky and match_trigger:
+                if match_rule and match_trigger:
                     removed += 1
                     continue
             except _json.JSONDecodeError:
@@ -883,14 +862,14 @@ def cmd_violations_clear(sticky_filter: str | None = None, trigger_filter: str |
         if removed == 0:
             filters = []
             if sticky_filter:
-                filters.append(f"sticky={sticky_filter!r}")
+                filters.append(f"rule={sticky_filter!r}")
             if trigger_filter:
                 filters.append(f"trigger contains {trigger_filter!r}")
             print(f"没找到 {' AND '.join(filters)} 的违反记录。")
             return 0
         filter_desc = []
         if sticky_filter:
-            filter_desc.append(f"sticky={sticky_filter!r}")
+            filter_desc.append(f"rule={sticky_filter!r}")
         if trigger_filter:
             filter_desc.append(f"trigger~{trigger_filter!r}")
         confirm = input(f"确认清 {removed} 条 {' AND '.join(filter_desc)} 的违反（保留 {len(keep_lines)} 条其他）? [y/N] ").strip().lower()
@@ -914,7 +893,7 @@ def cmd_violations_clear(sticky_filter: str | None = None, trigger_filter: str |
 def cmd_doctor() -> int:
     print(f"karma v{__version__} doctor")
     print(f"  KARMA_DIR: {KARMA_DIR} ({'存在' if KARMA_DIR.exists() else '不存在'})")
-    print(f"  sticky.yaml: {STICKY_PATH} ({'存在' if STICKY_PATH.exists() else '不存在'})")
+    print(f"  rules.yaml: {RULES_PATH} ({'存在' if RULES_PATH.exists() else '不存在'})")
     print(f"  violations.jsonl: {VIOLATIONS_PATH} ({'存在' if VIOLATIONS_PATH.exists() else '不存在'})")
     config_path = KARMA_DIR / "config.yaml"
     print(f"  config.yaml: {config_path} ({'存在' if config_path.exists() else '不存在 (用默认值)'})")
@@ -940,16 +919,16 @@ def cmd_doctor() -> int:
                 label = "✓ 最新" if same else "⚠ 跟当前版本不一致 (跑 `karma install-skill --force` 升级)"
                 print(f"    [{backend_name}] {dest}: {label}")
     try:
-        sticky = load()
-        print(f"  sticky 加载: ✓ {len(sticky)} 条")
-        if len(sticky) > MAX_RULES:
+        rules = load()
+        print(f"  规则加载: ✓ {len(rules)} 条")
+        if len(rules) > MAX_RULES:
             print(f"    ⚠️ 超过软上限 {MAX_RULES} (但未达硬上限 {HARD_MAX})")
-        exempt_ids = [s.id for s in sticky if s.force_block_exempt]
+        exempt_ids = [r.id for r in rules if r.force_block_exempt]
         if exempt_ids:
             print(f"    force_block 豁免: {', '.join(exempt_ids)} "
                   "（累积违反不触发 Stop 强制 block）")
     except RuleConfigError as e:
-        print(f"  sticky 加载: ✗ {e}")
+        print(f"  规则加载: ✗ {e}")
         return 1
 
     # 显示当前生效配置
@@ -1271,14 +1250,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Usage: karma {cmd} <list|edit|remove|add|preview>", file=sys.stderr)
             return 1
         if args[0] == "list":
-            return cmd_sticky_list()
+            return cmd_rule_list()
         if args[0] == "edit":
-            return cmd_sticky_edit()
+            return cmd_rule_edit()
         if args[0] == "remove":
             if len(args) < 2:
                 print(f"Usage: karma {cmd} remove <id>", file=sys.stderr)
                 return 1
-            return cmd_sticky_remove(args[1])
+            return cmd_rule_remove(args[1])
         if args[0] == "add":
             # karma rule add --from-yaml <file>  或  --from-stdin
             yaml_path = None

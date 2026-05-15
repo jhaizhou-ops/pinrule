@@ -218,13 +218,17 @@ def _scan_tail_jsonl(path: Path, tail_lines: int):
             continue
 
 
-def _extract_rule_id(d: dict) -> str:
+def extract_rule_id(d: dict) -> str:
     """读 violation dict 的 rule_id 字段，向后兼容老 ``sticky_id`` 字段。
 
     v0.5.0 改名 sticky → rule 后，新写入 jsonl 用 rule_id；老 jsonl 行仍用
     sticky_id。读取时优先 rule_id fallback sticky_id 保证兼容。
     """
     return d.get("rule_id") or d.get("sticky_id", "")
+
+
+# 内部别名 — module 内多处调用
+_extract_rule_id = extract_rule_id
 
 
 def _extract_turn(d: dict) -> int | None:

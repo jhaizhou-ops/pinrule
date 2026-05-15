@@ -1,0 +1,27 @@
+# karma signal: completion claim phrases (English) — used by evidence check
+# Agent uses these to claim a code task is done; combined with
+# _ACTION_CONTEXT_RE the check verifies real test-pass evidence exists.
+# No evidence + completion phrase → triggers "loud-failure-with-evidence"
+# rule reflection.
+
+done
+fixed
+fix is done
+all set
+all done
+finished
+completed
+wrapped up
+shipped
+landed
+implemented
+deployed
+tests pass
+tests passing
+build passes
+build passing
+build green
+tests green
+all green
+working now
+works now

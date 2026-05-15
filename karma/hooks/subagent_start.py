@@ -57,20 +57,20 @@ def main() -> int:
             # 失败不阻塞 sticky baseline 注入
 
     try:
-        sticky_list = load_sticky()
+        rule_list = load_sticky()
     except Exception as e:
-        print(f"karma SubagentStart: sticky 加载失败 ({e})", file=sys.stderr)
+        print(f"karma SubagentStart: 规则加载失败 ({e})", file=sys.stderr)
         _passthrough()
         return 0
 
-    if not sticky_list:
+    if not rule_list:
         _passthrough()
         return 0
 
     # v0.5.2 i18n: 合作默契语气切 locale (en/zh)
     from karma.i18n import tr
     lines = [tr("subagent_start.title")]
-    for s in sticky_list:
+    for s in rule_list:
         first_line = s.preference.strip().split("\n")[0]
         lines.append(f"  ▸ {s.id}: {first_line}")
     lines.append(tr("subagent_start.tail"))

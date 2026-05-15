@@ -50,13 +50,13 @@ def main() -> int:
     session_id = payload.get("session_id", "") or "default"
 
     try:
-        sticky_list = load_sticky()
+        rule_list = load_sticky()
     except Exception as e:
-        print(f"karma PreCompact: sticky 加载失败 ({e})", file=sys.stderr)
+        print(f"karma PreCompact: 规则加载失败 ({e})", file=sys.stderr)
         _passthrough()
         return 0
 
-    if not sticky_list:
+    if not rule_list:
         _passthrough()
         return 0
 
@@ -71,7 +71,7 @@ def main() -> int:
         "## sticky 完整清单",
         "",
     ]
-    for s in sticky_list:
+    for s in rule_list:
         lines.append(f"### {s.id}")
         lines.append("")
         for pref_line in s.preference.strip().split("\n"):

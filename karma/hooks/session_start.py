@@ -63,17 +63,17 @@ def main() -> int:
             # 失败不阻塞 sticky baseline 注入
 
     try:
-        sticky_list = load_sticky()
+        rule_list = load_sticky()
     except RuleConfigError as e:
         print(f"karma SessionStart: {e}", file=sys.stderr)
-        _emit(f"❌ sticky 配置错误：{e}")
+        _emit(f"❌ 规则配置错误：{e}")
         return 0
     except Exception as e:
-        print(f"karma SessionStart: sticky 加载失败 ({e})", file=sys.stderr)
+        print(f"karma SessionStart: 规则加载失败 ({e})", file=sys.stderr)
         _passthrough()
         return 0
 
-    if not sticky_list:
+    if not rule_list:
         _passthrough()
         return 0
 
@@ -107,7 +107,7 @@ def main() -> int:
         lines.append(tr("session_start.resume.title"))
     else:
         lines.append(tr("session_start.startup.title", source=source or "startup"))
-    for s in sticky_list:
+    for s in rule_list:
         first_line = s.preference.strip().split("\n")[0]
         lines.append(f"  ▸ {s.id}: {first_line}")
     if source == "compact":

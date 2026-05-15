@@ -6,6 +6,65 @@
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-05-15（refactor — 代码审查：死代码清理 + `sticky` → `rule` 命名一致化 + 漏的 i18n 补齐 + 1 个 bug fix）
+
+### 为什么做代码审查
+
+v0.8.0/v0.8.1 ship 完后用户问：「再做一轮代码审查咋样，看看有没有废弃代码还在潜伏或者调用逻辑还不优雅」。跑 `vulture` + `ruff` + 手工 grep 找老 pattern。工具扫干净（0 vulture / 0 ruff F401/F841/F811），但手工 audit 找出几类问题。
+
+### 死代码 — 注释自己说「v0.6.0 移除」但漏砍
+
+- `KARMA_RULE_SKILL_SRC` 在 `cli.py` — v0.5.x deprecated alias，注释自己写「removed in v0.6.0」但没删。0 外部使用
+- `_claude_skills_dir()` 在 `cli.py` — docstring 自己写「v0.5.16 deprecated, v0.6.0 移除」但留着。0 外部使用
+- `_install_karma_rule_skill()` 在 `cli.py` — 同款 v0.6.0 移除自述，0 调用者
+
+### 命名一致性 — v0.6.0 BREAKING 留下的 `sticky` 残骸
+
+v0.5.0 + v0.6.0 BREAKING 的 sticky → rule 改名集中在公开 API surface。**内部命名跟用户面输出**还有「sticky」残留，造成用户可见的不一致：
+
+- **函数名**：`cmd_sticky_list` / `cmd_sticky_edit` / `cmd_sticky_remove` → `cmd_rule_*`（改名 + 测试同步）
+- **模块级常量**：`STICKY_PATH`（`karma.rule.DEFAULT_PATH` 的 alias）→ `RULES_PATH`。cli.py 10 处 + test_cli.py 8 处
+- **`karma doctor` 输出**：`"sticky.yaml: <path>"` 显示的实际是 `rules.yaml` 的路径 — 名跟内容打架。改成 `"rules.yaml: <path>"`。`"sticky 加载: ✓"` → `"规则加载: ✓"`
+- **`karma audit` 输出**：表头 `'sticky_id'` → `'rule_id'`；「未触发的 sticky」段标题 → 「未触发的规则」
+- **`karma violations clear` 输出**：filter 描述 `"sticky={id}"` → `"rule={id}"`（CLI flag `--sticky` 保留作向后兼容，跟过去 deprecation 节奏一致）
+- **`karma rule list` 输出**：`"karma sticky (N/M)"` → `"karma 规则 (N/M)"`；局部变量 `sticky = load()` → `rules = load()`
+- **Hook stderr 输出**：`pre_compact.py` / `session_start.py` / `subagent_start.py` 报错时都打印 `"sticky 加载失败"` → 改成 `"规则加载失败"`；局部变量 `sticky_list` → `rule_list`
+- **`cli.py` 顶部 docstring**：删过时 `karma sticky <...>` 条目（命令的友好提示逻辑 L1252 还在兜底老调用）
+
+### audit 中发现的真 bug
+
+`cli.py:853` 在 `cmd_violations_clear` 里直接读 `d.get("sticky_id")` 来匹配 `--sticky` filter — 绕过了 v0.5.0+ 的 rule_id/sticky_id 兼容垫层。结果：按 rule_id filter 时新写入的 violation 条目（用 `rule_id`）匹配不上。修复用 `extract_rule_id(d)` helper（顺便把 `_extract_rule_id` 暴露为公开 `extract_rule_id` — 原 module 内有多处调用）。
+
+### i18n 一致性补齐
+
+v0.8.0 把 `_WEAK_CLAIM_RE` 搬到 `data/signals/weak_claims/` 但漏了 `_COMPLETION_RE`（平行字眼集：完成声称「done / fixed / 完成了 / 搞定」）。v0.8.2 补齐：
+
+- 新加 `data/signals/completion_words/{zh,en}.txt`
+- `evidence.py:_COMPLETION_RE` 现在用 `compile_alternation("completion_words")`
+- 英文完成词覆盖：`done / fixed / all set / shipped / tests pass / build green / working now / ...`
+
+至此**7 个检测信号全 i18n 外部化**（v0.8.1 是 6 个）：
+
+| 信号 | 格式 | 语言 |
+|---|---|---|
+| `user_stop_hints` | `.txt` | zh, en |
+| `agent_saturation` | `.txt` | zh, en |
+| `stop_hints` | `.txt` | zh, en |
+| `explicit_handoff` | `.txt` | zh, en |
+| `weak_claims` | `.txt` | zh, en |
+| `completion_words`（v0.8.2 新加）| `.txt` | zh, en |
+| `push_signals` | `.yaml`（cartesian）| zh, en |
+
+### 验证
+
+- 加 3 个 `completion_words` 测试 + evidence check 集成
+- 共 455/455 通过（v0.8.1 是 452）
+- `ruff` 干净，`vulture --min-confidence 70` 找到 0 死代码
+
+### 为什么重要
+
+`karma audit` 跟 `karma doctor` 输出是新用户「不对劲」时第一眼看到的东西。混着「sticky」/「rule」命名给人「这项目自己没跟上自己」的感觉 — 这正是 rule 9 doc-sync 纪律想防止的印象。v0.8.2 让用户面输出跟 v0.6.0 BREAKING 后的实际状态一致。
+
 ## [0.8.1] — 2026-05-15（feat — `push_signals` 用 YAML DSL i18n：cartesian 模板 + 词集 + 平面字眼，英文 Agent 推进信号识别）
 
 ### v0.8.0 没收的尾
