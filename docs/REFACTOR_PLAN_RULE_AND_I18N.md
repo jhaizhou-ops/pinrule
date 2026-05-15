@@ -103,9 +103,10 @@ The Agent receives the user's natural-language description and should:
 
 ## Status
 
-- ✅ **Phase A complete** (v0.5.0 released 2026-05-15)
-- ✅ **i18n doc translation complete** (README / SECURITY / CODE_OF_CONDUCT / docs/PRD / docs/ARCHITECTURE / docs/REFACTOR_PLAN / docs/RULES_REDESIGN / HOWTO / CLAUDE.md / .github templates all swapped English default + Chinese alternative; rules.dev.example.yaml English default + .zh.yaml backup; karma init locale-aware template selection)
-- 🔜 **Phase B pending** — `karma rule add` CLI + Claude Code skill template
-- 🔜 **Phase C/D pending** — engineering-layer i18n (`karma/i18n.py` + hook injection / 8 check `suggested_fix` translation)
+- ✅ **Phase A complete** (v0.5.0 released 2026-05-15) — `sticky` → `rule` rename across entire codebase, backward-compat aliases preserved
+- ✅ **i18n doc translation complete** — README / SECURITY / CODE_OF_CONDUCT / docs/PRD / docs/ARCHITECTURE / docs/REFACTOR_PLAN / docs/RULES_REDESIGN / HOWTO / CLAUDE.md / .github templates all swapped English default + Chinese alternative; `rules.dev.example.yaml` English default + `.zh.yaml` backup; `karma init` locale-aware template selection via `_select_rule_template()`
+- ✅ **Phase B complete** (v0.5.1 released 2026-05-15) — `karma rule add` / `karma rule preview` CLI subcommands with schema validation + id uniqueness + cap enforcement + `violation_checks` REGISTRY validation; Claude Code skill template at `skills/karma-rule.md` with 7-step natural-language workflow
+- ✅ **Phase C complete** (v0.5.2 released 2026-05-15) — `karma/i18n.py` module with `tr(key, **fmt)` lookup, `{placeholder}` interpolation, locale resolution chain (`KARMA_LOCALE` env > `config.yaml` `locale` field > `is_chinese_user()` auto-detect > `en` fallback), fail-open on missing keys; 5 hook injection paths (`rule.py format_for_injection` / `post_tool_use` / `stop` / `user_prompt_submit` / `subagent_start`) all switched from hard-coded Chinese to `tr()` lookup
+- ✅ **Phase D complete** (v0.5.3 + v0.5.4 released 2026-05-15) — all 28 check `suggested_fix` strings switchable en/zh (v0.5.3); all 28 `CheckHit.trigger` audit-log labels also switchable en/zh (v0.5.4); v0.5.7 adds locale-agnostic `trigger_key` field on `CheckHit` + `Violation` so `karma audit` groups by stable identifier across locale switches
 
 For detailed Chinese version with code samples, file lists, and decision-point discussion, see [REFACTOR_PLAN_RULE_AND_I18N.zh.md](./REFACTOR_PLAN_RULE_AND_I18N.zh.md).

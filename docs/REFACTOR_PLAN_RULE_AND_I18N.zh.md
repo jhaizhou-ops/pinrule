@@ -4,7 +4,15 @@
 
 **起草日期**：2026-05-15
 **起草人**：Claude Opus 4.7（应用户两个方向授权）
-**审阅状态**：待用户审，未实施
+**审阅状态**：**全部阶段实施完成**（v0.5.0 ~ v0.5.4 已 release，v0.5.7 补 trigger_key 跨 locale 分组）
+
+## 实施进展（2026-05-15 收尾）
+
+- ✅ **阶段 A 完成** (v0.5.0) — `sticky` → `rule` 全代码库改名，向后兼容 alias 保留
+- ✅ **i18n 文档翻译完成** — README / SECURITY / CODE_OF_CONDUCT / docs/PRD / docs/ARCHITECTURE / docs/REFACTOR_PLAN / docs/RULES_REDESIGN / HOWTO / CLAUDE.md / .github 模板全切英文默认 + 中文备份；`rules.dev.example.yaml` 英文默认 + `.zh.yaml` 备份；`karma init` 通过 `_select_rule_template()` 按用户 locale 自动选模板
+- ✅ **阶段 B 完成** (v0.5.1) — `karma rule add` / `karma rule preview` CLI 子命令含 schema 校验 + id 唯一性 + 上限 + `violation_checks` REGISTRY 校验；Claude Code skill template 在 `skills/karma-rule.md` 7 步自然语言工作流
+- ✅ **阶段 C 完成** (v0.5.2) — `karma/i18n.py` 模块含 `tr(key, **fmt)` lookup、`{placeholder}` 插值、locale resolution chain (`KARMA_LOCALE` env > `config.yaml` `locale` 字段 > `is_chinese_user()` 自动检测 > `en` fallback)、缺 key fail-open；5 个 hook 注入路径 (`rule.py format_for_injection` / `post_tool_use` / `stop` / `user_prompt_submit` / `subagent_start`) 全部从写死中文切到 `tr()` lookup
+- ✅ **阶段 D 完成** (v0.5.3 + v0.5.4) — 28 处 check `suggested_fix` 全 i18n 化 (v0.5.3)；28 处 `CheckHit.trigger` audit log 标签也 i18n 化 (v0.5.4)；v0.5.7 加 locale-agnostic `trigger_key` 字段让 `karma audit` 跨 locale 切换稳定分组
 
 > **用户原话**：
 > 1. 个性化规则高优好度录入和生效，建议直接做成 `/karma rule XXX` 命令。Agent 自动根据 karma 要求将用户自然语言深度优化成 karma 验证过的语气、内容和结构，并测试通过后写入规则文件。**将整个 karma 所有代码和文件的 sticky 字样改成 rule**。
