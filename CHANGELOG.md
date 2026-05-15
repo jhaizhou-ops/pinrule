@@ -4,6 +4,32 @@
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-15（**major breaking change** — sticky → rule 全代码库改名）
+
+> **用户原话**：「将整个 karma 所有代码和文件的 sticky 字样改成 rule」+
+> 「直接做成 `/karma rule XXX` 的命令」+「希望支持其他主要语言」
+
+阶段 A 完成：sticky → rule 改名 + 向后兼容 migration。阶段 B / C / D
+（自然语言录入 + i18n）在后续 release。
+
+### 改动总览
+
+- **核心类**：`class Sticky` → `class Rule`，`StickyConfigError` → `RuleConfigError`，`MAX_STICKY` → `MAX_RULES`（全部保留 alias 兼容到 v0.6.0）
+- **模块**：`karma/sticky.py` → `karma/rule.py`（git mv 保留 history），老 `karma/sticky.py` 改成 compat shim 含 DeprecationWarning
+- **字段**：`Violation.sticky_id` → `Violation.rule_id`（property `sticky_id` alias 保留），`CheckHit.sticky_id` → `CheckHit.rule_id`
+- **CLI**：`karma sticky list/edit/remove` → `karma rule list/edit/remove`，老 `karma sticky` 作为 deprecated alias
+- **配置文件**：`~/.claude/karma/sticky.yaml` → `~/.claude/karma/rules.yaml`，老用户跑 `karma init` 自动迁移 + backup 为 `sticky.yaml.bak`
+- **data 模板**：`data/sticky.dev.example.yaml` → `data/rules.dev.example.yaml`（minimal 同），pyproject.toml force-include 路径同步
+
+### 向后兼容（v0.5.x 保留，v0.6.0 移除）
+
+老用户无缝升级 — 所有老 API / 老 import / 老配置都仍工作：
+
+- `from karma.sticky import Sticky / StickyConfigError / MAX_STICKY` 仍工作（DeprecationWarning 提示迁移）
+- `karma sticky list` 仍跑（同样输出 + DeprecationWarning）
+- `~/.claude/karma/sticky.yaml` 仍可读（karma.rule.DEFAULT_PATH fallback 找到）
+- `violations.jsonl` 老 `sticky_id` 字段读取兼容（写入新行用 `rule_id`）
+
 ### docs
 
 - **README v5 用户驱动深度优化**（2026-05-15 仓库公开后第二轮，作者亲自给 12 个具体调整方向）— 真实用户视角落地：
