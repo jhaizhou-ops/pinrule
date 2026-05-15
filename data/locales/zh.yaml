@@ -44,3 +44,31 @@ violation.keyword.stderr.line: "⚠️ karma: Agent 触发关键词 {rule_id!r} 
 # ===== 桌面通知 =====
 notify.violation.title: "karma 检测违反"
 notify.escalated.title: "🚨 karma 严重 — 累积违反 {count} 条"
+
+# ===== 8 个 check 函数 suggested_fix (v0.5.3) =====
+
+# chinese_plain (3 处) — 中文用户规则, 英文 default 装机时移除
+check.chinese_plain.ratio.fix: "本段读起来用户可能要停下查几次「这词什么意思」。看看哪些英文是「项目名 / 论文术语」（这种保留 + 首现加中文解释），哪些是「随手用了英文」（换成精度 / 召回率 / 分发器 等汉字）。目标不是中文凑比例，是让用户读完不用查词。"
+check.chinese_plain.jargon.fix: "「{term}」用户可能要停下想「这是什么」。如果是项目名 / 论文术语 / 标准接口名（必须保留），首次出现配中文短解释（如 `precision (精度)`）让他能跟上；如果只是随手英文，直接换「精度 / 召回率」等汉字会让他读起来更顺。"
+check.chinese_plain.repeated_prefix.fix: "「{prefix}X」前缀重复堆叠让表达显得在自证而非自然 — 用户读起来觉得你紧张。sticky #4「证据」要的是数据 / 测试通过 / 截图 / 复现脚本，不是前缀强调词。下次试试去掉前缀让句子更直接。"
+
+# non_blocking (4 处)
+check.non_blocking.python_block.fix: "python -c 内 time.sleep / subprocess sleep 期间用户等你输出，体验是「卡了」。改 run_in_background=True 启动 / asyncio + 并发，然后立刻推进下一件能做的事 — 任务完成会通知到你。"
+check.non_blocking.sleep.fix: "sleep 期间用户等你输出，体验是「卡了」。改成 run_in_background=True 启动任务，然后立刻推进下一件能做的（读相关文件 / 起另一个子 Agent / 设计下一步）— 任务完成你会被通知到。等条件成立用 Monitor + until 循环。"
+check.non_blocking.wait.fix: "wait 期间用户等你输出，体验是「卡了」。改 run_in_background=True，然后立刻推进下一件能做的事 — 任务完成会通知到你。（kubectl/docker/aws wait 等同步原语已豁免）"
+check.non_blocking.long_task.fix: "{cmd} 是长任务，跑期间用户等你的输出。加 run_in_background=True 让你能立刻推进其他事，任务完成会通知到你。"
+
+# evidence (3 处)
+check.evidence.commit.fix: "commit 是给用户的信号「这个版本可信」。跑测试（pytest / npm test 等）确认通过再 commit，让他看到 commit 时不用担心。"
+check.evidence.completion.fix: "说「完成」时附测试证据 — 跑 pytest / build 看到 PASS 的数字让用户能直接信任结果，比空口「完成」更建立信任。"
+check.evidence.weak_claim.fix: "「应该 / 可能」让用户分不清你是查过还是猜的。如果你真不确定，明说「我不确定 X 因为 Y，可以跑 Z 验证下吗」— 这比错装确定更建立信任。如果是确定的就直说，去掉「应该」让信息清晰。"
+
+# keep_pushing (2 处)
+check.keep_pushing.stop_hint.fix: "用户是全权委托型 — 他期待你自主推进，不需要等他每步反馈。如果你是任务真饱和 / 方向有分歧 / 等他拍板的合理停下，明说卡在哪一步让他知道；否则接着推进就好。"
+check.keep_pushing.default.fix: "用户是全权委托型 — 完成一波后他期待你立刻找下个推进点继续，不要默默停下等他反馈。如果有方向需要他判断就明确问出来；如果是任务真饱和合理停下，明说卡在哪一步让他知道。"
+
+# read_first (1 处)
+check.read_first.fix: "先 Read {file_path} 看现有内容 / 上游调用者 / 相关约定 — 花 2 分钟避免改坏 30 分钟才发现的连锁 bug。看清耦合再下手用户会更放心。"
+
+# bypass_karma (1 处)
+check.bypass_karma.fix: "手动改 karma 内部状态等于给用户演戏 — 短期通过但他会发现，信任会受损。如果 karma 拦得不对，深挖根因（pattern 过宽就收紧 / catchup race / hook 协议 bug）— 这样下次别人遇到同场景也不会被拦了。如果真要绕，明说「我打算绕开检测 因为 X」让用户决定，不要默默绕。"

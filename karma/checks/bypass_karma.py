@@ -22,6 +22,7 @@ import re
 
 from karma.checks._types import CheckHit
 from karma.checks.common import strip_shell_quoted_literals
+from karma.i18n import tr
 
 _STICKY_ID = "deep-fix-not-bypass"
 
@@ -122,10 +123,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             rule_id=_STICKY_ID,
             trigger=f"绕开检测 — 手动写 karma 内部状态 ({trigger_text!r})",
             snippet=cmd_raw[:200],
-            suggested_fix="手动改 karma 内部状态等于给用户演戏 — 短期通过但他会发现，"
-                          "信任会受损。如果 karma 拦得不对，深挖根因（pattern 过宽就收紧 / "
-                          "catchup race / hook 协议 bug）— 这样下次别人遇到同场景也不会被拦了。"
-                          "如果真要绕，明说「我打算绕开检测 因为 X」让用户决定，不要默默绕。",
+            suggested_fix=tr("check.bypass_karma.fix"),
         )
 
     return None

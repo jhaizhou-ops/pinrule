@@ -44,3 +44,31 @@ violation.keyword.stderr.line: "⚠️ karma: Agent triggered keyword for {rule_
 # ===== Notifications =====
 notify.violation.title: "karma detected violation"
 notify.escalated.title: "🚨 karma severe — {count} cumulative violations"
+
+# ===== 8 check functions suggested_fix (v0.5.3) =====
+
+# chinese_plain (3 entries) — Chinese-user rule, English-default install removes it
+check.chinese_plain.ratio.fix: "Reading this section, the user may need to pause and look up several words. See which English are 'project names / paper terms' (keep these + add Chinese explanation on first occurrence), which are 'casually used English' (switch to 精度 / 召回率 / 分发器 etc. Chinese). Goal isn't padding Chinese ratio — it's letting the user finish reading without word-lookup."
+check.chinese_plain.jargon.fix: "'{term}' makes the user pause to think 'what's this?'. If it's a project name / paper term / standard interface name (must keep), add a Chinese short explanation on first occurrence (e.g. `precision (精度)`); if it's casually-used English, switch directly to '精度 / 召回率' etc."
+check.chinese_plain.repeated_prefix.fix: "Repeated '{prefix}X' prefix stacking makes expression feel self-justifying rather than natural — user reads it as nervous. Rule #4 'evidence' wants data / test-pass / screenshots / reproduction scripts — not prefix-emphasis words. Next time try removing the prefix for more direct sentences."
+
+# non_blocking (4 entries)
+check.non_blocking.python_block.fix: "python -c with time.sleep / subprocess sleep periods make the user wait; experience is 'stuck.' Switch to run_in_background=True / asyncio + concurrency, then immediately push the next doable thing — task completion will notify you."
+check.non_blocking.sleep.fix: "sleep periods make the user wait; experience is 'stuck.' Switch to run_in_background=True kicking off the task, then immediately push the next doable thing (read related files / spawn another sub-agent / design next step) — task completion will notify you. For wait-on-condition, use Monitor + until loop."
+check.non_blocking.wait.fix: "wait periods make the user wait; experience is 'stuck.' Switch to run_in_background=True, then immediately push the next doable thing — task completion will notify you. (kubectl/docker/aws wait etc. synchronous primitives are exempt.)"
+check.non_blocking.long_task.fix: "{cmd} is a long task; user waits for your output during it. Add run_in_background=True so you can immediately push other things; task completion notifies you."
+
+# evidence (3 entries)
+check.evidence.commit.fix: "commit is a signal to the user 'this version is reliable.' Run tests (pytest / npm test etc.) confirming passing before commit, so they don't have to worry seeing the commit."
+check.evidence.completion.fix: "When you say 'done,' attach test evidence — running pytest / build seeing PASS numbers makes the user directly trust results, more credible than empty 'done.'"
+check.evidence.weak_claim.fix: "'should / probably' leaves the user uncertain whether you checked or guessed. If you're truly unsure, say 'I'm not sure X because Y, can I run Z to verify?' — this builds more trust than fake-confident. If you're certain, just say it; remove 'should' for clarity."
+
+# keep_pushing (2 entries)
+check.keep_pushing.stop_hint.fix: "The user is fully-delegating — they expect you to autonomously continue, not wait for their feedback every step. If you're saturated / disagree on direction / waiting for their decision (reasonable stop), say where you're stuck so they know; otherwise just keep pushing."
+check.keep_pushing.default.fix: "The user is fully-delegating — after finishing a wave, they expect you to immediately find the next push point and continue, not silently stop and wait for feedback. If you need their judgment, ask clearly; if truly saturated (reasonable stop), say where you're stuck so they know."
+
+# read_first (1 entry)
+check.read_first.fix: "First Read {file_path} to see existing content / upstream callers / existing conventions — spend 2 minutes to avoid the 30-minute-later-discovered cascading bug. Seeing the coupling before changing makes the user more comfortable."
+
+# bypass_karma (1 entry)
+check.bypass_karma.fix: "Manually modifying karma internal state is performing for the user — short-term passing but they'll find out, trust suffers. If karma blocks incorrectly, dig into root cause (pattern too wide → tighten / catchup race / hook protocol bug) — this way the next person hitting the same scenario won't be blocked the same way. If you really need to bypass, explicitly say 'I plan to bypass because X' and let the user decide; don't silently bypass."

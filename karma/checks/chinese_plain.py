@@ -20,6 +20,7 @@ from karma.checks.common import (
     strip_code_blocks,
     total_visible_char_count,
 )
+from karma.i18n import tr
 
 _STICKY_ID = "chinese-plain-no-jargon"
 
@@ -142,10 +143,7 @@ def check(*, response: str = "", **_):
                 rule_id=_STICKY_ID,
                 trigger=f"自然语言中文占比 {ratio*100:.0f}% < {_MIN_CHINESE_RATIO*100:.0f}%",
                 snippet=natural_for_ratio[:150],
-                suggested_fix="本段读起来用户可能要停下查几次「这词什么意思」。看看哪些英文是"
-                              "「项目名 / 论文术语」（这种保留 + 首现加中文解释），哪些是"
-                              "「随手用了英文」（换成精度 / 召回率 / 分发器 等汉字）。"
-                              "目标不是中文凑比例，是让用户读完不用查词。",
+                suggested_fix=tr("check.chinese_plain.ratio.fix"),
             )
 
     # === Check 2: 术语命中且后续无「括号内中文解释」 ===
@@ -189,10 +187,7 @@ def check(*, response: str = "", **_):
             rule_id=_STICKY_ID,
             trigger=f"术语 {m.group()!r} 后无括号内中文解释",
             snippet=jargon_scan_text[max(0, m.start() - 20): m.end() + _JARGON_CONTEXT_RADIUS],
-            suggested_fix=f"「{m.group()}」用户可能要停下想「这是什么」。如果是项目名 / 论文术语 / "
-                          f"标准接口名（必须保留），首次出现配中文短解释（如 "
-                          f"`precision (精度)`）让他能跟上；如果只是随手英文，直接换"
-                          f"「精度 / 召回率」等汉字会让他读起来更顺。",
+            suggested_fix=tr("check.chinese_plain.jargon.fix", term=m.group()),
         )
 
     # === Check 3: 同前缀重复防御性自证（v0.4.40 治理「真字狂魔」副作用）===
@@ -233,10 +228,6 @@ def _check_repeated_prefix(text: str):
                 rule_id=_STICKY_ID,
                 trigger=f"前缀字 {prefix!r} 重复 {count} 次（疑似防御性堆叠）",
                 snippet=f"「{prefix}」字在本 response 出现 {count} 次开头位置",
-                suggested_fix=(
-                    f"「{prefix}X」前缀重复堆叠让表达显得在自证而非自然 — 用户读起来"
-                    f"觉得你紧张。sticky #4「证据」要的是数据 / 测试通过 / 截图 / "
-                    f"复现脚本，不是前缀强调词。下次试试去掉前缀让句子更直接。"
-                ),
+                suggested_fix=tr("check.chinese_plain.repeated_prefix.fix", prefix=prefix),
             )
     return None

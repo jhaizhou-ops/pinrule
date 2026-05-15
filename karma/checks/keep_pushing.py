@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 
 from karma.checks._types import CheckHit
+from karma.i18n import tr
 
 _STICKY_ID = "keep-pushing-no-stop"
 
@@ -163,9 +164,7 @@ def check(*, response: str = "", user_prompt: str = "", **_):
             trigger=f"response 末尾含停顿语气 {m_stop.group()!r} — 明确表达暂停",
             snippet=tail[:200],
             # v0.4.26 反思式语气改造：尊重 Agent 自主判断，不激发对抗
-            suggested_fix="用户是全权委托型 — 他期待你自主推进，不需要等他每步反馈。"
-                          "如果你是任务真饱和 / 方向有分歧 / 等他拍板的合理停下，"
-                          "明说卡在哪一步让他知道；否则接着推进就好。",
+            suggested_fix=tr("check.keep_pushing.stop_hint.fix"),
         )
 
     # 豁免 3（晚于停顿词检测）：成功汇报（数字证据 + 通过词）— 跟 sticky #4
@@ -181,7 +180,5 @@ def check(*, response: str = "", user_prompt: str = "", **_):
         trigger="response 纯陈述完结，无推进信号 / 无询问决策 — 真停下，没下一步计划",
         snippet=tail[:200],
         # v0.4.26 反思式语气：尊重 Agent 自主判断
-        suggested_fix="用户是全权委托型 — 完成一波后他期待你立刻找下个推进点继续，"
-                      "不要默默停下等他反馈。如果有方向需要他判断就明确问出来；"
-                      "如果是任务真饱和合理停下，明说卡在哪一步让他知道。",
+        suggested_fix=tr("check.keep_pushing.default.fix"),
     )
