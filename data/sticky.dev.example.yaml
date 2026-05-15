@@ -74,9 +74,11 @@
     用直白中文。不用英文技术术语（precision / supervisor / dispatcher / mutex 等）。
     用「精度 / 召回率 / 分发器 / 互斥锁」等完整汉字。
     必须用英文专有名词时短解释一下。用类比解释复杂概念，不堆 jargon。
-  violation_keywords: []  # 全靠工程检测，jargon 列表在 karma/checks/chinese_plain.py
-  violation_checks:
-    - chinese_plain_no_jargon
+  # 默认工程监督层撤掉 — 容易执行 + 犯错代价小，靠 user_prompt_submit 头部注入提醒
+  # 频率够用。要恢复工程检查就加回 violation_checks: [chinese_plain_no_jargon]
+  # check 代码 karma/checks/chinese_plain.py + REGISTRY 注册保留供恢复
+  violation_keywords: []
+  violation_checks: []
 
 - id: loud-failure-with-evidence
   preference: |

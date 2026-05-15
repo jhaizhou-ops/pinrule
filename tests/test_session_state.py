@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from karma.session_state import SessionState, load, save
+from karma.session_state import SessionState, get_current_session_id, load, save
 
 
 def test_round_trip(tmp_path):
@@ -319,3 +319,42 @@ def test_session_id_with_unsafe_chars(tmp_path):
     # 加载用同样 id 应该能拿到
     loaded = load("/var/some/path with spaces", base_dir=tmp_path)
     assert loaded.read_files == {"/tmp/a"}
+
+
+def test_get_current_session_id_empty_dir(tmp_path):
+    """目录不存在 / 空 → 返回 None。"""
+    assert get_current_session_id(base_dir=tmp_path / "nonexistent") is None
+    (tmp_path / "empty").mkdir()
+    assert get_current_session_id(base_dir=tmp_path / "empty") is None
+
+
+def test_get_current_session_id_picks_latest_mtime(tmp_path):
+    """多个 session 文件 → 选最新 mtime 的 session_id。"""
+    import os
+    save(SessionState(session_id="old-session"), base_dir=tmp_path)
+    save(SessionState(session_id="new-session"), base_dir=tmp_path)
+    # 显式给 old 文件设置更早 mtime（避免文件系统精度问题）
+    old_path = tmp_path / "old-session.json"
+    new_path = tmp_path / "new-session.json"
+    os.utime(old_path, (1000, 1000))
+    os.utime(new_path, (2000, 2000))
+    assert get_current_session_id(base_dir=tmp_path) == "new-session"
+
+
+def test_get_current_session_id_excludes_subagent(tmp_path):
+    """子 Agent state 文件名含 `__<agent_id>` 后缀 → 不算「当前活跃 session」。
+
+    避免子 Agent state 比主 Agent 后写入时混淆。stats / audit / doctor 看的是
+    主 Agent session 视角。
+    """
+    import os
+    save(SessionState(session_id="main-session"), base_dir=tmp_path)
+    save(
+        SessionState(session_id="main-session", agent_id="sub-1"),
+        base_dir=tmp_path,
+    )
+    # 让子 Agent state 更晚写入
+    os.utime(tmp_path / "main-session.json", (1000, 1000))
+    os.utime(tmp_path / "main-session__sub-1.json", (2000, 2000))
+    # 仍然返回主 Agent session
+    assert get_current_session_id(base_dir=tmp_path) == "main-session"

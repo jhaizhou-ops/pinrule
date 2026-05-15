@@ -338,6 +338,32 @@ def load(session_id: str, base_dir: Path | None = None, agent_id: str | None = N
     return state
 
 
+def get_current_session_id(base_dir: Path | None = None) -> str | None:
+    """从 session-state 目录读最新 mtime 文件的 session_id，作为「当前活跃 session」。
+
+    比从 violations.jsonl 推「最后一条违反所在 session」更权威 — 当前 session
+    可能完全没产生违反，但 session-state 文件每 turn 都写入，mtime 总是最新。
+
+    排除子 Agent state（文件名含 `__<agent_id>` 后缀），只取主 Agent session。
+
+    base_dir 不存在 / 目录为空 / OSError → 返回 None（调用方按需 fallback）。
+    """
+    base = base_dir or DEFAULT_DIR
+    if not base.exists():
+        return None
+    try:
+        files = [p for p in base.glob("*.json") if "__" not in p.stem]
+    except OSError:
+        return None
+    if not files:
+        return None
+    try:
+        latest = max(files, key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return None
+    return latest.stem
+
+
 def purge_subagent_state(session_id: str, agent_id: str, base_dir: Path | None = None) -> bool:
     """SubagentStop 时销毁子 Agent 临时 state（v0.4.34 子 Agent 独立架构）。
 

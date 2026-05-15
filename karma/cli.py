@@ -298,7 +298,10 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
             print()
 
     # 本 session 漂移近况（最近 N turn 内每条 sticky 累积次数）
-    current_session = violations[-1].session_id
+    # 权威 source = session-state 目录最新 mtime 文件（不依赖 violations[-1] 推 — 当前
+    # session 可能没产生违反，但仍是当前活跃 session）
+    from karma.session_state import get_current_session_id
+    current_session = get_current_session_id() or violations[-1].session_id
     current_turn = max((v.turn for v in violations if v.session_id == current_session), default=0)
     if current_turn > 0:
         turns_window = 10
@@ -307,13 +310,20 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
             v.sticky_id for v in violations
             if v.session_id == current_session and v.turn >= cutoff and v.turn > 0
         )
+        sid_prefix = current_session[:8] if current_session else "?"
         if recent:
-            print(f"=== 本 session 最近 {turns_window} turn 漂移近况（当前 turn={current_turn}）===")
+            print(
+                f"=== 本 session={sid_prefix}... 最近 {turns_window} turn 漂移近况"
+                f"（当前 turn={current_turn}）==="
+            )
             for sid, n in recent.most_common():
                 hot = " 🔥 高频" if n >= 3 else ""
                 print(f"  {n:>3}× {sid}{hot}")
         else:
-            print(f"=== 本 session 最近 {turns_window} turn 无违反 ✓ (当前 turn={current_turn}) ===")
+            print(
+                f"=== 本 session={sid_prefix}... 最近 {turns_window} turn 无违反 ✓ "
+                f"(当前 turn={current_turn}) ==="
+            )
         print()
 
     # 自动改进建议（基于假阳分析）
@@ -353,42 +363,54 @@ def cmd_stats() -> int:
         if v.ts > last_ts.get(v.sticky_id, 0):
             last_ts[v.sticky_id] = v.ts
 
-    # 本 session 最近 N turn 维度（Agent 漂移视角）— 取最新 session_id 当前 turn
-    # 简化：取 violations.jsonl 里最近一条的 session_id 当「当前 session」
-    current_session = violations[-1].session_id if violations else ""
+    # 本 session 维度 — 权威 source 是 session-state 目录最新 mtime 文件
+    # （不再用 violations[-1].session_id 推，避免本 session 没产生违反时拉上 session 数据）
+    from karma.session_state import get_current_session_id
+    current_session = get_current_session_id() or (
+        violations[-1].session_id if violations else ""
+    )
     current_turn = max((v.turn for v in violations if v.session_id == current_session), default=0)
     turns_window = 5
     cutoff_turn = current_turn - turns_window
+    current_session_count = Counter(
+        v.sticky_id for v in violations if v.session_id == current_session
+    )
     recent_turns_count = Counter(
         v.sticky_id for v in violations
         if v.session_id == current_session and v.turn >= cutoff_turn and v.turn > 0
     )
+    historical_count = Counter(
+        v.sticky_id for v in violations if v.session_id != current_session
+    )
 
     print(f"karma 违反统计 (总 {len(violations)} 条):")
-    if current_turn > 0:
+    if current_session:
         # 顺便显示本 session stop_block_count（Stop hook 干预次数）
         from karma import session_state as ss
         try:
             state = ss.load(current_session)
             if state.stop_block_count > 0:
                 print(
-                    f"本 session 当前 turn={current_turn}，Stop hook 已干预 {state.stop_block_count} 次"
-                    f"（keep-pushing 不主动停）"
+                    f"本 session={current_session[:8]}... turn={current_turn}，"
+                    f"Stop hook 已干预 {state.stop_block_count} 次（keep-pushing 不主动停）"
                 )
             else:
-                print(f"本 session 当前 turn={current_turn}")
+                print(f"本 session={current_session[:8]}... turn={current_turn}")
         except Exception:
-            print(f"本 session 当前 turn={current_turn}")
-        print(f"「最近 {turns_window} turn」列代表 Agent 注意力漂移近况\n")
+            print(f"本 session={current_session[:8]}... turn={current_turn}")
+        print("「本 ses」=本 session 累积，「历史」=其他 session 累积，分开方便对照\n")
     else:
         print()
-    print(f"{'sticky_id':<35} {'总':>6} {'7d':>6} {'最近 ' + str(turns_window) + ' turn':>14} {'最近违反':>20}")
-    print("-" * 84)
+    print(
+        f"{'sticky_id':<35} {'本 ses':>7} {'历史':>6} "
+        f"{'7d':>6} {'最近 ' + str(turns_window) + ' turn':>14} {'最近违反':>20}"
+    )
+    print("-" * 92)
     for sid, n in total.most_common():
         recent_str = datetime.fromtimestamp(last_ts.get(sid, 0)).strftime("%m-%d %H:%M")
         print(
-            f"{sid:<35} {n:>6} {week.get(sid, 0):>6} "
-            f"{recent_turns_count.get(sid, 0):>14} {recent_str:>20}"
+            f"{sid:<35} {current_session_count.get(sid, 0):>7} {historical_count.get(sid, 0):>6} "
+            f"{week.get(sid, 0):>6} {recent_turns_count.get(sid, 0):>14} {recent_str:>20}"
         )
     # 未触发的 sticky 显示 ✓ 让作者看到正面证据（哪些规则没违反）
     try:
@@ -507,14 +529,16 @@ def cmd_doctor() -> int:
         print(f"    {k}: {v}")
 
     # 显示活跃 session 简况（turn / stop_block 状态）
+    # 权威 source = session-state 目录最新 mtime 文件，不依赖 violations[-1]
+    # （当前 session 可能没产生违反但仍是活跃 session）
     from karma import session_state as _ss
     from karma.violations import load_all as _load_v
     all_v = _load_v()
-    if all_v:
-        active_session = all_v[-1].session_id
+    active_session = _ss.get_current_session_id() or (all_v[-1].session_id if all_v else None)
+    if active_session:
         try:
             state = _ss.load(active_session)
-            print(f"  最近活跃 session: {active_session}")
+            print(f"  当前活跃 session: {active_session}")
             print(f"    turn={state.turn_count}, stop_block={state.stop_block_count}, "
                   f"read={len(state.read_files)} files, edit={len(state.edit_files)} files")
         except Exception:

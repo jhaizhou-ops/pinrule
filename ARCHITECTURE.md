@@ -117,7 +117,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
   → 跑所有 sticky 的 violation_checks → 命中的违反 + suggested_fix 注入「强提醒」段
   覆盖 keep-pushing / chinese-plain / evidence 等所有 response 类 check
   这是「Stop hook 在 user 立刻接 prompt 时不一定跑」场景的事后兜底
-  （Stop hook 装机正确时实战会跑 — matcher fix 后 trace 已实证 5 条真 session 触发）
+  （Stop hook 装机正确时实战会跑 — matcher fix 后 trace 已实证 5 条实际 session 触发）
 
 性能：< 50ms。
 
@@ -169,7 +169,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 
 性能：< 30ms。
 
-### Stop hook（response 扫违反 + 真干预）
+### Stop hook（response 扫违反 + 实时干预）
 
 时机：Agent 响应完成（这条 turn 结束）。
 
@@ -183,8 +183,8 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 2. 扫 violation_keywords 关键词层 + 工程层 violation_checks（chinese_plain / evidence / keep_pushing 主要在这层）
 3. 命中违反写 `violations.jsonl` + stderr 通知 + 桌面通知 + 累积告警
 4. **keep-pushing-no-stop 命中 → 输出 `{"decision": "block", "reason": "..."}`** 让 Agent
-   不真停下继续生成（真干预 sticky #7「不主动停」）。Safeguard：单 turn 内累积 block ≥ N
-   次（config `stop_block_max_per_turn` 默认 3）后放 Agent 真停，防死循环
+   不立即停下继续生成（干预 sticky #7「不主动停」）。Safeguard：单 turn 内累积 block ≥ N
+   次（config `stop_block_max_per_turn` 默认 2）后让 Agent 停下，防死循环
 5. 否则输出 `additionalContext` 给下次 UserPromptSubmit 看
 
 性能：< 200ms。
@@ -192,7 +192,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 **⚠️ Stop hook 配置注意**：Stop / SessionStart / SessionEnd 等 event **不支持
 `matcher` 字段** — Claude Code 看到 matcher 会无声忽略整个 hook entry。
 `karma install-hooks` 已修：Stop entry 不加 matcher，PreToolUse/PostToolUse/
-UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 真实 session 0 条，
+UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 实际 session 0 条，
 先检查 `~/.claude/settings.json` 的 Stop entry 是否含 matcher 字段。
 
 ## 8 个 violation_check 函数（工程层精准检测）
@@ -201,7 +201,7 @@ UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 真实 sessio
 
 | check 名 | sticky | 检测内容 |
 |---|---|---|
-| `long_term_fundamental` | 长期方案 | 长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 真注释 / 意图字面注释 / commit message 主语 hack 词 |
+| `long_term_fundamental` | 长期方案 | 长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 实际注释 / 意图字面注释 / commit message 主语 hack 词 |
 | `non_blocking_parallel` | 不阻塞 | sleep / wait / 长任务无 background / 间接 shell 执行 |
 | `chinese_plain_no_jargon` | 中文 | 中文占比（分母剥含点号工程标识符 / 路径字面 / commit message 引号块）+ jargon 检测（剥 code block / inline code）+ 同前缀字 ≥ 5 次/response 触发自审（白名单豁免一/不/是/有/没/我/你/他/这/那/在）|
 | `loud_failure_with_evidence` | 完成证据 | 完成词 / weak claim 在代码任务上下文 + 无测试证据 |
@@ -277,7 +277,7 @@ karma doctor                     # 检查环境 + 全部 hook 安装状态（Cla
 | `escalate_window_turns` | `3` | 累积告警窗口（按 turn 距离） |
 | `escalate_threshold` | `3` | 累积告警次数阈值 — 窗口内同 sticky 命中 ≥ N 次升级 🚨 严重通知 |
 | `stop_block_max_per_turn` | `2` | Stop hook 单 turn 内 `decision=block` 上限（防 keep-pushing 干预死循环）。`0` 完全关闭干预 |
-| `force_block_threshold` | `5` | 累积强制 block 阈值 — 同 sticky 窗口内违反 ≥ N 次 Stop hook 输出 `decision=block` 强制 fix 真根因。`0` 完全关闭。可在 sticky.yaml 单条规则用 `force_block_exempt: true` 豁免 |
+| `force_block_threshold` | `5` | 累积强制 block 阈值 — 同 sticky 窗口内违反 ≥ N 次 Stop hook 输出 `decision=block` 强制 fix 根因。`0` 完全关闭。可在 sticky.yaml 单条规则用 `force_block_exempt: true` 豁免 |
 | `violations_max_lines` | `5000` | `violations.jsonl` 行数上限触发 rotation |
 | `violations_keep_history` | `3` | rotation 保留几个历史 `.jsonl.{N}` |
 | `session_state_max_age_days` | `30` | `session-state/*.json` 自动清理周期（天） |
@@ -290,7 +290,7 @@ karma doctor                     # 检查环境 + 全部 hook 安装状态（Cla
 - `KARMA_NO_NOTIFY=1` — 关桌面通知（CI / 静音场景）
 - `KARMA_DEBUG=1` — `run_checks` 函数抛异常时 stderr 打 traceback（调试自定义 check）
 - `KARMA_DEBUG_TRACE=<path>` — Stop hook 触发时 append 一行 trace 到指定文件
-  （验证 Stop hook 是否真触发，production 默认完全关）
+  （验证 Stop hook 是否实际触发，production 默认完全关）
 
 ## 状态目录路径（`KARMA_HOME` 环境变量）
 

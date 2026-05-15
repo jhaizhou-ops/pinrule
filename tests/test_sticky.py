@@ -101,8 +101,13 @@ def test_load_real_example() -> None:
         "read-before-write",
     }
     assert ids == expected
-    # 每条都有对应 violation_checks
+    # 每条原则上都有对应 violation_checks，例外见下
+    # chinese-plain-no-jargon (2026-05-15) 工程监督层用户授权撤掉 —
+    # 保留 preference 文本提醒，不强制工程检测（容易执行 + 犯错代价小）
+    soft_only = {"chinese-plain-no-jargon"}
     for s in sticky:
+        if s.id in soft_only:
+            continue
         assert s.violation_checks, f"{s.id} 缺 violation_checks"
 
 

@@ -93,7 +93,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 两层检测：
 - **关键词层**：扫 Bash command + Write/Edit 注释行 + Stop hook 看 Agent response 含违反字眼
 - **工程层（M2+ 加强）**：8 个 violation_check 函数针对每条 sticky 做精确 regex 检测
-  - long_term_fundamental：长 hash if 分支 / 黑白名单字面 / TODO 真注释 / 意图字面注释 / 全大写常量名单
+  - long_term_fundamental：长 hash if 分支 / 黑白名单字面 / TODO 实际注释 / 意图字面注释 / 全大写常量名单
   - non_blocking_parallel：sleep / wait / 长任务无 background / 间接 shell 执行
   - chinese_plain_no_jargon：中文占比 + jargon 检测（剥 code block + inline code）
   - loud_failure_with_evidence：完成词 / weak claim 在代码任务上下文 + 无测试证据
@@ -134,7 +134,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 
 ## 验证标准（v0）
 
-karma v0 不追求精度数字 — 追求 **作者自用是否真感觉到「Agent 在长任务中少犯方向错」**。
+karma v0 不追求精度数字 — 追求 **作者自用是否确实感觉到「Agent 在长任务中少犯方向错」**。
 
 观察指标：
 1. **长任务中违反触发频次** — 装 karma 前 vs 后对比
@@ -181,7 +181,7 @@ karma = **通用 hook 框架** + **场景规则集**。
 
 ## 后续可能（v1+）
 
-如果 v0 验证 karma 真的有用：
+如果 v0 验证 karma 确实有用：
 
 - **跨 IDE/平台**：Cursor / Windsurf / Codex 支持
 - **团队级 sticky**：团队共享一份核心方向（如 SWE 团队的代码风格）
