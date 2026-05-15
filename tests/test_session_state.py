@@ -522,13 +522,14 @@ def test_state_lock_acquire_and_release(tmp_path):
 
 
 def test_update_state_concurrent_no_lost_updates(tmp_path):
-    """**核心 race fix 验证** — 多进程并发 update_state 不丢更新。
+    """**core race fix 验证** — 多进程并发 update_state 不丢「写不同 key」更新。
 
     起 N=20 个子进程，每个往同 (session_id) 的 read_files 加自己唯一的 path。
-    全部跑完后 load state，验证 read_files 含全部 N 个 path（如果有 race
-    导致丢更新，最终 set 大小 < N）。
+    全部跑完后 load state，验证 read_files 含全部 N 个 path。
 
-    没 lock 时：N=20 + 短时间窗口几乎必丢；有 lock 时：永远 N=20。
+    这是「不丢更新」**最弱形式**：每个 worker 加不同 set member。即使有 race，
+    set union 顺道可能保了一些。`test_update_state_concurrent_counter_increment`
+    用 read-modify-write 同一字段验证 race fix 更彻底。
     """
     import subprocess
     import sys as _sys
@@ -578,4 +579,61 @@ update_state("concurrent_sess", _add_my_read, base_dir=base_dir)
     assert final_state.read_files == expected, (
         f"丢更新 race: expected {n_workers} paths, got {len(final_state.read_files)}"
         f"\n missing: {expected - final_state.read_files}"
+    )
+
+
+def test_update_state_concurrent_counter_increment(tmp_path):
+    """**race fix 试金石** — read-modify-write 同一字段不丢更新。
+
+    起 N=30 个子进程，每个 `state.turn_count += 1`（典型 read-modify-write）。
+    全部跑完 turn_count 必须是精确 30 — 不是 < 30（丢更新）也不是 > 30（脏写）。
+
+    这种 RMW 同字段模式是 race 真试金石：没 lock 时几乎一定丢，因为：
+    - 进程 A load (turn_count=0) → 改成 1 → save
+    - 进程 B 在 A 改 / save 之间 load (turn_count=0) → 改成 1 → save
+    - 两个 +1 操作只生效一次
+
+    有 fcntl.flock 时：load → modify → save 整段串行化 → 30 次 += 1 = 30。
+    """
+    import subprocess
+    import sys as _sys
+    from karma.session_state import load
+
+    n_workers = 30
+    worker_script = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from karma.session_state import update_state
+from pathlib import Path
+
+base_dir = Path(sys.argv[2])
+
+def _increment(state):
+    state.turn_count += 1
+
+update_state("counter_sess", _increment, base_dir=base_dir)
+"""
+
+    worker_path = tmp_path / "counter_worker.py"
+    worker_path.write_text(worker_script)
+
+    import karma
+    karma_pkg_dir = str(Path(karma.__file__).resolve().parent.parent)
+
+    procs = [
+        subprocess.Popen(
+            [_sys.executable, str(worker_path), karma_pkg_dir, str(tmp_path)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        for _ in range(n_workers)
+    ]
+
+    for p in procs:
+        p.wait(timeout=30)
+        assert p.returncode == 0, f"worker failed: {p.stderr.read().decode()}"
+
+    final_state = load("counter_sess", base_dir=tmp_path)
+    assert final_state.turn_count == n_workers, (
+        f"counter race: expected turn_count={n_workers}, got {final_state.turn_count}\n"
+        f"(读-改-写同字段 race 时，并发进程会读到相同旧值各自 += 1 → save 覆盖丢更新)"
     )
