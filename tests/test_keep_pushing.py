@@ -347,6 +347,45 @@ def test_v080_english_agent_saturation_exempts():
         assert result is None, f"英文 Agent 饱和声明 {resp!r} 应豁免: {result}"
 
 
+def test_v081_english_push_signal_exempts():
+    """v0.8.1 i18n 信号: 英文 Agent push signal 豁免反思 hook。
+
+    跟中文「我现在做 X / 接下来做 Y」对偶 — 英文 Agent 说「I'll fix X /
+    Next I'll proceed / Let me start Y / Moving on to Z」也应豁免，不应
+    被默认命中路径错判为静默停止。
+    """
+    fn = REGISTRY["keep_pushing_no_stop"]
+    english_push_responses = [
+        "Done with the audit. I'll start fixing the regex.",
+        "Tests pass. Next I'll commit and push.",
+        "Looking at the code now. Let me proceed with the refactor.",
+        "Phase 1 complete. Moving on to the next step.",
+        "I am going to fix the bug now.",
+        "Will continue with the v0.8.1 implementation.",
+        "Going to test the new loader.",
+    ]
+    for resp in english_push_responses:
+        result = fn(response=resp)
+        assert result is None, f"英文 push signal {resp!r} 应豁免: {result}"
+
+
+def test_v081_english_push_signal_pushback_still_caught():
+    """v0.8.1 对偶: 英文 Agent 即便有 push-shape phrase 但末尾推卸语气（不会有
+    具体英文 pushback tail like 「吧 / 行不」，但 Agent 用「maybe」「we'll see」
+    类不算真推进）仍应被 stop_hints 拦。验证英文不会因 push_signals union
+    过度豁免合理停顿场景。
+    """
+    fn = REGISTRY["keep_pushing_no_stop"]
+    # 这类 response 没有 push signal、有 stop hint，应命中 stop_hints
+    pushback_responses = [
+        "calling it here for tonight",  # stop_hints 命中
+        "that's all for today",         # stop_hints 命中
+    ]
+    for resp in pushback_responses:
+        result = fn(response=resp)
+        assert result is not None, f"英文软停顿 {resp!r} 应命中: {result}"
+
+
 def test_v056_next_push_point_phrasing_exempted():
     """v0.5.6: 「下一推进点 / 下一步是 / 接下来打算 / 下一波」类未来规划短语豁免.
 

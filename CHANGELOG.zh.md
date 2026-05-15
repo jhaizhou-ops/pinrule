@@ -6,6 +6,64 @@
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-15（feat — `push_signals` 用 YAML DSL i18n：cartesian 模板 + 词集 + 平面字眼，英文 Agent 推进信号识别）
+
+### v0.8.0 没收的尾
+
+v0.8.0 把 5 个 regex 信号搬到 `data/signals/<name>/{zh,en}.txt`，但故意没动 `_PUSH_SIGNAL_RE` — 它是 cartesian 结构（`我(现在|立刻|马上)\s*(做|改|加)…`），跟平面字眼列表对不上。英文 Agent 说「I'll start fixing」「Let me proceed」「Moving on to」仍走默认命中路径。
+
+### 方案 — YAML DSL：模板 + 词集 + 平面字眼
+
+```yaml
+# data/signals/push_signals/zh.yaml
+templates:
+  - "{subject}\\s*{verb}"      # 占位符 cartesian 模板
+subjects: [我, 我现在, 我立刻, 我马上, 我继续, ...]
+verbs: [做, 改, 加, 修, 跑, 开始, 实施, ...]
+phrases: [继续推进, 下一推进点, 接下来打算, ...]   # 不需 cartesian 的整句
+```
+
+`karma/signals.py` 加 `load_patterns()` + `_expand_yaml_signals()`：扫 yaml templates × cartesian 词集 + phrases，合并进 `compile_alternation()` 输出的单 regex。
+
+DSL 设计细节：
+- 模板占位符用单数（`{subject}`）读起来自然；yaml 字段名用复数（`subjects:`）— loader 自动单数 → 复数解析
+- `.yaml` 模板保持 **raw regex**（可含 `\s+` 等元字符）；`.txt` 字眼走 `re.escape`
+- 混合格式：一个 signal 目录可同时有 `.txt` + `.yaml`，`compile_alternation` 合并 union
+
+### 英文推进信号覆盖
+
+| 模式 | 现在识别的英文示例 |
+|---|---|
+| `{subject}\s+{verb}` | I'll fix / Next I'll start / Let me proceed / I am going to commit / Continuing to work on |
+| `phrases` | keep pushing / moving on to / on to the next / next step is / picking this up / heading to |
+
+总展开 = **1106 个 phrase**（中文 cartesian + 英文 cartesian + 平面字眼合并）。加新动词到 `verbs` 列表自动跟所有 `subjects` 组合 — 不用手工写排列。
+
+### 尾字过滤下沉到 `check()`
+
+历史 `(?!\s*[吧行])` negative lookahead（v0.4.22 — 排除「下次接手吧」类推卸）移出 regex，作为 `check()` 后处理 `_PUSHBACK_TAIL_RE`。YAML 保持简洁，check 函数做最后过滤。
+
+### 测试
+
+- `tests/test_signals.py` 加 6 个单元测试（cartesian 展开 / 单复数解析 / .txt + .yaml 混合 union / 字眼总数 > 500）
+- `tests/test_keep_pushing.py` 加 2 个英文推进测试
+- **452/452 通过**，`ruff` 干净
+
+### 完整状态
+
+全部 6 个检测信号都已 i18n 外部化：
+
+| 信号 | 格式 | 已支持语言 |
+|---|---|---|
+| `user_stop_hints` | `.txt` | zh, en |
+| `agent_saturation` | `.txt` | zh, en |
+| `stop_hints` | `.txt` | zh, en |
+| `explicit_handoff` | `.txt` | zh, en |
+| `weak_claims` | `.txt` | zh, en |
+| `push_signals` | `.yaml` | zh, en |
+
+加新语言（日 / 韩 / 德等）= 写 6 个小文件。零 Python 代码改动。
+
 ## [0.8.0] — 2026-05-15（feat — i18n 信号系统：检测字眼外部化，英文用户完整覆盖，加新语言只是提交一个 `.txt`）
 
 ### 为什么重要

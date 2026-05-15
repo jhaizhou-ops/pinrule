@@ -10,6 +10,64 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-15 (feat — `push_signals` i18n via YAML DSL: cartesian templates + word vocabularies, English Agent push phrases now recognized)
+
+### What was left over from v0.8.0
+
+v0.8.0 externalized 5 detection regexes to `data/signals/<name>/{zh,en}.txt`, but deliberately deferred `_PUSH_SIGNAL_RE` because its Cartesian structure (`我(现在|立刻|马上)\s*(做|改|加)…`) didn't fit flat phrase lists. English Agents saying "I'll start fixing" / "Let me proceed" / "Moving on to" were still hitting `keep_pushing` defaults.
+
+### Solution — YAML DSL: templates + word lists + flat phrases
+
+```yaml
+# data/signals/push_signals/zh.yaml
+templates:
+  - "{subject}\\s*{verb}"      # 占位符 cartesian 模板
+subjects: [我, 我现在, 我立刻, 我马上, 我继续, ...]
+verbs: [做, 改, 加, 修, 跑, 开始, 实施, ...]
+phrases: [继续推进, 下一推进点, 接下来打算, ...]   # 不需 cartesian 的整句
+```
+
+`karma/signals.py` 加 `load_patterns()` + `_expand_yaml_signals()`：扫 yaml templates × Cartesian 词集 + phrases，合并进 `compile_alternation()` 输出的单 regex。
+
+DSL niceties:
+- Template placeholders use singular (`{subject}`) for natural reading; YAML field names use plural (`subjects:`) — loader auto-resolves singular → plural
+- `.yaml` patterns kept as **raw regex** (templates can contain `\s+` etc.); `.txt` phrases get `re.escape`
+- Mixed format support: a signal directory can have both `.txt` and `.yaml`, `compile_alternation` unions them
+
+### English push signal coverage
+
+| Pattern | Examples (now recognized) |
+|---|---|
+| `{subject}\s+{verb}` | I'll fix / Next I'll start / Let me proceed / I am going to commit / Continuing to work on |
+| `phrases` | keep pushing / moving on to / on to the next / next step is / picking this up / heading to |
+
+Total expansion: **1106 phrases** (Chinese cartesian + English cartesian + non-cartesian phrases combined). Adding a new verb to the `verbs` list automatically combines with all `subjects` — no manual permutation.
+
+### Tail-filter offloaded to `check()`
+
+The historical `(?!\s*[吧行])` negative-lookahead (v0.4.22 — exclude "下次接手吧" type pushback) was moved out of the regex into `check()` post-processing as `_PUSHBACK_TAIL_RE`. YAML stays simple; check function does the last-mile filtering.
+
+### Tests
+
+- 6 new `test_signals.py` unit tests (cartesian expansion / singular→plural resolution / mixed .txt + .yaml union / >500 expanded phrases)
+- 2 new English push tests in `test_keep_pushing.py`
+- **452/452 passing**, `ruff` clean
+
+### What's complete now
+
+All 6 detection signals are i18n-externalized:
+
+| Signal | Format | Languages shipped |
+|---|---|---|
+| `user_stop_hints` | `.txt` | zh, en |
+| `agent_saturation` | `.txt` | zh, en |
+| `stop_hints` | `.txt` | zh, en |
+| `explicit_handoff` | `.txt` | zh, en |
+| `weak_claims` | `.txt` | zh, en |
+| `push_signals` | `.yaml` | zh, en |
+
+Adding a new language (Japanese, Korean, German, etc.) means writing 6 small files. Zero Python code change.
+
 ## [0.8.0] — 2026-05-15 (feat — i18n signals: detection phrases externalized, English users now fully covered, new languages contributable as a `.txt` file)
 
 ### Why this matters

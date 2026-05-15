@@ -138,3 +138,70 @@ def test_regex_compile_flags_ignorecase():
     """compile 默认 IGNORECASE flag — 英文大小写不区分。"""
     pat = compile_alternation("user_stop_hints")
     assert pat.flags & re.IGNORECASE
+
+
+# ===== v0.8.1: yaml loader cartesian 展开测试 =====
+
+
+def test_load_patterns_push_signals_yaml_cartesian():
+    """v0.8.1: push_signals/zh.yaml + en.yaml cartesian 展开成大量字眼。"""
+    from karma.signals import load_patterns
+    patterns = load_patterns("push_signals")
+    # 中文 templates × subjects × verbs + phrases 应该有几百个
+    # 英文 templates × subjects × verbs + phrases 又加一批
+    assert len(patterns) > 200, f"push_signals 展开应 > 200, 实际 {len(patterns)}"
+
+
+def test_load_patterns_push_signals_contains_chinese_cartesian():
+    """中文 cartesian 字眼应展开 — 「我现在 + 做」「我接下来 + 验证」等。"""
+    from karma.signals import load_patterns
+    patterns = load_patterns("push_signals")
+    # yaml 模板 `{subject}\s*{verb}` 展开后 raw pattern 形如「我现在\s*做」
+    # 因 yaml escape 处理，输出含字面 \s*
+    chinese_combos = [p for p in patterns if "我现在" in p or "我接下来" in p]
+    assert len(chinese_combos) >= 10, "应有多个「我现在 + 动词」展开 phrase"
+
+
+def test_load_patterns_push_signals_contains_english_cartesian():
+    """英文 cartesian 字眼应展开 — 「I'll + fix」「Next I'll + start」等。"""
+    from karma.signals import load_patterns
+    patterns = load_patterns("push_signals")
+    english_combos = [p for p in patterns if "I'll" in p or "Let me" in p]
+    assert len(english_combos) >= 10, "应有多个英文 push cartesian 展开"
+
+
+def test_compile_alternation_push_signals_matches_both_languages():
+    """v0.8.1: compile_alternation 合并 .txt 字面 + .yaml 模板 raw pattern。"""
+    pat = compile_alternation("push_signals")
+    # 中文 cartesian 命中（yaml `{subject}\s*{verb}` 展开后 raw regex）
+    assert pat.search("我现在做这件事") is not None
+    assert pat.search("我接下来 验证") is not None  # \s* 匹配空格
+    # 中文 phrases 命中
+    assert pat.search("下一推进点：v0.8.2") is not None
+    assert pat.search("接下来打算 audit") is not None
+    # 英文 cartesian 命中
+    assert pat.search("I'll start the refactor") is not None
+    assert pat.search("Let me proceed with the task") is not None
+    # 英文 phrases 命中
+    assert pat.search("Moving on to the next") is not None
+    # 不该误命中
+    assert pat.search("random unrelated text") is None
+
+
+def test_load_patterns_singular_to_plural_placeholder_resolution():
+    """v0.8.1 yaml DSL: 模板用单数 `{subject}` 自动匹配复数字段 `subjects`。"""
+    from karma.signals import load_patterns
+    # push_signals yaml 模板用 `{subject}\s+{verb}`，对应 yaml 字段 `subjects` / `verbs`
+    # 加载成功说明单数→复数解析 work
+    patterns = load_patterns("push_signals")
+    # 中文 yaml 应展开 = ~12 主语 × ~25 动词 + phrases ≈ 300-400 字眼
+    # 加英文 yaml 应再加 ~19 × ~34 + phrases ≈ 700-800 字眼
+    # 共 1000+
+    assert len(patterns) > 500, f"两语 yaml cartesian 展开应 > 500, 实际 {len(patterns)}"
+
+
+def test_compile_alternation_pure_txt_signals_still_works():
+    """v0.8.1 向后兼容: 纯 .txt 信号（user_stop_hints 等）仍正常 work。"""
+    pat = compile_alternation("user_stop_hints")
+    assert pat.search("不错不错") is not None
+    assert pat.search("LGTM") is not None

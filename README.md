@@ -242,13 +242,13 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~5.5K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / 444 unit tests, all green | Plus continuous real-world dogfooding |
+| **Quality gates** | lint / type-check / dead-code / 452 unit tests, all green | Plus continuous real-world dogfooding |
 | **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
 | **Token cost per turn** | ~400 tokens header + ~60 tokens mid-conversation refresh | Under 1% of a 60K context |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
 | **Supported clients** | Claude Code / Codex CLI / Gemini CLI | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
-| **User languages** | Chinese + English (v0.8.0), extensible | Detection phrases in `data/signals/<name>/{zh,en}.txt` — add `xx.txt` for a new language with zero Python code |
+| **User languages** | Chinese + English (v0.8.0 / v0.8.1), extensible | All 6 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~6 small files, zero Python code |
 
 ---
 

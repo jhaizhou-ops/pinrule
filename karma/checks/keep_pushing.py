@@ -52,39 +52,17 @@ _STOP_HINT_RE = compile_alternation("stop_hints")
 # 应豁免，跟「沉默式停下问下一步」区分。
 _EXPLICIT_USER_HANDOFF_RE = compile_alternation("explicit_handoff")
 
-# 明确「推进信号」字眼 — 表达 Agent 主动继续推进
-# v0.4.19：扩三类「未来推进规划」识别（已有下一步计划但不是「现在立即做」）：
-# - 下次/下个 session/下回 + 具体动作（接手/做/治理/推进）= 规划
-# - 候选/待办/清单 + 优先级排序 = 继续推进规划
-# - 接手/接力 + 任务 = 真延续推进
-_PUSH_SIGNAL_RE = re.compile(
-    r"(?:"
-    r"我(?:现在|立刻|马上|立即|继续|先|来|接着|接下来|顺手|去|要去)\s*"
-    r"(?:做|改|加|修|跑|去|开始|实施|实现|动手|推|搞|写|发|提交|测试|验证|跑测|读|看|查|测|检查|确认|核对)"
-    r"|立刻\s*(?:做|开始|实施|推|继续|动手)"
-    r"|马上\s*(?:做|开始|实施|推|继续|动手)"
-    r"|继续推进"
-    r"|开始做"
-    r"|直接(?:做|改|开始|实施|推|动手|去做)"
-    r"|不停"
-    r"|一并(?:做|改|实施)"
-    r"|接下来\s*(?:去|做|改|加|修|跑|开始|实施|动手|推|测试|验证|看|查|检查|确认)"
-    # 未来推进规划（已有下一步计划但不立即做）
-    # v0.4.22：「下次 X 吧 / 行不」类推卸语气不算推进 — 要求紧跟动词后不是「吧/行不/算了」
-    r"|下次(?:接手|做|治理|推进|fix|修|改)(?!\s*[吧行])"
-    r"|下个\s*session\s*(?:接手|做|治理|推进|fix|修|改)(?!\s*[吧行])"
-    r"|候选(?:清单|列表|第)?\s*\d*"
-    r"|接手(?:做|改|fix|修|治理|推进)"
-    # v0.5.6：「下一(推进点 / 步 / 波 / 个推进点)」类未来规划短语 — Agent 用这类
-    # 短语收尾「下一推进点：X」明确给用户下一步信号. dogfooding 触发：今晚 7 次
-    # 错拦本是合法推进规划. 同 v0.4.19 根因（_PUSH_SIGNAL_RE 漏覆盖未来规划表达）.
-    r"|下一(?:推进点|步|个|个推进点|波|个 milestone|个里程碑)"
-    r"|下一步\s*(?:是|做|打算|准备|考虑|推进|继续|去|要|想|可以|应该)"
-    r"|接下来\s*(?:打算|准备|计划|考虑|可以|可选|的方向|的推进点)"
-    r"|后续\s*(?:推进|步骤|计划|打算|准备|是)"
-    r")",
-    re.IGNORECASE,
-)
+# v0.8.1: 字眼从 data/signals/push_signals/{zh,en}.yaml 加载
+# 历史: v0.4.19 设计三类「未来推进规划」识别。v0.4.22 加「下次 X 吧」尾字过滤。
+# v0.5.6 加「下一推进点 / 下一步是」类。
+# v0.8.1 把 cartesian 字眼搬到 yaml — `{subject} {verb}` 用 templates 展开，
+# 不需 cartesian 的整句平面字眼用 phrases。yaml schema 支持英文用户一并加。
+_PUSH_SIGNAL_RE = compile_alternation("push_signals")
+
+# v0.4.22 dogfood 实证：「下次接手吧 / 下次推进行不」是推卸不是推进。
+# 历史 regex 用 lookahead `(?!\s*[吧行])` 排除，v0.8.1 把这逻辑下沉到 check()
+# 后处理（让 yaml 字眼保持简洁，不承载 lookahead 复杂度）。
+_PUSHBACK_TAIL_RE = re.compile(r"^\s*(?:吧|行不|算了)")
 
 # 末尾扫描窗口（字符数）— 80 字平衡覆盖跟假阳
 _TAIL_WINDOW = 80
@@ -134,8 +112,13 @@ def check(*, response: str = "", user_prompt: str = "", **_):
         return None
 
     # 豁免 1：明确推进信号 — tail 直接命中
-    if _PUSH_SIGNAL_RE.search(tail):
-        return None
+    # v0.4.22 + v0.8.1: 推进信号尾字过滤 — 「下次接手吧 / 推进行不 / 算了」
+    # 类推卸语气不算真推进。yaml 字眼保持简洁，这层过滤在 check() 后处理。
+    m_push = _PUSH_SIGNAL_RE.search(tail)
+    if m_push:
+        rest_after_push = tail[m_push.end():]
+        if not _PUSHBACK_TAIL_RE.match(rest_after_push):
+            return None
 
     # v0.4.20：整 response 含推进规划 + 末尾窗口无明确停顿语气 → 豁免。
     # 原因：推进信号常在「下次接手做 A / B / C」之后接「(X / Y / Z)」列表结尾，
@@ -144,8 +127,11 @@ def check(*, response: str = "", user_prompt: str = "", **_):
     # 末尾是列表收尾仍被错算无推进。
     # 守护：要求末尾窗口同时无 _STOP_HINT_RE 命中（不然有推进 + 停顿同
     # 时存在该按停顿算）。
-    if _PUSH_SIGNAL_RE.search(text) and not _STOP_HINT_RE.search(tail):
-        return None
+    m_push_full = _PUSH_SIGNAL_RE.search(text)
+    if m_push_full and not _STOP_HINT_RE.search(tail):
+        rest_after_push = text[m_push_full.end():]
+        if not _PUSHBACK_TAIL_RE.match(rest_after_push):
+            return None
 
     # 豁免 2：问号（合理询问决策，鼓励）
     if _TAIL_QUESTION_RE.search(tail):
