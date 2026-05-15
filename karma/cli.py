@@ -464,9 +464,17 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
         return 0
     from collections import Counter
     # 按 sticky_id 分组，每组数 trigger 出现频次
+    # v0.5.7: locale-agnostic 分组 — Violation.trigger_key 是 i18n key, 跨 zh/en
+    # locale 稳定. trigger_key 缺 (老 jsonl 行) fallback 按 trigger 字面分组保兼容.
+    # 显示用 trigger 字面（用户当前 locale 翻译过的），count 用 trigger_key 合并.
     by_sticky: dict[str, Counter] = {}
+    # group_key 优先用 trigger_key, 没有 fallback trigger 字面
+    # display_trigger: 同一 group_key 任取一个 trigger 字面做显示（同 key 字面已翻译，等价）
+    display_trigger_by_key: dict[tuple[str, str], str] = {}
     for v in violations:
-        by_sticky.setdefault(v.sticky_id, Counter())[v.trigger] += 1
+        group_key = v.trigger_key or v.trigger  # i18n key 或老格式字面
+        by_sticky.setdefault(v.sticky_id, Counter())[group_key] += 1
+        display_trigger_by_key.setdefault((v.sticky_id, group_key), v.trigger)
     is_md = output_format == "md"
     if is_md:
         print(f"# karma 违反审计 (总 {len(violations)} 条)\n")
@@ -512,19 +520,22 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
             print(f"### [{sid}] {total} 条触发{timeline_suffix}{diversity_suffix}\n")
             print("| 次数 | 占比 | 触发词 | 标记 |")
             print("|---|---|---|---|")
-            for trigger, cnt in ctr.most_common(5):
+            for group_key, cnt in ctr.most_common(5):
                 ratio = cnt / total
                 mark = "⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""
+                # v0.5.7: 显示用 trigger 字面（已 locale 翻译），count 按 trigger_key 合并
+                display = display_trigger_by_key.get((sid, group_key), group_key)
                 # markdown 表格 cell 转义 `|` 跟换行避免破表
-                trigger_safe = trigger.replace("|", "\\|").replace("\n", " ")
+                trigger_safe = display.replace("|", "\\|").replace("\n", " ")
                 print(f"| {cnt} | {ratio*100:.0f}% | `{trigger_safe}` | {mark} |")
             print()
         else:
             print(f"[{sid}] {total} 条触发{timeline_suffix}{diversity_suffix}")
-            for trigger, cnt in ctr.most_common(5):
+            for group_key, cnt in ctr.most_common(5):
                 ratio = cnt / total
                 mark = " ⚠️ 可能假阳" if cnt >= 5 and ratio >= 0.5 else ""
-                print(f"  {cnt:>3}× ({ratio*100:.0f}%) {trigger!r}{mark}")
+                display = display_trigger_by_key.get((sid, group_key), group_key)
+                print(f"  {cnt:>3}× ({ratio*100:.0f}%) {display!r}{mark}")
             print()
 
     # 本 session 漂移近况（最近 N turn 内每条 sticky 累积次数）

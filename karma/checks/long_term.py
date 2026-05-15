@@ -129,6 +129,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             return CheckHit(
                 rule_id=_STICKY_ID,
                 trigger=tr(trigger_key),
+                trigger_key=trigger_key,
                 snippet=snippet[:200],
                 suggested_fix=tr(fix_key),
             )

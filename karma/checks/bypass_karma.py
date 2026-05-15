@@ -122,6 +122,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         return CheckHit(
             rule_id=_STICKY_ID,
             trigger=tr("check.bypass_karma.trigger", target=trigger_text),
+            trigger_key="check.bypass_karma.trigger",
             snippet=cmd_raw[:200],
             suggested_fix=tr("check.bypass_karma.fix"),
         )

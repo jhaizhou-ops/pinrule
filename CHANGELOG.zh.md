@@ -6,6 +6,35 @@
 
 ## [Unreleased]
 
+## [0.5.7] — 2026-05-15（feat — `CheckHit` + `Violation` 加 locale-agnostic `trigger_key` 字段，audit 跨 locale 分组合并）
+
+### feat — audit 按 `trigger_key` 而非 `trigger` 字面分组
+
+v0.5.4 i18n 后副作用：`karma audit` 按 `trigger` 字面分组，用户 zh locale 跑一周切到 en locale 后会看到「同行为分两组 counter 计数」。audit「top trigger」分析失真。
+
+v0.5.7 加 locale-agnostic `trigger_key`（i18n key 本身，如 `"check.evidence.commit.trigger"`）作为跨 locale 稳定标识：
+
+- **`CheckHit.trigger_key: str = ""`** — 每个 check 函数现在双传 `trigger=tr(key)`（显示用）+ `trigger_key=key`（分组用）
+- **`Violation.trigger_key: str = ""`** — 写入 violations.jsonl 跟 locale-specific `trigger` 字面并存
+- **`cli.py cmd_audit`** — 按 `trigger_key or trigger` 分组（缺 key 的老行 fallback 字面）
+- **显示** — 仍用 locale 翻译过的 `trigger` 字面（取最早捕获的）让用户能看懂；只是计数合并
+
+### 向后兼容
+
+- 老 `violations.jsonl` 行无 `trigger_key` 字段读入时默认 `""`，按 `trigger` 字面分组 — 数据无损
+- `to_json()` 字段空时不写入，老格式 jsonl 体积一致
+
+### 验证
+
+- `tests/test_checks.py` 新增 5 个回归测试：
+  - `test_v057_check_hits_carry_trigger_key` — 每个 check 函数返回非空 `trigger_key`，前缀 `"check."`
+  - `test_v057_violation_roundtrip_trigger_key` — 写读 jsonl 保留 `trigger_key`
+  - `test_v057_violation_backward_compat_no_trigger_key` — 老行 `trigger_key=""` 不崩
+  - `test_v057_audit_groups_by_trigger_key_across_locales` — 5 zh + 5 en 同 key → 一组 counter 计 10
+  - `test_v057_audit_legacy_no_key_fallback_to_trigger` — 老行 fallback 按字面分组
+- `pytest`：401/401 通过
+- `ruff`：0 issues
+
 ## [0.5.6] — 2026-05-15（fix — keep_pushing `_PUSH_SIGNAL_RE` 补「下一推进点 / 下一步是」类未来规划短语豁免）
 
 ### fix — keep_pushing 错拦「下一推进点 / 下一步是 / 接下来打算」类合法收尾

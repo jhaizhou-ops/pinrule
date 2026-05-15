@@ -995,3 +995,129 @@ def test_run_checks_unknown_name_prints_under_debug(monkeypatch, capsys):
     assert hits == []
     captured = capsys.readouterr()
     assert "nonexistent_xyz_check" in captured.err
+
+
+# -------- v0.5.7 CheckHit / Violation trigger_key roundtrip --------
+
+def test_v057_check_hits_carry_trigger_key():
+    """所有 check 函数返回 CheckHit 时 trigger_key 字段非空 (locale-agnostic 分组用)."""
+    state = SessionState(session_id="s1")
+    probes = [
+        ("loud_failure_with_evidence",
+         {"tool_name": "Bash", "tool_input": {"command": "git commit -m 'feat: x'"}, "session_state": state}),
+        ("non_blocking_parallel",
+         {"tool_name": "Bash", "tool_input": {"command": "sleep 30"}}),
+        ("read_before_write",
+         {"tool_name": "Edit", "tool_input": {"file_path": "/x/y.py", "old_string": "a", "new_string": "b"},
+          "session_state": state}),
+        ("long_term_fundamental",
+         {"tool_name": "Write", "tool_input": {"file_path": "/x/y.py",
+                                                "content": "def f():\n    # T" + "ODO: fix\n    return 1\n"}}),
+    ]
+    for rule_id, kwargs in probes:
+        fn = REGISTRY[rule_id]
+        hit = fn(**kwargs)
+        assert hit is not None, f"{rule_id} 探针应命中但 NONE"
+        assert hit.trigger_key, f"{rule_id} CheckHit.trigger_key 不该空: {hit}"
+        assert hit.trigger_key.startswith("check."), f"{rule_id} trigger_key 应是 i18n key 格式: {hit.trigger_key!r}"
+
+
+def test_v057_violation_roundtrip_trigger_key():
+    """Violation 写 jsonl + 读回 trigger_key 字段保留."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from karma.violations import Violation, load_all
+
+    v = Violation(
+        ts=1700000000,
+        session_id="s1",
+        rule_id="loud-failure-with-evidence",
+        trigger="No recent passing-test evidence",
+        snippet="git commit -m foo",
+        turn=5,
+        trigger_key="check.evidence.commit.trigger",
+    )
+    payload = json.loads(v.to_json())
+    assert payload["trigger_key"] == "check.evidence.commit.trigger"
+
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "violations.jsonl"
+        p.write_text(v.to_json() + "\n", encoding="utf-8")
+        loaded = load_all(p)
+        assert len(loaded) == 1
+        assert loaded[0].trigger_key == "check.evidence.commit.trigger"
+
+
+def test_v057_violation_backward_compat_no_trigger_key():
+    """老 jsonl 行无 trigger_key 字段 → load_all 默认 ''，不该崩."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from karma.violations import load_all
+
+    legacy_line = json.dumps({
+        "ts": 1600000000,
+        "session_id": "s_old",
+        "rule_id": "non-blocking-parallel",
+        "trigger": "Bash sleep cmd",
+        "snippet": "sleep 5",
+        "turn": 1,
+    }, ensure_ascii=False)
+
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "violations.jsonl"
+        p.write_text(legacy_line + "\n", encoding="utf-8")
+        loaded = load_all(p)
+        assert len(loaded) == 1
+        assert loaded[0].trigger_key == ""
+        assert loaded[0].trigger == "Bash sleep cmd"
+
+
+def test_v057_audit_groups_by_trigger_key_across_locales():
+    """audit 按 trigger_key 分组合并 — zh/en locale 同 key 的 trigger 字面被算成一组."""
+    from collections import Counter
+    from karma.violations import Violation
+
+    violations = []
+    for _ in range(5):
+        violations.append(Violation(
+            ts=1700000000, session_id="s1", rule_id="loud-failure-with-evidence",
+            trigger="git commit 前最近 session 内无测试通过证据",
+            snippet="git commit", turn=1,
+            trigger_key="check.evidence.commit.trigger",
+        ))
+    for _ in range(5):
+        violations.append(Violation(
+            ts=1700000001, session_id="s1", rule_id="loud-failure-with-evidence",
+            trigger="No recent passing-test evidence in session before git commit",
+            snippet="git commit", turn=2,
+            trigger_key="check.evidence.commit.trigger",
+        ))
+
+    by_sticky: dict[str, Counter] = {}
+    for v in violations:
+        group_key = v.trigger_key or v.trigger
+        by_sticky.setdefault(v.sticky_id, Counter())[group_key] += 1
+
+    ctr = by_sticky["loud-failure-with-evidence"]
+    assert len(ctr) == 1, f"同 trigger_key 应合并: {dict(ctr)}"
+    assert ctr["check.evidence.commit.trigger"] == 10
+
+
+def test_v057_audit_legacy_no_key_fallback_to_trigger():
+    """audit 老数据无 trigger_key → fallback 按 trigger 字面分组保兼容."""
+    from collections import Counter
+    from karma.violations import Violation
+    violations = [
+        Violation(ts=1, session_id="s", rule_id="r", trigger="legacy A", snippet="x", turn=1),
+        Violation(ts=2, session_id="s", rule_id="r", trigger="legacy A", snippet="x", turn=2),
+        Violation(ts=3, session_id="s", rule_id="r", trigger="legacy B", snippet="x", turn=3),
+    ]
+    by_sticky: dict[str, Counter] = {}
+    for v in violations:
+        group_key = v.trigger_key or v.trigger
+        by_sticky.setdefault(v.sticky_id, Counter())[group_key] += 1
+    ctr = by_sticky["r"]
+    assert ctr["legacy A"] == 2
+    assert ctr["legacy B"] == 1

@@ -41,6 +41,10 @@ class Violation:
     # 主 violations.jsonl 含全部违反（不分文件 — 历史 audit 可见全 picture），
     # audit / stats 默认只看 agent_id is None（主 Agent 真违反，不算子 Agent 噪音）
     agent_id: str | None = None
+    # v0.5.7: locale-agnostic i18n key — audit/stats 用它分组，避免 zh/en locale
+    # 切换后同行为被算成两组. 老 jsonl 行无 trigger_key 字段读取 fallback ""，
+    # audit 在缺 key 时 fallback 按 trigger 字面分组保证兼容.
+    trigger_key: str = ""
 
     # 向后兼容 alias — 旧代码用 v.sticky_id 仍可读 (v0.6.0 移除)
     @property
@@ -59,6 +63,9 @@ class Violation:
         # agent_id 只在子 Agent 触发时写（None 不写省 jsonl 体积 + 向后兼容）
         if self.agent_id:
             d["agent_id"] = self.agent_id
+        # trigger_key 只在非空时写（老格式无此字段, 写空字符串无意义浪费空间）
+        if self.trigger_key:
+            d["trigger_key"] = self.trigger_key
         return json.dumps(d, ensure_ascii=False)
 
 
@@ -368,6 +375,7 @@ def load_all(path: Path | None = None) -> list[Violation]:
                 trigger=d.get("trigger", ""),
                 snippet=d.get("snippet", ""),
                 turn=int(d.get("turn", 0)),
+                trigger_key=d.get("trigger_key", ""),  # v0.5.7: 老格式无字段 → ""
             ))
         except (json.JSONDecodeError, KeyError, ValueError):
             continue

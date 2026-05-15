@@ -147,6 +147,7 @@ def main() -> int:
             snippet=top.snippet,
             turn=state.turn_count,
             agent_id=agent_id,
+            trigger_key=top.trigger_key,  # v0.5.7: locale-agnostic 分组 key
         )])
         sticky_pref = next((s.preference for s in sticky_list if s.id == top.sticky_id), "")
         reason = (

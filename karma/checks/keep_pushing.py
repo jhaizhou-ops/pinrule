@@ -169,6 +169,7 @@ def check(*, response: str = "", user_prompt: str = "", **_):
         return CheckHit(
             rule_id=_STICKY_ID,
             trigger=tr("check.keep_pushing.stop_hint.trigger", word=m_stop.group()),
+            trigger_key="check.keep_pushing.stop_hint.trigger",
             snippet=tail[:200],
             # v0.4.26 反思式语气改造：尊重 Agent 自主判断，不激发对抗
             suggested_fix=tr("check.keep_pushing.stop_hint.fix"),
@@ -185,6 +186,7 @@ def check(*, response: str = "", user_prompt: str = "", **_):
     return CheckHit(
         rule_id=_STICKY_ID,
         trigger=tr("check.keep_pushing.default.trigger"),
+        trigger_key="check.keep_pushing.default.trigger",
         snippet=tail[:200],
         # v0.4.26 反思式语气：尊重 Agent 自主判断
         suggested_fix=tr("check.keep_pushing.default.fix"),

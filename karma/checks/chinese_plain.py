@@ -142,6 +142,7 @@ def check(*, response: str = "", **_):
             return CheckHit(
                 rule_id=_STICKY_ID,
                 trigger=tr("check.chinese_plain.ratio.trigger", ratio=f"{ratio*100:.0f}", min=f"{_MIN_CHINESE_RATIO*100:.0f}"),
+                trigger_key="check.chinese_plain.ratio.trigger",
                 snippet=natural_for_ratio[:150],
                 suggested_fix=tr("check.chinese_plain.ratio.fix"),
             )
@@ -186,6 +187,7 @@ def check(*, response: str = "", **_):
         return CheckHit(
             rule_id=_STICKY_ID,
             trigger=tr("check.chinese_plain.jargon.trigger", term=m.group()),
+            trigger_key="check.chinese_plain.jargon.trigger",
             snippet=jargon_scan_text[max(0, m.start() - 20): m.end() + _JARGON_CONTEXT_RADIUS],
             suggested_fix=tr("check.chinese_plain.jargon.fix", term=m.group()),
         )
@@ -227,6 +229,7 @@ def _check_repeated_prefix(text: str):
             return CheckHit(
                 rule_id=_STICKY_ID,
                 trigger=tr("check.chinese_plain.repeated_prefix.trigger", prefix=prefix, count=count),
+                trigger_key="check.chinese_plain.repeated_prefix.trigger",
                 snippet=f"「{prefix}」字在本 response 出现 {count} 次开头位置",
                 suggested_fix=tr("check.chinese_plain.repeated_prefix.fix", prefix=prefix),
             )

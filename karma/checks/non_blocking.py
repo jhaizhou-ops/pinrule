@@ -120,6 +120,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             return CheckHit(
                 rule_id=_STICKY_ID,
                 trigger=tr("check.non_blocking.python_block.trigger", call=m_block.group()),
+                trigger_key="check.non_blocking.python_block.trigger",
                 snippet=cmd_raw[:200],
                 suggested_fix=tr("check.non_blocking.python_block.fix"),
             )
@@ -129,6 +130,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         return CheckHit(
             rule_id=_STICKY_ID,
             trigger=tr("check.non_blocking.sleep.trigger", cmd=m.group()),
+            trigger_key="check.non_blocking.sleep.trigger",
             snippet=cmd_raw[:200],
             suggested_fix=tr("check.non_blocking.sleep.fix"),
         )
@@ -139,6 +141,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         return CheckHit(
             rule_id=_STICKY_ID,
             trigger=tr("check.non_blocking.wait.trigger"),
+            trigger_key="check.non_blocking.wait.trigger",
             snippet=cmd_raw[:200],
             suggested_fix=tr("check.non_blocking.wait.fix"),
         )
@@ -149,6 +152,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         return CheckHit(
             rule_id=_STICKY_ID,
             trigger=tr("check.non_blocking.long_task.trigger", cmd=m.group()),
+            trigger_key="check.non_blocking.long_task.trigger",
             snippet=cmd_raw[:200],
             suggested_fix=tr("check.non_blocking.long_task.fix", cmd=m.group()),
         )
