@@ -637,3 +637,67 @@ update_state("counter_sess", _increment, base_dir=base_dir)
         f"counter race: expected turn_count={n_workers}, got {final_state.turn_count}\n"
         f"(读-改-写同字段 race 时，并发进程会读到相同旧值各自 += 1 → save 覆盖丢更新)"
     )
+
+
+def test_update_state_different_sessions_truly_parallel(tmp_path):
+    """**lock 颗粒度反向验证** — 不同 session 真并发不被全局串行化拖。
+
+    起 N=10 进程各自 update 不同 session_id，每个 fn 阻塞 0.3s。
+    串行（错误实施 — 全局 lock）：总耗时 ≥ N * 0.3 = 3.0s
+    并发（正确实施 — per-session lock）：总耗时 ≈ 0.3s + 启动 overhead
+
+    实施 bug 比如「lock 文件用固定路径不按 session_id 隔离」会让所有
+    session 抢同一把 lock，karma 性能被全局串行化拖。这个测试反向防御。
+    """
+    import subprocess
+    import sys as _sys
+    import time
+    from karma.session_state import load
+
+    n_workers = 10
+    worker_script = """
+import sys
+import time
+sys.path.insert(0, sys.argv[1])
+from karma.session_state import update_state
+from pathlib import Path
+
+session_id = sys.argv[2]
+base_dir = Path(sys.argv[3])
+
+def _slow_fn(state):
+    time.sleep(0.3)  # 模拟 hook fn 内业务逻辑
+    state.tool_byte_seq = 1
+
+update_state(session_id, _slow_fn, base_dir=base_dir)
+"""
+
+    worker_path = tmp_path / "parallel_worker.py"
+    worker_path.write_text(worker_script)
+
+    import karma
+    karma_pkg_dir = str(Path(karma.__file__).resolve().parent.parent)
+
+    t0 = time.time()
+    procs = [
+        subprocess.Popen(
+            [_sys.executable, str(worker_path), karma_pkg_dir, f"sess_{i}", str(tmp_path)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        for i in range(n_workers)
+    ]
+    for p in procs:
+        p.wait(timeout=30)
+        assert p.returncode == 0, f"worker failed: {p.stderr.read().decode()}"
+    elapsed = time.time() - t0
+
+    # 串行下界 N * 0.3 = 3.0s，并发上界宽松给到 1.5s（启动 overhead + IO）
+    assert elapsed < 1.5, (
+        f"不同 session 被串行化：N={n_workers} 个 fn 各 0.3s 跑了 {elapsed:.2f}s "
+        f"(并发应 < 1.5s，串行约 {n_workers * 0.3}s) — _state_lock 颗粒度有 bug"
+    )
+
+    # 验证全部 update 落地
+    for i in range(n_workers):
+        s = load(f"sess_{i}", base_dir=tmp_path)
+        assert s.tool_byte_seq == 1, f"session sess_{i} update 未落地"
