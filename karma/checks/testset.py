@@ -15,6 +15,7 @@ import re
 from karma.checks._types import CheckHit
 from karma.checks.common import extract_tool_text
 from karma.checks.description_context import is_description_context
+from karma.i18n import tr
 
 _STICKY_ID = "no-testset-no-future-leakage"
 
@@ -22,27 +23,27 @@ _PATTERNS = [
     (
         re.compile(r"""\b(gold_cases|gold_data|eval_cases|test_cases)[\w.]*\.(append|extend|update|write\w*)""", re.IGNORECASE),
         "反喂测试集（写回 gold_cases / eval_cases）",
-        "反喂池子 = 短期精度数字好看但用户不信。改 prompt / 算法后重跑评测让数字真实，不要回流。",
+        "check.testset.reverse_feed.fix",
     ),
     (
         re.compile(r"""detail[\w.]*\.json[\s\S]{0,80}?(open\s*\([^)]*['"]w['"]|write_text|\.write\b|\.dump\b)""", re.IGNORECASE),
         "把 detail.json (eval 结果) 写回训练数据",
-        "把评测 detail 当训练输入 = 用未来数据喂当前模块，用户对这种作弊很较真。保持 split 干净。",
+        "check.testset.detail_writeback.fix",
     ),
     (
         re.compile(r"""\bcp\s+[^|;\n]*(?:eval|test|gold)[\w/]*[^|;\n]*?(?:train|fit|memory)\b""", re.IGNORECASE),
         "Bash 跨 split 数据复制（eval / test → train）",
-        "eval / test 数据搬到训练目录 = 数据污染，用户对评测干净度很较真。保持 split 隔离。",
+        "check.testset.cross_split_copy.fix",
     ),
     (
         re.compile(r"""cat\s+[^|;\n]*detail[\w.]*\.json[^|;\n]*>>""", re.IGNORECASE),
         "append eval detail 结果到训练文件",
-        "eval detail 追加到训练 / 池子文件 = 反喂作弊，用户对评测干净度很较真。",
+        "check.testset.detail_append.fix",
     ),
     (
         re.compile(r"""if\s+turn_idx\s*[><=]+\s*\d{2,}"""),
         "数据 split 边界硬编码（turn_idx >= N）",
-        "硬编码 turn_idx 阈值后改 split 大小要动代码 — 用 train/test split 配置让它能演化。",
+        "check.testset.split_hardcode.fix",
     ),
     (
         # 长 hash / UUID 字面要算违反，必须出现在「针对该值的判定 / 赋值给 case_id」位置
@@ -53,7 +54,7 @@ _PATTERNS = [
             re.IGNORECASE,
         ),
         "长 hash / UUID 字面在比较或 case_id 赋值里（测试集 case ID 写死）",
-        "测试集 case ID 写死到 if 分支 = 用未来 eval 数据当前 case 特判，用户对这种作弊很较真。用通用判定逻辑。",
+        "check.testset.hash_branch.fix",
     ),
     (
         # 变量名带测试集语义 + 列表里至少 1 个长 hex 字面 → 写死 case ID
@@ -63,7 +64,7 @@ _PATTERNS = [
             re.IGNORECASE,
         ),
         "测试集 / case 列表里写死长 hash 字面",
-        "把具体 case 写死到列表 = 反喂池子嫌疑，用户对评测干净度很较真。用通用 fixture / 算法生成 case ID。",
+        "check.testset.case_list_hash.fix",
     ),
 ]
 
@@ -78,7 +79,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     text = extract_tool_text(tool_name, tool_input or {})
     if not text:
         return None
-    for pat, desc, fix in _PATTERNS:
+    for pat, desc, fix_key in _PATTERNS:
         m = pat.search(text)
         if m:
             snippet = text[max(0, m.start() - 30): m.end() + 30]
@@ -86,6 +87,6 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
                 rule_id=_STICKY_ID,
                 trigger=desc,
                 snippet=snippet[:200],
-                suggested_fix=fix,
+                suggested_fix=tr(fix_key),
             )
     return None

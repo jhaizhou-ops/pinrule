@@ -72,3 +72,21 @@ check.read_first.fix: "First Read {file_path} to see existing content / upstream
 
 # bypass_karma (1 entry)
 check.bypass_karma.fix: "Manually modifying karma internal state is performing for the user — short-term passing but they'll find out, trust suffers. If karma blocks incorrectly, dig into root cause (pattern too wide → tighten / catchup race / hook protocol bug) — this way the next person hitting the same scenario won't be blocked the same way. If you really need to bypass, explicitly say 'I plan to bypass because X' and let the user decide; don't silently bypass."
+
+# long_term (7 entries) — Phase D wave 2
+check.long_term.long_id_branch.fix: "Long ID literal hard-coded in an if branch means every new case requires touching this code — lift it into config or a general dispatch rule so it can evolve long-term."
+check.long_term.blacklist_literal.fix: "Hard-coding a black/white list inline means every name change requires a code edit — move it to config or a rule-based check so it can evolve."
+check.long_term.uppercase_const_list.fix: "An UPPER_CASE constant with 5+ string elements is usually a hard-coded list — move it to config or a rule-based check so it can evolve long-term."
+check.long_term.commit_hack.fix: "The commit subject is the user's signal of 'what changed this time.' Rewrite it as 'fix X: reason Y' so they can understand without expanding the diff."
+check.long_term.git_skip_verify.fix: "Skipping pre-commit / hook verification = short-term pass but broken code enters git history — the user will see it on review. Fix the underlying issue first, then commit."
+check.long_term.todo_marker.fix: "Leaving TODO / FIXME / HACK in code = leaving debt for the next person. Either resolve it before commit, or explicitly note a follow-up plan in the PR so the user knows."
+check.long_term.patch_intent.fix: "'Quick fix / workaround / temporary' intent comments = signal to the user 'debt not paid.' Find the root-cause solution first; they'll feel more at ease."
+
+# testset (7 entries) — Phase D wave 2
+check.testset.reverse_feed.fix: "Feeding the eval pool back = short-term precision numbers look good but the user won't trust them. After changing prompt / algorithm, re-run eval clean; don't recycle."
+check.testset.detail_writeback.fix: "Treating eval detail as training input = feeding future data into the current module, which the user takes very seriously as cheating. Keep splits clean."
+check.testset.cross_split_copy.fix: "Moving eval / test data into the training directory = data contamination; the user is strict about eval cleanliness. Keep splits isolated."
+check.testset.detail_append.fix: "Appending eval detail into training / pool files = reverse-feeding cheating; the user is strict about eval cleanliness."
+check.testset.split_hardcode.fix: "Hard-coding turn_idx thresholds means future split-size changes require editing code — use a train/test split config so it can evolve."
+check.testset.hash_branch.fix: "Writing test-set case IDs into if branches = special-casing on future eval data, which the user takes seriously as cheating. Use general dispatch logic instead."
+check.testset.case_list_hash.fix: "Hard-coding specific case IDs into a list = suspected reverse-feeding; the user is strict about eval cleanliness. Use general fixtures / algorithmic case-ID generation."

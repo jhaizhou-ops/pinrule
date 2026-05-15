@@ -6,6 +6,37 @@
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-05-15（feat — Phase D 完成：8 个 check 28 处 suggested_fix 双语切换）
+
+### feat — 8 个 check 函数 suggested_fix 全部 i18n 化
+
+所有 `CheckHit.suggested_fix` 字段（直接进 Agent 下一 turn 上下文的关键部分）从写死中文切到 `tr()` lookup，8 个 check 模块全覆盖：
+
+- **`karma/checks/chinese_plain.py`**（3 处）— `ratio` / `jargon` / `repeated_prefix`。注意：chinese_plain check 本身是中文用户专属，英文 default 装机时通过规则模板选择移除
+- **`karma/checks/non_blocking.py`**（4 处）— `python_block` / `sleep` / `wait` / `long_task`（含 `{cmd}` 插值）
+- **`karma/checks/evidence.py`**（3 处）— `commit` / `completion` / `weak_claim`
+- **`karma/checks/keep_pushing.py`**（2 处）— `stop_hint` / `default`
+- **`karma/checks/read_first.py`**（1 处，含 `{file_path}` 插值）
+- **`karma/checks/bypass_karma.py`**（1 处）
+- **`karma/checks/long_term.py`**（pattern 表内 7 处）— `long_id_branch` / `blacklist_literal` / `uppercase_const_list` / `commit_hack` / `git_skip_verify` / `todo_marker` / `patch_intent`
+- **`karma/checks/testset.py`**（pattern 表内 7 处）— `reverse_feed` / `detail_writeback` / `cross_split_copy` / `detail_append` / `split_hardcode` / `hash_branch` / `case_list_hash`
+
+`long_term` 和 `testset` 的 `_PATTERNS` tuple 结构保留，第 3 元素从字面 fix 文本改成 `fix_key`（i18n key 字符串），`check()` 函数命中时 `tr(fix_key)` lookup。pattern 表保持紧凑，翻译人员只改 `data/locales/*.yaml` 不动 Python。
+
+### feat — `data/locales/en.yaml` + `data/locales/zh.yaml` 新增 28 个 key
+
+`check.*.fix` namespace 覆盖所有 suggested_fix。占位符（`{term}` / `{prefix}` / `{file_path}` / `{cmd}`）runtime 走 `str.format()` 插值。
+
+### 验证
+
+- `pytest`：392/392 通过（v0.5.2 后无变化，新 key 是追加式）
+- `ruff`：0 issues
+- 手工 EN/ZH 切换实测确认 14 个新 key 在双 locale 下 lookup 正确
+
+### 本版保留中文的部分（v0.5.3 阶段刻意保留）
+
+- `CheckHit.trigger` 字段 — 内部 audit log 分类标签，写入 `~/.claude/karma/violations.jsonl`。不在 Agent 注入路径上，优先级低，后续小版本配合 trigger-key namespace 设计一并迁移
+
 ## [0.5.0] — 2026-05-15（**major breaking change** — sticky → rule 全代码库改名）
 
 > **用户原话**：「将整个 karma 所有代码和文件的 sticky 字样改成 rule」+

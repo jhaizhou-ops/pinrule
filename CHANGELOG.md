@@ -10,6 +10,37 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-05-15 (feat — Phase D complete: all 28 check `suggested_fix` strings switchable en/zh)
+
+### feat — All 8 check functions now locale-aware
+
+All `CheckHit.suggested_fix` strings — the part directly injected into Agent's next-turn context — switched from hard-coded Chinese to `tr()` lookup. Coverage is complete across all 8 check modules.
+
+- **`karma/checks/chinese_plain.py`** (3 entries) — `ratio` / `jargon` / `repeated_prefix`. Note: chinese_plain check itself is opt-in for Chinese users; English default install removes it via rule-template selection.
+- **`karma/checks/non_blocking.py`** (4 entries) — `python_block` / `sleep` / `wait` / `long_task` (with `{cmd}` interpolation)
+- **`karma/checks/evidence.py`** (3 entries) — `commit` / `completion` / `weak_claim`
+- **`karma/checks/keep_pushing.py`** (2 entries) — `stop_hint` / `default`
+- **`karma/checks/read_first.py`** (1 entry, with `{file_path}` interpolation)
+- **`karma/checks/bypass_karma.py`** (1 entry)
+- **`karma/checks/long_term.py`** (7 entries in pattern tuples) — `long_id_branch` / `blacklist_literal` / `uppercase_const_list` / `commit_hack` / `git_skip_verify` / `todo_marker` / `patch_intent`
+- **`karma/checks/testset.py`** (7 entries in pattern tuples) — `reverse_feed` / `detail_writeback` / `cross_split_copy` / `detail_append` / `split_hardcode` / `hash_branch` / `case_list_hash`
+
+For `long_term` and `testset`, the `_PATTERNS` tuple structure was preserved with `fix_key` (an `i18n` key string) as the third element instead of literal fix text — the `check()` function calls `tr(fix_key)` at hit time. This keeps the pattern table compact and lets translators edit `data/locales/*.yaml` without touching Python.
+
+### feat — `data/locales/en.yaml` + `data/locales/zh.yaml` add 28 new keys
+
+`check.*.fix` namespace covers all suggested_fix strings. Placeholders (`{term}`, `{prefix}`, `{file_path}`, `{cmd}`) interpolated at runtime via `str.format()`.
+
+### Verification
+
+- `pytest`: 392/392 passing (unchanged from v0.5.2; new keys are additive)
+- `ruff`: 0 issues
+- Manual EN/ZH switch test confirms all 14 new keys lookup correctly in both locales
+
+### What stays Chinese (intentional, scoped to v0.5.3)
+
+- `CheckHit.trigger` field — internal audit-log classification label, written to `~/.claude/karma/violations.jsonl`. Not in Agent injection path, so prioritization is lower; will migrate in a future minor release alongside trigger-key namespace design.
+
 ## [0.5.2] — 2026-05-15 (feat — i18n infrastructure + all hook injection texts switchable en/zh)
 
 ### feat — Engineering-layer i18n MVP

@@ -15,6 +15,7 @@ import re
 from karma.checks._types import CheckHit
 from karma.checks.common import extract_tool_text
 from karma.checks.description_context import is_description_context
+from karma.i18n import tr
 
 # 检测规则按 tool 范围分组：避免文档 / 代码字符串里出现描述性字面被误判
 
@@ -27,7 +28,7 @@ _PATTERNS_ALL = [
         # 名 / sticky id 不含数字，是合法分发不是 ID 硬写）
         re.compile(r"""if\s+\w+\s*==\s*(['"])(?=[\w\-]{12,}\1)[\w\-]*\d[\w\-]*\1"""),
         "长 ID 字面写在 if 分支（特例分支硬编码）",
-        "长 ID 写在 if 分支后面别人加新 case 都要改这里 — 提到配置 / 通用判定逻辑让它能长期演化。",
+        "check.long_term.long_id_branch.fix",
     ),
     (
         # 变量名带黑白名单语义 hint 才算「真黑/白名单字面量」
@@ -37,7 +38,7 @@ _PATTERNS_ALL = [
             re.IGNORECASE,
         ),
         "黑/白名单字面量列表 (变量名匹配黑白名单语义)",
-        "黑白名单写死在代码里以后改名单要动代码 — 提到配置 / 用规则代替让它能演化。",
+        "check.long_term.blacklist_literal.fix",
     ),
     (
         # 全大写常量名 + 5 元素以上字符串列表（捕捉 BAD_USERS / SPECIAL_IDS / KNOWN_BOTS 等
@@ -47,7 +48,7 @@ _PATTERNS_ALL = [
             r"""\b[A-Z][A-Z0-9_]{2,}\s*=\s*\[\s*(?:["'][^"'\n]+["']\s*,\s*){4,}""",
         ),
         "全大写常量 + 5+ 元素字符串列表（疑似硬编码黑/白名单）",
-        "全大写常量 5+ 元素字符串列表通常是硬编码名单 — 提到配置或用规则代替让它能长期演化。",
+        "check.long_term.uppercase_const_list.fix",
     ),
 ]
 
@@ -59,7 +60,7 @@ _PATTERNS_BASH_ONLY = [
         # `[^"'\n]{0,80}?` 要求字眼前最多 80 个非引号非换行字符。
         re.compile(r"""git\s+commit.*?["'](?:[^"'\n]{0,80}?)(quick\s*fix|hack\b|temp\b|workaround|临时|凑数)""", re.IGNORECASE),
         "git commit 标题行含 quick fix / hack / temp / 临时 字眼",
-        "commit 标题是给用户看的「这次改了什么」信号。换成「fix X: 原因 Y」让他能直接看懂，不用展开读 diff。",
+        "check.long_term.commit_hack.fix",
     ),
     (
         # 收紧到「git 危险动作 + 危险 flag 同句」— 之前泛 flag 匹配会误拦
@@ -72,7 +73,7 @@ _PATTERNS_BASH_ONLY = [
             re.IGNORECASE,
         ),
         "git 危险动作跳过验证 flag",
-        "跳过 pre-commit / hook 验证 = 短期通过但坏的代码进了 git 历史 — 用户回看时会发现。先修对再提交。",
+        "check.long_term.git_skip_verify.fix",
     ),
 ]
 
@@ -81,7 +82,7 @@ _PATTERNS_WRITE_EDIT_ONLY = [
     (
         re.compile(r"(?:#|//|--)\s*(?:TODO|FIXME|HACK|XXX)(?:\s*[:(]|\s+@)|(?:#|//|--)\s*临时\b", re.IGNORECASE),
         "代码含 TODO/FIXME/HACK/临时 标记注释",
-        "TODO / FIXME / HACK 留在代码里 = 给以后的人留债。要么本次解决掉再提交，要么在 PR 里明确 follow-up 计划让用户知道。",
+        "check.long_term.todo_marker.fix",
     ),
     (
         # 明确「打补丁/绕过/凑数」意图的注释（M3 之前关键词层兜底，现在工程层精准化捕获）
@@ -90,7 +91,7 @@ _PATTERNS_WRITE_EDIT_ONLY = [
             re.IGNORECASE,
         ),
         "代码含「打补丁 / 绕过 / 凑数 / workaround」意图注释",
-        "「先这样 / 临时方案 / 凑数」意图注释 = 给用户的「债还没还」信号 — 找根因方案再提交，他会更放心。",
+        "check.long_term.patch_intent.fix",
     ),
 ]
 
@@ -121,7 +122,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     elif tool_name in ("Write", "Edit", "NotebookEdit"):
         patterns.extend(_PATTERNS_WRITE_EDIT_ONLY)
 
-    for pat, desc, fix in patterns:
+    for pat, desc, fix_key in patterns:
         m = pat.search(text)
         if m:
             snippet = text[max(0, m.start() - 30): m.end() + 30].strip()
@@ -129,6 +130,6 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
                 rule_id=_STICKY_ID,
                 trigger=desc,
                 snippet=snippet[:200],
-                suggested_fix=fix,
+                suggested_fix=tr(fix_key),
             )
     return None
