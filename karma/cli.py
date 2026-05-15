@@ -820,9 +820,17 @@ def main(argv: list[str] | None = None) -> int:
         # `karma uninstall` 一键卸所有 backend 的 alias — 陌生用户不用记
         # `uninstall-hooks --backend all` 长串
         return cmd_uninstall_hooks(backend_name="all")
-    if cmd == "sticky":
+    if cmd in ("rule", "sticky"):
+        # v0.5.0 起 `karma sticky` → `karma rule`；sticky 作为 deprecated alias
+        # 保留到 v0.6.0 移除（用户原话「将 sticky 字样改成 rule」）
+        if cmd == "sticky":
+            print(
+                "karma DeprecationWarning: `karma sticky` 已改名 `karma rule`，"
+                "v0.6.0 移除 sticky alias。",
+                file=sys.stderr,
+            )
         if not args:
-            print("Usage: karma sticky <list|edit|remove>", file=sys.stderr)
+            print(f"Usage: karma {cmd} <list|edit|remove>", file=sys.stderr)
             return 1
         if args[0] == "list":
             return cmd_sticky_list()
@@ -830,10 +838,10 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_sticky_edit()
         if args[0] == "remove":
             if len(args) < 2:
-                print("Usage: karma sticky remove <id>", file=sys.stderr)
+                print(f"Usage: karma {cmd} remove <id>", file=sys.stderr)
                 return 1
             return cmd_sticky_remove(args[1])
-        print(f"未知 sticky 子命令: {args[0]}", file=sys.stderr)
+        print(f"未知 {cmd} 子命令: {args[0]}", file=sys.stderr)
         return 1
     if cmd == "violations":
         if not args:
