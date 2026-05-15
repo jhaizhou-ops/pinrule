@@ -14,6 +14,10 @@
 
 ---
 
+<!-- DEMO PLACEHOLDER — 跑 `bash scripts/record-demo.sh` 后替换 URL：
+[![asciicast](https://asciinema.org/a/XXXXXX.svg)](https://asciinema.org/a/XXXXXX)
+-->
+
 **目录**：[痛点](#你遇到的真问题) · [30 秒上手](#30-秒上手) · [原理](#为什么有效4-个机制) · [性能](#性能量化对照) · [自定义](#自定义你自己的核心方向) · [装机](#装机详情) · [8 个 hook 真生效功能](#8-个-hook-真生效功能) · [karma 不做的事](#试过但放弃的karma-不做的事) · [FAQ](#faq) · [文档导航](#文档导航)
 
 ---
