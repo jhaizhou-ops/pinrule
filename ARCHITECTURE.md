@@ -203,11 +203,11 @@ UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 真实 sessio
 |---|---|---|
 | `long_term_fundamental` | 长期方案 | 长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 真注释 / 意图字面注释 / commit message 主语 hack 词 |
 | `non_blocking_parallel` | 不阻塞 | sleep / wait / 长任务无 background / 间接 shell 执行 |
-| `chinese_plain_no_jargon` | 中文 | 中文占比 + jargon 检测（剥 code block / inline code） |
+| `chinese_plain_no_jargon` | 中文 | 中文占比（分母剥含点号工程标识符 / 路径字面 / commit message 引号块）+ jargon 检测（剥 code block / inline code）+ 同前缀字 ≥ 5 次/response 触发自审（白名单豁免一/不/是/有/没/我/你/他/这/那/在）|
 | `loud_failure_with_evidence` | 完成证据 | 完成词 / weak claim 在代码任务上下文 + 无测试证据 |
 | `no_testset_no_future_leakage` | 不喂测试集 | gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值位置 |
 | `read_before_write` | 先读再写 | Edit/Write 前未 Read 该 file_path（Write 新文件豁免） |
-| `keep_pushing_no_stop` | 不主动停 | response 末尾 80 字按豁免优先级判：1) 含推进信号（我现在/接下来 + 动词）→ 豁免（有下一步计划）2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中（明确暂停）4) 默认命中（纯陈述完结无推进无问号 = 真停下） |
+| `keep_pushing_no_stop` | 不主动停 | 优先级判：0) **user prompt 上文含叫停字眼**（不用了 / 休息吧 / 明天再说 / 先到这 / 算了 / 晚安 / 够了 等 sticky #8 例外清单）→ 整 turn 豁免（最高优先级）1) response 末尾 80 字含推进信号（我现在/接下来 + 动词）→ 豁免 2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中 4) 默认命中（纯陈述完结无推进无问号）|
 | `bypass_karma_detection` | 不绕检测 | Bash 命令含 karma 内部字面（last_test_pass_ts / pending_bg_tasks / session-state json 路径）+ 写操作 → 命中「绕开 karma」。豁免：karma 官方 CLI / 只读 inspection / commit message 引号字面（剥后骨架不含敏感字面） |
 
 每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
@@ -276,7 +276,7 @@ karma doctor                     # 检查环境 + 全部 hook 安装状态（Cla
 | `recent_violation_turns` | `5` | ⚠️ 标记窗口 — 最近 N turn 内违反过的 sticky 下次注入时标红 |
 | `escalate_window_turns` | `3` | 累积告警窗口（按 turn 距离） |
 | `escalate_threshold` | `3` | 累积告警次数阈值 — 窗口内同 sticky 命中 ≥ N 次升级 🚨 严重通知 |
-| `stop_block_max_per_turn` | `3` | Stop hook 单 turn 内 `decision=block` 上限（防 keep-pushing 干预死循环）。`0` 完全关闭干预 |
+| `stop_block_max_per_turn` | `2` | Stop hook 单 turn 内 `decision=block` 上限（防 keep-pushing 干预死循环）。`0` 完全关闭干预 |
 | `force_block_threshold` | `5` | 累积强制 block 阈值 — 同 sticky 窗口内违反 ≥ N 次 Stop hook 输出 `decision=block` 强制 fix 真根因。`0` 完全关闭。可在 sticky.yaml 单条规则用 `force_block_exempt: true` 豁免 |
 | `violations_max_lines` | `5000` | `violations.jsonl` 行数上限触发 rotation |
 | `violations_keep_history` | `3` | rotation 保留几个历史 `.jsonl.{N}` |
