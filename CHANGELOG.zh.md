@@ -6,6 +6,69 @@
 
 ## [Unreleased]
 
+## [0.5.16] — 2026-05-15（feat — `/karma <自然语言>` skill 真工作，多 backend 装机）
+
+### 这版为啥重要
+
+session 内深度 audit（用户问「`/karma rule X` 能不能简化成 `/karma X`」触发）发现 **v0.5.1 起 karma skill 从未真正触发过**。根因：Claude Code skill 机制要求 `<name>/SKILL.md` 目录形式（不是裸 `<name>.md`）+ `name:` frontmatter 字段 + 单 token 命令（不是 `/karma rule` 多词）。v0.5.1 ~ v0.5.15 全部按错的假设 ship — 手工 CLI 测试能工作，但 skill 自动触发从来没工作。
+
+本版按正确机制重建 **3 个 backend** 的 skill 装机：
+
+| Backend | 路径 | 格式 | 触发方式 |
+|---|---|---|---|
+| Claude Code | `~/.claude/skills/karma/SKILL.md` | Markdown + YAML frontmatter | `/karma <args>` |
+| Codex CLI | `~/.agents/skills/karma/SKILL.md`（注意 `~/.agents/` 不是 `~/.codex/`）| Markdown | `/skills` menu / `$karma <args>` inline / auto |
+| Gemini CLI | `~/.gemini/skills/karma/SKILL.md` + `~/.gemini/commands/karma.toml`（双轨）| Markdown（skill）+ TOML（commands）| skill 路径 auto-trigger + commands 路径显式 `/karma <args>` |
+
+### 改了啥
+
+**1. 仓库 skill source 重组** — `skills/karma-rule.md`（裸文件，错）→ `skills/karma/SKILL.md`（正确目录形式）。加 `name: karma` + `description: ...` frontmatter。skill body 内所有 `/karma rule X` 引用改 `/karma X` 跟简化触发命令对齐。
+
+**2. 新模块 `karma/skill_packaging.py`** — 格式转换处理：
+- `parse_frontmatter(md_text)` — 提取 YAML frontmatter 不引入 PyYAML 依赖
+- `markdown_to_toml(md_text)` — Markdown skill 转 Gemini CLI `commands/*.toml`（`description = "..."` + `prompt = """..."""`）。自动翻译 `$ARGUMENTS`（Claude/Codex）↔ `{{args}}`（Gemini），同一份 source 跨三家。
+
+**3. `Backend` Protocol 扩展** 加 `skill_install_targets(skill_name="karma") -> list[tuple[Path, str]]`。每个 backend 声明自己装路径 + 内容格式。3 个 backend 实现：
+- `ClaudeCodeBackend` → 1 个目标（Markdown）
+- `CodexBackend` → 1 个目标（Markdown，`~/.agents/` 路径）
+- `GeminiCLIBackend` → 2 个目标（Markdown skill + TOML commands）
+
+**4. CLI 多 backend 支持**：
+- `_install_karma_skill_multi_backend(force, backend_filter)` — 中央装机函数，遍历所有 detected backend，按格式写每个目标
+- `cmd_install_skill(force, backend)` — `karma install-skill` 默认装到所有；`--backend claude-code|codex|gemini-cli` 指定单家
+- `cmd_init` — 自动装到所有 backend，每个目标打印 `创建 [<backend>] karma skill: <path>`
+- `cmd_doctor` — 报多 backend skill 状态（✓ 最新 / ⚠ 跟当前版本不一致 / 未装），每个 (backend, path) 一行
+
+**5. `pyproject.toml`** — `force-include` 改 `skills/karma/SKILL.md`，`pip install karma` 装对文件。
+
+### 现场验证（本 session）
+
+装完 v0.5.16 在作者本机后，跑这版 release 的同一个 Claude Code session 在 `SessionStart` hook context 里出现：
+
+> The following skills are available for use with the Skill tool:
+> - **karma**: Natural-language karma rule input — refine user's plain description into karma's validated rule structure, preview, confirm, and add to rules.yaml. Use when the user types `/karma <natural language describing a rule preference>`.
+
+**这是 karma skill 第一次真被 Claude Code 看到。** v0.5.1 ~ v0.5.15 它一直默默躺在错的路径上。
+
+### 验证
+
+- `tests/test_cli.py` 新增 7 个回归测试（`test_v0516_*`）：
+  - 4 backend init 流程 / 第二次跑 idempotent / 用户改动保留 / `--force` 覆盖 / `--backend` filter / source 缺失 / doctor 多 backend 报告
+- `pytest`：411/411 通过（404 + 新 7）
+- `ruff`：0 issues
+- 作者本机现场装机：4 个路径全验证（Claude/Codex/Gemini-skill/Gemini-toml 都在，大小 16944/16944/16944/16941 字节 — toml 小一点因为 frontmatter 被吸进 description 字段）
+
+### v0.5.15 → v0.5.16 用户迁移说明
+
+- 老的 `~/.claude/skills/karma-rule.md`（v0.5.12-15 装的裸文件）是死重，可以 `rm`
+- 新 skill 下次 `karma init` 或 `karma install-skill` 自动装
+- `/karma rule X` 命令从来没工作过（虽然 doc 说能），新的 `/karma X` 在 Claude Code 里能（其他家尽力）
+- Codex / Gemini 支持是 best-effort — Codex 用 `/skills` menu 或 `$karma` inline；Gemini 显式 `/karma` 走 TOML commands 路径
+
+### v0.5.1 到 v0.5.15 文档说的 vs 现实（sticky #4 诚实披露）
+
+v0.5.1 release notes 说「Claude Code skill template at `skills/karma-rule.md` for natural-language rule input」并描述 `/karma rule <NL>` 触发。**端到端从来没工作过** 直到本版。skill 流程只在用户手工调底层 `karma rule add --from-yaml` CLI 时工作 — 自然语言 → skill 自动 refine 那条路径是空气。对前面误导的 doc 道歉。
+
 ## [0.5.15] — 2026-05-15（chore — v0.6.0 准备：起草计划稿 + 内部 `karma.sticky` → `karma.rule` import 迁移）
 
 ### 这版动机

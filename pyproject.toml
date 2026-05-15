@@ -1,6 +1,6 @@
 [project]
 name = "karma"
-version = "0.5.15"
+version = "0.5.16"
 description = "Sticky core directional preferences for Claude Code — keep Agent on track in long sessions"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -58,7 +58,7 @@ artifacts = ["data/*.yaml"]
 "data/locales/en.yaml" = "data/locales/en.yaml"
 "data/locales/zh.yaml" = "data/locales/zh.yaml"
 "data/config.example.yaml" = "data/config.example.yaml"
-"skills/karma-rule.md" = "skills/karma-rule.md"
+"skills/karma/SKILL.md" = "skills/karma/SKILL.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,14 +1,25 @@
-# karma-rule skill — Natural-language rule input
+---
+name: karma
+description: Natural-language karma rule input — refine user's plain description into karma's validated rule structure, preview, confirm, and add to rules.yaml. Use when the user types `/karma <natural language describing a rule preference>`.
+---
 
-**Install location**: copy this file to `~/.claude/skills/karma-rule.md` (Claude Code looks here for user skills)
+# karma skill — Natural-language rule input
 
-**Trigger**: When user types `/karma rule <natural-language description>` in Claude Code
+**Auto-installed by**: `karma init` / `karma install-skill`. Installed across all detected backends:
+- Claude Code: `~/.claude/skills/karma/SKILL.md`
+- Codex CLI: `~/.agents/skills/karma/SKILL.md`
+- Gemini CLI: `~/.gemini/skills/karma/SKILL.md` (auto-trigger) + `~/.gemini/commands/karma.toml` (explicit `/karma` slash command, generated from this Markdown)
+
+**Trigger**:
+- **Claude Code**: user types `/karma <natural-language description>` — args available as `$ARGUMENTS`
+- **Codex**: user invokes via `/skills` menu or inline `$karma <description>`; auto-trigger on description match
+- **Gemini CLI**: explicit `/karma <description>` (commands path) or auto-trigger (skills path)
 
 ---
 
 ## Your job (Agent)
 
-When the user invokes `/karma rule <description>`, you (the Agent) refine their natural-language description into karma's validated structure, test it, then add to their rules.yaml.
+When the user invokes `/karma <description>`, you (the Agent) refine their natural-language description into karma's validated structure, test it, then add to their rules.yaml.
 
 **Critical constraints — do NOT skip any step**:
 1. Refine user's natural language into karma's "collaborative agreement" tone (not rule-system tone)
@@ -74,7 +85,7 @@ karma has 8 built-in engine-layer check functions. Attach one if the rule fits:
 
 Set `force_block_exempt: true` only for "should keep pushing / non-blocking" type rules where cumulative penalty would be self-contradictory (e.g., `non-blocking-parallel`, `keep-pushing-no-stop`).
 
-## Workflow when user invokes `/karma rule <description>`
+## Workflow when user invokes `/karma <description>`
 
 ### Step 1: Understand intent
 
@@ -219,7 +230,7 @@ After `karma rule add` succeeds, summarize for the user:
 
 ## Example walkthrough
 
-**User**: `/karma rule When the Agent says "this is done", I want it to actually attach test pass evidence — don't just say done`
+**User**: `/karma When the Agent says "this is done", I want it to actually attach test pass evidence — don't just say done`
 
 **Agent**:
 

@@ -71,6 +71,21 @@ class Backend(Protocol):
         """
         ...
 
+    def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
+        """返回该 backend 装 skill 的目标 [(dest_path, content_format), ...].
+
+        content_format: "markdown" (Markdown 原样写) 或 "toml" (Markdown 转 Gemini commands TOML 写).
+
+        例:
+        - ClaudeCode: [(~/.claude/skills/karma/SKILL.md, "markdown")]
+        - Codex: [(~/.agents/skills/karma/SKILL.md, "markdown")] (注意路径 ~/.agents/ 不是 ~/.codex/)
+        - Gemini: [
+            (~/.gemini/skills/karma/SKILL.md, "markdown"),     # auto-trigger
+            (~/.gemini/commands/karma.toml, "toml"),           # 显式 /karma 触发
+          ]
+        """
+        ...
+
 
 class SettingsParseError(Exception):
     """配置文件损坏 — 调用方需要 abort 不能静默覆盖。"""

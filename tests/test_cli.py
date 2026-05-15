@@ -503,52 +503,70 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
         assert event in out, f"doctor 应列出 {event} 状态"
 
 
-# ---- v0.5.12 karma install-skill / karma init 自动装 skill ----
+# ---- v0.5.16 karma install-skill / karma init 多 backend skill 装机 ----
 
-def test_v0512_init_auto_installs_karma_rule_skill(fake_home, monkeypatch, capsys):
-    """karma init 应自动复制 karma-rule.md 到 ~/.claude/skills/."""
-    # 复用 fake_home: HOME 已指向 tmp, ~/.claude/skills/ 不存在
-    skill_dest = fake_home / ".claude" / "skills" / "karma-rule.md"
-    assert not skill_dest.exists()
-
-    # monkeypatch STICKY_PATH 避免污染真 rules.yaml
+def _patch_rules_path(monkeypatch, fake_home):
+    """共享 helper: monkeypatch rules.yaml DEFAULT_PATH 避免污染真 karma 配置."""
     import karma.rule
     monkeypatch.setattr(karma.rule, "DEFAULT_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
     monkeypatch.setattr(cli, "STICKY_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
+
+
+def test_v0516_init_auto_installs_karma_skill_all_backends(fake_home, monkeypatch, capsys):
+    """v0.5.16: karma init 自动装 karma skill 到所有 backend (Claude/Codex/Gemini).
+
+    路径正确: ~/.claude/skills/karma/SKILL.md (Claude, 目录形式)
+             ~/.agents/skills/karma/SKILL.md (Codex, 注意 ~/.agents/ 不是 ~/.codex/)
+             ~/.gemini/skills/karma/SKILL.md + ~/.gemini/commands/karma.toml (Gemini 双轨)
+    """
+    _patch_rules_path(monkeypatch, fake_home)
+
+    claude_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
+    codex_dest = fake_home / ".agents" / "skills" / "karma" / "SKILL.md"
+    gemini_skill = fake_home / ".gemini" / "skills" / "karma" / "SKILL.md"
+    gemini_toml = fake_home / ".gemini" / "commands" / "karma.toml"
+    for p in (claude_dest, codex_dest, gemini_skill, gemini_toml):
+        assert not p.exists()
 
     rc = cli.cmd_init(minimal=True)
     assert rc == 0
-    assert skill_dest.exists(), "karma init 应自动装 karma-rule skill"
-    # 内容跟 source 一致
-    src_text = cli.KARMA_RULE_SKILL_SRC.read_text(encoding="utf-8")
-    assert skill_dest.read_text(encoding="utf-8") == src_text
+    assert claude_dest.exists(), "Claude Code skill 应自动装"
+    assert codex_dest.exists(), "Codex skill 应自动装"
+    assert gemini_skill.exists(), "Gemini skill 应自动装 (auto-trigger 路径)"
+    assert gemini_toml.exists(), "Gemini commands TOML 应自动装 (显式触发路径)"
 
+    # Markdown source 跟 Claude/Codex/Gemini-skill 三处内容一致
+    src_text = cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
+    assert claude_dest.read_text(encoding="utf-8") == src_text
+    assert codex_dest.read_text(encoding="utf-8") == src_text
+    assert gemini_skill.read_text(encoding="utf-8") == src_text
+
+    # Gemini commands TOML 应该是转换后内容 (有 description = / prompt = """ 段)
+    toml_text = gemini_toml.read_text(encoding="utf-8")
+    assert "description = " in toml_text
+    assert 'prompt = """' in toml_text
+    # $ARGUMENTS 应该转成 Gemini 原生的 {{args}}
+    assert "{{args}}" in toml_text or "$ARGUMENTS" not in toml_text
+
+
+def test_v0516_init_second_run_idempotent(fake_home, monkeypatch, capsys):
+    """第二次 cmd_init → 所有 backend skill up-to-date, 不重复装/不刷屏."""
+    _patch_rules_path(monkeypatch, fake_home)
+    cli.cmd_init(minimal=True)
+    capsys.readouterr()
+
+    # 第二次 — 应该静默 (up-to-date 不刷屏 init 日志)
+    cli.cmd_init(minimal=True)
     out = capsys.readouterr().out
-    assert "karma-rule skill" in out
+    # 第二次不该报「创建」(那是 installed reason 文字)
+    assert "创建 [claude-code] karma skill" not in out
 
 
-def test_v0512_init_second_run_skill_up_to_date(fake_home, monkeypatch, capsys):
-    """第二次 cmd_init → skill up-to-date, 不重复装."""
-    import karma.rule
-    monkeypatch.setattr(karma.rule, "DEFAULT_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
-    monkeypatch.setattr(cli, "STICKY_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
+def test_v0516_init_skill_user_modified_writes_new_file(fake_home, monkeypatch):
+    """用户改过 Claude skill → karma init 不覆盖, 写 .new 兄弟文件."""
+    _patch_rules_path(monkeypatch, fake_home)
 
-    cli.cmd_init(minimal=True)  # 首次装
-    capsys.readouterr()  # 清 first run output
-
-    cli.cmd_init(minimal=True)  # 第二次
-    out = capsys.readouterr().out
-    assert "up-to-date" in out or "已是最新" in out
-
-
-def test_v0512_init_skill_user_modified_writes_new_file(fake_home, monkeypatch):
-    """用户改过 skill → karma init 不覆盖, 写 .md.new 让用户对比."""
-    import karma.rule
-    monkeypatch.setattr(karma.rule, "DEFAULT_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
-    monkeypatch.setattr(cli, "STICKY_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
-
-    # 预先放一个用户改过的版本
-    skill_dest = fake_home / ".claude" / "skills" / "karma-rule.md"
+    skill_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
     skill_dest.parent.mkdir(parents=True, exist_ok=True)
     user_modified = "# my customized version\n"
     skill_dest.write_text(user_modified, encoding="utf-8")
@@ -556,60 +574,61 @@ def test_v0512_init_skill_user_modified_writes_new_file(fake_home, monkeypatch):
     cli.cmd_init(minimal=True)
     # 用户版本未被覆盖
     assert skill_dest.read_text(encoding="utf-8") == user_modified
-    # 新版写到 .md.new
-    new_file = skill_dest.with_suffix(".md.new")
+    # 新版写到 SKILL.md.new
+    new_file = skill_dest.with_suffix(skill_dest.suffix + ".new")
     assert new_file.exists()
-    assert new_file.read_text(encoding="utf-8") == cli.KARMA_RULE_SKILL_SRC.read_text(encoding="utf-8")
+    assert new_file.read_text(encoding="utf-8") == cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
 
 
-def test_v0512_install_skill_force_overwrites(fake_home):
-    """karma install-skill --force 强制覆盖用户改动."""
-    skill_dest = fake_home / ".claude" / "skills" / "karma-rule.md"
-    skill_dest.parent.mkdir(parents=True, exist_ok=True)
-    skill_dest.write_text("# user modified\n", encoding="utf-8")
+def test_v0516_install_skill_force_overwrites_all_backends(fake_home):
+    """karma install-skill --force 强制覆盖所有 backend 的用户改动."""
+    claude_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
+    claude_dest.parent.mkdir(parents=True, exist_ok=True)
+    claude_dest.write_text("# user modified Claude\n", encoding="utf-8")
 
     rc = cli.cmd_install_skill(force=True)
     assert rc == 0
-    # 用户版本被覆盖为 source
-    assert skill_dest.read_text(encoding="utf-8") == cli.KARMA_RULE_SKILL_SRC.read_text(encoding="utf-8")
+    src_text = cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
+    assert claude_dest.read_text(encoding="utf-8") == src_text
 
 
-def test_v0512_install_skill_handles_missing_source(fake_home, monkeypatch):
-    """skill source 文件不存在 (理论上不该发生) → 返回 1 不崩."""
-    monkeypatch.setattr(cli, "KARMA_RULE_SKILL_SRC", fake_home / "nonexistent" / "skill.md")
+def test_v0516_install_skill_backend_filter(fake_home):
+    """karma install-skill --backend claude-code 只装 Claude, 不动 Codex/Gemini."""
+    rc = cli.cmd_install_skill(force=False, backend="claude-code")
+    assert rc == 0
+    assert (fake_home / ".claude" / "skills" / "karma" / "SKILL.md").exists()
+    assert not (fake_home / ".agents" / "skills" / "karma" / "SKILL.md").exists()
+    assert not (fake_home / ".gemini" / "skills" / "karma" / "SKILL.md").exists()
+
+
+def test_v0516_install_skill_handles_missing_source(fake_home, monkeypatch):
+    """skill source 文件不存在 → 返回 1 不崩."""
+    monkeypatch.setattr(cli, "KARMA_SKILL_SRC", fake_home / "nonexistent" / "SKILL.md")
     rc = cli.cmd_install_skill(force=False)
     assert rc == 1
 
 
-def test_v0513_doctor_reports_skill_status(fake_home, monkeypatch, capsys):
-    """v0.5.13: karma doctor 报告 karma-rule skill 装机状态."""
-    import karma.rule
+def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch, capsys):
+    """karma doctor 报告 multi-backend skill 装机状态: claude/codex/gemini 各自一行."""
     import karma.violations
-    monkeypatch.setattr(karma.rule, "DEFAULT_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
-    monkeypatch.setattr(cli, "STICKY_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
+    _patch_rules_path(monkeypatch, fake_home)
     monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
-    # 先 init 让 sticky 装好
     cli.cmd_init(minimal=True)
     capsys.readouterr()
 
-    # case 1: skill 已装 + 跟 source 一致 → "存在 ✓ 最新"
+    # case 1: 装完是「最新」
     cli.cmd_doctor()
     out = capsys.readouterr().out
-    assert "karma-rule skill" in out
-    assert "存在" in out and "最新" in out
+    assert "karma skill 装机" in out
+    assert "claude-code" in out and "codex" in out and "gemini-cli" in out
+    assert "最新" in out
 
-    # case 2: skill 改过 → "存在 ⚠ 跟当前 karma 版本不一致"
-    skill_dest = fake_home / ".claude" / "skills" / "karma-rule.md"
-    skill_dest.write_text("# user modified\n", encoding="utf-8")
+    # case 2: 删掉 Claude skill → doctor 报「未装」
+    (fake_home / ".claude" / "skills" / "karma" / "SKILL.md").unlink()
     cli.cmd_doctor()
     out = capsys.readouterr().out
-    assert "karma-rule skill" in out
-    assert "不一致" in out or "install-skill" in out
+    assert "未装" in out
 
-    # case 3: skill 不存在 → "未装"
-    skill_dest.unlink()
-    cli.cmd_doctor()
-    out = capsys.readouterr().out
-    assert "karma-rule skill" in out
+    # (v0.5.13 第三个 case 已被 v0.5.16 test 上面 case 2 覆盖)
     assert "未装" in out

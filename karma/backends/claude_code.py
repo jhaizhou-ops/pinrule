@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from karma.backends._json_hooks import JsonHooksBackend
 
 
@@ -54,3 +56,10 @@ class ClaudeCodeBackend(JsonHooksBackend):
         if event_name in ("PreToolUse", "PostToolUse", "UserPromptSubmit", "PreCompact"):
             entry["matcher"] = "*"
         return entry
+
+    def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
+        """Claude Code skill 装到 ~/.claude/skills/<name>/SKILL.md (Markdown 原样).
+
+        触发: 用户在 Claude Code 输 `/<skill_name> <NL>`, $ARGUMENTS 接全部.
+        """
+        return [(Path.home() / ".claude" / "skills" / skill_name / "SKILL.md", "markdown")]

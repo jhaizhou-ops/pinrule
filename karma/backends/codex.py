@@ -76,6 +76,14 @@ class CodexBackend(JsonHooksBackend):
                          "请手动 `codex features enable hooks`。")
         return steps
 
+    def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
+        """Codex Agent Skills 装到 ~/.agents/skills/<name>/SKILL.md (Markdown 原样).
+
+        注意路径是 ~/.agents/ 不是 ~/.codex/ — 这是 OpenAI 的设计 (跟 Anthropic 共享
+        `.agents/skills/` 命名空间). 触发: /skills menu 或 $skill_name inline 或 auto.
+        """
+        return [(Path.home() / ".agents" / "skills" / skill_name / "SKILL.md", "markdown")]
+
     def _is_hooks_feature_enabled(self) -> bool:
         """读 ~/.codex/config.toml 看 [features] hooks 是不是 true。fail open 当未启用。"""
         config_path = Path.home() / ".codex" / "config.toml"

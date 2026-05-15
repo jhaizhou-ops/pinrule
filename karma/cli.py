@@ -69,9 +69,12 @@ EXAMPLE_RULES_MINIMAL = EXAMPLE_RULES_MINIMAL_EN
 EXAMPLE_STICKY = EXAMPLE_RULES
 EXAMPLE_STICKY_MINIMAL = EXAMPLE_RULES_MINIMAL
 EXAMPLE_CONFIG = _DATA_DIR / "config.example.yaml"
-# v0.5.12: Claude Code skill source — copied to ~/.claude/skills/ at karma init
+# v0.5.16: karma skill source — Markdown source of truth; auto-installed to
+# all detected backends with format conversion (Markdown → TOML for Gemini commands path).
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
-KARMA_RULE_SKILL_SRC = _SKILLS_DIR / "karma-rule.md"
+KARMA_SKILL_SRC = _SKILLS_DIR / "karma" / "SKILL.md"
+# v0.5.x deprecated alias for v0.5.12 attribute (removed in v0.6.0)
+KARMA_RULE_SKILL_SRC = KARMA_SKILL_SRC
 
 
 def _select_rule_template(minimal: bool) -> Path:
@@ -82,75 +85,139 @@ def _select_rule_template(minimal: bool) -> Path:
     return EXAMPLE_RULES_MINIMAL_EN if minimal else EXAMPLE_RULES_EN
 
 def _claude_skills_dir() -> Path:
-    """~/.claude/skills/ — Claude Code 加载 user skills 的标准位置.
+    """v0.5.16 deprecated — 用 ClaudeCodeBackend.skill_install_targets() 替代.
 
-    karma init / karma install-skill 都装 skill 到这, Claude Code 启动时扫到.
-    XDG 类标准没规范这个, 沿用 Claude Code 文档约定的 ~/.claude/skills/.
+    保留是 doctor 显示 + 老测试兼容. v0.6.0 移除.
     """
     return Path.home() / ".claude" / "skills"
 
 
-def _install_karma_rule_skill(force: bool = False) -> tuple[bool, str]:
-    """装 karma-rule skill 到 ~/.claude/skills/karma-rule.md.
+def _write_skill_target(
+    src_text: str,
+    dest: Path,
+    content_format: str,
+    force: bool = False,
+) -> tuple[bool, str]:
+    """装一份 skill 到单个目标路径, 按 format 决定 Markdown 直写还是 TOML 转换.
 
-    冲突处理 (按 sticky #1 不覆盖用户改动):
-    - 不存在 → 装, 返回 (True, "installed")
+    冲突处理 (sticky #1 不覆盖用户改动):
+    - 不存在 → 写, 返回 (True, "installed")
     - 已存在 + 内容一致 → skip, 返回 (False, "up-to-date")
-    - 已存在 + 内容不同 + force=False → 写 .new 文件提示对比, 返回 (False, "exists-diff")
+    - 已存在 + 内容不同 + force=False → 写 .new 兄弟文件, 返回 (False, "exists-diff")
     - 已存在 + 内容不同 + force=True → 覆盖, 返回 (True, "force-overwritten")
-
-    返回 (changed, reason): changed=True 表示有 write/overwrite 动作.
     """
-    if not KARMA_RULE_SKILL_SRC.exists():
-        return False, f"source-missing ({KARMA_RULE_SKILL_SRC})"
-    dest_dir = _claude_skills_dir()
-    dest = dest_dir / "karma-rule.md"
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    if content_format == "toml":
+        from karma.skill_packaging import markdown_to_toml
+        body = markdown_to_toml(src_text)
+    else:
+        body = src_text
 
-    src_text = KARMA_RULE_SKILL_SRC.read_text(encoding="utf-8")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
     if not dest.exists():
-        dest.write_text(src_text, encoding="utf-8")
+        dest.write_text(body, encoding="utf-8")
         return True, "installed"
 
-    dest_text = dest.read_text(encoding="utf-8")
-    if dest_text == src_text:
+    if dest.read_text(encoding="utf-8") == body:
         return False, "up-to-date"
 
     if force:
-        dest.write_text(src_text, encoding="utf-8")
+        dest.write_text(body, encoding="utf-8")
         return True, "force-overwritten"
 
-    # 不覆盖用户改动 — 写 .new 文件提示用户对比
-    new_path = dest.with_suffix(".md.new")
-    new_path.write_text(src_text, encoding="utf-8")
-    return False, f"exists-diff (.new written to {new_path})"
+    new_path = dest.with_suffix(dest.suffix + ".new")
+    new_path.write_text(body, encoding="utf-8")
+    return False, "exists-diff"
 
 
-def cmd_install_skill(force: bool = False) -> int:
-    """单独装 karma-rule skill (已 init 用户补装 / 升级用).
+def _install_karma_skill_multi_backend(
+    force: bool = False,
+    backend_filter: str | None = None,
+) -> list[tuple[str, Path, bool, str]]:
+    """装 karma skill 到所有 (或指定) detected backend.
+
+    backend_filter: None / "all" → 所有 detected backend
+                    "claude-code" / "codex" / "gemini-cli" → 单独装该 backend
+                    (不要求 backend 在本机已装 — 用户可能想预装等以后用客户端时生效)
+
+    返回 [(backend_name, dest_path, changed, reason), ...] 让 caller 汇报.
+    """
+    if not KARMA_SKILL_SRC.exists():
+        return [("source", KARMA_SKILL_SRC, False, "source-missing")]
+
+    src_text = KARMA_SKILL_SRC.read_text(encoding="utf-8")
+    from karma.backends import REGISTRY as _BACKENDS
+
+    if backend_filter in (None, "all"):
+        backends_to_install = list(_BACKENDS.items())
+    elif backend_filter in _BACKENDS:
+        backends_to_install = [(backend_filter, _BACKENDS[backend_filter])]
+    else:
+        return [("error", Path(), False, f"unknown-backend ({backend_filter})")]
+
+    out: list[tuple[str, Path, bool, str]] = []
+    for name, backend in backends_to_install:
+        for dest, fmt in backend.skill_install_targets("karma"):
+            changed, reason = _write_skill_target(src_text, dest, fmt, force=force)
+            out.append((name, dest, changed, reason))
+    return out
+
+
+def _install_karma_rule_skill(force: bool = False) -> tuple[bool, str]:
+    """v0.5.16 deprecated single-backend shim — 走 multi-backend 路径只装 Claude Code.
+
+    保留是为了 cmd_init 不破 v0.5.12-15 的测试. cmd_init 现在改调 multi-backend
+    版本. v0.6.0 移除.
+    """
+    results = _install_karma_skill_multi_backend(force=force, backend_filter="claude-code")
+    if not results or results[0][0] == "source":
+        return False, results[0][3] if results else "source-missing"
+    _name, _dest, changed, reason = results[0]
+    return changed, reason
+
+
+def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
+    """装 karma skill 到所有 / 指定 backend (多 backend 一波装).
 
     flow:
-    - karma init 已自动调一次, 但已 init 的用户 (老 sticky.yaml 时代) 需要手工跑
-    - skill 更新后 (v0.5.11 的 clarity audit 等) 用 --force 覆盖
+    - karma init 已自动调一次, 已 init 老用户跑 karma install-skill 补装
+    - skill 升级 (clarity audit 等) 用 --force 覆盖
+    - --backend <name> 单独装某家 (claude-code / codex / gemini-cli)
     """
-    changed, reason = _install_karma_rule_skill(force=force)
-    dest = _claude_skills_dir() / "karma-rule.md"
-    if reason.startswith("source-missing"):
-        print(f"❌ {reason}", file=sys.stderr)
+    results = _install_karma_skill_multi_backend(force=force, backend_filter=backend)
+
+    if not results:
+        print("❌ 没找到任何 backend", file=sys.stderr)
         return 1
-    if reason == "installed":
-        print(f"✓ 装 karma-rule skill: {dest}")
-    elif reason == "up-to-date":
-        print(f"✓ karma-rule skill 已是最新: {dest}")
-    elif reason == "force-overwritten":
-        print(f"✓ 强制覆盖 karma-rule skill: {dest}")
-    elif reason.startswith("exists-diff"):
-        print(f"⚠ {dest} 已存在且跟当前 karma 版本不一致")
-        print(f"  → 新版写到了 {dest.with_suffix('.md.new')}")
-        print(f"  → diff {dest} {dest.with_suffix('.md.new')} 对比")
-        print("  → 或 karma install-skill --force 直接覆盖 (会丢用户改动)")
+    first_name = results[0][0]
+    if first_name == "source":
+        print(f"❌ source-missing: {KARMA_SKILL_SRC}", file=sys.stderr)
+        return 1
+    if first_name == "error":
+        print(f"❌ {results[0][3]}", file=sys.stderr)
+        return 1
+
+    by_backend: dict[str, list[tuple[Path, bool, str]]] = {}
+    for backend_name, dest, changed, reason in results:
+        by_backend.setdefault(backend_name, []).append((dest, changed, reason))
+
+    for backend_name, entries in by_backend.items():
+        for dest, _changed, reason in entries:
+            if reason == "installed":
+                print(f"✓ [{backend_name}] 装 karma skill: {dest}")
+            elif reason == "up-to-date":
+                print(f"✓ [{backend_name}] karma skill 已是最新: {dest}")
+            elif reason == "force-overwritten":
+                print(f"✓ [{backend_name}] 强制覆盖: {dest}")
+            elif reason == "exists-diff":
+                new_path = dest.with_suffix(dest.suffix + ".new")
+                print(f"⚠ [{backend_name}] {dest} 已存在跟当前 karma 版本不一致")
+                print(f"  → 新版写到 {new_path}")
+                print("  → diff 对比或 karma install-skill --force 覆盖 (会丢用户改动)")
+            else:
+                print(f"? [{backend_name}] {dest}: {reason}")
     print()
-    print("Claude Code 用法: 在对话里发 '/karma rule <自然语言描述>' 触发 skill")
+    print("用法: 各 backend 输 `/karma <自然语言描述>` 触发 (Codex 用 `/skills` menu 或 `$karma <NL>`)")
     return 0
 
 
@@ -218,20 +285,21 @@ def cmd_init(minimal: bool | None = None) -> int:
         override_flag = "--no-minimal" if minimal else "--minimal"
         print(f"自动选不对？强制覆盖：karma init {override_flag}")
 
-    # v0.5.12: 自动装 Claude Code skill 让 /karma rule <NL> 流程开箱即用
-    skill_changed, skill_reason = _install_karma_rule_skill(force=False)
-    skill_dest = _claude_skills_dir() / "karma-rule.md"
-    if skill_reason == "installed":
-        print(f"创建 karma-rule skill: {skill_dest}")
-        print("  → 在 Claude Code 里发 '/karma rule <自然语言>' 触发录入流程")
-    elif skill_reason == "up-to-date":
-        print(f"karma-rule skill 已是最新: {skill_dest}")
-    elif skill_reason.startswith("exists-diff"):
-        print(f"⚠ karma-rule skill 已存在但跟当前版本不一致 — 新版写到 {skill_dest.with_suffix('.md.new')}")
-        print("  → karma install-skill --force 覆盖 (会丢用户改动)")
-    elif skill_reason.startswith("source-missing"):
-        # dev install / 非 wheel 安装可能找不到 source — 不阻塞 init
-        print(f"⚠ karma-rule skill source 未找到 ({KARMA_RULE_SKILL_SRC}) — 跳过自动装")
+    # v0.5.16: 自动装 karma skill 到所有 backend (Claude Code / Codex / Gemini)
+    # 让 /karma <NL> 流程在装机的客户端开箱即用
+    skill_results = _install_karma_skill_multi_backend(force=False, backend_filter="all")
+    if skill_results and skill_results[0][0] == "source":
+        print(f"⚠ karma skill source 未找到 ({KARMA_SKILL_SRC}) — 跳过自动装")
+    else:
+        for backend_name, dest, _changed, reason in skill_results:
+            if reason == "installed":
+                print(f"创建 [{backend_name}] karma skill: {dest}")
+            elif reason == "up-to-date":
+                pass  # init 时不刷屏报「已是最新」(可能跑过多次)
+            elif reason == "exists-diff":
+                new_path = dest.with_suffix(dest.suffix + ".new")
+                print(f"⚠ [{backend_name}] karma skill 已存在跟当前版本不一致 — 新版写到 {new_path}")
+        print("  → 在客户端里输 `/karma <自然语言描述>` 触发录入流程")
     return 0
 
 
@@ -852,20 +920,27 @@ def cmd_doctor() -> int:
     print(f"  violations.jsonl: {VIOLATIONS_PATH} ({'存在' if VIOLATIONS_PATH.exists() else '不存在'})")
     config_path = KARMA_DIR / "config.yaml"
     print(f"  config.yaml: {config_path} ({'存在' if config_path.exists() else '不存在 (用默认值)'})")
-    # v0.5.13: skill 装机状态 — /karma rule <自然语言> 流程依赖此 skill
-    skill_dest = _claude_skills_dir() / "karma-rule.md"
-    if skill_dest.exists():
-        try:
-            same = (
-                KARMA_RULE_SKILL_SRC.exists()
-                and skill_dest.read_text(encoding="utf-8") == KARMA_RULE_SKILL_SRC.read_text(encoding="utf-8")
-            )
-            label = "存在 ✓ 最新" if same else "存在 ⚠ 跟当前 karma 版本不一致 (跑 `karma install-skill` 升级)"
-        except OSError:
-            label = "存在 (无法读)"
-        print(f"  karma-rule skill: {skill_dest} ({label})")
+    # v0.5.16: skill 装机状态 — multi-backend, /karma <NL> 流程依赖
+    print("  karma skill 装机 (多 backend):")
+    from karma.backends import REGISTRY as _BACKENDS_FOR_SKILL
+    src_text = KARMA_SKILL_SRC.read_text(encoding="utf-8") if KARMA_SKILL_SRC.exists() else None
+    if src_text is None:
+        print(f"    ⚠ source 未找到: {KARMA_SKILL_SRC} (dev install 异常)")
     else:
-        print("  karma-rule skill: 未装 (跑 `karma install-skill` 让 /karma rule <NL> 流程生效)")
+        from karma.skill_packaging import markdown_to_toml
+        for backend_name, backend in _BACKENDS_FOR_SKILL.items():
+            for dest, fmt in backend.skill_install_targets("karma"):
+                expected = markdown_to_toml(src_text) if fmt == "toml" else src_text
+                if not dest.exists():
+                    print(f"    [{backend_name}] {dest}: 未装")
+                    continue
+                try:
+                    same = dest.read_text(encoding="utf-8") == expected
+                except OSError:
+                    print(f"    [{backend_name}] {dest}: 存在 (无法读)")
+                    continue
+                label = "✓ 最新" if same else "⚠ 跟当前版本不一致 (跑 `karma install-skill --force` 升级)"
+                print(f"    [{backend_name}] {dest}: {label}")
     try:
         sticky = load()
         print(f"  sticky 加载: ✓ {len(sticky)} 条")
@@ -1173,7 +1248,11 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "install-hooks":
         return cmd_install_hooks(backend_name=_parse_backend_arg(args))
     if cmd == "install-skill":
-        return cmd_install_skill(force="--force" in args)
+        backend_arg = _parse_backend_arg(args) if "--backend" in args else None
+        # _parse_backend_arg 默认返回 "claude-code" 我们要 None 走 "all" 路径
+        if backend_arg == "claude-code" and "--backend" not in args:
+            backend_arg = None
+        return cmd_install_skill(force="--force" in args, backend=backend_arg)
     if cmd == "uninstall-hooks":
         return cmd_uninstall_hooks(backend_name=_parse_backend_arg(args))
     if cmd == "uninstall":
