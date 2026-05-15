@@ -1,8 +1,8 @@
-"""karma CLI — sticky 管理 + 违反观察 + hook 安装。
+"""karma CLI — rule 管理 + 违反观察 + hook 安装。
 
 Usage:
     karma init [--minimal|--no-minimal]
-                                   创建 ~/.claude/karma/ + 复制 sticky/config 模板
+                                   创建 ~/.claude/karma/ + 复制 rules/config 模板
                                    默认按系统语言偏好自动选：中文 → 7 条完整；
                                    非中文/检测不到 → 5 条精简（砍 chinese_plain）
                                    --minimal / --no-minimal 强制覆盖
@@ -15,15 +15,23 @@ Usage:
     karma uninstall                一键卸所有 backend（= uninstall-hooks --backend all）
     karma doctor                   检查环境 + hook 装机 + 当前生效 config
 
-    karma sticky list              列出所有 sticky 规则
-    karma sticky edit              用 $EDITOR 编辑 sticky.yaml
-    karma sticky remove <id>       移除某条
+    karma rule list                列出所有 rule 规则
+    karma rule edit                用 $EDITOR 编辑 rules.yaml
+    karma rule remove <id>         移除某条
+    karma rule add --from-yaml <file>       从 yaml 文件追加一条新 rule
+    karma rule add --from-stdin             从 stdin 读 yaml 追加 (Claude Code skill 用)
+    karma rule preview --from-yaml <file>   预览注入头部样子 (不写入)
+    karma rule preview --from-stdin         预览 stdin yaml (不写入)
+    karma sticky <...>             v0.5.0 起 deprecated alias, v0.6.0 移除
 
     karma stats                    每条规则违反计数（含本 session 最近 5 turn）
     karma violations recent [N]    最近 N 条违反详情（默认 20）
     karma violations clear         清空违反历史（需确认）
-    karma audit                    审计 — 每条 sticky top 触发词 + 假阳嫌疑标记
+    karma audit                    审计 — 每条 rule top 触发词 + 假阳嫌疑标记
     karma reset                    清 session-state（漂移实验重启）
+
+提示: Claude Code 用户可发 `/karma rule <自然语言描述>` 让 Agent 自动用
+karma skill 优化结构后调 `karma rule add --from-stdin` 写入。
 """
 
 from __future__ import annotations

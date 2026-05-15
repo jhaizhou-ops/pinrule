@@ -10,6 +10,39 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.5.10] — 2026-05-15 (docs — `karma --help` now lists `rule add` / `rule preview` subcommands)
+
+### docs — `karma --help` was hiding `karma rule add` / `karma rule preview`
+
+A user-initiated dogfood test (running the v0.5.1 `karma rule` flow end-to-end for the first time) surfaced that `karma --help` still only listed `karma sticky list/edit/remove` — the new `rule add`, `rule preview`, and `rule list/edit/remove` subcommands shipped in v0.5.1 were fully implemented and dispatched correctly, but invisible from top-level help. A first-time user typing `karma --help` would have no idea `karma rule add` exists.
+
+This release fixes the docstring at the top of `karma/cli.py` to:
+- List all 4 `rule` subcommands (`list` / `edit` / `remove` / `add` / `preview`) with their flags (`--from-yaml <file>` / `--from-stdin`)
+- Mention `karma sticky` as a deprecated alias removed in v0.6.0
+- Add a footer pointer to the Claude Code `/karma rule <natural language>` skill workflow
+
+The implementation has been working since v0.5.1; this is a pure documentation fix.
+
+### Verified end-to-end (16 test cases)
+
+- `karma rule preview --from-stdin` with valid yaml → schema check + injection preview render ✓
+- `karma rule preview` error paths (missing id / nonexistent yaml file) → `exit 1` with `❌` message ✓
+- `karma rule add --from-stdin` with valid yaml → schema validate + id-uniqueness + cap + REGISTRY check + write + report ✓
+- `karma rule add --from-yaml <file>` with valid yaml → same flow ✓
+- `karma rule add` duplicate id → `exit 1` ✓
+- `karma rule add` unknown `violation_checks` function → `exit 1` with available-functions list ✓
+- `karma rule add` schema error (missing preference) → `exit 1` ✓
+- `karma rule add` invalid yaml → `exit 1` ✓
+- `karma rule add` no flag → `exit 1` with usage prompt + `/karma rule` skill hint ✓
+- `karma rule` no subcommand → `exit 1` with subcommand list ✓
+- `karma rule foobar` unknown subcommand → `exit 1` ✓
+- `karma rule list` shows newly-added rule ✓
+- `karma rule remove <id>` removes the rule ✓
+- `karma rule remove <id>` then `karma rule add` same id → succeeds ✓
+- `rules.yaml` is truly persisted (grep verified line count = 7 after 2 adds to 5-minimal base) ✓
+
+Plus `pytest` 404/404 + `ruff` 0 issues.
+
 ## [0.5.9] — 2026-05-15 (refactor — Bash heredoc exemption lifted into `description_context.py`, shared by all Bash-aware checks)
 
 ### refactor — `is_description_context(tool_name="Bash")` now supported

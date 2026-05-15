@@ -6,6 +6,39 @@
 
 ## [Unreleased]
 
+## [0.5.10] — 2026-05-15（docs — `karma --help` 补 `rule add` / `rule preview` 子命令列表）
+
+### docs — `karma --help` 之前藏着 `karma rule add` / `karma rule preview`
+
+用户授权的 dogfooding 测试（第一次端到端跑 v0.5.1 `karma rule` 流程）发现 `karma --help` 仍然只列 `karma sticky list/edit/remove` — v0.5.1 加的 `rule add` / `rule preview` / `rule list/edit/remove` 子命令已经完整实装且 dispatch 正常，但顶层 help 看不到。第一次用 karma 的用户输 `karma --help` 完全不知道 `karma rule add` 存在。
+
+本版修 `karma/cli.py` 顶部 docstring：
+- 列全 4 个 `rule` 子命令（`list` / `edit` / `remove` / `add` / `preview`）及其 flags (`--from-yaml <file>` / `--from-stdin`)
+- 标注 `karma sticky` 为 v0.6.0 移除的 deprecated alias
+- 末尾加 Claude Code `/karma rule <自然语言>` skill 工作流指引
+
+实装从 v0.5.1 起一直工作；本版是纯文档修复。
+
+### 端到端验证 (16 个 test case)
+
+- `karma rule preview --from-stdin` 合法 yaml → schema check + 注入预览渲染 ✓
+- `karma rule preview` 错误路径 (缺 id / yaml 文件不存在) → `exit 1` 带 `❌` 信息 ✓
+- `karma rule add --from-stdin` 合法 yaml → schema 校验 + id 唯一性 + 上限 + REGISTRY 检查 + 写入 + 反馈 ✓
+- `karma rule add --from-yaml <file>` 合法 yaml → 同流程 ✓
+- `karma rule add` 重复 id → `exit 1` ✓
+- `karma rule add` 未知 `violation_checks` 函数 → `exit 1` 带可用函数清单 ✓
+- `karma rule add` schema 错 (缺 preference) → `exit 1` ✓
+- `karma rule add` 无效 yaml → `exit 1` ✓
+- `karma rule add` 无 flag → `exit 1` 带 usage + `/karma rule` skill 提示 ✓
+- `karma rule` 无子命令 → `exit 1` 带子命令列表 ✓
+- `karma rule foobar` 未知子命令 → `exit 1` ✓
+- `karma rule list` 新加规则可见 ✓
+- `karma rule remove <id>` 真删 ✓
+- `karma rule remove <id>` 然后 `karma rule add` 同 id → 成功 ✓
+- `rules.yaml` 真持久化 (grep 验证 5-minimal + 2 add = 7 条 ✓)
+
+外加 `pytest` 404/404 + `ruff` 0 issues。
+
 ## [0.5.9] — 2026-05-15（refactor — Bash heredoc 豁免提到 `description_context.py`，所有 Bash-aware check 共享）
 
 ### refactor — `is_description_context(tool_name="Bash")` 落地
