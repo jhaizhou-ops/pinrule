@@ -302,7 +302,7 @@ session_state_max_age_days: 30    # session-state 自动清理周期
 # reinject_every_n_tokens: 60000  # 覆盖按模型自适应阈值
 ```
 
-完整字段表 + 默认值看 [ARCHITECTURE.md](./ARCHITECTURE.md#配置)。
+完整字段表 + 默认值看 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md#配置)。
 
 ---
 
@@ -375,10 +375,11 @@ cp ~/.claude/settings.json.before-karma ~/.claude/settings.json   # 恢复原 se
 
 ## 文档导航
 
-- [PRD.md](./PRD.md) — 产品需求 + 验证标准 + 场景化定位
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — 技术架构 + hook 协议层细节 + 8 个 check 实现
+- [docs/PRD.md](./docs/PRD.md) — 产品需求 + 验证标准 + 场景化定位
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — 技术架构 + hook 协议层细节 + 8 个 check 实现
 - [CHANGELOG.md](./CHANGELOG.md) — 版本变更（v0.4.44 是当前最新）
-- [HANDOFF.md](./HANDOFF.md) — 内部开发接力文档（每个 milestone + 已知 bug 清单）
+- [docs/HANDOFF.md](./docs/HANDOFF.md) — 内部开发接力文档（每个 milestone + 已知 bug 清单）
+- [docs/RULES_REDESIGN_PROPOSAL.md](./docs/RULES_REDESIGN_PROPOSAL.md) — v0.4.42 「合作默契」语气设计提案（已实施）
 - [CLAUDE.md](./CLAUDE.md) — 给 Claude Code 协作的项目宪章
 
 ---
