@@ -422,6 +422,7 @@ karma v2 「事后审计」架构有天花板 — Agent 容易学到「怎么不
   - **v0.4.39 根本路径 — transcript_path** — 用户「怎么查 model 你不是就能查么」+「我随时 /status 都能看到当前 model」。深挖发现所有 hook payload 含 transcript_path → reverse scan jsonl 找最后非合成 model 字面 → karma 权威路径，不依赖 payload 含 model 字段。dogfooding 生效证据：state.model='claude-opus-4-7' 写入
 - **v0.4.40 反思阈值 + chinese-plain 分母精化 + 真字狂魔治理** — 用户 3 条精确反馈驱动：① `stop_block_max_per_turn` 默认 3 → 2，减弱自证清白压力但不放松规则。② chinese_plain 分母精化（不改 40% 阈值，改算法）：剥含点号工程标识符 / 路径字面 / commit message 引号块，工具调用纯英文不再被错算成中文比例分母。③ 加 Check 3 同前缀字重复检测（同前缀 ≥ 5 次/response 触发自审），reactive 治理 HANDOFF 第 7 类矛盾「真字癫狂」副作用。白名单豁免高频合理前缀（一/不/是/有/没/我/你/他/这/那/在）
 - **v0.4.41 keep_pushing 加 user_prompt 上下文叫停检测** — dogfooding 触发：用户「不用啦感谢，休息吧」明确叫停但反思 hook 反复触发。根因：keep_pushing.check 只看 Agent response 末尾，看不到 user prompt 上文。sticky #8 例外清单字面（停 / 不用了 / 明天再说 / 先到这 / 算了 / 晚安 / 够了等）从文本声明变工程层 enforced：stop.py 加 `_read_last_user_prompt` + checks `run_checks` 加 user_prompt 入参透传 + keep_pushing `_USER_STOP_HINT_RE` 整 turn 豁免
+- **v0.4.42 用户元层 4 任务一波落地 + 核心设计哲学转向** — 接力 session 元层 3 问触发：「真字狂魔」副作用根因 / 「想不出深度推进点」就宣告饱和 / 跨 session 数据混淆。4 任务：① 源头文档「真X」前缀清理 615 → ~140 治 in-context mimicry。② 规则文本「合作默契」语气重写三批次（包装文本 + sticky.yaml 8 条 + 8 个 check 共 14 处 suggested_fix）。③ chinese-plain 工程层临时撤（保留 preference + 代码供恢复）。④ stats/audit/doctor 加 `get_current_session_id()` 按 mtime 选主 Agent session-state + 「本 ses / 历史」对照列。**核心设计哲学转向**：从「规则系统监督 Agent」改「合作默契邀请 Agent」 — 让 Agent 看到提醒第一反应是「调整对齐」而非「防御 / 绕过」
 
 **实测效果对比**（本机 dogfooding）：1 turn 累积 ~60K token 场景下，v0.4.32 (8K 阈值) 触发 7+ 次中段提醒，v0.4.39 (opus 80K 阈值) 触发 0 次 — **7x+ 频率下降，「Agent 防御性写作扭曲」副作用根因消除**。
 
@@ -430,6 +431,6 @@ karma v2 「事后审计」架构有天花板 — Agent 容易学到「怎么不
 - [karma v1 归档](https://github.com/jhaizhou-ops/karma-v1) — v1 探索过程与反思
 - HANDOFF.md — 内部开发接力文档（非最终用户文档）
 
-karma v2 已完成 M0-M5（多 backend 横向扩展）+ v3 演化（中段注入 / 字面多样性监测 / 反思式语气 / SessionStart baseline / PreCompact 落盘 / SubagentStart 装机 / 子 Agent 独立 state + 按当前模型自动适应阈值）+ 多轮评审 Agent 交叉评审 + 多轮 dogfooding 修真 bug，**392 个测试全绿**。三家 AI 客户端（Claude Code / Codex CLI / Gemini CLI）实测装机 / 卸装 / hook 触发全跑通。
+karma v2 已完成 M0-M5（多 backend 横向扩展）+ v3 演化（中段注入 / 字面多样性监测 / 反思式语气 / SessionStart baseline / PreCompact 落盘 / SubagentStart 装机 / 子 Agent 独立 state + 按当前模型自动适应阈值）+ 多轮评审 Agent 交叉评审 + 多轮 dogfooding 修真 bug，**392 个测试全绿 (v0.4.42)**。三家 AI 客户端（Claude Code / Codex CLI / Gemini CLI）实测装机 / 卸装 / hook 触发全跑通。
 
 **用户状态**：2026-05-14 起进入「真实非作者用户使用期」— 之前一年是作者 dogfooding 自用观察，现在开始有同事/朋友首次接触 karma。这是 dogfooding 转 real-user 的关键时刻，新用户首装踩坑会持续触发新一波改进。验证标准是「开发过程能否减少 Agent 在长任务中的方向漂移」— 而**开发 karma 的过程本身就是它最严酷的自用观察期**。

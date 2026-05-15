@@ -4,6 +4,88 @@
 
 ## [Unreleased]
 
+## [0.4.42] — 2026-05-15（feat — 用户 task 1/2/3/4 元层 4 任务一波落地）
+
+### 触发
+
+接力 session 用户元层 3 问触发深度反思 + 4 任务授权：
+1. 「真字狂魔」副作用根因分析 — Agent 在 in-context mimicry 上下文「真X」前缀堆叠
+2. 「想不出深度推进点」就宣告饱和 — sticky 当免战金牌而非行为指导
+3. 「跨 session 数据混淆」audit/stats/doctor 显示上 session 数据当当前 session
+
+### Task 1 — 源头文档「真X」前缀防御性堆叠清理
+
+清理后总量 615 → ~140（降幅 77%）。各文件分布：
+- HANDOFF.md: 192 → 52（子 Agent 协助清，独立 worktree 跑）
+- CHANGELOG.md: 376 → 70（子 Agent 协助清）
+- README.md: 29 → 10（手工清）
+- ARCHITECTURE.md: 10 → 2（手工清）
+- PRD.md: 7 → 4（手工清）
+- CLAUDE.md: 1 → 1（语义对偶保留）
+
+保留语义对偶（真违反/真阳/真用户/真信号/真字狂魔/真实X 等标准汉语 +
+统计学术语 + 项目内梗）。
+
+### Task 2 — 规则文本「合作默契」语气重写（三批次）
+
+**批次 1 — 3 处包装文本**：
+- `karma/sticky.py:format_for_injection` 头部「请始终遵守」→「合作默契」+
+  加「这不是规则也不是审判」破除监督感；违反标记 ⚠️ → 〔上一回应这条
+  有偏离，本 turn 看看能否更对齐〕合作回顾标记
+- `karma/hooks/user_prompt_submit.py` 强提醒段「命中检测」→「上一回应
+  没对齐默契」+ 收尾「立即按 fix 不要再犯」→「不需要为这条特意补偿过度」
+- `karma/hooks/post_tool_use.py` 锚定刷新「sticky 易稀释」技术词 →
+  「回想一下默契」+ 加「不需要回应这条」减 Agent 防御性自证
+
+**批次 2 — sticky.yaml 8 条 + dev.example.yaml 7 条 preference 重写**：
+起手「用户是真人 / 跟你协作的用户」共情切入 + 解释 why（短期成本 vs 长期信任）
++ 例外通道锚定具体场景 + 沟通通道（「方案分歧大就提出来跟他对齐」）。
+
+**批次 3 — 8 个 check 共 14 处 suggested_fix 重写**：
+- chinese_plain 3 / non_blocking 4 / evidence 3 / keep_pushing 2 /
+  long_term 7 / testset 7 / read_first 1 / bypass_karma 1
+- metric 改「用户阅读体验」/ 加用户视角痛点 + 具体替代行为模板 +
+  长期信任视角
+
+### Task 3 — chinese-plain-no-jargon 工程监督层临时撤掉
+
+用户授权：容易执行 + 犯错代价小，靠 user_prompt_submit 头部注入提醒频率够用，
+工程层每 turn 触发干扰更大。
+
+- `~/.claude/karma/sticky.yaml` + `data/sticky.dev.example.yaml` 移除
+  violation_keywords + violation_checks（保留 preference 文本提醒）
+- `karma/checks/chinese_plain.py` + REGISTRY 注册保留供恢复
+- `tests/test_sticky.py` 加 soft_only 例外不强制 chinese-plain 有 check
+
+### Task 4 — stats / audit / doctor 跨 session 数据分开
+
+权威 source：`karma/session_state.py:get_current_session_id()` 按 mtime
+选主 Agent session-state 文件，比 `violations[-1].session_id` 推更权威 —
+当前 session 可能完全没产生违反但仍是当前活跃。
+
+- `karma/cli.py:cmd_stats` 加「本 ses」列对照「历史」列
+- `karma/cli.py:cmd_audit` 显示当前 session id 前 8 字（如 `c6d3eb4a...`）
+- `karma/cli.py:cmd_doctor` 用 `get_current_session_id()` fallback
+- 3 个守护测试（空目录 / 多文件 mtime / 排除子 Agent state）
+
+### 附带
+
+- `pyproject.toml` 加 `[tool.mypy] ignore_missing_imports = true`（本机 / CI
+  配置统一，去掉 CI workflow 重复 CLI flag）
+- `tests/test_post_tool_use_reinject.py` 修 2 个 list → tuple type error
+
+### 验证
+
+测试 389 → 392（task 4 加 3 个 get_current_session_id 测试）。
+4 件套全过：ruff ✓ / mypy karma+tests ✓ / vulture 0 死代码 / pytest 392 ✓。
+
+### 后续观察方向
+
+- Agent 防御反应 / 「真字狂魔」副作用 / 「合理化漏掉」等问题是否减弱
+- chinese-plain 工程层撤后头部提醒频率是否够用 / 是否需要恢复工程层
+- audit / stats 跨 session 对照在 dogfooding 调试时是否真好用
+- 不满意可分批回滚（task 1/2/3/4 独立 commit）
+
 ## [0.4.41] — 2026-05-15（fix — keep_pushing 加 user_prompt 上下文叫停检测）
 
 ### 触发
