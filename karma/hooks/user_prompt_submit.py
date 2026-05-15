@@ -161,20 +161,18 @@ def main() -> int:
                             _v_append(recs)
                         except Exception:
                             pass
-                        # 2026-05-15 重写：合作回顾语气替代指控/惩罚式包装
-                        # 避免激活 Agent 防御反应 / 过度补偿副作用（如「真字狂魔」）
+                        # v0.5.2 i18n: 合作回顾语气强提醒切 locale (en/zh)
+                        from karma.i18n import tr
                         reminder_lines = [
-                            "\n\n[karma — 上一回应有几处没对齐用户默契]",
-                            "你的上一回应在某些点上跟用户长期偏好有偏差，看看本 turn 能否调整：",
+                            tr("strong_reminder.header.title"),
+                            tr("strong_reminder.header.line"),
                         ]
                         for h in all_hits[:5]:  # 最多 5 条避免淹没
-                            reminder_lines.append(f"\n  ▸ {h.sticky_id}")
+                            reminder_lines.append(f"\n  ▸ {h.rule_id}")
                             reminder_lines.append(f"    {h.trigger}")
                             if h.suggested_fix:
                                 reminder_lines.append(f"    {h.suggested_fix}")
-                        reminder_lines.append(
-                            "\n本 turn 自然回应即可，不需要为这条特意补偿过度。"
-                        )
+                        reminder_lines.append(tr("strong_reminder.footer"))
                         additional_context += "\n".join(reminder_lines)
         except Exception:
             pass

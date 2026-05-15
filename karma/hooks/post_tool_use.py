@@ -218,12 +218,12 @@ def _build_smart_reinject(session_id: str, state) -> str:
         state.last_reinject_byte_seq = state.tool_byte_seq
         return ""
 
-    # 2026-05-15 重写：「锚定刷新 sticky 易被稀释」技术词改「回想一下默契」合作语气
-    # 加「不需要回应这条」减少 Agent 防御性自证
+    # 2026-05-15 重写：合作回顾语气 + v0.5.2 i18n 切 locale (en/zh)
+    from karma.i18n import tr
     lines = [
-        "[karma — 长 context 后回想一下跟用户的默契]",
-        "context 已累积一段，提醒一下用户长期看重的几条方向",
-        "（不需要回应这条，只是让你在脑中回顾免得后续偏离）：",
+        tr("mid_inject.header.title"),
+        tr("mid_inject.header.line1"),
+        tr("mid_inject.header.line2"),
     ]
     for s in triggered_sticky[:3]:
         first_line = s.preference.strip().split("\n")[0]

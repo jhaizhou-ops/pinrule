@@ -67,12 +67,13 @@ def main() -> int:
         _passthrough()
         return 0
 
-    # 2026-05-15 重写：合作默契语气
-    lines = ["[karma — 你是父 session 派来的子 Agent，继承用户的几条长期默契]"]
+    # v0.5.2 i18n: 合作默契语气切 locale (en/zh)
+    from karma.i18n import tr
+    lines = [tr("subagent_start.title")]
     for s in sticky_list:
         first_line = s.preference.strip().split("\n")[0]
         lines.append(f"  ▸ {s.id}: {first_line}")
-    lines.append("跑任务时也按这些方向行为，主 Agent 会在你结束时收到摘要提醒。")
+    lines.append(tr("subagent_start.tail"))
 
     print(json.dumps({
         "hookSpecificOutput": {

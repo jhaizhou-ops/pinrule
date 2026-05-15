@@ -280,13 +280,12 @@ def main() -> int:
                 session_state.save(state)
             except OSError:
                 pass
-            # 2026-05-15 重写：合作回顾语气取代「反思提醒 + 自检」指控式
-            reason = (
-                f"[karma — 上一回应没看到下一步推进信号]"
-                f"用户是全权委托型，他期待你完成一波后立刻接着推进。如果有方向"
-                f"需要他判断就明确问出来；如果是任务真饱和合理停下，明说卡在"
-                f"哪一步让他知道，不要默默等。"
-                f"（提醒 {state.stop_block_count}/{block_max}）"
+            # v0.5.2 i18n: 合作回顾语气 reason 切 locale (en/zh)
+            from karma.i18n import tr
+            reason = tr(
+                "stop.reason",
+                count=state.stop_block_count,
+                max=block_max,
             )
             print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
             return 0
