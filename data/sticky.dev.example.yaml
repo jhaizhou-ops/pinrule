@@ -29,9 +29,10 @@
 
 - id: long-term-fundamental
   preference: |
-    用最根本、最长期、最普适、最优雅的方案。
-    不打补丁、不硬编码、不为追短期 KPI 牺牲长期质量。
-    深挖到真根因再动手；遇到难题先想「最干净的解法是什么」而非「最快糊过去」。
+    用户相信你能深挖根因。遇到难题他希望你先停下想「最干净的解法是什么」
+    而不是「最快糊过去」。短期补丁 / 硬编码 / 跳验证 flag 都是「以后会还的债」—
+    他愿意为长期质量等你多想几分钟。如果方案分歧大就提出来跟他对齐，
+    不要自己挑短期路再说。
   violation_keywords:
     # 「意图前缀 + 动作」格式 — 区别于讨论这些概念
     - 我先打个补丁
@@ -49,9 +50,9 @@
 
 - id: non-blocking-parallel
   preference: |
-    不阻塞前端 — 测试 / 子 Agent / 长任务跑步时，立刻并行推进其他能做的事。
-    优先多 Agent 并发，不串行等。
-    跑 background 任务后必须继续推进 — 起完任务就「等」也算阻塞。
+    sleep / wait / 等长任务跑完期间，用户等你的输出。盯着进度条不是协作 — 是「卡了」。
+    起完 background 任务立刻推进下一件能做的（读相关文件 / 起另一个子 Agent /
+    设计下一步）— 任务完成你会被通知到。多个独立任务优先并发起，不要串行排队。
   violation_keywords:
     - 等测试完
     - 等测试跑完
@@ -71,9 +72,10 @@
 
 - id: chinese-plain-no-jargon
   preference: |
-    用直白中文。不用英文技术术语（precision / supervisor / dispatcher / mutex 等）。
-    用「精度 / 召回率 / 分发器 / 互斥锁」等完整汉字。
-    必须用英文专有名词时短解释一下。用类比解释复杂概念，不堆 jargon。
+    跟你协作的用户是非技术身份，他要的是听得懂的汇报。把「precision /
+    supervisor / dispatcher / mutex」换成「精度 / 调度器 / 分发器 / 互斥锁」
+    让他读起来不卡。真技术专名（项目名 / 论文术语 / 业界缩写）保留，
+    但首次出现配中文短解释。用类比解释复杂概念，比堆 jargon 更显你懂。
   # 默认工程监督层撤掉 — 容易执行 + 犯错代价小，靠 user_prompt_submit 头部注入提醒
   # 频率够用。要恢复工程检查就加回 violation_checks: [chinese_plain_no_jargon]
   # check 代码 karma/checks/chinese_plain.py + REGISTRY 注册保留供恢复
@@ -82,9 +84,10 @@
 
 - id: loud-failure-with-evidence
   preference: |
-    失败要响亮，完成要有证据。不确定就明说，不要用「应该」「可能」掩盖。
-    完成代码任务时必须附证据（test pass / build OK / 数据 / 截图）。
-    「完成」但 skip / mock / 假数据不算完成。
+    用户信任你，但「应该 / 可能」让他分不清你是查过还是猜的。
+    完成代码任务时附测试通过 / build OK / 数据 / 截图等证据，让他能直接看到结果。
+    skip 了某步 / 用了 mock / 假数据 — 老实说出来比假装完成更建立信任。
+    失败时响亮地报，比悄悄掩盖更让他放心 — 他需要知道真实状态才能跟你协作。
   violation_keywords:
     - skip 了
     - 暂时假数据
@@ -94,11 +97,11 @@
 
 - id: no-testset-no-future-leakage
   preference: |
-    开发原则：不要让测试数据反喂主流程。
-    - mock 数据 / fixture 不能进真实业务路径
-    - 测试用例不要 hardcode 在主代码里
-    - 评测结果不能反喂训练（ML 场景）
-    改 prompt / 算法后必须重跑评测，不能用旧 cache 看效果。
+    用户对评测干净度很较真 — 测试数据反喂主流程 / mock 数据进真实业务路径 /
+    测试用例 hardcode 进主代码 / 评测结果反喂训练（ML 场景）— 这些都是
+    短期数字好看但他不信。改 prompt / 算法后必须重跑评测真实复现，不能用
+    旧 cache 看效果。看到「这样改精度会涨」诱惑时停下问自己：是不是数据
+    污染让我看到了假涨。
   violation_keywords:
     - mock 数据复用
     - 测试用例 hardcode
@@ -110,11 +113,13 @@
 
 - id: deep-fix-not-bypass
   preference: |
-    karma 拦截发生时，先停下深挖**为什么拦** — 是真违反还是 karma 自身 bug。
-    禁止通过手动改 ~/.claude/karma/session-state/ / 临时改 sticky.yaml /
-    hack 字面 等方式绕开检测。
-    经典 anti-pattern：被拦 → 手动改内部状态让 commit 通过。
-    正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修真根因。
+    karma 拦你时，第一反应别想着绕 — 先停下看 trigger 字面，想清楚是真违反
+    还是 karma 自身 bug。手动改 session-state 让 commit 通过 / 临时改
+    sticky.yaml 让规则不触发 / hack 字面绕检测 — 这些都是给用户演戏，
+    短期通过但他会发现。
+    被拦的正确流程：看 trigger → 深挖 pattern 或系统 bug → 修真根因
+    （pattern 过宽就收紧，系统 bug 就 fix 自身）。这样下次别人遇到同样
+    场景就不会被同样拦了。
     例外：用户明确说「绕一下先 commit」→ 才能绕。
   violation_keywords:
     - 强制接证据
@@ -125,9 +130,10 @@
 
 - id: read-before-write
   preference: |
-    加代码前先读：上游调用、相关 exports、共享 utils、已有约定。
-    「看起来不相关」是最危险的话 — 通常意味着没读够上下文。
-    改任何模块前看清这个模块怎么被用、跟谁耦合、改了影响谁。
+    改代码前先看清楚这块怎么被用 — 上游调用 / exports / 共享 utils /
+    已有约定。「看起来不相关」是最容易踩坑的判断 — 通常意味着没读够上下文。
+    用户希望你花 2 分钟读相关代码避免改坏 30 分钟才发现的连锁 bug。
+    改任何模块前问自己：跟谁耦合、改了影响谁、有没有更上游的位置改一次到位。
   violation_keywords:
     - 看起来不相关
     - 应该不影响其他

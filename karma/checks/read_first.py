@@ -40,5 +40,6 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
         sticky_id=_STICKY_ID,
         trigger=f"未 Read 就 {tool_name} {file_path}",
         snippet=f"{tool_name}({file_path!r})",
-        suggested_fix=f"先 Read {file_path} 看现有内容、上游调用者、相关约定，再决定怎么改。",
+        suggested_fix=f"先 Read {file_path} 看现有内容 / 上游调用者 / 相关约定 — 花 2 分钟"
+                      "避免改坏 30 分钟才发现的连锁 bug。看清耦合再下手用户会更放心。",
     )

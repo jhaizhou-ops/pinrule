@@ -48,7 +48,7 @@ def test_user_prompt_submit_injects_sticky_as_context(monkeypatch, tmp_path, cap
     hso = out["hookSpecificOutput"]
     assert hso["hookEventName"] == "UserPromptSubmit"
     ctx = hso["additionalContext"]
-    assert "[karma sticky" in ctx
+    assert "[karma" in ctx and "默契" in ctx  # 2026-05-15 合作默契语气包装
     assert "用长期方案" in ctx
 
 
@@ -154,8 +154,8 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     assert "hookSpecificOutput" in out, "最近违反时应注入 reinject context"
     ctx = out["hookSpecificOutput"]["additionalContext"]
     assert "long-term-fundamental" in ctx, "context 应包含触发过的 sticky id"
-    # v0.4.34 叙事对齐：「中段提醒/易衰减」→「锚定刷新/易被新上下文稀释」
-    assert "锚定刷新" in ctx, "应有「锚定刷新」标记（v0.4.34 叙事对齐 — 抗稀释不是抗遗忘）"
+    # 2026-05-15 重写：「锚定刷新 / 易被稀释」技术词 → 「回想一下默契」合作语气
+    assert "回想" in ctx and "默契" in ctx, "应有合作回顾语气标记（取代技术化「锚定刷新」表述）"
     # v0.4.32 注入后 last_reinject_byte_seq 真重置为当前 tool_byte_seq
     # （main 自己又累加了 _estimate_tokens(tool_input, tool_response) 几字节，
     # 所以最终 tool_byte_seq 略大于预设的 10000，但 last_reinject_byte_seq
@@ -695,8 +695,9 @@ def test_user_prompt_submit_injects_strong_reminder_when_last_response_stopped(
     user_prompt_submit.main()
     out = json.loads(capsys.readouterr().out)
     ctx = out.get("hookSpecificOutput", {}).get("additionalContext", "")
-    assert "强提醒" in ctx and "keep-pushing-no-stop" in ctx, \
-        f"上一 response 无推进信号应注入强提醒含具体 sticky id：{ctx}"
+    # 2026-05-15 重写：「强提醒 命中检测」指控式 → 「上一回应没对齐默契」合作回顾式
+    assert "上一回应" in ctx and "对齐" in ctx and "keep-pushing-no-stop" in ctx, \
+        f"上一 response 无推进信号应注入合作回顾提醒含具体 sticky id：{ctx}"
 
 
 def test_user_prompt_submit_no_reminder_when_last_response_has_push(

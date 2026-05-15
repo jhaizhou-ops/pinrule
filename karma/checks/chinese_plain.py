@@ -142,9 +142,10 @@ def check(*, response: str = "", **_):
                 sticky_id=_STICKY_ID,
                 trigger=f"自然语言中文占比 {ratio*100:.0f}% < {_MIN_CHINESE_RATIO*100:.0f}%",
                 snippet=natural_for_ratio[:150],
-                suggested_fix="想想这段英文比例是有真合理原因（引用项目专名 / 标准技术词 / "
-                              "复制粘贴他人内容）还是习惯堆 jargon？合理就保留；不合理就换"
-                              "汉字（如「精度」「召回率」「分发器」等）。",
+                suggested_fix="本段读起来用户可能要停下查几次「这词什么意思」。看看哪些英文是"
+                              "「项目名 / 论文术语」（这种保留 + 首现加中文解释），哪些是"
+                              "「随手用了英文」（换成精度 / 召回率 / 分发器 等汉字）。"
+                              "目标不是中文凑比例，是让用户读完不用查词。",
             )
 
     # === Check 2: 术语命中且后续无「括号内中文解释」 ===
@@ -188,9 +189,10 @@ def check(*, response: str = "", **_):
             sticky_id=_STICKY_ID,
             trigger=f"术语 {m.group()!r} 后无括号内中文解释",
             snippet=jargon_scan_text[max(0, m.start() - 20): m.end() + _JARGON_CONTEXT_RADIUS],
-            suggested_fix=f"自检一下：{m.group()} 是真技术专名必须保留（项目名 / 论文术语 / "
-                          f"标准接口名）还是可以换汉字？必须用就用括号配中文短解释（如 "
-                          f"`precision (精度)`）；能换就直接用「精度 / 召回率」等汉字。",
+            suggested_fix=f"「{m.group()}」用户可能要停下想「这是什么」。如果是项目名 / 论文术语 / "
+                          f"标准接口名（必须保留），首次出现配中文短解释（如 "
+                          f"`precision (精度)`）让他能跟上；如果只是随手英文，直接换"
+                          f"「精度 / 召回率」等汉字会让他读起来更顺。",
         )
 
     # === Check 3: 同前缀重复防御性自证（v0.4.40 治理「真字狂魔」副作用）===
@@ -232,9 +234,9 @@ def _check_repeated_prefix(text: str):
                 trigger=f"前缀字 {prefix!r} 重复 {count} 次（疑似防御性堆叠）",
                 snippet=f"「{prefix}」字在本 response 出现 {count} 次开头位置",
                 suggested_fix=(
-                    f"想想这段「{prefix}X」前缀堆叠是真合理强调还是防御性自证？"
-                    f"sticky #4「证据」要的是数据 / 测试通过 / 截图 / 真复现脚本，"
-                    f"不是「真X」前缀。减弱前缀堆叠习惯让表达更自然。"
+                    f"「{prefix}X」前缀重复堆叠让表达显得在自证而非自然 — 用户读起来"
+                    f"觉得你紧张。sticky #4「证据」要的是数据 / 测试通过 / 截图 / "
+                    f"复现脚本，不是前缀强调词。下次试试去掉前缀让句子更直接。"
                 ),
             )
     return None

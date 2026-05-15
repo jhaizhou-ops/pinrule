@@ -22,27 +22,27 @@ _PATTERNS = [
     (
         re.compile(r"""\b(gold_cases|gold_data|eval_cases|test_cases)[\w.]*\.(append|extend|update|write\w*)""", re.IGNORECASE),
         "反喂测试集（写回 gold_cases / eval_cases）",
-        "禁止把评测结果反喂训练数据。改 prompt / 算法后重跑评测，不要回流。",
+        "反喂池子 = 短期精度数字好看但用户不信。改 prompt / 算法后重跑评测让数字真实，不要回流。",
     ),
     (
         re.compile(r"""detail[\w.]*\.json[\s\S]{0,80}?(open\s*\([^)]*['"]w['"]|write_text|\.write\b|\.dump\b)""", re.IGNORECASE),
         "把 detail.json (eval 结果) 写回训练数据",
-        "禁止把评测 detail 文件作为训练输入。",
+        "把评测 detail 当训练输入 = 用未来数据喂当前模块，用户对这种作弊很较真。保持 split 干净。",
     ),
     (
         re.compile(r"""\bcp\s+[^|;\n]*(?:eval|test|gold)[\w/]*[^|;\n]*?(?:train|fit|memory)\b""", re.IGNORECASE),
         "Bash 跨 split 数据复制（eval / test → train）",
-        "不要把 eval / test 数据搬到训练目录。保持 split 隔离。",
+        "eval / test 数据搬到训练目录 = 数据污染，用户对评测干净度很较真。保持 split 隔离。",
     ),
     (
         re.compile(r"""cat\s+[^|;\n]*detail[\w.]*\.json[^|;\n]*>>""", re.IGNORECASE),
         "append eval detail 结果到训练文件",
-        "禁止把 eval detail 内容追加到训练 / 池子文件。",
+        "eval detail 追加到训练 / 池子文件 = 反喂作弊，用户对评测干净度很较真。",
     ),
     (
         re.compile(r"""if\s+turn_idx\s*[><=]+\s*\d{2,}"""),
         "数据 split 边界硬编码（turn_idx >= N）",
-        "用 train/test split 配置而不是硬编码 turn_idx 阈值。",
+        "硬编码 turn_idx 阈值后改 split 大小要动代码 — 用 train/test split 配置让它能演化。",
     ),
     (
         # 长 hash / UUID 字面要算违反，必须出现在「针对该值的判定 / 赋值给 case_id」位置
@@ -53,7 +53,7 @@ _PATTERNS = [
             re.IGNORECASE,
         ),
         "长 hash / UUID 字面在比较或 case_id 赋值里（测试集 case ID 写死）",
-        "不要把测试集 case 的 ID 写死到 if 分支或 case_id 常量。用通用判定逻辑。",
+        "测试集 case ID 写死到 if 分支 = 用未来 eval 数据当前 case 特判，用户对这种作弊很较真。用通用判定逻辑。",
     ),
     (
         # 变量名带测试集语义 + 列表里至少 1 个长 hex 字面 → 写死 case ID
@@ -63,7 +63,7 @@ _PATTERNS = [
             re.IGNORECASE,
         ),
         "测试集 / case 列表里写死长 hash 字面",
-        "用通用 fixture / 算法生成 case ID，不要把具体 case 写死到列表。",
+        "把具体 case 写死到列表 = 反喂池子嫌疑，用户对评测干净度很较真。用通用 fixture / 算法生成 case ID。",
     ),
 ]
 

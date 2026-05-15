@@ -145,7 +145,9 @@ def test_format_for_injection_basic() -> None:
         Sticky(id="r2", preference="方向 2"),
     ]
     out = format_for_injection(sticky)
-    assert "[karma sticky" in out
+    # 2026-05-15 重写：合作默契语气取代「规则系统」包装
+    assert "[karma" in out
+    assert "默契" in out  # 头部合作语气关键字
     assert "1. 方向 1" in out
     assert "   细节" in out  # 多行缩进
     assert "2. 方向 2" in out
@@ -154,8 +156,9 @@ def test_format_for_injection_basic() -> None:
 def test_format_for_injection_marks_recent_violation() -> None:
     sticky = [Sticky(id="r1", preference="方向 1")]
     out = format_for_injection(sticky, recent_violations={"r1": 12345})
-    assert "⚠️" in out
-    assert "上次违反" in out
+    # 2026-05-15 重写：合作回顾标记取代红警示词 ⚠️ / 「上次违反」
+    assert "偏离" in out
+    assert "对齐" in out  # 合作回顾语气关键字
 
 
 def test_format_for_injection_empty_list() -> None:

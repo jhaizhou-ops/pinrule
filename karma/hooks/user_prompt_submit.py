@@ -161,12 +161,20 @@ def main() -> int:
                             _v_append(recs)
                         except Exception:
                             pass
-                        reminder_lines = ["\n\n[karma 强提醒 — 上一 response 命中检测]"]
+                        # 2026-05-15 重写：合作回顾语气替代指控/惩罚式包装
+                        # 避免激活 Agent 防御反应 / 过度补偿副作用（如「真字狂魔」）
+                        reminder_lines = [
+                            "\n\n[karma — 上一回应有几处没对齐用户默契]",
+                            "你的上一回应在某些点上跟用户长期偏好有偏差，看看本 turn 能否调整：",
+                        ]
                         for h in all_hits[:5]:  # 最多 5 条避免淹没
-                            reminder_lines.append(f"  - {h.sticky_id}: {h.trigger}")
+                            reminder_lines.append(f"\n  ▸ {h.sticky_id}")
+                            reminder_lines.append(f"    {h.trigger}")
                             if h.suggested_fix:
-                                reminder_lines.append(f"    → {h.suggested_fix}")
-                        reminder_lines.append("本 turn 立即按 fix 改进，不要再犯同样错误。")
+                                reminder_lines.append(f"    {h.suggested_fix}")
+                        reminder_lines.append(
+                            "\n本 turn 自然回应即可，不需要为这条特意补偿过度。"
+                        )
                         additional_context += "\n".join(reminder_lines)
         except Exception:
             pass

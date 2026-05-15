@@ -75,7 +75,7 @@ def test_reinject_when_threshold_reached_and_sticky_triggered():
          patch("karma.violations.recent_turns", return_value={"r1": 2}):
         result = _build_smart_reinject("test", state)
     # v0.4.34 叙事对齐：「中段提醒」→「锚定刷新」（抗稀释不是抗遗忘）
-    assert "[karma 锚定刷新" in result
+    assert "[karma" in result and "回想" in result and "默契" in result
     assert "r1" in result
     assert "r2" not in result  # 没触发 r2 不该注入
     # 注入后 last_reinject_byte_seq 真重置为当前 tool_byte_seq
@@ -129,7 +129,7 @@ def test_threshold_adapts_to_opus_model():
     with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 1}):
         result = _build_smart_reinject("test", state)
-    assert "[karma 锚定刷新" in result  # opus 累积 85K 触发
+    assert "[karma" in result and "回想" in result and "默契" in result  # opus 累积 85K 触发
 
 
 def test_threshold_adapts_to_haiku_model():
@@ -138,4 +138,4 @@ def test_threshold_adapts_to_haiku_model():
     with patch("karma.sticky.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 1}):
         result = _build_smart_reinject("test", state)
-    assert "[karma 锚定刷新" in result  # haiku 30K 阈值，35K 触发
+    assert "[karma" in result and "回想" in result and "默契" in result  # haiku 30K 阈值，35K 触发

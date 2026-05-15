@@ -94,7 +94,8 @@ def check(
                 sticky_id=_STICKY_ID,
                 trigger="git commit 前最近 session 内无测试通过证据",
                 snippet=cmd[:200],
-                suggested_fix="commit 前跑测试（pytest / npm test 等）确认通过，再 commit。",
+                suggested_fix="commit 是给用户的信号「这个版本可信」。跑测试（pytest / "
+                              "npm test 等）确认通过再 commit，让他看到 commit 时不用担心。",
             )
 
     # === post_response 场景 ===
@@ -109,7 +110,8 @@ def check(
                     sticky_id=_STICKY_ID,
                     trigger=f"声称{m_done.group()!r} 但 session 最近无测试通过证据",
                     snippet=response[max(0, m_done.start()-30): m_done.end()+50],
-                    suggested_fix="给出测试证据 — 跑 pytest / build 看到 PASS 后再说完成。",
+                    suggested_fix="说「完成」时附测试证据 — 跑 pytest / build 看到 PASS "
+                                  "的数字让用户能直接信任结果，比空口「完成」更建立信任。",
                 )
             break  # 命中一次足够
         for m_weak in _WEAK_CLAIM_RE.finditer(response):
@@ -120,7 +122,9 @@ def check(
                     sticky_id=_STICKY_ID,
                     trigger=f"用『{m_weak.group()}』做硬声明且无测试证据",
                     snippet=response[max(0, m_weak.start()-30): m_weak.end()+50],
-                    suggested_fix="不要用『应该』掩盖不确定。明说不知道，或者跑测试确认。",
+                    suggested_fix="「应该 / 可能」让用户分不清你是查过还是猜的。如果你真不确定，"
+                                  "明说「我不确定 X 因为 Y，可以跑 Z 验证下吗」— 这比错装确定更建立"
+                                  "信任。如果是确定的就直说，去掉「应该」让信息清晰。",
                 )
             break
 

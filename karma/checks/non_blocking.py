@@ -120,8 +120,9 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
                 sticky_id=_STICKY_ID,
                 trigger=f"python 真阻塞接口: {m_block.group()!r}",
                 snippet=cmd_raw[:200],
-                suggested_fix="python -c 内 time.sleep / subprocess sleep 真阻塞前端。"
-                              "用 run_in_background=True 启动，或用 asyncio + 并发。",
+                suggested_fix="python -c 内 time.sleep / subprocess sleep 期间用户等你输出，"
+                              "体验是「卡了」。改 run_in_background=True 启动 / asyncio + 并发，"
+                              "然后立刻推进下一件能做的事 — 任务完成会通知到你。",
             )
 
     m = _SLEEP_RE.search(cmd)
@@ -130,8 +131,9 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             sticky_id=_STICKY_ID,
             trigger=f"Bash sleep 命令: {m.group()!r}",
             snippet=cmd_raw[:200],
-            suggested_fix="不要 sleep 阻塞前端。用 run_in_background=True 启动任务，并行做其他事。"
-                          "需要等条件成立时用 Monitor + until 循环。",
+            suggested_fix="sleep 期间用户等你输出，体验是「卡了」。改成 run_in_background=True "
+                          "启动任务，然后立刻推进下一件能做的（读相关文件 / 起另一个子 Agent / "
+                          "设计下一步）— 任务完成你会被通知到。等条件成立用 Monitor + until 循环。",
         )
 
     # v0.4.18：wait 检测也豁免宿主语言 -c — python 代码里 `_WAIT_RE` / `wait_fn`
@@ -141,9 +143,9 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             sticky_id=_STICKY_ID,
             trigger="Bash wait 命令阻塞",
             snippet=cmd_raw[:200],
-            suggested_fix="不要 wait 阻塞前端。用 run_in_background=True，"
-                          "让前端能继续推进其他事。（kubectl/docker/aws wait 等同步"
-                          "原语已豁免）",
+            suggested_fix="wait 期间用户等你输出，体验是「卡了」。改 run_in_background=True，"
+                          "然后立刻推进下一件能做的事 — 任务完成会通知到你。"
+                          "（kubectl/docker/aws wait 等同步原语已豁免）",
         )
 
     # 长任务且没标 background
@@ -153,7 +155,8 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
             sticky_id=_STICKY_ID,
             trigger=f"长任务不带 run_in_background: {m.group()!r}",
             snippet=cmd_raw[:200],
-            suggested_fix=f"{m.group()} 是长任务，加 run_in_background=True 让前端能继续做别的事。",
+            suggested_fix=f"{m.group()} 是长任务，跑期间用户等你的输出。加 run_in_background=True "
+                          "让你能立刻推进其他事，任务完成会通知到你。",
         )
 
     return None

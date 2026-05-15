@@ -121,14 +121,25 @@ def format_for_injection(
 ) -> str:
     """渲染 sticky 列表为前置注入的 prompt 文本。
 
-    recent_violations: sticky_id → 最近违反时间戳。出现的规则会标 ⚠️。
+    设计哲学（2026-05-15 重写）：
+    - 把 sticky 从「规则系统」改成「合作默契」语气，让 Agent 看到提醒第一反应
+      是「调整对齐」而非「防御 / 绕过」
+    - 上次有偏离的 sticky 用合作回顾标记（〔...〕），不用红警示词（⚠️ / 违反）
+      激活防御反应
+
+    recent_violations: sticky_id → 最近违反时间戳。出现的规则会加合作回顾标记。
     """
     if not sticky_list:
         return ""
     recent_violations = recent_violations or {}
-    lines = ["[karma sticky — 用户最高优先级方向，请始终遵守]"]
+    lines = [
+        "[karma — 你跟用户的长期默契]",
+        "跟你协作的是一位真人用户，他列出了几条长期最看重的方向。",
+        "这不是规则也不是审判 — 是他希望跟你建立的协作默契。",
+        "",
+    ]
     for i, s in enumerate(sticky_list, 1):
-        marker = " ⚠️ 上次违反！" if s.id in recent_violations else ""
+        marker = "  〔上一回应这条有偏离，本 turn 看看能否更对齐〕" if s.id in recent_violations else ""
         # preference 多行 → 缩进对齐
         pref_lines = s.preference.strip().split("\n")
         lines.append(f"{i}. {pref_lines[0]}{marker}")
