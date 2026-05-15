@@ -298,6 +298,55 @@ def test_v0441_user_normal_prompt_no_exempt():
         assert result is not None, f"正常 prompt {p!r} 不该豁免: 应仍命中"
 
 
+def test_v080_english_user_stop_hint_exempts():
+    """v0.8.0 i18n 信号: 英文用户叫停字眼也豁免反思 hook。
+
+    karma 信号字眼外部化到 data/signals/user_stop_hints/{zh,en}.txt 后，
+    英文用户「looks good / LGTM / all set / nice nice」等满意确认 +
+    「never mind / stop pushing / call it a day」等推卸都应整 turn 豁免。
+    """
+    fn = REGISTRY["keep_pushing_no_stop"]
+    bare_stop = "Done with this batch."  # 英文陈述完结无 push signal → 默认命中
+    # 基线：无 user_prompt 时英文 bare stop 命中
+    # 注: keep_pushing 的英文 push signal 还没外部化（_PUSH_SIGNAL_RE 是
+    # 结构化 cartesian, v0.8.1 处理），所以英文 response 这里仍走默认命中路径
+    english_stop_hints = [
+        # 满意类
+        "Looks good, ship it",
+        "LGTM",
+        "all set",
+        "Nice nice",
+        "that works for me",
+        # 推卸类
+        "never mind, let's stop",
+        "call it a day",
+        "good night",
+        "wrap it up",
+    ]
+    for hint in english_stop_hints:
+        result = fn(response=bare_stop, user_prompt=hint)
+        assert result is None, f"英文用户叫停 {hint!r} 应豁免反思 hook: {result}"
+
+
+def test_v080_english_agent_saturation_exempts():
+    """v0.8.0 i18n 信号: 英文 Agent 饱和声明也豁免反思 hook。
+
+    跟中文「任务饱和 / 卡在这一步 / 明天接力」对偶 — 英文 Agent 说
+    「I'm saturated / stuck at X / will pick this up tomorrow」也应豁免。
+    """
+    fn = REGISTRY["keep_pushing_no_stop"]
+    english_saturation_responses = [
+        "I'm saturated, no more obvious next steps here.",
+        "I am stuck on the regex pattern, need a different angle.",
+        "Will pick this up tomorrow with a fresh head.",
+        "Hand off to next session, today's wave is saturated.",
+        "Hit saturation on this wave.",
+    ]
+    for resp in english_saturation_responses:
+        result = fn(response=resp)
+        assert result is None, f"英文 Agent 饱和声明 {resp!r} 应豁免: {result}"
+
+
 def test_v056_next_push_point_phrasing_exempted():
     """v0.5.6: 「下一推进点 / 下一步是 / 接下来打算 / 下一波」类未来规划短语豁免.
 

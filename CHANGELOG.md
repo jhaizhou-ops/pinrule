@@ -10,6 +10,60 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-15 (feat — i18n signals: detection phrases externalized, English users now fully covered, new languages contributable as a `.txt` file)
+
+### Why this matters
+
+Before v0.8.0, karma's detection regexes (`_USER_STOP_HINT_RE` / `_AGENT_SATURATION_RE` / `_STOP_HINT_RE` / `_EXPLICIT_USER_HANDOFF_RE` / `_WEAK_CLAIM_RE`) were Chinese-hardcoded in Python source. English users could install karma but the `keep_pushing` reflection nudge fired false-positive often — the Agent's "Next I'll proceed to X" wasn't recognized, the user's "looks good / LGTM" didn't exempt, and `evidence` missed "should work / probably fine" weak claims.
+
+User asked the right question: **是不是工程模块全英文就行，反正 LLM 能看懂，人类也不看工程模块** (can't the engineering modules just be English-only?). Mostly yes for *karma's own source code*, but the **regex literals themselves** match user / Agent dialogue, which is whatever language the user actually speaks. So the elegant fix is: separate signal phrases from code entirely, into language-tagged data files.
+
+### Architecture — phrases as data, code as loader
+
+```
+data/signals/
+├── user_stop_hints/
+│   ├── zh.txt    # 不错不错, 休息吧, 挺稳定, ...
+│   └── en.txt    # looks good, LGTM, never mind, ...
+├── agent_saturation/{zh,en}.txt
+├── stop_hints/{zh,en}.txt
+├── explicit_handoff/{zh,en}.txt
+└── weak_claims/{zh,en}.txt
+```
+
+- One phrase per line, `#` comments + blank lines skipped
+- `karma/signals.py` loads all language files in a signal directory, dedupes, unions, and compiles to a single regex (long phrases prioritized to avoid `OK` swallowing `OK 了`)
+- Character sets across languages don't overlap (Chinese vs Latin vs kana vs hangul) → no cross-language false matches
+- LRU-cached; phrase files are read once per process
+
+### Adding a new language = 0 Python code
+
+A native speaker of Japanese / Korean / Russian / German / etc. can contribute a single `data/signals/<signal>/xx.txt` per signal directory. karma picks it up on next startup. No regex composition skill required — just write the phrases users would actually say.
+
+### English coverage for existing signals
+
+| Signal | Chinese examples | English examples (new) |
+|---|---|---|
+| `user_stop_hints` | 不错不错, 休息吧, LGTM, ok 了 | looks good, LGTM, never mind, call it a day, all set, sounds good, ship it |
+| `agent_saturation` | 任务饱和, 卡在这一步, 明天接力 | I'm saturated, stuck at, will pick this up tomorrow |
+| `stop_hints` | 先到这, 告一段落, 改不动了 | calling it here, that's all for today, can't fix this |
+| `explicit_handoff` | 请决定, 等你授权 | please decide, your call here, waiting for your decision |
+| `weak_claims` | 应该可以, 大概率, 我猜 | should work, probably fine, might work, seems to work |
+
+### What's NOT in v0.8.0 (deferred to v0.8.1)
+
+- `_PUSH_SIGNAL_RE` is a structured Cartesian pattern (`我(现在|立刻)\s*(做|改|加)…`) that doesn't map cleanly to a flat phrase list. v0.8.1 will redesign the push-signal layer (likely a small DSL or hybrid). For now English Agents' "Next I'll…" / "Moving on to…" still hit `keep_pushing` defaults, but as long as the user's stop signal works (v0.8.0 covers it), the impact is bounded.
+
+### Tests
+
+- 13 new unit tests in `tests/test_signals.py` (loader correctness, long-phrase priority, comment skipping, language non-overlap, cache invalidation)
+- 4 new English-coverage tests in `tests/test_keep_pushing.py` + `tests/test_checks.py` (English users get same protection as Chinese users)
+- **444/444 passing**, `ruff` clean
+
+### Real karma value
+
+karma's "永不依赖 LLM" boundary stands stronger here — i18n is achievable with pure data files + regex, no LLM in the loop. The same principle that makes karma fast (< 60ms) is what makes it locale-extensible at zero cognitive cost.
+
 ## [0.7.4] — 2026-05-15 (fix — `keep_pushing` user-stop hint covers "satisfied / confirmation" phrases, not only "tired / dismissive")
 
 ### Real-user dogfood trigger

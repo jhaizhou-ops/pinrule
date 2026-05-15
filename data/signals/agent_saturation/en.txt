@@ -1,0 +1,36 @@
+# karma signal: Agent honestly declaring task saturation (English)
+# Hit → exempts the keep_pushing reflection nudge (rule #8 exception ②:
+# real saturation, said out loud where the user is stuck)
+#
+# Only matches strong-saturation phrases (saturated + stuck-on-X +
+# explicit hand-off plan), not soft pauses ("calling it a day" / "let's
+# stop here" without specifics — those stay caught by stop_hints).
+
+# Saturation declarations
+I'm saturated
+I am saturated
+task is saturated
+task saturated
+this wave is saturated
+this push wave is saturated
+saturated for this session
+saturated this session
+hit saturation
+out of meaningful steps
+
+# Stuck-on-X declarations
+I'm stuck on
+I am stuck on
+stuck at
+the blocker is
+blocked on
+need your call on
+need your decision on
+
+# Hand-off / next-session plans
+will pick this up tomorrow
+picking this up tomorrow
+continue this tomorrow
+hand off to next session
+resume in the next session
+parking this here

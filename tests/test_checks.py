@@ -630,6 +630,35 @@ def test_evidence_weak_claim_in_chitchat_passes():
     assert hit is None
 
 
+def test_v080_english_weak_claim_in_code_context_fails():
+    """v0.8.0 i18n 信号: 英文「should work / probably fine」weak claim 在代码
+    任务语境（含 code / test / build / commit 等 action context word）→ 拦。
+
+    跟中文「应该可以 / 大概率」对偶。验证 i18n 信号外部化后英文用户
+    一样能享受 evidence check 保护。
+    """
+    fn = REGISTRY["loud_failure_with_evidence"]
+    state = SessionState(session_id="s1")
+    english_weak_cases = [
+        "Fixed the bug, should work now.",
+        "Code compiles, probably fine for production.",
+        "Done with the test, should be okay.",
+        "Build passes, likely works.",
+    ]
+    for resp in english_weak_cases:
+        hit = fn(response=resp, session_state=state)
+        assert hit is not None, f"英文 weak claim 在代码语境应拦: {resp!r}"
+
+
+def test_v080_english_weak_claim_in_chitchat_passes():
+    """v0.8.0 i18n 信号对偶: 英文 weak claim 闲聊语境（无 action context word）
+    → 不拦，避免日常对话假阳。"""
+    fn = REGISTRY["loud_failure_with_evidence"]
+    state = SessionState(session_id="s1")
+    hit = fn(response="That direction probably works, take it slow.", session_state=state)
+    assert hit is None
+
+
 def test_evidence_completion_in_chitchat_passes():
     """完成词在非代码任务语境 → 不拦。
 

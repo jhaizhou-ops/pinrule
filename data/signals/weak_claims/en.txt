@@ -1,0 +1,28 @@
+# karma signal: weak / hedging claim phrases (English)
+# Used by evidence check — phrases like "should work" / "probably fine"
+# indicate guessing without verification, triggering the
+# "loud-failure-with-evidence" rule reflection
+
+should work
+should be fine
+should be ok
+should be okay
+probably works
+probably fine
+probably ok
+probably okay
+might work
+might be fine
+i think it works
+i think it's fine
+i think it should
+likely works
+likely fine
+maybe it works
+maybe works
+seems to work
+seems fine
+appears to work
+i guess it
+i guess this
+my guess is

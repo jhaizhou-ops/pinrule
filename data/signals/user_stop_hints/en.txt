@@ -1,0 +1,51 @@
+# karma signal: user's last prompt contains an explicit "stop" hint (English)
+# Hit → whole-turn exemption from the keep_pushing reflection nudge
+# (rule #8 exception: user has explicitly said they're done)
+
+# Category 1: tired / dismissive
+never mind
+nevermind
+that's enough
+that is enough
+let's stop
+lets stop
+stop pushing
+no more
+we're done
+we are done
+done for today
+call it a day
+let's wrap
+lets wrap
+wrap it up
+good night
+goodnight
+go to sleep
+take a break
+let it go
+
+# Category 2: satisfied / confirmation
+looks good
+look good
+looks stable
+seems stable
+that's stable
+that is stable
+nicely done
+nice nice
+all good
+sounds good
+that works
+this works
+that's fine
+that is fine
+all set
+we're set
+we are set
+ship it
+lgtm
+LGTM
+OK then
+okay then
+that'll do
+that will do

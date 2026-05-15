@@ -12,6 +12,7 @@ import re
 
 from karma.checks._types import CheckHit
 from karma.i18n import tr
+from karma.signals import compile_alternation
 
 _STICKY_ID = "loud-failure-with-evidence"
 
@@ -19,9 +20,9 @@ _COMPLETION_RE = re.compile(
     r"(完成了?|搞定了?|搞好了|做完了?|fix\s*了?|fixed|done\b|all set|搞好啦|修复完成|搞好了)",
     re.IGNORECASE,
 )
-_WEAK_CLAIM_RE = re.compile(
-    r"(应该可以|应该没问题|应该是\w{0,3}的?|大概率|我猜\w{0,2}|可能可以|应该能)",
-)
+# v0.8.0: 字眼从 data/signals/weak_claims/{zh,en}.txt 加载
+# 中文「应该可以 / 大概率」+ 英文「should work / probably fine」对偶
+_WEAK_CLAIM_RE = compile_alternation("weak_claims")
 # 「代码任务行为词」— 完成词 / weak claim 必须在 40 字窗口内含至少一个，才算
 # 「声称代码任务完成」而非日常闲聊「这个应该可以接受」之类
 _ACTION_CONTEXT_RE = re.compile(

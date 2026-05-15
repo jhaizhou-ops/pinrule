@@ -6,6 +6,60 @@
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-15（feat — i18n 信号系统：检测字眼外部化，英文用户完整覆盖，加新语言只是提交一个 `.txt`）
+
+### 为什么重要
+
+v0.8.0 之前，karma 的检测 regex（`_USER_STOP_HINT_RE` / `_AGENT_SATURATION_RE` / `_STOP_HINT_RE` / `_EXPLICIT_USER_HANDOFF_RE` / `_WEAK_CLAIM_RE`）字眼全是中文硬编码在 Python 源码里。英文用户能装 karma 但 `keep_pushing` 反思 hook 经常假阳 — Agent 说「Next I'll proceed to X」不被识别为推进信号、用户说「looks good / LGTM」不豁免反思、`evidence` 漏拦「should work / probably fine」类弱声明。
+
+用户的洞察精准：**是不是工程模块全英文就行，反正 LLM 能看懂，人类也不看工程模块。** 对 karma 自身源码而言基本对，但 **regex 字面**匹配的是用户/Agent 实际对话语言，用什么语言取决于用户自己。所以优雅方案是把信号字眼从代码彻底剥出来，按语言分文件维护。
+
+### 架构 — 字眼数据化，代码只做加载
+
+```
+data/signals/
+├── user_stop_hints/
+│   ├── zh.txt    # 不错不错, 休息吧, 挺稳定, ...
+│   └── en.txt    # looks good, LGTM, never mind, ...
+├── agent_saturation/{zh,en}.txt
+├── stop_hints/{zh,en}.txt
+├── explicit_handoff/{zh,en}.txt
+└── weak_claims/{zh,en}.txt
+```
+
+- 一行一字眼，`#` 注释 + 空行跳过
+- `karma/signals.py` 加载某信号目录下所有语言文件，去重 + union + 编译成单 regex（长字眼优先，避免「OK」抢「OK 了」前面命中）
+- 不同语言字符集不重叠（中文 vs 拉丁 vs 假名 vs 谚文）→ 天然无跨语言误命中
+- LRU 缓存；字眼文件每进程加载一次
+
+### 加新语言 = 0 Python 代码
+
+日语 / 韩语 / 俄语 / 德语母语用户只需给每个 signal 目录贡献一个 `data/signals/<signal>/xx.txt`，karma 下次启动自动接进来。不需要 regex 编排技巧 — 只写「实际用户会说的话」即可。
+
+### 现有信号的英文覆盖
+
+| 信号 | 中文示例 | 英文示例（新加）|
+|---|---|---|
+| `user_stop_hints` | 不错不错 / 休息吧 / 挺稳定 / OK 了 | looks good / LGTM / never mind / call it a day / all set / sounds good / ship it |
+| `agent_saturation` | 任务饱和 / 卡在这一步 / 明天接力 | I'm saturated / stuck at / will pick this up tomorrow |
+| `stop_hints` | 先到这 / 告一段落 / 改不动了 | calling it here / that's all for today / can't fix this |
+| `explicit_handoff` | 请决定 / 等你授权 | please decide / your call here / waiting for your decision |
+| `weak_claims` | 应该可以 / 大概率 / 我猜 | should work / probably fine / might work / seems to work |
+
+### v0.8.0 没做（留 v0.8.1）
+
+- `_PUSH_SIGNAL_RE` 是结构化 cartesian 模式（`我(现在|立刻)\s*(做|改|加)…`），跟平面字眼列表对不上。v0.8.1 重新设计 push-signal 层（可能用小 DSL 或混合模式）。当前英文 Agent 说「Next I'll…」仍走默认命中路径，但**用户叫停字眼已经覆盖**（v0.8.0），所以影响有限。
+
+### 测试
+
+- `tests/test_signals.py` 加 13 个单元测试（加载正确性 / 长字眼优先 / 注释跳过 / 跨语言不重叠 / 缓存失效）
+- `tests/test_keep_pushing.py` + `tests/test_checks.py` 加 4 个英文覆盖测试（英文用户跟中文用户享受同等保护）
+- **444/444 通过**，`ruff` 干净
+
+### karma 实际价值
+
+karma「永不依赖 LLM」边界在这版更扎实 — i18n 用纯数据文件 + regex 就能做，根本不需要 LLM 在循环里。让 karma 快（< 60ms）的同一原则也让它 locale 可扩展，零认知成本。
+
 ## [0.7.4] — 2026-05-15（fix — `keep_pushing` 用户叫停字眼覆盖「满意 / 确认」类，不只「累了 / 推卸」类）
 
 ### 实际用户 dogfood 触发

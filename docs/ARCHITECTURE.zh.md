@@ -382,6 +382,7 @@ violations / session_state / config / cli）都从它读 env。
 | v0.7.2 撤掉 `chinese_plain` Check 3 reactive 监控 — v0.7.0+v0.7.1 治根后监控冗余。Check 3 是 v0.4.40 加的 reactive 治表对冲（代码注释自承「治症状不治根因」）。`karma audit` 确认治根后 168 条 violation 里 0 次触发。跟用户 v0.7.0 对 `defensive_prefix_stacking` 用过的同款逻辑；v0.7.2 闭环三个月前漏掉的同款思路。撤：`_check_repeated_prefix()` + 2 个 locale key + 2 个专用测试。| ✅ |
 | v0.7.3 手工 audit 全部 GitHub 可见文档 — 用户指令逐个读不批处理（33 个 markdown 审过，22 个动了）。删营销话术（「≈ 0%」过度宣称 /「500+ 小时实战调优」）+ 清 v0.6.0 漏网的 `sticky` 老命令名 + 修正硬上限数字 14 → 12 + 砍冻结的「M3」「v0.5.x」milestone 标签 + 已落地 plan 文档标归档 + 重写过时 `HOOK_CONFIGURATION_GUIDE.md`（旧版列 9 hook 含不存在的 `PostCompact` → 改正为实际的 8 个）。净 −63 行。| ✅ |
 | v0.7.4 `keep_pushing` 用户叫停字眼覆盖「满意 / 确认」类 — 当 turn dogfood：v0.7.3 ship 后用户说「感觉已经挺稳定了，不错不错」（满意叫停信号），但反思 hook 仍触发，因为 `_USER_STOP_HINT_RE` 只覆盖「累了 / 推卸」类（`休息吧 / 算了 / 够了`）。按 rule #7 治根：扩 regex 加第二类 — `不错不错 / 挺稳定 / 就这样吧 / 这就行 / 可以了 / OK 了` 等。两类都整 turn 豁免反思 hook。加 7 个新测试 fixture（含触发本版本的用户原话）。| ✅ |
+| **v0.8.0 i18n 信号系统 — 检测字眼外部化到 `data/signals/<name>/{zh,en}.txt`**。用户洞察：之前 5 个检测 regex（`_USER_STOP_HINT_RE` / `_AGENT_SATURATION_RE` / `_STOP_HINT_RE` / `_EXPLICIT_USER_HANDOFF_RE` / `_WEAK_CLAIM_RE`）是中文硬编码；英文用户 `keep_pushing` 假阳烦人、`weak_claim` 漏拦。新 `karma/signals.py` loader 加载信号目录下所有语言文件，去重 union 编译（长字眼优先）。不同语言字符集不重叠 → 跨语言无误命中。**加新语言 = 0 Python 代码，每个 signal 目录提交一个 `.txt` 即可**。5 个信号的英文覆盖一次到位。`tests/test_signals.py` 加 13 个单元测试 + keep_pushing / evidence 加 4 个英文覆盖测试。`_PUSH_SIGNAL_RE`（cartesian 结构）留 v0.8.1。| ✅ |
 
 详见 [CHANGELOG.md](../CHANGELOG.md) 每版本的设计动机；[HANDOFF.md](./HANDOFF.md) 内部接力 context。
 

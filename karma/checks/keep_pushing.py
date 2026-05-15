@@ -20,6 +20,7 @@ import re
 
 from karma.checks._types import CheckHit
 from karma.i18n import tr
+from karma.signals import compile_alternation
 
 _STICKY_ID = "keep-pushing-no-stop"
 
@@ -39,33 +40,17 @@ _SUCCESS_REPORT_RE = re.compile(
     re.IGNORECASE,
 )
 
-# 停顿语气词 — Agent 明确表达「暂停 / 等下次 / 告一段落」类
-# 这些词出现在末尾窗口且无推进信号 → 沉默式停下（用户的「没问号也停了」反馈）
-# v0.4.19：「下次」字面收紧 — 「下次再来」「下次见」「下次有空再」类是停，
-# 但「下次接手做 X」「下个 session 推进 X」是规划下一步，应豁免（_PUSH_SIGNAL_RE
-# 识别）。这里只匹配「下次」后跟模糊副词（再 / 见 / 有 + 收尾）不跟具体动作。
-_STOP_HINT_RE = re.compile(
-    r"(?:"
-    r"等下次|下次再来|下次再说|下次见|下次有空"
-    r"|先到这|先到此|告一段落|暂告一段落|暂停一下|停一下|这阶段(?:完|结束)"
-    r"|当前(?:状态|进度)是|当前节点|本轮 OK"
-    r"|累积到一定量再"
-    r"|看新出现什么"
-    # v0.4.22：柔性停顿 — v0.4.19/20 漏拦的停顿语气
-    r"|今天到此|到此为止|就这样了|就这样吧|就到这|今天就这"
-    r"|搞不定了|改不动了|算了吧|放着吧"
-    r")",
-    re.IGNORECASE,
-)
+# v0.8.0: 字眼从 data/signals/stop_hints/{zh,en}.txt 加载（多语言 union）
+# 历史: v0.4.19 设计「下次」字面收紧 — 「下次再来 / 下次见」是停，
+# 「下次接手做 X」是规划（_PUSH_SIGNAL_RE 识别）。
+# v0.4.22 加柔性停顿（今天到此 / 改不动了）。
+# v0.8.0 外部化 + 加英文 → 英文用户对偶覆盖。
+_STOP_HINT_RE = compile_alternation("stop_hints")
 
-# v0.4.19：显式让用户介入豁免 — 按 sticky #7「显式让用户介入」原则，
-# response 末尾含「请决定 / 请授权 / 等你 X」类明确 ask 句式是合法 stop
-# 路径（不是 sticky #8 禁止的「停下问反馈」），应豁免。
-_EXPLICIT_USER_HANDOFF_RE = re.compile(
-    r"(?:请(?:决定|授权|确认|定夺|拍板)|等你(?:决定|授权|确认|看|说|回复|反馈)|"
-    r"等用户(?:决定|授权|确认|介入)|你说(?:要不要|怎么|呢))",
-    re.IGNORECASE,
-)
+# v0.8.0: 字眼从 data/signals/explicit_handoff/{zh,en}.txt 加载
+# 历史: v0.4.19 设计 — sticky #7「显式让用户介入」是合法 stop 路径
+# 应豁免，跟「沉默式停下问下一步」区分。
+_EXPLICIT_USER_HANDOFF_RE = compile_alternation("explicit_handoff")
 
 # 明确「推进信号」字眼 — 表达 Agent 主动继续推进
 # v0.4.19：扩三类「未来推进规划」识别（已有下一步计划但不是「现在立即做」）：
@@ -105,46 +90,18 @@ _PUSH_SIGNAL_RE = re.compile(
 _TAIL_WINDOW = 80
 
 
-# v0.4.41 用户叫停字眼检测 — sticky #8 例外条件「用户明确叫停」清单字面
-# 命中任何字面 → 整 turn 豁免 keep-pushing reflection（用户已明确叫停 Agent
-# 合理停下，反复反思 hook 是 karma 自身盲区不该拦）
-#
-# 两类叫停语义都要覆盖:
-# 1. 累了 / 推卸类: 「不用了 / 休息吧 / 明天再说 / 算了 / 够了 / 到此为止」
-# 2. 满意 / 确认类 (v0.7.4 加): 「不错 / 挺好 / 挺稳定 / 稳定了 / 就这样 /
-#    这就行 / OK 了 / 可以了 / 没问题了」— 用户表达满意暗示不需继续推
-_USER_STOP_HINT_RE = __import__("re").compile(
-    # 类 1: 累了 / 推卸
-    r"(?:不用啦|不用了|休息吧|明天再说|先到这|算了|停一下|停下|"
-    r"别推了|别继续|别推进|不再推|够了|到此为止|收尾吧|睡吧|晚安|"
-    r"好了好了|走火入魔|够了别"
-    # 类 2: 满意 / 确认 (v0.7.4)
-    r"|不错不错|挺不错|挺稳定|稳定了|挺好的|挺好了|就这样吧|这就行|"
-    r"可以了|没问题了|搞定了|完成了挺好|看着不错|OK 了|ok 了)",
-    __import__("re").IGNORECASE,
-)
+# v0.8.0: 字眼从 data/signals/user_stop_hints/{zh,en}.txt 加载
+# 历史: v0.4.41 设计「用户明确叫停」整 turn 豁免（sticky #8 例外）。
+# v0.7.4 加「满意 / 确认」类（不错 / 挺稳定 / OK 了）。
+# v0.8.0 外部化 + 加英文 → 英文用户「looks good / LGTM」对偶覆盖。
+_USER_STOP_HINT_RE = compile_alternation("user_stop_hints")
 
-# v0.5.19 Agent 自己饱和声明字眼检测 — sticky #8 例外条件 ②「任务饱和明说卡在哪」
-# 跟 v0.4.41 用户叫停豁免对偶: Agent 任务饱和时该明说不是默默停, 老实饱和声明
-# 不该被反思 hook 拦, 不然激发不诚实假装继续推.
-#
-# 关键设计: 只识别**强饱和信号**字眼 (饱和 + 卡点 + 未来接力规划),
-# 不跟 v0.4.22 柔性停顿字眼 (今天到此为止 / 就这样吧 / 改不动了) 重叠 —
-# 那些场景 v0.4.22 故意拦 (Agent 没做完想偷懒收工). 区分:
-#   ✓ 饱和声明 (豁免): 「任务饱和」「我卡在 X 这一步」「明天接力做 Y」
-#   ✗ 柔性偷懒 (拦): 「今天到此为止」「就这样吧」「搞不定了」(无强饱和信号)
-_AGENT_SATURATION_RE = __import__("re").compile(
-    r"(?:"
-    # 强饱和声明
-    r"任务饱和|任务(?:真)?饱和|我饱和(?:了)?|工作饱和|今天饱和|"
-    r"本 session 饱和|这一波(?:真)?饱和|session 饱和|"
-    # 明确卡点声明
-    r"卡在(?:这|此|这一步|这个|哪|「)|卡住了|真卡住|卡点(?:在|是|:)|"
-    # 未来接力规划 (带「明天 / 下次」+ 推进动词)
-    r"明天接力|明天(?:再)?(?:继续|推|做)|下次接力|下次(?:再)?(?:继续|推)"
-    r")",
-    __import__("re").IGNORECASE,
-)
+# v0.8.0: 字眼从 data/signals/agent_saturation/{zh,en}.txt 加载
+# 历史: v0.5.19 设计 — sticky #8 例外 ②「任务饱和明说卡在哪」豁免。
+# 跟 stop_hints 互斥: 强饱和声明（任务饱和 / 卡在 X / 明天接力）该豁免，
+# 柔性偷懒（今天到此 / 改不动了）该拦。
+# v0.8.0 外部化 + 加英文 → 英文 Agent「I'm saturated / stuck at」对偶覆盖。
+_AGENT_SATURATION_RE = compile_alternation("agent_saturation")
 
 
 def check(*, response: str = "", user_prompt: str = "", **_):

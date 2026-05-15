@@ -1,0 +1,25 @@
+# karma signal: Agent explicitly asking for user's call (English)
+# Hit → exempts the keep_pushing reflection nudge (rule #7 "explicit
+# user-in-the-loop" principle — this is a legitimate ask pattern, not
+# a silent stop-and-ask)
+
+please decide
+please confirm
+please advise
+please authorize
+need your call
+need your decision
+need you to decide
+need you to confirm
+let me know how to proceed
+let me know which
+which would you prefer
+which one would you
+how would you like
+what do you want
+waiting for your call
+waiting for your decision
+waiting for your input
+your call here
+up to you
+your decision

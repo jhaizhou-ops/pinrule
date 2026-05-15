@@ -1,0 +1,45 @@
+# karma signal: Agent response tail contains "soft pause" phrasing (English)
+# Hit → triggers keep_pushing reflection (user wants the Agent to keep
+# pushing, not softly stop without a specific blocker)
+#
+# Mutually exclusive with agent_saturation: strong saturation declarations
+# get exempted there; soft pauses without a stated blocker get caught here.
+
+# Future-pushback
+maybe next time
+next time
+will revisit later
+revisit this later
+park this for now
+
+# Stage wrap-up
+that's it for now
+that is it for now
+calling it here
+calling it
+stopping here for now
+stopping here
+this stage is done
+this stage done
+current state is
+where we are
+this round looks ok
+this round is ok
+
+# Wait-and-see
+let's see what comes up
+lets see what comes up
+wait for more signal
+accumulate more first
+
+# Soft pause
+that's all for today
+that is all for today
+that's all
+that is all
+let's wrap up
+lets wrap up
+giving up on this
+can't fix this
+cant fix this
+leaving this as is

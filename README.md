@@ -17,7 +17,7 @@
 >
 > ✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
 >
-> Pure engineering, zero LLM dependency, hook response under 60ms.
+> Pure engineering, zero LLM dependency, hook response under 60ms. **Chinese + English users covered (v0.8.0)**; adding a new language is one `.txt` per signal directory — no Python code, no LLM in the loop.
 >
 > ---
 >
@@ -242,12 +242,13 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~5.5K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / 427 unit tests, all green | Plus continuous real-world dogfooding |
+| **Quality gates** | lint / type-check / dead-code / 444 unit tests, all green | Plus continuous real-world dogfooding |
 | **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
 | **Token cost per turn** | ~400 tokens header + ~60 tokens mid-conversation refresh | Under 1% of a 60K context |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
 | **Supported clients** | Claude Code / Codex CLI / Gemini CLI | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
+| **User languages** | Chinese + English (v0.8.0), extensible | Detection phrases in `data/signals/<name>/{zh,en}.txt` — add `xx.txt` for a new language with zero Python code |
 
 ---
 
