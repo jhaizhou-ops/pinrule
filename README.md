@@ -389,6 +389,28 @@ Codex CLI 0.130+ requires manual `/hooks` approval of karma's 4 wrappers in TUI.
 `karma init` defaults to "software development" scenario. For other scenarios, write `~/.claude/karma/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in violation_checks are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
 </details>
 
+<details>
+<summary><b>How do I sync rules across multiple devices?</b></summary>
+
+Just ask the Agent to copy `rules.yaml` over — no special tooling needed:
+
+```
+mac:    cat ~/.claude/karma/rules.yaml
+linux:  "here's my karma rules.yaml, write it to ~/.claude/karma/rules.yaml"
+linux:  karma doctor    # validate schema + rules count + violation_checks exist
+```
+
+**Safe to sync** (user preference config):
+- `~/.claude/karma/rules.yaml` — your rule definitions
+- `~/.claude/karma/config.yaml` — your threshold tuning (if customized)
+
+**Never sync** (runtime data, per-device):
+- `~/.claude/karma/violations.jsonl` — append-only per-device violation log
+- `~/.claude/karma/session-state/*.json` — runtime hook state
+
+karma's `fcntl.flock` cross-process atomicity (v0.9.8) protects same-machine concurrency, but **doesn't extend to cloud-synced folders** (iCloud / Dropbox / OneDrive). Putting `~/.claude/karma/` in a sync folder can corrupt runtime state across devices. If you use dotfiles repos / chezmoi / ansible, scope them to `rules.yaml` + `config.yaml` only.
+</details>
+
 ---
 
 ## Mental model

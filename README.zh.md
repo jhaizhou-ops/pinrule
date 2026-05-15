@@ -411,6 +411,28 @@ Codex CLI 0.130+ 须 TUI 内输 `/hooks` 手动审批 karma 4 个 wrapper。
 `karma init` 默认装「软件开发」场景。其他场景写 `~/.claude/karma/rules.yaml` 自定义 — 框架（hook 注入 / 实时拦截）跨场景通用，但 8 个内建工程层 check 偏开发场景。其他场景可能需要 preference 文本提醒 + 自定义 keyword（不依赖 check 函数）。
 </details>
 
+<details>
+<summary><b>多台设备怎么同步规则？</b></summary>
+
+让 Agent 帮你复制 `rules.yaml` 就行，不需要专门工具：
+
+```
+mac:    cat ~/.claude/karma/rules.yaml
+linux:  「这是我 mac 上的 karma 规则，帮我写到 ~/.claude/karma/rules.yaml」
+linux:  karma doctor    # 验证 schema + 规则数量 + violation_checks 函数存在
+```
+
+**可以同步**（用户偏好配置）：
+- `~/.claude/karma/rules.yaml` — 你的规则定义
+- `~/.claude/karma/config.yaml` — 阈值调优（如果你改过）
+
+**绝对不能同步**（运行时数据，每设备独立）：
+- `~/.claude/karma/violations.jsonl` — append-only 本机违反日志
+- `~/.claude/karma/session-state/*.json` — 运行时 hook 状态
+
+karma 的 `fcntl.flock` 跨进程原子性（v0.9.8）保护的是**同机器内**并发，**不延伸到云同步盘**（iCloud / Dropbox / OneDrive）。把整个 `~/.claude/karma/` 塞进同步盘会让跨设备的运行时状态互相覆盖。如果你用 dotfiles repo / chezmoi / ansible，只同步 `rules.yaml` + `config.yaml` 就行。
+</details>
+
 ---
 
 ## 心智模型
