@@ -1,7 +1,7 @@
 """#8 bypass-karma — Agent 通过手动改 session_state 等方式绕开检测 检测时拦。
 
 用户痛点：Agent 被 karma 反复拦截后，倾向选「手动绕过」（修 last_test_pass_ts /
-清 pending_bg_tasks / hack 文件）而不是深挖 karma 拦的真根因。这违反 sticky #1
+清 pending_bg_tasks / hack 文件）而不是深挖 karma 拦的原因。这违反 sticky #1
 「最根本方案」。
 
 检测信号（pre_tool_use Bash command 扫）：
@@ -51,7 +51,7 @@ _KARMA_STATE_PATH_RE = re.compile(
 # 拆成两类（v0.4.13 dogfooding 治理）：
 # 1. 跨语言通用写（python `.write` / `json.dump` 等）— shell + python 都扫
 # 2. shell-only 重定向（`>` 写文件）— 命令头是 python/node/ruby/perl -c 时跳，
-#    避免 python 代码里 `cutoff > 0` 比较运算符被错算成 shell 重定向（真触发：
+#    避免 python 代码里 `cutoff > 0` 比较运算符被错算成 shell 重定向（触发：
 #    `python -c "... 'ts', 0) > cutoff ..."` 读 violations.jsonl 时被错拦）
 _PYTHON_OR_SHELL_WRITE_RE = re.compile(
     r"(?:"
@@ -60,9 +60,9 @@ _PYTHON_OR_SHELL_WRITE_RE = re.compile(
     r"|\.unlink\b|\.replace\b"            # Python unlink / replace
     # word boundary 关键 — 否则 `json.dumps` (序列化为字符串纯读) 被误判为
     # `json.dump` (写 file-like) 假阳爆发；`p.writeable` 类字面也会被 `p.write`
-    # 误匹配。v0.4.32 dogfooding 真触发 fix
+    # 误匹配。v0.4.32 dogfooding 触发 fix
     r"|json\.dump\b|p\.write\b"
-    # v0.4.22：补 python 调 shell 真绕过接口（v0.4.13 漏拦真根因）
+    # v0.4.22：补 python 调 shell 绕过接口（v0.4.13 漏拦原因）
     r"|os\.(?:system|remove|unlink|rmdir|rename|popen)\b"
     r"|subprocess\.(?:run|call|Popen|check_output|check_call)\b"
     r"|shutil\.(?:rmtree|move|copy|copy2|copyfile)\b"
@@ -110,13 +110,13 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     has_python_write = bool(_PYTHON_OR_SHELL_WRITE_RE.search(cmd_stripped))
     is_lang_c = is_python_c_command(cmd_raw)
 
-    # v0.5.18 真根因 fix（dogfooding session 真触发假阳驱动）：state_path 维度
-    # 要求 redirect target 真是 karma 路径才拦, 不能「karma 路径出现 + 任何
-    # write op」一刀切. 真触发: `grep ~/.claude/karma/violations.jsonl > /tmp/x`
+    # v0.5.18 原因 fix（dogfooding session 触发假阳驱动）：state_path 维度
+    # 要求 redirect target 是 karma 路径才拦, 不能「karma 路径出现 + 任何
+    # write op」一刀切. 触发: `grep ~/.claude/karma/violations.jsonl > /tmp/x`
     # 读 karma state 写 tmp 是合法 audit 用途, 之前被错算「写 karma 内部状态」拦.
     # 区分:
-    #   ✗ 真违反: `echo "..." > ~/.claude/karma/foo` (redirect target = karma 路径)
-    #   ✗ 真违反: `python -c "open('.claude/karma/x', 'w')..."` (python 写接口)
+    #   ✗ 违反: `echo "..." > ~/.claude/karma/foo` (redirect target = karma 路径)
+    #   ✗ 违反: `python -c "open('.claude/karma/x', 'w')..."` (python 写接口)
     #   ✓ 合法: `cat ~/.claude/karma/foo > /tmp/x` (redirect target = 非 karma 路径)
     redir_targets = _BASH_REDIR_TARGET_RE.findall(cmd_stripped) if not is_lang_c else []
     state_path_in_redir_target = any(
@@ -125,8 +125,8 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     write_to_karma_state = has_python_write or state_path_in_redir_target
 
     # 一致判定: 不论 karma 引用是 field name 还是 path, 都要求 write target
-    # 真是 karma state (path) 才算绕过. 写到 /tmp/foo 不影响 karma 实际状态 —
-    # 即使命令含 `last_test_pass_ts` 类内部 schema 字段名也不是真绕过.
+    # 是 karma state (path) 才算绕过. 写到 /tmp/foo 不影响 karma 状态 —
+    # 即使命令含 `last_test_pass_ts` 类内部 schema 字段名也不是绕过.
     karma_referenced = has_internal or has_state_path
     is_bypass = karma_referenced and write_to_karma_state
 

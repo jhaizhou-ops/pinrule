@@ -19,10 +19,10 @@ from karma.backends import ClaudeCodeBackend
 
 @pytest.fixture
 def fake_home(tmp_path, monkeypatch):
-    """指向 tmp 的伪 home — 让 cli 写到 tmp 不污染真实 home。
+    """指向 tmp 的伪 home — 让 cli 写到 tmp 不污染实际 home。
 
     CI 隔离：默认 mock `ClaudeCodeBackend.client_installed = True` 让测试
-    不依赖 CI 环境是否真装 claude（v0.4.7 加 client_installed 门槛后所有
+    不依赖 CI 环境是否实际装 claude（v0.4.7 加 client_installed 门槛后所有
     cli.cmd_install_hooks() 测试都会查这个）。需要测「客户端没装」场景的测试
     自己 monkeypatch 覆盖即可。
     """
@@ -126,7 +126,7 @@ def test_uninstall_one_shot_alias(fake_home, monkeypatch, capsys):
 
 
 def test_install_hooks_aborts_when_client_not_installed(fake_home, monkeypatch, capsys):
-    """显式 backend 也必须查 client_installed — 静默装到不存在客户端是真 bug。
+    """显式 backend 也必须查 client_installed — 静默装到不存在客户端是bug。
 
     sub-agent 排查发现 P1：同事没装 Claude Code 跑 `karma install-hooks` 默认
     装 claude-code 静默写 settings.json 完全无反馈。修：检测不到客户端时报错。
@@ -325,7 +325,7 @@ def test_install_hooks_idempotent(fake_home):
 def test_install_hooks_stop_entry_has_no_matcher(fake_home):
     """Stop hook 不支持 matcher 字段 — Claude Code 会无声忽略整个 entry。
 
-    这是真实踩过的坑（详 HANDOFF.md「Stop hook 不跑 → 撤回错误诊断」）：
+    这是实际踩过的坑（详 HANDOFF.md「Stop hook 不跑 → 撤回错误诊断」）：
     之前给所有 event 都加 matcher='*' 导致 Stop entry 被 Claude Code 忽略，
     Stop hook 整个 session 都没装上。这条测试守护这个反向约束。
     """

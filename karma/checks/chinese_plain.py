@@ -127,7 +127,7 @@ def check(*, response: str = "", **_):
     natural_for_ratio = _KEBAB_SNAKE_IDENT_RE.sub("", natural_for_ratio)
     # v0.4.40 真精化：算 ratio 时剥工程标识符 / 路径 / commit message 引号块
     # 这些是工程上下文不是 Agent 自然语言，算英文比不公正（不放松 40% 阈值
-    # 而是让分母真反映 Agent 自然表达）
+    # 而是让分母反映 Agent 自然表达）
     natural_for_ratio = _COMMIT_MSG_RE.sub("", natural_for_ratio)
     natural_for_ratio = _DOTTED_IDENT_RE.sub("", natural_for_ratio)
     natural_for_ratio = _PATH_LITERAL_RE.sub("", natural_for_ratio)
@@ -151,7 +151,7 @@ def check(*, response: str = "", **_):
     # v0.4.15：jargon 扫描用 natural_for_ratio（已剥表格 / URL / 版本号 / kebab-snake）
     # 让单个 jargon 项目术语引用豁免。
     # v0.4.22：v0.4.15 过宽 — 表格 cell 里堆 ≥ 3 个 jargon 是真话术不是引用。
-    # 真触发：`| A | 用 retrieval 加 reranker 做精排比 baseline 强 |` 全英文 jargon
+    # 触发：`| A | 用 retrieval 加 reranker 做精排比 baseline 强 |` 全英文 jargon
     # 堆叠应该拦。如果**原文** natural 含 ≥ 3 个 jargon 词，用 natural 扫（不剥表格）；
     # 单 / 双 jargon 词的「项目术语引用」场景用 natural_for_ratio 扫（剥表格）。
     jargon_count_in_natural = len(_JARGON_RE.findall(natural))
@@ -193,9 +193,9 @@ def check(*, response: str = "", **_):
         )
 
     # === Check 3: 同前缀重复防御性自证（v0.4.40 治理「真字狂魔」副作用）===
-    # 真触发：sticky #4「证据」+ sticky #1「最根本」叠加效应让 LLM 防御性堆
-    # 「真X / 真X / 真X」前缀证明「不糊弄」（如「真根因 / 真生效 / 真完成
-    # / 真效果 / 真证据」）— Agent 表达扭曲，HANDOFF 第 7 类矛盾根因。
+    # 触发：sticky #4「证据」+ sticky #1「最根本」叠加效应让 LLM 防御性堆
+    # 「真X / 真X / 真X」前缀证明「不糊弄」（如「原因 / 生效 / 完成
+    # / 真效果 / 证据」）— Agent 表达扭曲，HANDOFF 第 7 类矛盾根因。
     # 不改 sticky 文案（用户最高优先级方向），加 reactive 自审 check 提醒
     # Agent 减弱前缀堆叠习惯（治症状不治根因，但能减弱视觉别扭程度）。
     repeated_hit = _check_repeated_prefix(natural)
@@ -205,7 +205,7 @@ def check(*, response: str = "", **_):
     return None
 
 
-# v0.4.40 同前缀重复检测真实施
+# v0.4.40 同前缀重复检测实际施
 _PREFIX_REPEAT_THRESHOLD = 5  # 同前缀字 ≥ N 次/response 触发自审
 
 
@@ -215,7 +215,7 @@ def _check_repeated_prefix(text: str):
     实施：扫所有「单字 + 中文/英文 token」组合，按前缀字统计 count。
     某前缀 count ≥ _PREFIX_REPEAT_THRESHOLD → 触发自审。
     """
-    # 找模式：单中文字 + 跟着 1-4 个中英文字符（如「真根因 / 真生效 / 真完成」）
+    # 找模式：单中文字 + 跟着 1-4 个中英文字符（如「原因 / 生效 / 完成」）
     matches = re.findall(r"([一-鿿])(?=[一-鿿a-zA-Z])", text)
     if not matches:
         return None
@@ -223,7 +223,7 @@ def _check_repeated_prefix(text: str):
     prefix_counts = Counter(matches)
     for prefix, count in prefix_counts.most_common(3):
         if count >= _PREFIX_REPEAT_THRESHOLD:
-            # 排除真合理高频前缀（不算防御性堆叠）
+            # 排除合理高频前缀（不算防御性堆叠）
             if prefix in ("一", "不", "是", "有", "没", "我", "你", "他", "这", "那", "在"):
                 continue
             return CheckHit(

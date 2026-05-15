@@ -41,15 +41,15 @@ _NON_CODE_COMMIT_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 # v0.4.14：链式 chained 测试命令（pytest && git commit 类） — 用户在同一 Bash
-# 调用里先跑测试再 commit，pre_tool_use 时 pytest 还没真执行 has_recent_test=False
+# 调用里先跑测试再 commit，pre_tool_use 时 pytest 还没执行 has_recent_test=False
 # 误拦。strip 后命令骨架含测试命令 → 视为「即时证据」豁免。
 _CHAINED_TEST_RE = re.compile(
     r"\b(pytest|npm\s+test|jest|cargo\s+test|go\s+test|mvn\s+test|gradle\s+test|"
     r"pnpm\s+test|yarn\s+test|tox)\b",
     re.IGNORECASE,
 )
-# v0.4.22：pytest 假证据 flag — 跑了 pytest 但没真跑测试用例。v0.4.14 过宽漏拦。
-# --collect-only / --no-collect-only / --co 都是不真跑 case 模式。
+# v0.4.22：pytest 假证据 flag — 跑了 pytest 但没跑测试用例。v0.4.14 过宽漏拦。
+# --collect-only / --no-collect-only / --co 都是不跑 case 模式。
 _FAKE_TEST_FLAG_RE = re.compile(
     r"--collect-only|--no-collect-only|--co\b|--setup-only|--setup-plan|"
     r"--fixtures-per-test|--help|-h\b|--version|-V\b",

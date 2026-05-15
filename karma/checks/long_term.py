@@ -19,11 +19,11 @@ from karma.i18n import tr
 
 # 检测规则按 tool 范围分组：避免文档 / 代码字符串里出现描述性字面被误判
 
-# 适用所有 tool（Bash / Write / Edit）— 真违反不分上下文
+# 适用所有 tool（Bash / Write / Edit）— 违反不分上下文
 _PATTERNS_ALL = [
     (
         # 长 ID 字面写在 if 分支 — 必须含数字才命中
-        # 区分真违反（UUID / hash / 长数字串如 'abc-12345-def'）跟合法 CLI dispatch
+        # 区分违反（UUID / hash / 长数字串如 'abc-12345-def'）跟合法 CLI dispatch
         # （字面如 'install-hooks' / 'no-testset-no-future-leakage' — kebab-case 命令
         # 名 / sticky id 不含数字，是合法分发不是 ID 硬写）
         re.compile(r"""if\s+\w+\s*==\s*(['"])(?=[\w\-]{12,}\1)[\w\-]*\d[\w\-]*\1"""),
@@ -52,11 +52,11 @@ _PATTERNS_ALL = [
     ),
 ]
 
-# 仅 Bash tool 检测 — 这些 flag 在文档/代码字符串里出现是描述，不是真违反
+# 仅 Bash tool 检测 — 这些 flag 在文档/代码字符串里出现是描述，不是违反
 _PATTERNS_BASH_ONLY = [
     (
         # 限定字眼出现在 commit message 标题行（开始 80 字内、第一行）—
-        # git 规范标题行 < 72 字。后部长描述里讨论字眼是元层面 ≠ 真违反。
+        # git 规范标题行 < 72 字。后部长描述里讨论字眼是元层面 ≠ 违反。
         # `[^"'\n]{0,80}?` 要求字眼前最多 80 个非引号非换行字符。
         re.compile(r"""git\s+commit.*?["'](?:[^"'\n]{0,80}?)(quick\s*fix|hack\b|temp\b|workaround|临时|凑数)""", re.IGNORECASE),
         "check.long_term.commit_hack.trigger",
@@ -101,7 +101,7 @@ _STICKY_ID = "long-term-fundamental"
 def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     """按 tool 类型选不同 pattern 集合扫。
 
-    Bash 真要执行 → 严查 `--no-verify` 类执行行为
+    Bash 要执行 → 严查 `--no-verify` 类执行行为
     Write/Edit 写代码内容 → 严查 TODO/HACK 注释
     通用 → 长 ID if 分支 / 字面量黑名单
     """

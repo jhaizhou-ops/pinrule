@@ -1,6 +1,6 @@
-"""假阴回归测试 — M3 第一波降假阳改动后，验证真违反仍被拦。
+"""假阴回归测试 — M3 第一波降假阳改动后，验证违反仍被拦。
 
-每个 case 是「真违反应当被任何一层（关键词 / 工程 check）捕获」。
+每个 case 是「违反应当被任何一层（关键词 / 工程 check）捕获」。
 红阶段：跑这些测试看 M3 第一波改动是否新增了假阴漏报。
 """
 
@@ -53,7 +53,7 @@ def test_fail_signal_zero_errors_still_passes():
 # ============================================================
 
 def test_long_term_intent_comment_quick_fix():
-    """Agent 在代码里写 '# 先打个补丁' 注释 → 真违反，工程层应拦。"""
+    """Agent 在代码里写 '# 先打个补丁' 注释 → 违反，工程层应拦。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(
         tool_name="Write",
@@ -66,7 +66,7 @@ def test_long_term_intent_comment_quick_fix():
 
 
 def test_long_term_intent_comment_workaround():
-    """'workaround' 注释字面 → 真违反。"""
+    """'workaround' 注释字面 → 违反。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(
         tool_name="Write",
@@ -79,7 +79,7 @@ def test_long_term_intent_comment_workaround():
 
 
 def test_long_term_intent_comment_临时方案():
-    """中文「临时方案」注释 → 真违反。"""
+    """中文「临时方案」注释 → 违反。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(
         tool_name="Write",
@@ -113,7 +113,7 @@ def test_long_term_uppercase_constant_string_list():
 # ============================================================
 
 def test_testset_gold_list_long_hash_literals():
-    """gold_cases / eval_ids 等列表里写死 case ID 是真违反。"""
+    """gold_cases / eval_ids 等列表里写死 case ID 是违反。"""
     fn = REGISTRY["no_testset_no_future_leakage"]
     hit = fn(
         tool_name="Write",
@@ -130,7 +130,7 @@ def test_testset_gold_list_long_hash_literals():
 # ============================================================
 
 def test_non_blocking_bash_c_sleep():
-    """`bash -c 'sleep 30'` 是真要 sleep — 剥引号后字面被剥但意图仍是阻塞。"""
+    """`bash -c 'sleep 30'` 是要 sleep — 剥引号后字面被剥但意图仍是阻塞。"""
     fn = REGISTRY["non_blocking_parallel"]
     hit = fn(
         tool_name="Bash",
@@ -140,7 +140,7 @@ def test_non_blocking_bash_c_sleep():
 
 
 def test_non_blocking_sh_c_long_task():
-    """`sh -c 'docker run X'` 是真要跑长任务。"""
+    """`sh -c 'docker run X'` 是要跑长任务。"""
     fn = REGISTRY["non_blocking_parallel"]
     hit = fn(
         tool_name="Bash",
@@ -150,7 +150,7 @@ def test_non_blocking_sh_c_long_task():
 
 
 # ============================================================
-# #3 描述上下文豁免 — tests/ 下真违反仍应否被拦的边界 case
+# #3 描述上下文豁免 — tests/ 下违反仍应否被拦的边界 case
 # ============================================================
 
 def test_tests_conftest_hardcoded_id_currently_exempt():
@@ -172,31 +172,31 @@ def test_tests_conftest_hardcoded_id_currently_exempt():
 
 
 # ============================================================
-# M3 放宽改动的对偶假阴回归（用户反馈：警惕开发迭代模糊真假阳边界）
+# M3 放宽改动的对偶假阴回归（用户反馈：警惕开发迭代模糊假阳边界）
 # ============================================================
 
 # --- heredoc 区分头部命令：bash heredoc 内是真 shell，python heredoc 内是数据 ---
 
 def test_bash_heredoc_inner_sleep_blocked():
-    """bash <<EOF heredoc 内 sleep 30 是真要执行的 shell 命令，仍要拦。"""
+    """bash <<EOF heredoc 内 sleep 30 是要执行的 shell 命令，仍要拦。"""
     fn = REGISTRY["non_blocking_parallel"]
     cmd = """bash <<'EOF'
 sleep 30
 echo done
 EOF"""
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "bash heredoc 内 sleep 是真执行 — 不该被剥成数据"
+    assert hit is not None, "bash heredoc 内 sleep 是执行 — 不该被剥成数据"
 
 
 def test_sh_heredoc_inner_long_task_blocked():
-    """sh <<EOF 内真长任务（docker run）是真执行，仍要拦（缺 background）。"""
+    """sh <<EOF 内长任务（docker run）是执行，仍要拦（缺 background）。"""
     fn = REGISTRY["non_blocking_parallel"]
     cmd = """sh <<'EOF'
 cd /repo
 docker compose up
 EOF"""
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "sh heredoc 内 docker 是真执行 — 不该被剥成数据"
+    assert hit is not None, "sh heredoc 内 docker 是执行 — 不该被剥成数据"
 
 
 def test_python_heredoc_inner_pytest_literal_passes():
@@ -231,47 +231,47 @@ def test_bash_dash_c_no_quote_form_blocked():
     cmd = "bash -c sleep30 || echo done"  # 没引号但仍是 indirect shell
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
     # bash -c sleep30 实际不是 sleep 命令（连写），但形式上是 indirect — 暂不强求拦截
-    # 真用例：sh -c 'sleep 30' 已带引号能拦，这里只确认无引号形式不会让我们漏掉
-    # 反引号 / $(...) 才是更典型的真违反场景，主测下面两条
+    # 用例：sh -c 'sleep 30' 已带引号能拦，这里只确认无引号形式不会让我们漏掉
+    # 反引号 / $(...) 才是更典型的违反场景，主测下面两条
     _ = hit  # 形态测试，看 strip 是否能识别 — 不强 assert
 
 
 def test_backtick_subst_inner_real_command_blocked():
-    r"""反引号命令替换 `cmd` — 内容是真执行子命令，应当 indirect shell 处理。
+    r"""反引号命令替换 `cmd` — 内容是执行子命令，应当 indirect shell 处理。
 
     `echo $(sleep 30)` / `echo \`sleep 30\`` 实际会执行 sleep 30。
     """
     fn = REGISTRY["non_blocking_parallel"]
     cmd = "echo `sleep 30` done"
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "反引号命令替换内 sleep 30 是真执行"
+    assert hit is not None, "反引号命令替换内 sleep 30 是执行"
 
 
 def test_dollar_paren_subst_inner_real_command_blocked():
-    """$(...) 命令替换 — 内容是真执行子命令，跟反引号等价。"""
+    """$(...) 命令替换 — 内容是执行子命令，跟反引号等价。"""
     fn = REGISTRY["non_blocking_parallel"]
     cmd = "result=$(sleep 30 && echo ok)"
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "$(...) 内 sleep 30 是真执行"
+    assert hit is not None, "$(...) 内 sleep 30 是执行"
 
 
 def test_double_quoted_dollar_paren_subst_blocked():
-    """**评审第二轮 critical bug** — 双引号内 $(...) shell 真展开执行，
+    """**评审第二轮 critical bug** — 双引号内 $(...) shell 实际展开执行，
     之前 _SHELL_QUOTED_RE 会把整个 "..." 连同 substitution 一起剥掉造成漏报。
     修：Step 0 先把双引号内 substitution 提到外层。
     """
     fn = REGISTRY["non_blocking_parallel"]
     cmd = 'echo "result: $(sleep 30)"'
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "双引号内 $(...) 真执行，必须命中"
+    assert hit is not None, "双引号内 $(...) 执行，必须命中"
 
 
 def test_double_quoted_backtick_subst_blocked():
-    """同上 — 双引号内反引号也是真执行。"""
+    """同上 — 双引号内反引号也是执行。"""
     fn = REGISTRY["non_blocking_parallel"]
     cmd = 'echo "result: `sleep 30` done"'
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is not None, "双引号内 \\`...\\` 真执行，必须命中"
+    assert hit is not None, "双引号内 \\`...\\` 执行，必须命中"
 
 
 def test_single_quoted_subst_not_executed_passes():
@@ -345,7 +345,7 @@ def test_commit_title_quick_fix_blocked():
         tool_name="Bash",
         tool_input={"command": 'git commit -m "quick fix: 改个 bug"'},
     )
-    assert hit is not None, "标题行 quick fix 类型是真违反"
+    assert hit is not None, "标题行 quick fix 类型是违反"
 
 
 def test_commit_title_hack_blocked():
@@ -365,7 +365,7 @@ def test_evidence_weak_claim_in_code_task_blocked():
     fn = REGISTRY["loud_failure_with_evidence"]
     state = SessionState(session_id="s")
     hit = fn(response="代码改完了，应该没问题", session_state=state)
-    assert hit is not None, "代码任务上下文里用「应该」掩盖是真违反"
+    assert hit is not None, "代码任务上下文里用「应该」掩盖是违反"
 
 
 def test_evidence_completion_in_code_task_blocked():
@@ -379,7 +379,7 @@ def test_evidence_completion_in_code_task_blocked():
 # --- 描述上下文豁免 — 正常源码下硬编码仍要拦 ---
 
 def test_normal_source_long_id_if_branch_blocked():
-    """src/handler.py 不是描述上下文 — long-ID if 分支真违反仍拦。"""
+    """src/handler.py 不是描述上下文 — long-ID if 分支违反仍拦。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(
         tool_name="Edit",

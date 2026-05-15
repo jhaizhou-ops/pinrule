@@ -1,7 +1,7 @@
 """描述上下文判定 — 区分「执行意图」vs「描述触发模式」。
 
 工程 check（long_term / testset 等）扫 tool_input 找触发模式，
-但无法区分用户是「真要这么干」还是「在文档/测试代码/探针文件里描述这种模式」。
+但无法区分用户是「要这么干」还是「在文档/测试代码/探针文件里描述这种模式」。
 这层抽象把所有自指场景的豁免逻辑收归一处。
 
 豁免维度（按 file_path 判定，因为 hit 在 file_path 对应的语境里）：
@@ -38,7 +38,7 @@ _IN_SCOPE_TOOLS = frozenset({"Write", "Edit", "NotebookEdit"})
 
 # v0.5.9: Bash redirect/heredoc 目标路径解析 — 提升自 testset.py v0.5.8 局部 helper.
 # 跟 Write/Edit 走 file_path 一致的尺度: 写目标是描述上下文路径 → 写内容是描述性的.
-# 真触发场景: `cat >> tests/test_x.py <<'PY' ... PY` (字符串字面是测试代码不是执行),
+# 触发场景: `cat >> tests/test_x.py <<'PY' ... PY` (字符串字面是测试代码不是执行),
 # `echo "TODO: x" >> docs/CHANGELOG.md` (文档描述不是代码).
 _BASH_REDIR_TARGET_RE = re.compile(r">>?\s*([^\s|;<>&]+)")
 

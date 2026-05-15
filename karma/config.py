@@ -45,7 +45,7 @@ DEFAULTS: dict[str, Any] = {
     # 累积超阈值后真放 Agent 停（防死循环）。0 = 完全关闭干预。
     "stop_block_max_per_turn": 2,
     # 累积强制 block 阈值 — 同 sticky 违反 ≥ N 次（窗口内） → Stop hook 输出 decision=block
-    # 强制 Agent fix 真根因，不允许继续绕（机制 2）。0 = 关闭。
+    # 强制 Agent fix 原因，不允许继续绕（机制 2）。0 = 关闭。
     "force_block_threshold": 5,
 }
 

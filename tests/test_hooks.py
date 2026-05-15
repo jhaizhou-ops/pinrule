@@ -117,11 +117,11 @@ def test_stop_no_transcript_no_op(monkeypatch, tmp_path, capsys):
 
 
 def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_path, capsys):
-    """v0.4.24 真生效守护：PostToolUse 在最近 N turn 有 sticky 触发时注入中段
+    """v0.4.24 生效守护：PostToolUse 在最近 N turn 有 sticky 触发时注入中段
     提醒作 anchor — proactive 锚定真信道。
 
-    dogfooding 真触发：本回合 system-reminder 真显示 `[karma 中段提醒]` 字面，
-    证明 Claude Code 真接受 PostToolUse additionalContext。
+    dogfooding 触发：本回合 system-reminder 真显示 `[karma 中段提醒]` 字面，
+    证明 Claude Code 接受 PostToolUse additionalContext。
     """
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {
@@ -139,7 +139,7 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     )], path=violations_path)
     state = session_state.SessionState(session_id="anchor_test")
     state.turn_count = 5
-    # v0.4.35 模型自适应阈值：默认 sonnet 60K，预设 70K byte_seq 真触发注入
+    # v0.4.35 模型自适应阈值：默认 sonnet 60K，预设 70K byte_seq 触发注入
     state.model = "claude-sonnet-4-6"
     state.tool_byte_seq = 70000
     state.last_reinject_byte_seq = 0
@@ -267,7 +267,7 @@ def test_post_tool_use_failed_read_string_error_does_not_record(monkeypatch, tmp
 
 
 def test_post_tool_use_failed_edit_does_not_record(monkeypatch, tmp_path):
-    """Edit 失败（old_string 不匹配等）→ 不 record_edit（代码没真改成）。"""
+    """Edit 失败（old_string 不匹配等）→ 不 record_edit（代码没改成）。"""
     monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "edit_fail",
@@ -373,7 +373,7 @@ def test_post_tool_use_yaml_write_does_not_push_last_edit_ts(monkeypatch, tmp_pa
 def test_stop_hook_force_blocks_on_accumulated_violations(monkeypatch, tmp_path, capsys):
     """机制 2：同一 sticky 累积 ≥ force_block_threshold 次 → Stop hook 强制 decision=block。
 
-    Agent 反复违反同一规则却没 fix 真根因 → karma 强制要求修。
+    Agent 反复违反同一规则却没 fix 原因 → karma 强制要求修。
     """
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {
@@ -415,15 +415,15 @@ def test_stop_hook_force_blocks_on_accumulated_violations(monkeypatch, tmp_path,
 
 
 def test_stop_hook_force_block_releases_when_current_turn_not_triggering(monkeypatch, tmp_path, capsys):
-    """v0.4.16 真根因 fix 守护：Agent 修了真根因当前 turn 不再触发 → 不该
+    """v0.4.16 原因 fix 守护：Agent 修了原因当前 turn 不再触发 → 不该
     被历史累积反复 force_block。
 
-    dogfooding 真死循环：chinese-plain 累积 8 次 → v0.4.15 修真根因 →
+    dogfooding 真死循环：chinese-plain 累积 8 次 → v0.4.15 修原因 →
     当前 turn 0 触发该 sticky → 但 force_block 仍按历史累积 8 次重复
     干预，Agent 没法解除卡死。
 
     fix：force_block 加 `sid in hit_sticky_ids` 条件，只惩罚「当前 turn
-    真触发 + 历史累积超阈值」。
+    触发 + 历史累积超阈值」。
     """
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {
@@ -451,7 +451,7 @@ def test_stop_hook_force_block_releases_when_current_turn_not_triggering(monkeyp
     session_state.save(state, base_dir=tmp_path)
 
     # 当前 turn transcript 触发 other-sticky（不是 long-term），让 notify_msgs
-    # 非空进入 force_block 检查逻辑 — 模拟「Agent 修了 long-term 真根因但本
+    # 非空进入 force_block 检查逻辑 — 模拟「Agent 修了 long-term 原因但本
     # turn 触发了别的 sticky」场景
     transcript = tmp_path / "transcript.jsonl"
     transcript.write_text(json.dumps({
@@ -644,7 +644,7 @@ def test_stop_hook_force_block_exempts_keep_pushing(monkeypatch, tmp_path, capsy
 
 def test_stop_hook_blocks_when_keep_pushing_violated(monkeypatch, tmp_path, capsys):
     """Agent response 末尾停顿词 + 命中 keep-pushing → Stop hook 输出 decision=block
-    让 Agent 不真停下，继续生成。"""
+    让 Agent 不停下，继续生成。"""
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {
             "id": "keep-pushing-no-stop",
@@ -761,7 +761,7 @@ def test_user_prompt_submit_runs_catchup(monkeypatch, tmp_path, capsys):
 
 
 def test_stop_hook_respects_block_max(monkeypatch, tmp_path, capsys):
-    """单 turn 内 block 累积超 max → 不再 block，让 Agent 真停（防死循环）。"""
+    """单 turn 内 block 累积超 max → 不再 block，让 Agent 停（防死循环）。"""
     _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {
             "id": "keep-pushing-no-stop",

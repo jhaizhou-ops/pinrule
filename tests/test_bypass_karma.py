@@ -78,11 +78,11 @@ def test_read_only_inspection_passes():
 
 
 def test_readonly_inspection_with_dev_null_redirect_passes():
-    """dogfooding 实测真假阳：`2>/dev/null` stderr 转黑洞不算写，
+    """dogfooding 实测假阳：`2>/dev/null` stderr 转黑洞不算写，
     只读 inspection 含 karma 状态路径字面（`~/.claude/karma/session-state`）
     不该被拦。
 
-    实际触发：`python -c "...session_state.load(...)" 2>/dev/null` 含 karma 内部
+    触发：`python -c "...session_state.load(...)" 2>/dev/null` 含 karma 内部
     路径 + `2>/dev/null` 之前被 `>\\s*[/.~\\w]` pattern 误识别为写。修：lookahead
     排除 /dev/null/zero/stderr/stdout 等丢弃目标。
     """
@@ -95,13 +95,13 @@ def test_readonly_inspection_with_dev_null_redirect_passes():
 
 
 def test_real_write_to_dev_null_alternatives_still_blocked():
-    """对偶：真写 karma 状态到普通文件仍要拦（不能因放宽 /dev/null 全放过）。"""
+    """对偶：写 karma 状态到普通文件仍要拦（不能因放宽 /dev/null 全放过）。"""
     cmd = 'echo bad > ~/.claude/karma/session-state/abc.json'
-    assert _check(cmd) is not None, "真写 karma 状态文件该拦"
+    assert _check(cmd) is not None, "写 karma 状态文件该拦"
 
 
 def test_user_backup_karma_files_passes():
-    """评审 B Agent 真痛点：用户自己 cp / mv / rm karma 状态文件（备份 /
+    """评审 B Agent 痛点：用户自己 cp / mv / rm karma 状态文件（备份 /
     清老 rotation）是合法操作，不该拦。攻击者用 echo > / python write
     才是真 hack 路径仍能 catch。"""
     for cmd in [
@@ -131,17 +131,17 @@ def test_commit_message_describing_bypass_not_blocked():
 
 def test_self_referential_commit_message_about_bypass_exempted():
     """meta-test：本身就是 commit 描述 bypass fix 的 message，含敏感字面但是
-    描述 → 应豁免（验证 strip_shell_quoted_literals fix 真根因方案）。"""
+    描述 → 应豁免（验证 strip_shell_quoted_literals fix 原因方案）。"""
     msg = "fix(karma): bypass check 加 last_test_pass_ts 检测 + json.dump 写操作"
     cmd = f'git commit -m "{msg}"'
     assert _check(cmd) is None, "commit message 描述 bypass check 改动不该被自身拦"
 
 
 def test_python_heredoc_real_bypass_still_caught():
-    """python heredoc 真改 session_state 文件 — 是真绕（不是 commit message 描述）。
+    """python heredoc 改 session_state 文件 — 是绕（不是 commit message 描述）。
 
     注意：strip_shell_quoted_literals 对 python heredoc 剥成数据 — 这是个
-    已知 limitation。检测主要靠剥后命令骨架，python heredoc 内的真绕会被漏。
+    已知 limitation。检测主要靠剥后命令骨架，python heredoc 内的绕会被漏。
     用户可以靠 sticky.yaml 关键词层和 stop hook 兜底。
     """
     cmd = """python <<'EOF'
@@ -163,7 +163,7 @@ EOF"""
 def test_python_c_compare_operator_not_shell_redir():
     """python -c "..." 内的 `>` `<` 是比较运算符不是 shell 重定向 — 不该拦。
 
-    v0.4.13 dogfooding 真触发：读 violations.jsonl 时 python 代码含
+    v0.4.13 dogfooding 触发：读 violations.jsonl 时 python 代码含
     `json.loads(l).get('ts', 0) > cutoff` 被 _WRITE_OP_RE 的 `> c`
     误命中 shell 重定向 → 错算 karma 内部状态写 → 假阳拦读操作。
 
@@ -182,33 +182,33 @@ def test_python_c_compare_operator_not_shell_redir():
 
 
 def test_python_c_real_write_still_caught():
-    """python -c "..." 内**真**调用 .write 写 karma 文件 — 仍命中（真绕过）。
+    """python -c "..." 内**真**调用 .write 写 karma 文件 — 仍命中（绕过）。
 
-    跟上一 case 对偶：python -c 不能整段豁免，否则真绕过漏拦。靠
-    `.write` / `.unlink` 等 python 真写字面识别。
+    跟上一 case 对偶：python -c 不能整段豁免，否则绕过漏拦。靠
+    `.write` / `.unlink` 等 python 写字面识别。
     """
     cmd = """python -c "open('.claude/karma/session-state.json', 'w').write('{}')\""""
-    assert _check(cmd) is not None, "python -c 内 .write 真绕过应命中"
+    assert _check(cmd) is not None, "python -c 内 .write 绕过应命中"
 
 
 def test_python_os_system_real_bypass_caught():
     """v0.4.22：v0.4.13 fix 过宽 — python -c 内 os.system 真调 shell 绕过应拦。"""
     cmd = """python -c "import os; os.system('rm ~/.claude/karma/session-state.json')\""""
-    assert _check(cmd) is not None, "python os.system 真绕过应命中"
+    assert _check(cmd) is not None, "python os.system 绕过应命中"
 
 
 def test_python_subprocess_real_bypass_caught():
     """v0.4.22：python -c 内 subprocess.run 真调 shell 绕过应拦。"""
     cmd = """python -c "import subprocess; subprocess.run(['rm', '~/.claude/karma/sticky.yaml'])\""""
-    assert _check(cmd) is not None, "python subprocess 真绕过应命中"
+    assert _check(cmd) is not None, "python subprocess 绕过应命中"
 
 
 def test_cat_read_session_state_not_blocked():
-    """v0.4.32 真触发：cat ~/.claude/karma/session-state/xxx.json 是 read-only 输出
-    内容 → 不该当绕过拦。dogfooding 实证：调试 session_state 真行为时跑这命令
+    """v0.4.32 触发：cat ~/.claude/karma/session-state/xxx.json 是 read-only 输出
+    内容 → 不该当绕过拦。dogfooding 实证：调试 session_state 实际行为时跑这命令
     被假阳拦了。
 
-    真根因：read-only cat / less / head / tail 不写文件，但路径含敏感字面
+    原因：read-only cat / less / head / tail 不写文件，但路径含敏感字面
     `.claude/karma/session-state` 满足 has_state_path → 只要 has_write 也 True
     就命中。所以核心是 has_write 不能在纯读命令里被错触发。
     """
@@ -217,7 +217,7 @@ def test_cat_read_session_state_not_blocked():
 
 
 def test_pipe_to_python_json_dumps_not_blocked():
-    """v0.4.32 真根因：`json.dumps`（序列化为字符串纯输出）跟 `json.dump`（写
+    """v0.4.32 原因：`json.dumps`（序列化为字符串纯输出）跟 `json.dump`（写
     file-like）regex 没加 word boundary 导致 `json.dumps` 被误判 `json.dump`。
 
     dogfooding 实证：cat session-state.json | python -c "import json; d=json.load(...);
@@ -234,11 +234,11 @@ def test_pipe_to_python_json_dumps_not_blocked():
 
 
 def test_release_notes_markdown_backtick_path_not_leaked():
-    """v0.4.33 真根因 fix：`gh release create --notes "$(cat <<'EOF' ... EOF)"`
+    """v0.4.33 原因 fix：`gh release create --notes "$(cat <<'EOF' ... EOF)"`
     里 markdown 反引号包的 `cat ~/.claude/karma/session-state/xxx.json` 字面
     不该被错当 shell substitution 保留扫到外层 cmd。
 
-    真触发：v0.4.32 release create 命令被自己拦了 — release notes 里描述用户
+    触发：v0.4.32 release create 命令被自己拦了 — release notes 里描述用户
     场景的 markdown 反引号被先抽到 placeholder → heredoc 剥时 placeholder 已
     不在内容里 → 最终替回保留扫漏。
 
@@ -256,7 +256,7 @@ def test_heredoc_in_subshell_recognizes_inner_command():
     """v0.4.33：`$(cat <<EOF)` / `(cat <<EOF)` 子 shell 嵌套时，heredoc 头识别
     应该取 cat（内层命令）而不是外层 gh / 别的。
 
-    真根因 fix：_heredoc_prefix_command 加 `(` 到 boundary 集合。
+    原因 fix：_heredoc_prefix_command 加 `(` 到 boundary 集合。
     """
     # cat heredoc 内容是数据应剥 — 即使在 $(...) 嵌套
     cmd = """echo "$(cat <<'EOF'
@@ -267,29 +267,29 @@ EOF
 
 
 def test_python_json_dump_real_write_still_caught():
-    """对偶：json.dump (无 s — 写 file-like) 真写文件应仍命中。
+    """对偶：json.dump (无 s — 写 file-like) 写文件应仍命中。
 
     用 single quote 外层 + double quote 内层避免触发 strip 转义引号 limitation
     （HANDOFF M3 第六波已知 limitation 跟本测无关）。
     """
     cmd = """python -c 'import json; json.dump({}, open(".claude/karma/session-state/x.json", "w"))'"""
-    assert _check(cmd) is not None, "json.dump 真写 file-like 应命中"
+    assert _check(cmd) is not None, "json.dump 写 file-like 应命中"
 
 
 def test_python_pathlib_unlink_real_bypass_caught():
-    """v0.4.22：python -c 内 Path(x).unlink() 真绕过应拦。"""
+    """v0.4.22：python -c 内 Path(x).unlink() 绕过应拦。"""
     cmd = """python -c "from pathlib import Path; Path('~/.claude/karma/violations.jsonl').unlink()\""""
-    assert _check(cmd) is not None, "Path.unlink 真绕过应命中"
+    assert _check(cmd) is not None, "Path.unlink 绕过应命中"
 
 
 def test_shell_redir_real_bypass_still_caught():
-    """shell `>` 重定向真写 karma 文件 — 命令头不是宿主语言时仍扫。"""
+    """shell `>` 重定向写 karma 文件 — 命令头不是宿主语言时仍扫。"""
     cmd = "echo '{}' > ~/.claude/karma/session-state.json"
     assert _check(cmd) is not None, "shell 真 `>` 重定向写 karma 状态应命中"
 
 
 def test_v0518_read_karma_state_write_tmp_exempted():
-    """v0.5.18 真根因 fix (dogfooding 真触发驱动):
+    """v0.5.18 原因 fix (dogfooding 触发驱动):
     grep karma state 写 tmp 临时文件是合法 audit, 不该拦.
 
     场景: Agent 想分析 violations.jsonl 数据, 用 grep 过滤行写到 /tmp/audit 跑解析.
@@ -307,7 +307,7 @@ def test_v0518_cat_karma_pipe_to_python_exempted():
 
 
 def test_v0518_redirect_target_is_karma_path_still_blocked():
-    """v0.5.18 对偶: redirect target 真是 karma 路径仍拦 (真写 karma state)."""
+    """v0.5.18 对偶: redirect target 是 karma 路径仍拦 (写 karma state)."""
     cmd = "echo '{}' >> ~/.claude/karma/violations.jsonl"
     assert _check(cmd) is not None
 
@@ -315,14 +315,14 @@ def test_v0518_redirect_target_is_karma_path_still_blocked():
 def test_v0518_internal_field_name_write_to_tmp_now_exempted():
     """v0.5.18: 内部 field name + 写到 /tmp (非 karma 路径) 豁免.
 
-    写 /tmp 不影响 karma 实际状态, 即使字符串里含 field 名也不是真绕过.
-    跟 redirect-target 维度判定一致: target 真是 karma path 才算真写 karma.
+    写 /tmp 不影响 karma 状态, 即使字符串里含 field 名也不是绕过.
+    跟 redirect-target 维度判定一致: target 是 karma path 才算写 karma.
     """
     cmd = "echo 'last_test_pass_ts=999999' > /tmp/inject.txt"
-    assert _check(cmd) is None, "写 /tmp 不影响 karma 实际状态, 应豁免"
+    assert _check(cmd) is None, "写 /tmp 不影响 karma 状态, 应豁免"
 
 
 def test_v0518_internal_field_name_write_to_karma_still_blocked():
-    """v0.5.18 真根因对偶: 内部 field name + 写到 karma 路径 → 真违反 仍拦."""
+    """v0.5.18 原因对偶: 内部 field name + 写到 karma 路径 → 违反 仍拦."""
     cmd = "echo 'last_test_pass_ts=999999' > ~/.claude/karma/session-state/x"
-    assert _check(cmd) is not None, "写到 karma 路径是真绕过"
+    assert _check(cmd) is not None, "写到 karma 路径是绕过"

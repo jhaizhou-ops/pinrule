@@ -12,7 +12,7 @@ _INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 # shell 引号字面 — git commit -m "..." / echo "..." 的内容是描述/数据不是执行意图
 _SHELL_QUOTED_RE = re.compile(r"""'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*\"""")
 # 间接 shell / 解释器执行 — bash -c '...' / sh -c "..." / python -c '...' 等
-# 引号内是真要执行的子命令 / 代码，剥引号时要保留扫
+# 引号内是要执行的子命令 / 代码，剥引号时要保留扫
 # 包括 shell 解释器 + 编程语言 -c flag（python/node/ruby/perl 等）
 _INDIRECT_SHELL_RE = re.compile(
     r"\b(?:bash|sh|zsh|dash|ksh|python\d?|node|ruby|perl)\s+-c\s+(['\"])(.*?)\1",
@@ -24,13 +24,13 @@ _INDIRECT_SHELL_NOQUOTE_RE = re.compile(
     r"\b(?:bash|sh|zsh|dash|ksh|python\d?|node|ruby|perl)\s+-c\s+([^\s'\"`][^\s;&|\n]*)",
     re.IGNORECASE,
 )
-# 反引号命令替换 `cmd` — 内容是真执行的子命令
+# 反引号命令替换 `cmd` — 内容是执行的子命令
 # 排除前导反斜杠转义（\` 是字面反引号不展开）
 _BACKTICK_SUBST_RE = re.compile(r"(?<!\\)`([^`\n]+?)(?<!\\)`")
-# $(...) 命令替换 — 内容是真执行的子命令（不支持嵌套，足够覆盖常见场景）
+# $(...) 命令替换 — 内容是执行的子命令（不支持嵌套，足够覆盖常见场景）
 # 排除前导反斜杠转义（\$( 是字面美元 + 括号，shell 不展开）
 _DOLLAR_PAREN_SUBST_RE = re.compile(r"(?<!\\)\$\(([^()\n]*)\)")
-# 双引号字面 — 双引号内的 $() / 反引号会被 shell 真展开执行，需要提到外层
+# 双引号字面 — 双引号内的 $() / 反引号会被 shell 实际展开执行，需要提到外层
 # 单引号字面不展开（shell 字面不解析），不在这里处理
 _DOUBLE_QUOTED_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
 # heredoc 多行字符串 — `<<EOF ... EOF` 形式
@@ -41,13 +41,13 @@ _HEREDOC_RE = re.compile(
     r"<<[-~]?\s*['\"]?(\w+)['\"]?[^\n]*\n(.*?)\n[\t ]*\1\b",
     re.DOTALL,
 )
-# heredoc 头部是 shell 解释器 → 内容是真要执行的 shell 命令（保留扫）
+# heredoc 头部是 shell 解释器 → 内容是要执行的 shell 命令（保留扫）
 # 头部是 python / cat / grep / sed / awk 等 → 内容是数据传 stdin（剥）
 _SHELL_INTERPRETER_RE = re.compile(r"^(bash|sh|zsh|dash|ksh|fish)$", re.IGNORECASE)
 
 # v0.5.13: 宿主语言 -c/-e flag 命令头 — `python -c "..."` 类 inline 代码字面.
 # 多个 check (testset / bypass_karma / non_blocking) 都需要这个判定豁免 — 因为
-# python/node/ruby/perl -c 里的字面字符串是数据不是真执行 (例: python -c 里的
+# python/node/ruby/perl -c 里的字面字符串是数据不是执行 (例: python -c 里的
 # `sleep 5` 字面不是真睡 5 秒). v0.5.13 提取自 3 处复制粘贴 pattern.
 _LANG_C_HEAD_RE = re.compile(r"\b(?:python\d?|node|ruby|perl)\s+-[ce]\b", re.IGNORECASE)
 
@@ -68,7 +68,7 @@ def _heredoc_prefix_command(prefix: str) -> str:
     """从 `<<` 之前的字串里取最近一条命令的第一个 token（命令名）。
 
     边界含 `(` — 处理 `$( cat <<EOF ...)` / `(cat <<EOF ...)` 子 shell 嵌套
-    （v0.4.33 真根因 fix：之前不含 `(` 边界导致 `gh ... --notes "$(cat <<EOF ...)"`
+    （v0.4.33 原因 fix：之前不含 `(` 边界导致 `gh ... --notes "$(cat <<EOF ...)"`
     被误识 prefix=gh 不是 cat → heredoc 内容被错误处理）。
     """
     # 找命令边界 — 行首 / ; / | / && / || / 子 shell `(` / 子 shell `$(`
@@ -88,7 +88,7 @@ def strip_shell_quoted_literals(cmd: str) -> str:
     """剥 shell 命令里的引号字面 + 部分 heredoc 内容，保留命令骨架。
 
     特殊处理：
-    - `bash -c '...'` / `python -c '...'` 等 -c flag 后引号是真执行代码，
+    - `bash -c '...'` / `python -c '...'` 等 -c flag 后引号是执行代码，
       剥时保留内容（用 placeholder 防被后续 _SHELL_QUOTED_RE 内部引号字面误剥）。
     - heredoc 区分头部：
         * `bash <<EOF ... EOF` / `sh <<EOF ... EOF` → 内容是 shell 命令保留扫
@@ -96,10 +96,10 @@ def strip_shell_quoted_literals(cmd: str) -> str:
 
     跨 non_blocking + 关键词层共用，统一描述上下文剥离逻辑。
     """
-    # Step 1：先剥 heredoc 内容（早于 hoist / indirect 处理）— v0.4.33 真根因 fix。
+    # Step 1：先剥 heredoc 内容（早于 hoist / indirect 处理）— v0.4.33 原因 fix。
     # 之前顺序错：indirect 先抽 → heredoc 内的反引号 / $() 字面被先抽到 placeholder
     # → heredoc 剥时 placeholder 已不在内容里 → 最终替回保留扫漏 markdown 字面。
-    # 真触发：`gh release create --notes "$(cat <<'EOF' ...`cat ~/.claude/karma/...`
+    # 触发：`gh release create --notes "$(cat <<'EOF' ...`cat ~/.claude/karma/...`
     # ... EOF)"` 里 markdown 反引号包的路径字面被错当 shell substitution 保留扫。
     # 修：heredoc 先剥（按 prefix 命令决定 python/cat 剥 / bash 保留），让 heredoc
     # 内一切字面跟 heredoc 一起处理。
@@ -113,7 +113,7 @@ def strip_shell_quoted_literals(cmd: str) -> str:
 
     cmd = _HEREDOC_RE.sub(_maybe_strip_heredoc, cmd)
 
-    # Step 2：双引号内 substitution「提升」到外层（shell 双引号真行为是展开
+    # Step 2：双引号内 substitution「提升」到外层（shell 双引号实际行为是展开
     # $() 和反引号执行）。如果不先提升，后续 _SHELL_QUOTED_RE 会把整个 "..."
     # 连同 substitution 一起剥造成漏报。实测漏报：'echo "result: $(sleep 30)"'
     # 整段被吞 → non_blocking 漏报 sleep。单引号字面 shell 不展开不处理。
@@ -207,7 +207,7 @@ def extract_natural_language(content: str, file_path: str = "") -> str:
     """从代码 content 抽出注释行 + docstring/block 注释内容（自然语言部分）。
 
     关键词层扫 Write/Edit 时只看这部分 — 代码主体（变量赋值、函数调用等）
-    里出现字面词几乎全是描述/数据假阳，注释里写违反字眼才是真意图表达。
+    里出现字面词几乎全是描述/数据假阳，注释里写违反字眼才是实际意图。
 
     跨语言通用，返回拼接的自然语言文本。
     """

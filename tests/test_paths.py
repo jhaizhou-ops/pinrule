@@ -35,7 +35,7 @@ def test_karma_home_default_when_env_not_set():
 
 
 def test_karma_home_override_via_env():
-    """`KARMA_HOME=/tmp/x` 真生效，覆盖默认路径。"""
+    """`KARMA_HOME=/tmp/x` 生效，覆盖默认路径。"""
     out = _spawn_karma_check(
         {"KARMA_HOME": "/tmp/karma-test-isolated"},
         "from karma.paths import karma_home; print(karma_home())",

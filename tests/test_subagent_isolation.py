@@ -3,7 +3,7 @@
 设计意图（用户决策）：子 Agent 跟主 Agent 是两个不同进程彼此互不干扰，
 子 Agent 应有临时独立 state，子 Agent 结束自动销毁。
 
-真协议依据：Claude Code PreToolUse/PostToolUse/Stop hook payload 含 agent_id
+协议依据：Claude Code PreToolUse/PostToolUse/Stop hook payload 含 agent_id
 字段（主 Agent 字段缺失，子 Agent 含 uuid）。session_id 设计就是子 Agent
 共享主 session_id，所以区分主/子的唯一信号是 agent_id 字段。
 """
@@ -40,13 +40,13 @@ def test_subagent_load_save_independent_from_main(tmp_path):
     sub_state.tool_byte_seq = 9999
     session_state.save(sub_state, base_dir=tmp_path)
 
-    # load 主 Agent 真拿到主 state
+    # load 主 Agent 拿到主 state
     loaded_main = session_state.load("sess1", base_dir=tmp_path)
     assert loaded_main.turn_count == 5
     assert loaded_main.tool_byte_seq == 1000
     assert loaded_main.agent_id is None
 
-    # load 子 Agent 真拿到子 state
+    # load 子 Agent 拿到子 state
     loaded_sub = session_state.load("sess1", base_dir=tmp_path, agent_id="sub-1")
     assert loaded_sub.turn_count == 99
     assert loaded_sub.tool_byte_seq == 9999
@@ -54,7 +54,7 @@ def test_subagent_load_save_independent_from_main(tmp_path):
 
 
 def test_purge_subagent_state_deletes_file(tmp_path):
-    """SubagentStop 时调用 purge_subagent_state 真删子 Agent state 文件。"""
+    """SubagentStop 时调用 purge_subagent_state 删子 Agent state 文件。"""
     sub_state = session_state.SessionState(session_id="sess1", agent_id="sub-1")
     sub_state.turn_count = 1
     session_state.save(sub_state, base_dir=tmp_path)
@@ -64,7 +64,7 @@ def test_purge_subagent_state_deletes_file(tmp_path):
     # 销毁
     deleted = session_state.purge_subagent_state("sess1", "sub-1", base_dir=tmp_path)
     assert deleted is True
-    assert not sub_path.exists()  # 真删了
+    assert not sub_path.exists()  # 删了
 
 
 def test_purge_subagent_state_main_path_unaffected(tmp_path):
@@ -107,7 +107,7 @@ def test_pending_subagent_models_fifo_queue(tmp_path):
 
 
 def test_subagent_state_model_drives_threshold(tmp_path):
-    """v0.4.37 真闭环：主 PreToolUse 入队 → SubagentStart pop → 子 state.model
+    """v0.4.37 闭环：主 PreToolUse 入队 → SubagentStart pop → 子 state.model
     写入 → 后续子 Agent 内 PostToolUse 用 threshold_for_model(state.model)。
     """
     from karma.model_threshold import threshold_for_model
@@ -137,7 +137,7 @@ def test_subagent_state_model_drives_threshold(tmp_path):
 
 
 def test_violation_agent_id_serialized_when_subagent():
-    """Violation 含 agent_id 时 to_json 真写字段；agent_id=None 时不写省体积。"""
+    """Violation 含 agent_id 时 to_json 写字段；agent_id=None 时不写省体积。"""
     import json
     v_main = Violation(ts=1, session_id="s", rule_id="r", trigger="t", snippet="x", turn=1)
     d_main = json.loads(v_main.to_json())
@@ -148,4 +148,4 @@ def test_violation_agent_id_serialized_when_subagent():
         agent_id="sub-uuid",
     )
     d_sub = json.loads(v_sub.to_json())
-    assert d_sub.get("agent_id") == "sub-uuid"  # 子 Agent 真写 agent_id 字段
+    assert d_sub.get("agent_id") == "sub-uuid"  # 子 Agent 写 agent_id 字段

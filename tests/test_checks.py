@@ -30,12 +30,12 @@ def test_long_term_detects_quick_fix_commit():
 
 
 def test_long_term_commit_message_describe_pattern_passes():
-    """commit message 长描述区里讨论 hack/quick-fix 概念 → 不算真违反。
+    """commit message 长描述区里讨论 hack/quick-fix 概念 → 不算违反。
 
-    真违反是「字眼作为 commit 主语」（前 80 字内），不是长描述里偶然提到。
+    违反是「字眼作为 commit 主语」（前 80 字内），不是长描述里偶然提到。
     """
     fn = REGISTRY["long_term_fundamental"]
-    # 字眼在描述区（120 字之后）— 不算真违反
+    # 字眼在描述区（120 字之后）— 不算违反
     long_msg = (
         'feat(x): 实现新功能 X\n\n'
         '本提交做了三件事：\n'
@@ -49,11 +49,11 @@ def test_long_term_commit_message_describe_pattern_passes():
         tool_name="Bash",
         tool_input={"command": f'git commit -m "{long_msg}"'},
     )
-    assert hit is None, "commit message 后部讨论字眼不该被认成真违反"
+    assert hit is None, "commit message 后部讨论字眼不该被认成违反"
 
 
 def test_long_term_commit_message_subject_quick_fix_blocked():
-    """commit message 主语区（80 字内）含 hack 词 → 真违反，拦。"""
+    """commit message 主语区（80 字内）含 hack 词 → 违反，拦。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(
         tool_name="Bash",
@@ -88,7 +88,7 @@ def test_long_term_clean_code_passes():
 
 
 def test_long_term_write_with_no_verify_string_passes():
-    """Write 文档里描述 --no-verify 字面（不是真要跑）→ 不该拦。"""
+    """Write 文档里描述 --no-verify 字面（不是要跑）→ 不该拦。"""
     fn = REGISTRY["long_term_fundamental"]
     content = "# karma 检测规则\n这条规则会拦截 --no-verify、--skip、--force 等 flag。"
     hit = fn(tool_name="Write", tool_input={"file_path": "/tmp/doc.md", "content": content})
@@ -96,7 +96,7 @@ def test_long_term_write_with_no_verify_string_passes():
 
 
 def test_long_term_bash_with_no_verify_blocked():
-    """Bash 真跑 git commit --no-verify → 该拦。"""
+    """Bash 跑 git commit --no-verify → 该拦。"""
     fn = REGISTRY["long_term_fundamental"]
     hit = fn(tool_name="Bash", tool_input={"command": "git commit --no-verify -m 'fix'"})
     assert hit is not None
@@ -121,7 +121,7 @@ def test_long_term_cli_dispatch_kebab_passes():
 
 
 def test_long_term_uuid_hash_in_if_still_blocked():
-    """对偶：UUID / hash / 含数字长字面 if 分支硬编码 — 仍要拦（真违反）。"""
+    """对偶：UUID / hash / 含数字长字面 if 分支硬编码 — 仍要拦（违反）。"""
     fn = REGISTRY["long_term_fundamental"]
     for code in [
         'if user_id == "abc-def-12345-uuid":\n    pass',
@@ -135,7 +135,7 @@ def test_long_term_uuid_hash_in_if_still_blocked():
 
 
 def test_long_term_pytest_skip_flag_passes():
-    """评审 B Agent 真痛点：pytest / pip / cmake / rsync 等合法 --skip / --force
+    """评审 B Agent 痛点：pytest / pip / cmake / rsync 等合法 --skip / --force
     flag 不该被错拦（之前泛 flag 匹配会误拦）。"""
     fn = REGISTRY["long_term_fundamental"]
     for cmd in [
@@ -147,7 +147,7 @@ def test_long_term_pytest_skip_flag_passes():
         "cargo build --force",
     ]:
         hit = fn(tool_name="Bash", tool_input={"command": cmd})
-        assert hit is None, f"不该拦合法 flag: {cmd!r}, 实际触发 {hit.trigger if hit else ''}"
+        assert hit is None, f"不该拦合法 flag: {cmd!r}, 触发 {hit.trigger if hit else ''}"
 
 
 def test_long_term_git_push_no_verify_blocked():
@@ -281,7 +281,7 @@ def test_non_blocking_python_c_sleep_literal_exempted():
 
 def test_non_blocking_python_c_wait_identifier_exempted():
     """v0.4.18：python -c "..." 内的 _WAIT_RE / wait_fn 等 identifier 字面命中
-    \\bwait\\b 是真假阳（python identifier 不是 shell wait 命令）。同 sleep 根因。
+    \\bwait\\b 是假阳（python identifier 不是 shell wait 命令）。同 sleep 根因。
     """
     fn = REGISTRY["non_blocking_parallel"]
     cmd = 'python3 -c "from karma.checks.non_blocking import _WAIT_RE; print(_WAIT_RE)"'
@@ -295,7 +295,7 @@ def test_non_blocking_real_bash_sleep_still_caught():
 
 
 def test_non_blocking_kubectl_wait_passes():
-    """评审 B Agent 真痛点：kubectl wait / docker wait / aws cloudformation wait
+    """评审 B Agent 痛点：kubectl wait / docker wait / aws cloudformation wait
     是 CI/CD 合法同步原语，不该拦。"""
     fn = REGISTRY["non_blocking_parallel"]
     for cmd in [
@@ -324,7 +324,7 @@ def test_non_blocking_sleep_fractional_caught():
 
 def test_non_blocking_detects_long_task_no_background():
     fn = REGISTRY["non_blocking_parallel"]
-    # 真长任务（docker run / build）— 不带 background 命中
+    # 长任务（docker run / build）— 不带 background 命中
     hit = fn(tool_name="Bash", tool_input={"command": "docker compose up", "run_in_background": False})
     assert hit is not None
     assert "background" in hit.trigger or "docker" in hit.trigger.lower()
@@ -338,7 +338,7 @@ def test_non_blocking_long_task_with_background_passes():
 
 def test_non_blocking_test_commands_not_long_task():
     """pytest / jest 等测试命令默认不算长任务（多数项目跑得快 < 5s），
-    避免 audit 指出的高频假阳。真长测试用户自加 background。"""
+    避免 audit 指出的高频假阳。长测试用户自加 background。"""
     fn = REGISTRY["non_blocking_parallel"]
     hit = fn(tool_name="Bash", tool_input={"command": "pytest tests/"})
     assert hit is None  # 不再算长任务
@@ -367,7 +367,7 @@ def test_non_blocking_ignores_quoted_literals():
         tool_input={"command": 'echo "sleep 30 before retry"'},
     )
     assert hit is None
-    # 真要跑 docker run 仍命中
+    # 要跑 docker run 仍命中
     hit = fn(
         tool_name="Bash",
         tool_input={"command": "docker run myapp"},
@@ -386,12 +386,12 @@ print(pat.search('foo'))
 PYEOF"""
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
     assert hit is None, "heredoc 内字面不算执行意图"
-    # 但 heredoc **外**（命令头）真长任务仍命中
+    # 但 heredoc **外**（命令头）长任务仍命中
     cmd_with_docker = """docker compose up <<'EOF'
 some input
 EOF"""
     hit = fn(tool_name="Bash", tool_input={"command": cmd_with_docker})
-    assert hit is not None, "heredoc 外命令头真长任务仍是真执行"
+    assert hit is not None, "heredoc 外命令头长任务仍是执行"
 
 
 # -------- #3 chinese-plain-no-jargon --------
@@ -416,7 +416,7 @@ def test_chinese_plain_detects_low_chinese_ratio():
 def test_chinese_plain_url_not_counted_in_ratio():
     """URL 全英文但是结构性内容（不是 jargon 话术）— 算 ratio 时先剥。
 
-    dogfooding 实测真触发：发 release 汇报 'v0.3.0 发布 — https://github.com/.../tag/v0.3.0'
+    dogfooding 实测触发：发 release 汇报 'v0.3.0 发布 — https://github.com/.../tag/v0.3.0'
     URL 35+ 字符把中文占比从主体内容的 ~50% 拉低到 28% 误命中。修后 URL 先剥
     再算 ratio。
     """
@@ -432,9 +432,9 @@ def test_chinese_plain_url_not_counted_in_ratio():
 def test_chinese_plain_markdown_table_not_counted_in_ratio():
     """markdown 表格也是结构性内容（数据 / 名称），不算自然语言话术。"""
     fn = REGISTRY["chinese_plain_no_jargon"]
-    response = """本轮真完成清单：
+    response = """本轮完成清单：
 
-| Release | 真做 |
+| Release | 做 |
 |---|---|
 | v0.3.0 | Codex CLI backend |
 | v0.4.0 | Gemini CLI backend |
@@ -465,7 +465,7 @@ def test_chinese_plain_table_with_3plus_jargons_blocked():
 def test_chinese_plain_jargon_in_table_cell_exempted():
     """markdown 表格 cell 里的 jargon 是结构性引用不算 jargon 话术。
 
-    v0.4.15 dogfooding 真触发：上一 turn 末尾我写表格 `| 1 | 答 embedding 问
+    v0.4.15 dogfooding 触发：上一 turn 末尾我写表格 `| 1 | 答 embedding 问
     | ... |` 里 embedding 被 jargon 扫错算违反。表格行已经在算 ratio 时被
     `_TABLE_ROW_RE` 剥，但 jargon 扫描没用 natural_for_ratio。fix：jargon
     扫描也用 natural_for_ratio 让表格 cell 里的 jargon 豁免。
@@ -495,7 +495,7 @@ def test_chinese_plain_kebab_snake_idents_not_counted():
     """项目专有标识符 kebab-case / snake_case（chinese-plain / force_block / karma-v1）
     是 code identifier 不是自然语言 jargon — 算 ratio 时剥。
 
-    dogfooding 实测第 6 次真触发：karma 自己的发布报告里大量提自家 sticky_id
+    dogfooding 实测第 6 次触发：karma 自己的发布报告里大量提自家 sticky_id
     / 规则名 / 仓库代号，被算成英文 token 拉低中文比例。
     """
     fn = REGISTRY["chinese_plain_no_jargon"]
@@ -539,12 +539,12 @@ def test_chinese_plain_real_jargon_still_blocked():
 
 def test_v0440_dotted_identifier_not_counted():
     """v0.4.40: 含点号的工程标识符（module.attr / file.py / state.model）不算
-    自然语言中英比的英文部分 — 让 ratio 真反映 Agent 自然表达不被工程文本污染。
+    自然语言中英比的英文部分 — 让 ratio 反映 Agent 自然表达不被工程文本污染。
     """
     fn = REGISTRY["chinese_plain_no_jargon"]
     response = (
         "我刚改了 pre_tool_use.py 的 state.model 字段，调用 extract_model_from_transcript() "
-        "拿到了真模型，karma.hooks.session_start 也写了 state，全跑通。"
+        "拿到了模型，karma.hooks.session_start 也写了 state，全跑通。"
     )
     hit = fn(response=response)
     # 含 5 个点号标识符 + 自然中文 — 算 ratio 时点号标识符剥后中文比应 ≥ 40%
@@ -563,15 +563,15 @@ def test_v0440_path_literal_not_counted():
 
 
 def test_v0440_repeated_prefix_check_catches_zhen_zi_kuangmo():
-    """v0.4.40 Check 3: 同前缀「真X」≥ 5 次/response 真触发自审（治理「真字
+    """v0.4.40 Check 3: 同前缀「真X」≥ 5 次/response 触发自审（治理「真字
     狂魔」副作用 — sticky #4 + sticky #1 叠加效应根因）。"""
     fn = REGISTRY["chinese_plain_no_jargon"]
     response = (
-        "经过真分析找到真根因，真复现脚本真生效，真闭环架构真完整，"
-        "真效果对比真清晰，真证据真齐。"
+        "经过真分析找到原因，复现脚本生效，闭环架构真完整，"
+        "真效果对比真清晰，证据真齐。"
     )
     hit = fn(response=response)
-    assert hit is not None, "5+ 次「真X」前缀堆叠真违反"
+    assert hit is not None, "5+ 次「真X」前缀堆叠违反"
     assert "真" in hit.trigger, f"trigger 应识别「真」前缀: {hit.trigger}"
 
 
@@ -717,10 +717,10 @@ def test_evidence_git_commit_with_test_passes():
 
 
 def test_evidence_chained_pytest_commit_exempted():
-    """`pytest && git commit` 链式调用 — pre_tool_use 时 pytest 还没真跑，
+    """`pytest && git commit` 链式调用 — pre_tool_use 时 pytest 还没跑，
     has_recent_test=False 会误拦。命令骨架含测试命令应视为「即时证据」豁免。
 
-    v0.4.14 dogfooding 真触发：commit v0.4.13 release 时 `pytest && git commit`
+    v0.4.14 dogfooding 触发：commit v0.4.13 release 时 `pytest && git commit`
     链被错拦。
     """
     fn = REGISTRY["loud_failure_with_evidence"]
@@ -736,7 +736,7 @@ def test_evidence_chained_pytest_commit_exempted():
 def test_evidence_heredoc_chore_commit_exempted():
     """heredoc / $(cat <<EOF) 包裹的 conventional commit prefix 也应豁免。
 
-    v0.4.14 dogfooding 真触发：`git commit -m "$(cat <<'EOF'\\nchore(release):
+    v0.4.14 dogfooding 触发：`git commit -m "$(cat <<'EOF'\\nchore(release):
     ...\\nEOF\\n)"` 被错拦（_NON_CODE_COMMIT_PREFIX_RE 只识别紧邻引号形式）。
     """
     fn = REGISTRY["loud_failure_with_evidence"]
@@ -751,7 +751,7 @@ def test_evidence_heredoc_chore_commit_exempted():
 
 
 def test_evidence_pytest_in_commit_msg_not_exempted():
-    """commit message 字面提到 pytest 不算真跑（防误豁免）。
+    """commit message 字面提到 pytest 不算跑（防误豁免）。
 
     `_CHAINED_TEST_RE` 扫 strip 后的骨架，commit message 引号字面里的 pytest
     被剥掉，不会误豁免「假声称跑过测试」类。
@@ -763,7 +763,7 @@ def test_evidence_pytest_in_commit_msg_not_exempted():
         tool_input={"command": "git commit -m \"fix: improve pytest fixture\""},
         session_state=state,
     )
-    assert hit is not None, "commit message 字面提 pytest 不算真跑，应命中"
+    assert hit is not None, "commit message 字面提 pytest 不算跑，应命中"
 
 
 # -------- #5 no-testset-no-future-leakage --------
@@ -803,7 +803,7 @@ def test_testset_clean_code_passes():
 
 
 def test_testset_long_hash_in_if_blocked():
-    """长 hash 字面在 if 比较里 → 拦（真测试集 case ID 写死）。"""
+    """长 hash 字面在 if 比较里 → 拦（测试集 case ID 写死）。"""
     fn = REGISTRY["no_testset_no_future_leakage"]
     hit = fn(
         tool_name="Edit",
@@ -845,7 +845,7 @@ def test_testset_case_id_assignment_blocked():
 def test_testset_python_c_string_literal_exempted():
     """v0.5.5：python -c "..." 内含 gold_cases.append 字面是字符串数据不是执行 — 豁免。
 
-    v0.5.3 dogfooding 真触发：probe 脚本里 `python -c "r = check(content='gold_cases.append(x)')"`
+    v0.5.3 dogfooding 触发：probe 脚本里 `python -c "r = check(content='gold_cases.append(x)')"`
     被错算执行意图. 跟 non_blocking sleep / bypass_karma write 同根因 fix.
     """
     fn = REGISTRY["no_testset_no_future_leakage"]
@@ -855,7 +855,7 @@ def test_testset_python_c_string_literal_exempted():
             "command": 'python -c "r = check(content=\'gold_cases.append(x)\')"',
         },
     )
-    assert hit is None, f"python -c 内字面应豁免, 实际拦: {hit}"
+    assert hit is None, f"python -c 内字面应豁免, 拦: {hit}"
 
 
 def test_testset_real_bash_reverse_feed_still_blocked():
@@ -871,9 +871,9 @@ def test_testset_real_bash_reverse_feed_still_blocked():
 def test_testset_v058_heredoc_to_tests_path_exempted():
     """v0.5.8: cat heredoc 写到 tests/ 路径豁免 — heredoc 内容是测试代码字面.
 
-    dogfooding v0.5.7 真触发: tests/test_checks.py append 回归测试时 heredoc 内
+    dogfooding v0.5.7 触发: tests/test_checks.py append 回归测试时 heredoc 内
     `case_id = "<hash>"` 字面被错拦. 跟 v0.5.5 python -c 同根因 — 字面是描述
-    性测试代码不是真执行.
+    性测试代码不是执行.
     """
     fn = REGISTRY["no_testset_no_future_leakage"]
     cmd = (
@@ -883,7 +883,7 @@ def test_testset_v058_heredoc_to_tests_path_exempted():
         "PY"
     )
     hit = fn(tool_name="Bash", tool_input={"command": cmd})
-    assert hit is None, f"heredoc 写 tests/ 应豁免, 实际拦: {hit}"
+    assert hit is None, f"heredoc 写 tests/ 应豁免, 拦: {hit}"
 
 
 def test_testset_v058_heredoc_to_md_doc_exempted():

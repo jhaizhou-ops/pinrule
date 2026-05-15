@@ -68,7 +68,7 @@ def _is_blocking_wait(cmd: str) -> bool:
         # wait $! / wait 1234 等）
         return True
     return False
-# 「真长任务」— 通常运行时间 ≥ 30s 的命令。短测试命令（pytest / jest 等多数项目
+# 「长任务」— 通常运行时间 ≥ 30s 的命令。短测试命令（pytest / jest 等多数项目
 # 跑得快 < 5s）从默认列表移除，避免 audit 指出的高频假阳（karma 自身测试 0.1s
 # 但触发拦截 5×，占 sticky 触发 83%）。
 # 保留：构建（docker build / cargo build）/ 容器（docker run）/ 包管理（npm install）/
@@ -100,7 +100,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     # v0.4.18：命令头是宿主语言 + -c/-e 时跳 sleep 检测 — python/node 等代码
     # 里的 sleep 字面是字符串数据不是真 shell 调用。真 python 等待用 time.
     # sleep(N) / subprocess.run("sleep") 这种 — `sleep` 裸字面在 python 代码
-    # 里只是 identifier 不会真执行。同 v0.4.13 deep-fix 拆 _WRITE_OP_RE 根因。
+    # 里只是 identifier 不会执行。同 v0.4.13 deep-fix 拆 _WRITE_OP_RE 根因。
     is_lang_c = is_python_c_command(cmd_raw)
 
     # v0.4.22：python -c 内**真**阻塞接口（time.sleep / subprocess.run("sleep") /
@@ -131,7 +131,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         )
 
     # v0.4.18：wait 检测也豁免宿主语言 -c — python 代码里 `_WAIT_RE` / `wait_fn`
-    # 等 identifier 字面命中 \bwait\b 是真假阳。同 sleep 根因。
+    # 等 identifier 字面命中 \bwait\b 是假阳。同 sleep 根因。
     if _is_blocking_wait(cmd) and not is_lang_c:
         return CheckHit(
             rule_id=_STICKY_ID,

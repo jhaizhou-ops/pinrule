@@ -9,7 +9,7 @@ Claude Code 协议:
 
 设计（v0.4.30 first pass）：
 - 简单序列化 sticky 摘要（id + 第一行 preference）传给子 Agent
-- 用 ensure_ascii=False 输出真中文（早期 stub 没加，子 Agent 收到 `\\uXXXX`
+- 用 ensure_ascii=False 输出utf-8 中文（早期 stub 没加，子 Agent 收到 `\\uXXXX`
   转义乱码看不懂）
 
 Fail open：异常 / 配置坏 → passthrough 不阻塞子 Agent 启动。
@@ -35,9 +35,9 @@ def main() -> int:
         _passthrough()
         return 0
 
-    # v0.4.37 子 Agent model 真捕获：主 Agent PreToolUse(Agent, model=X) 入队
+    # v0.4.37 子 Agent model 捕获到：主 Agent PreToolUse(Agent, model=X) 入队
     # pending_subagent_models，本 SubagentStart pop 队首写子 Agent state.model
-    # 让按真模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。FIFO 假设并行 Task
+    # 让按模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。FIFO 假设并行 Task
     # 触发顺序跟 PreToolUse 入队顺序一致（dogfooding 持续观察）。
     session_id = payload.get("session_id", "") or "default"
     agent_id = payload.get("agent_id") or None

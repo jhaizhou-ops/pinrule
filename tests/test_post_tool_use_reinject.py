@@ -25,7 +25,7 @@ def _make_sticky(sid: str) -> Sticky:
 
 
 def _make_state(turn=5, byte_seq=0, last_reinject=0, model="claude-sonnet-4-6") -> SessionState:
-    """v0.4.35: 默认 model=sonnet (阈值 60K) — 测试用 70K byte_seq 触发真注入逻辑。
+    """v0.4.35: 默认 model=sonnet (阈值 60K) — 测试用 70K byte_seq 触发实际注入逻辑。
     旧测试用 model=claude-instant 时 8K 阈值，跟之前 v0.4.32 行为一致。
     """
     s = SessionState(session_id="test", model=model)
@@ -47,13 +47,13 @@ def test_estimate_tokens_simple_bash():
 def test_estimate_tokens_subagent_only_counts_main_visible():
     """sub-agent (Task) 也按主 Agent 看到的最终 tool_response 算 — 子 Agent
     内部 thinking + 中间 tool 是子 Agent 自己 context 不算主 Agent 衰减。
-    用户 v0.4.32 决策真核心：主 Agent context 衰减只看主 Agent 真看到的。
+    用户 v0.4.32 决策真核心：主 Agent context 衰减只看主 Agent 看到的。
     """
     # 模拟 sub-agent 最终回报 ~3KB
     tool_input = {"prompt": "x" * 200}
     tool_response = "x" * 3000
     est = _estimate_tokens(tool_input, tool_response)
-    # 真大约 (3000+200) // 3 ≈ 1066 token — 不是 30K（不算子 Agent 内部）
+    # 挺大约 (3000+200) // 3 ≈ 1066 token — 不是 30K（不算子 Agent 内部）
     assert 900 < est < 1200
 
 
@@ -70,7 +70,7 @@ def test_no_reinject_when_below_threshold():
 
 def test_reinject_when_threshold_reached_and_sticky_triggered():
     """累积达阈值 + 有最近触发 sticky → 注入 + 重置 last_reinject_byte_seq。"""
-    state = _make_state(byte_seq=70000, last_reinject=0)  # sonnet 60K 阈值，累积 70K 真触发
+    state = _make_state(byte_seq=70000, last_reinject=0)  # sonnet 60K 阈值，累积 70K 触发
     with patch("karma.rule.load", return_value=[_make_sticky("r1"), _make_sticky("r2")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 2}):
         result = _build_smart_reinject("test", state)
@@ -119,7 +119,7 @@ def test_zero_turn_returns_empty():
 
 
 def test_threshold_adapts_to_opus_model():
-    """v0.4.35 真验证：opus 模型阈值 80K，70K byte_seq 不该触发（< 80K）。"""
+    """v0.4.35 验证：opus 模型阈值 80K，70K byte_seq 不该触发（< 80K）。"""
     state = _make_state(byte_seq=70000, last_reinject=0, model="claude-opus-4-7")
     with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 1}):
@@ -133,7 +133,7 @@ def test_threshold_adapts_to_opus_model():
 
 
 def test_threshold_adapts_to_haiku_model():
-    """v0.4.35 真验证：haiku 模型阈值 30K，35K byte_seq 真触发（小模型衰减更快）。"""
+    """v0.4.35 验证：haiku 模型阈值 30K，35K byte_seq 触发（小模型衰减更快）。"""
     state = _make_state(byte_seq=35000, last_reinject=0, model="claude-haiku-4-5")
     with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
          patch("karma.violations.recent_turns", return_value={"r1": 1}):

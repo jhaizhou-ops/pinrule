@@ -531,7 +531,7 @@ def cmd_rule_preview(yaml_path: str | None = None, stdin_yaml: bool = False) -> 
     print(format_for_injection(validated))
     print("--- end ---")
     print()
-    print("用 `karma rule add --from-yaml <file>` 真写入 rules.yaml")
+    print("用 `karma rule add --from-yaml <file>` 写入 rules.yaml")
     return 0
 
 
@@ -1121,7 +1121,7 @@ def cmd_install_hooks(backend_name: str = "claude-code") -> int:
         backends_to_install = [REGISTRY[name] for name in installed]
     elif backend_name in REGISTRY:
         backend = REGISTRY[backend_name]
-        # 显式 backend 也必须查客户端是否真装 — sub-agent 排查发现的 P1 真 bug：
+        # 显式 backend 也必须查客户端是否实际装 — sub-agent 排查发现的 P1 bug：
         # 同事没装 Claude Code 跑 `karma install-hooks` 默认装 claude-code 静默
         # 写 ~/.claude/settings.json 完全无反馈，他不知道 hook 不会触发。
         # 修：检测不到客户端时报错 + 提示，要绕过装可用 --force（暂未加）。

@@ -4,7 +4,7 @@
 
 ## 用户痛点（实证）
 
-karma v2 的设计起点是一个**真实长期痛点**，用户原话：
+karma v2 的设计起点是一个**长期痛点**，用户原话：
 
 > 我不停强调但是 Agent 一再触犯到的规则就是：Agent 采取的方法总是短视、作弊、逐利和补丁性的，
 > 而我一直追求根本、长期、普适和正确的，这需要我不断的重复和强调，但 Agent 仍然在硬编码、
@@ -39,7 +39,7 @@ karma v2 的设计起点是一个**真实长期痛点**，用户原话：
 |---|---|
 | **CLAUDE.md** | 写了但被任务细节淹没，Agent 注意力分散；compact 后压成模糊词；项目级不跨项目 |
 | **Claude Code auto-memory** | 偏「事实记忆」(我用 Mac / 我喜欢 X)，不专门处理「行为方向偏好」；召回时机不对 |
-| **karma v1** | 试图自动蒸馏 + retrieval — 但真实痛点是「永驻」而非「召回」，方向错位 |
+| **karma v1** | 试图自动蒸馏 + retrieval — 但痛点是「永驻」而非「召回」，方向错位 |
 
 ## karma v2 设计哲学
 
@@ -120,7 +120,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - `karma install-hooks / uninstall-hooks` — 自动写/清 settings.json（idempotent + 备份 + 保留他人 hook）
 - `karma install-skill [--force]` — 装 / 升级 `karma-rule` Claude Code skill（`karma init` 自动跑过；独立命令给升级用）
 
-### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次实际触发的 release）
+### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次触发的 release）
 
 **触发方式**：用户在 Claude Code / Codex CLI / Gemini CLI 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
 
@@ -142,7 +142,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - Gemini CLI: `~/.gemini/skills/karma/SKILL.md`（auto-trigger）**加** `~/.gemini/commands/karma.toml`（显式 `/karma` slash，通过 `karma/skill_packaging.py` Markdown → TOML 转换生成，含 `$ARGUMENTS` ↔ `{{args}}` 语法翻译）
 - `karma init` 自动装到所有三家；`karma install-skill [--force] [--backend <name>]` 给升级用；`karma doctor` 报每个 backend skill 状态
 
-**诚实历史**：v0.5.1 ship 了 skill 模板但路径错（`<name>.md` 裸文件而不是 Claude Code 协议要求的 `<name>/SKILL.md` 目录结构）。v0.5.1 ~ v0.5.15 skill 从未实际触发 — 手工 CLI 测试能用，但自然语言 → 自动 refine 路径是空气。v0.5.16 按 Claude Code 协议重建装机；ship v0.5.16 那个 session 的 SessionStart hook 是 karma skill 第一次出现在 available skills 列表里。完整披露见 [CHANGELOG.md v0.5.16](../CHANGELOG.md)。
+**诚实历史**：v0.5.1 ship 了 skill 模板但路径错（`<name>.md` 裸文件而不是 Claude Code 协议要求的 `<name>/SKILL.md` 目录结构）。v0.5.1 ~ v0.5.15 skill 从未触发 — 手工 CLI 测试能用，但自然语言 → 自动 refine 路径是空气。v0.5.16 按 Claude Code 协议重建装机；ship v0.5.16 那个 session 的 SessionStart hook 是 karma skill 第一次出现在 available skills 列表里。完整披露见 [CHANGELOG.md v0.5.16](../CHANGELOG.md)。
 
 ### F6. 国际化（v0.5.2+）✅
 
@@ -183,9 +183,9 @@ karma v0 不追求精度数字 — 追求 **作者自用是否确实感觉到「
 
 用户原话「咱们继续推就是观察期啊」— **「开发」和「自用观察」不是二元选择**。
 
-karma 的开发过程本身就是它最严酷的自用观察期：每次推进开发 Claude 都装着 karma 跑，每个 commit 都经历 hook 拦截。M3 六波累积了 30+ 条真实违反数据，6 个 sticky 全部触发过，假阳 / 假阴边界在 dogfooding 中持续暴露 + 修复。
+karma 的开发过程本身就是它最严酷的自用观察期：每次推进开发 Claude 都装着 karma 跑，每个 commit 都经历 hook 拦截。M3 六波累积了 30+ 条累积违反数据，6 个 sticky 全部触发过，假阳 / 假阴边界在 dogfooding 中持续暴露 + 修复。
 
-这比「装好等一周观察」更密集 / 真实 / 反馈快。
+这比「装好等一周观察」更密集 / 实际 / 反馈快。
 
 ## 场景化定位（M3 之后明确）
 
@@ -195,7 +195,7 @@ karma = **通用 hook 框架** + **场景规则集**。
 
 其他场景（写作 / 研究 / 产品 / 设计 / 法律等）需要不同的规则集 — 用户可自定义 sticky.yaml，或社区贡献预设。karma 框架层跨场景通用。
 
-这个定位是 M3 dogfooding 中浮现的洞察 — 之前以为「跨用户通用」，实际是「跨用户但同场景通用」。
+这个定位是 M3 dogfooding 中浮现的洞察 — 之前以为「跨用户通用」，是「跨用户但同场景通用」。
 
 ## 非功能性要求
 
@@ -217,7 +217,7 @@ karma = **通用 hook 框架** + **场景规则集**。
 
 ## 后续可能（v1+）
 
-如果 v0 验证 karma 确实有用：
+如果 v0 验证 karma 有用：
 
 - **跨 IDE/平台**：Cursor / Windsurf / Codex 支持
 - **团队级 sticky**：团队共享一份核心方向（如 SWE 团队的代码风格）

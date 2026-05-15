@@ -74,12 +74,12 @@ def main() -> int:
         # 起手 sticky 已全量注入过 — 中段注入是「衰减后重新锚定」补丁）
         state.tool_byte_seq = 0
         state.last_reinject_byte_seq = 0
-        # v0.4.39 真根本路径：user_prompt_submit payload 没 model 字段（dogfooding
-        # 真验证 — 7 turn 跑下来 state.model 仍 None 证明 payload 没 model）。
-        # 改用 transcript_path 真路径 — 所有 hook payload 真有 transcript_path，
+        # v0.4.39 根本本路径：user_prompt_submit payload 没 model 字段（dogfooding
+        # 验证 — 7 turn 跑下来 state.model 仍 None 证明 payload 没 model）。
+        # 改用 transcript_path 路径 — 所有 hook payload 有 transcript_path，
         # 读 jsonl 找最后一条 assistant model 字面。这覆盖 SessionStart 后中途
         # /model 切换场景（v0.4.38 user_prompt_submit payload model 字段路径走
-        # 不通的真根因 fix）。
+        # 不通的原因 fix）。
         transcript_path = payload.get("transcript_path")
         if transcript_path:
             from karma.model_threshold import extract_model_from_transcript

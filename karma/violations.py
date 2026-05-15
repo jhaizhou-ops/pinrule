@@ -39,7 +39,7 @@ class Violation:
                    # 0 = 旧记录 / unknown，新写入应填实际 turn。
     # v0.4.34 子 Agent 独立架构：agent_id None=主 Agent / uuid=子 Agent
     # 主 violations.jsonl 含全部违反（不分文件 — 历史 audit 可见全 picture），
-    # audit / stats 默认只看 agent_id is None（主 Agent 真违反，不算子 Agent 噪音）
+    # audit / stats 默认只看 agent_id is None（主 Agent 违反，不算子 Agent 噪音）
     agent_id: str | None = None
     # v0.5.7: locale-agnostic i18n key — audit/stats 用它分组，避免 zh/en locale
     # 切换后同行为被算成两组. 老 jsonl 行无 trigger_key 字段读取 fallback ""，
@@ -93,7 +93,7 @@ def detect(
     简单 substring 匹配（不区分大小写）。同一 rule 多关键词命中只记第一个。
     turn = session 内 turn 序号，用于按 turn 距离统计漂移（不是人类时钟）。
     agent_id = 子 Agent uuid（v0.4.34），主 Agent None；写进 Violation.agent_id
-    用于 audit 区分主/子 Agent 真违反。
+    用于 audit 区分主/子 Agent 违反。
     """
     if not response or not rule_list:
         return []

@@ -41,7 +41,7 @@ class CodexBackend(JsonHooksBackend):
         }
 
     def pre_install_setup(self) -> list[str]:
-        """Codex 必须启用 `[features] hooks = true` 才让 hook 真触发。
+        """Codex 必须启用 `[features] hooks = true` 才让 hook 触发。
 
         用 `codex features enable hooks` 命令永久写入 `~/.codex/config.toml`
         （Codex 官方推荐方式 — 不直接编辑 config.toml 避免 TOML 格式错）。

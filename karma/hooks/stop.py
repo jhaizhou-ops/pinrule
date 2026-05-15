@@ -109,7 +109,7 @@ def main() -> int:
     )
 
     # v0.4.41: 拿用户上 turn prompt 让 keep_pushing.check 识别叫停字眼
-    # 真根因：HANDOFF v3 第三步候选 — keep_pushing 只看 Agent response 末尾，
+    # 原因：HANDOFF v3 第三步候选 — keep_pushing 只看 Agent response 末尾，
     # 看不到 user 上文「不用啦 / 休息吧 / 明天再说」叫停字面 → 反思 hook
     # 反复触发即使用户已明确叫停（sticky #8 例外条件命中但 check 不知道）。
     last_user_prompt = (
@@ -189,9 +189,9 @@ def main() -> int:
         summary_lines.append(line)
         notify_msgs.append(f"{v.rule_id} — {v.trigger}")
 
-    # 当前 turn 真触发的 sticky_id 集合 — 提到两个 if 块前共享
-    # 用于 force_block 真根因 fix：只惩罚「当前 turn 真触发 + 历史累积超阈值」
-    # 的 sticky；如果 Agent 修了真根因当前 turn 不再触发，不重复 force_block
+    # 当前 turn 触发的 sticky_id 集合 — 提到两个 if 块前共享
+    # 用于 force_block 原因 fix：只惩罚「当前 turn 触发 + 历史累积超阈值」
+    # 的 sticky；如果 Agent 修了原因当前 turn 不再触发，不重复 force_block
     # 历史违反（否则 fix 后仍卡 force_block 形成死循环）
     hit_sticky_ids = {h.rule_id for h in check_hits} | {
         v.rule_id for v in keyword_violations if v.rule_id not in seen_ids
@@ -223,7 +223,7 @@ def main() -> int:
             notify("karma 检测违反", " / ".join(notify_msgs[:3]))
 
     # 机制 2：累积强制 block — 同一 sticky 累积违反次数超阈值 → Stop hook 输出
-    # decision=block，要求 Agent 修真根因或显式让用户介入，不允许继续绕
+    # decision=block，要求 Agent 修原因或显式让用户介入，不允许继续绕
     if notify_msgs:
         try:
             from karma.config import load as _load_config
@@ -241,15 +241,15 @@ def main() -> int:
             # 「应该继续推进」类规则不该被「累积太多必须停下让用户介入」处罚
             # （否则语义自我矛盾 — 用户实战发现 keep-pushing-no-stop 触发该 bug）
             exempt_ids = {s.id for s in sticky_list if s.force_block_exempt}
-            # v0.4.16 真根因 fix：force_block 只惩罚「当前 turn 真触发 + 历史累积
+            # v0.4.16 原因 fix：force_block 只惩罚「当前 turn 触发 + 历史累积
             # 超阈值」的 sticky，不惩罚「已修了不再触发但历史在窗口内」的 sticky。
-            # dogfooding 真触发：v0.4.15 修了 chinese-plain 真根因，但 force_block
-            # 仍按最近 3 turn 累积 8 次重复 force_block，Agent 没法靠「修真根因」
+            # dogfooding 触发：v0.4.15 修了 chinese-plain 原因，但 force_block
+            # 仍按最近 3 turn 累积 8 次重复 force_block，Agent 没法靠「修原因」
             # 解除卡死。
             over_threshold = [
                 sid for sid, n in counts_force.items()
                 if n >= force_threshold and sid not in exempt_ids
-                and sid in hit_sticky_ids  # 当前 turn 真触发了该 sticky 才 force_block
+                and sid in hit_sticky_ids  # 当前 turn 触发了该 sticky 才 force_block
             ]
             if over_threshold and state.stop_block_count < block_max:
                 state.stop_block_count += 1
@@ -259,7 +259,7 @@ def main() -> int:
                     pass
                 reason = (
                     f"karma 强制干预：累积违反 {over_threshold} 共 {sum(counts_force[s] for s in over_threshold)} 次。"
-                    f"必须 fix 真根因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。"
+                    f"必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。"
                     f"禁止继续绕（手动改 karma 状态 / 临时改 sticky）。"
                 )
                 print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
@@ -291,7 +291,7 @@ def main() -> int:
             print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
             return 0
 
-    # 2026-05-15 真根因 fix：Stop hook 协议**不支持 hookSpecificOutput**
+    # 2026-05-15 原因 fix：Stop hook 协议**不支持 hookSpecificOutput**
     # （schema 仅 PreToolUse / UserPromptSubmit / PostToolUse / PostToolBatch 支持）
     # 之前 v0.4.x 输出 hookSpecificOutput.additionalContext → 被 Claude Code
     # 报「Expected schema」错误日志，且 Agent 看不到（Stop 后已停）。

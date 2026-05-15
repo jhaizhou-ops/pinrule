@@ -1,4 +1,4 @@
-# karma sticky 模板 — 软件开发场景「真跨用户中性」5 条精选
+# karma sticky 模板 — 软件开发场景「跨用户中性」5 条精选
 #
 # 这是 sticky.dev.example.yaml 的精简版，砍掉了语言 / 场景特化的两条：
 #   - chinese-plain-no-jargon（中文用户偏好）
@@ -17,7 +17,7 @@
   preference: |
     用最根本、最长期、最普适、最优雅的方案。
     不打补丁、不硬编码、不为追短期 KPI 牺牲长期质量。
-    深挖到根本原因再动手；遇到难题先想「最干净的解法是什么」而非「最快糊过去」。
+    深挖到原因再动手；遇到难题先想「最干净的解法是什么」而非「最快糊过去」。
   violation_keywords:
     - 我先打个补丁
     - 先打个补丁应付
@@ -67,11 +67,11 @@
 
 - id: deep-fix-not-bypass
   preference: |
-    karma 拦截发生时，先停下深挖**为什么拦** — 是实际违反还是 karma 自身 bug。
+    karma 拦截发生时，先停下深挖**为什么拦** — 是违反还是 karma 自身 bug。
     禁止通过手动改 ~/.claude/karma/session-state/ / 临时改 sticky.yaml /
     hack 字面 等方式绕开检测。
     经典 anti-pattern：被拦 → 手动改内部状态让 commit 通过。
-    正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修根本原因。
+    正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修原因。
     例外：用户明确说「绕一下先 commit」→ 才能绕。
   violation_keywords:
     - 强制接证据

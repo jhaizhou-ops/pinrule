@@ -4,11 +4,11 @@ Claude Code 协议:
 - stdin payload: {source: "startup"|"resume"|"clear"|"compact", session_id, ...}
 - stdout: {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "..."}}
 
-设计（v0.4.28 升级 — 之前 stub 只输出摘要文字现在真注入 sticky baseline）：
+设计（v0.4.28 升级 — 之前 stub 只输出摘要文字现在实际注入 sticky baseline）：
 - 跟 UserPromptSubmit 注入互补 — 后者每 turn 注入完整 sticky + ⚠️ 标记，
   前者 session 级一次注入精简 baseline（id + 第一行 preference）
 - compact 场景特别重要 — sticky 在 compact 时被压缩淡化，SessionStart 重起时
-  强注入是真根本路径（PostCompact 不支持 additionalContext 走不通）
+  强注入是根本本路径（PostCompact 不支持 additionalContext 走不通）
 
 性能预算：< 30ms（不该卡客户端启动）
 Fail open：配置坏 / 异常 → 不注入静默 passthrough。
@@ -45,11 +45,11 @@ def main() -> int:
 
     source = payload.get("source", "")  # startup / resume / clear / compact
 
-    # v0.4.36 真协议层 fix：SessionStart payload 真有 model 字段（PreToolUse /
+    # v0.4.36 协议层 fix：SessionStart payload 有 model 字段（PreToolUse /
     # PostToolUse / SubagentStart / SubagentStop / Stop 都没）— SessionStart 是
     # Claude Code 本地协议下唯一暴露 model 的事件。拿 model 写主 state 让后续
-    # PostToolUse 中段 sticky 注入按真模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。
-    # 子 Agent 模型仍真盲区（SubagentStart 没 model 字段），走 DEFAULT 60K fallback。
+    # PostToolUse 中段 sticky 注入按模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。
+    # 子 Agent 模型仍盲区（SubagentStart 没 model 字段），走 DEFAULT 60K fallback。
     payload_model = payload.get("model")
     session_id = payload.get("session_id", "") or "default"
     if payload_model:

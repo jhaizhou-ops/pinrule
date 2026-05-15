@@ -117,7 +117,7 @@ Agent：好，按 karma 的结构化语气优化成：
 [预览 yaml]
 - id: must-run-tests-before-done
   preference: |
-    跟你协作的真人用户在你说「完成」时希望看到测试通过证据 — 不是看到
+    跟你协作的这位用户在你说「完成」时希望看到测试通过证据 — 不是看到
     你跑了测试就行，要看到 pass 数字。如果跳过测试用 mock 替代，
     老实说出来比假装完成更建立信任。
   violation_keywords:
@@ -195,7 +195,7 @@ Agent：[karma rule add --from-yaml /tmp/new-rule.yaml]
 - 选项 A: 一次性 v0.5.0 big bang（340 处一次改完，breaking change 标 major version）
 - 选项 B: 渐进式（v0.4.x 加 alias 兼容，v0.5.0 才删 sticky）
 
-**我推荐 A**：karma 还在早期，作者基本是唯一真实用户，breaking change 风险可控。一次性改完干净。
+**我推荐 A**：karma 还在早期，作者基本是唯一用户，breaking change 风险可控。一次性改完干净。
 
 ### 决策 3：`/karma rule` 是 Claude Code skill 还是 karma CLI subcommand？
 

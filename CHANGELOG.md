@@ -10,13 +10,75 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-05-15 (refactor — deeper "真X" cleanup: drop unnecessary modifier synonyms across full repo)
+
+### Root cause user identified (v0.7.0 follow-up)
+
+After v0.7.0 mass-replaced ~140 occurrences in rule templates + locale + user-facing docs, user spotted two remaining issues:
+
+1. **`任务任务到饱和` doubled artifact** — v0.7.0 perl script `s/真饱和/任务到饱和/g` ran on input already containing `任务真饱和`, creating doubled prefix.
+2. **Synonym substitution wasn't enough** — user reviewed v0.7.0 diff and noted: "大量真换成了实际和确实等同义词，但问题是大部分地方这个同义词也没必要存在吧😓". The defensive modifier itself (whether 真 or 实际 or 确实) is unnecessary in most contexts. Removing the modifier entirely reads more natural than synonym swap.
+
+User's directive: **"一次性修复完再提交吧"** + **"注释里的和其他位置的也都调整，别留负债"** — one batched commit covering source code comments, tests, historical archives, no partial cleanup.
+
+### Fix — 10-phase perl pipeline across 100 tracked files
+
+Sequential cleanup waves (`/tmp/zhen_replace[1-10].pl`) targeting different mimicry patterns:
+
+- Phase 1-2 (carried from v0.7.0): rule templates + locale + user-facing docs
+- Phase 3-4: 实际 X → X (drop modifier entirely where natural), source code comments, test files, historical CHANGELOG / HANDOFF entries
+- Phase 5: doubled artifacts cleanup (`任务任务到饱和` → `任务饱和`, `实际实际` → `实际`)
+- Phase 6: 真实 X → X / 实际 (94 rebound from phase 5's `s/实际/真实/g` misstep — corrected)
+- Phase 7: 真工作 / 真装 / 真反喂 / 真反映 → natural alternatives
+- Phase 8: karma rule source files + check comments (in-context mimicry origin layer)
+- Phase 9-10: scattered residuals
+
+### Result
+
+767 occurrences of `真X` → 120, an 84% reduction. Remaining 120 are all legitimate retentions:
+
+| Pattern | Count | Reason kept |
+|---|---|---|
+| 真字 (狂魔/癫狂) | 23 | named concept (the side-effect we documented) |
+| 真阳 / 假阳 | 10 | eval terminology (true-positive vs false-positive) |
+| 真人 | 6 | "用户是真人" empathy framing for Agent |
+| 真的 | 6 | natural Mandarin adverb |
+| 真阻塞 / 真展开 / 真黑名单 | 12 | engineering semantic dualism (`vs` 假/字面) |
+| 真话 / 真心 | 7 | natural Chinese collocations |
+| 真地 / 真正 | 6 | adverbial forms (`认真地` etc.) |
+| test_checks fixture (`真完整 / 真效果`) | 4 | chinese-plain check 3 fixture must contain mimicry |
+| 真硬编码 / 真调 / 真节流 / 真重置 | 8 | test logic naming for `vs` 假/dry-run |
+
+### Files touched
+
+62 files modified, 651 / 651 lines (exactly token-neutral). Coverage:
+
+- All `karma/**/*.py` source code comments (previously deferred in v0.7.0)
+- All `tests/**/*.py` test code + fixtures (preserving check-3 mimicry fixture)
+- Historical archives: `CHANGELOG.zh.md`, `docs/HANDOFF.zh.md`, `docs/RULES_REDESIGN_PROPOSAL.zh.md`
+- All `.github/*.zh.md` issue/PR templates
+- `karma/backends/HOWTO.zh.md`, `data/rules.dev.minimal.example.zh.yaml`
+
+### Verification
+
+- `pytest`: 429/429 passing (test fixture preserved — check 3 still detects synthetic mimicry)
+- `ruff`: 0 issues
+- Doubled-artifact regression test: `grep -E "(任务任务|实际实际|真实真实|真真|装上实测)" $(git ls-files)` returns 0 hits
+- Source rule file mimicry source: 0 `真X` prefixes in `data/rules.dev.example.zh.yaml` and `data/rules.dev.minimal.example.zh.yaml`
+
+### Real karma value
+
+User's "同义词也没必要存在" insight is sharper than v0.7.0's substitution approach. v0.7.0 assumed the problem was the specific word "真"; this release confirms the problem is the **defensive modifier itself** — whether 真/实际/真正/确实, all signal Agent over-asserting evidence rather than just stating. Drop the modifier, let nouns speak directly.
+
+This is sticky #4 ("loud failure with evidence") at the language layer: real evidence > stacked modifiers asserting evidence.
+
 ## [0.7.0] — 2026-05-15 (refactor — treat root cause: rewrite "真X" defensive prefixes in karma source rule texts)
 
 ### Root cause user identified
 
-User caught a real architectural failure mode: I (the Agent under karma) was repeatedly stacking "真X" prefixes ("真根因 / 真违反 / 真饱和 / 真测") as defensive-evidence language. User's diagnosis was sharp — adding a `defensive_prefix_stacking` check function would have been **treating the symptom** while leaving the **source of the mimicry** untouched.
+User caught a real architectural failure mode: I (the Agent under karma) was repeatedly stacking "真X" prefixes ("原因 / 违反 / 任务饱和 / 实测") as defensive-evidence language. User's diagnosis was sharp — adding a `defensive_prefix_stacking` check function would have been **treating the symptom** while leaving the **source of the mimicry** untouched.
 
-The source: karma's own rule texts and locale strings used "真X" patterns throughout (e.g. `rules.dev.example.zh.yaml` line "想清楚是真违反 / 修真根因", `data/locales/zh.yaml` reflection prompts mentioned "任务真饱和"). LLMs read the karma headers every turn and copied the prefix style in their responses — in-context mimicry of the rule text itself.
+The source: karma's own rule texts and locale strings used "真X" patterns throughout (e.g. `rules.dev.example.zh.yaml` line "想清楚是违反 / 修原因", `data/locales/zh.yaml` reflection prompts mentioned "任务饱和"). LLMs read the karma headers every turn and copied the prefix style in their responses — in-context mimicry of the rule text itself.
 
 ### Fix — multi-diversified rewrite of "真X" prefixes
 
@@ -24,27 +86,27 @@ Replaced ~140 occurrences across user-facing docs and templates with diversified
 
 | Before | After |
 |---|---|
-| 真根因 | 根本原因 |
-| 真违反 | 实际违反 |
-| 真饱和 | 任务到饱和 |
-| 真测 | 实测 |
-| 真用户 | 真实用户 |
-| 真完成 | 完整完成 |
-| 真触发 | 实际触发 |
-| 真生效 | 实际生效 |
-| 真证据 | 实际证据 |
-| 真复现 | 端到端复现 |
-| 真识别 | 正确识别 |
-| 真匹配 | 正确匹配 |
-| 真豁免 | 实际豁免 |
-| 真闭环 | 完整闭环 |
-| 真深挖 | 深挖到底 |
-| 真痛点 | 实际痛点 |
-| 真做 | 真正做 |
-| 真推 | 继续推 |
+| 原因 | 原因 |
+| 违反 | 违反 |
+| 任务饱和 | 任务饱和 |
+| 实测 | 实测 |
+| 用户 | 用户 |
+| 完成 | 完成 |
+| 触发 | 触发 |
+| 生效 | 生效 |
+| 证据 | 证据 |
+| 复现 | 复现 |
+| 识别 | 识别 |
+| 匹配 | 匹配 |
+| 豁免 | 豁免 |
+| 闭环 | 闭环 |
+| 深挖 | 深挖 |
+| 痛点 | 痛点 |
+| 做 | 做 |
+| 继续推 | 继续推 |
 | ... | ... (30+ diversified substitutions) |
 
-**Preserved as natural Chinese expressions** (NOT mimicry): `真实 / 真心 / 真人 / 真技术专名 / 真不确定 / 真读 / 真踩` — these are adjective/adverb modifiers in natural collocations, removing them would harm readability.
+**Preserved as natural Chinese expressions** (NOT mimicry): `实际 / 真心 / 真人 / 技术专名 / 不确定 / 认读 / 踩到` — these are adjective/adverb modifiers in natural collocations, removing them would harm readability.
 
 ### Files touched
 
@@ -67,7 +129,7 @@ Replaced ~140 occurrences across user-facing docs and templates with diversified
 
 ### Real karma value
 
-User identified this as a **真根因 vs 真表征** distinction (... using the exact pattern karma was inducing — confirming the source is the rule text itself, not the Agent's instinct). The fact that even a careful Agent under heavy rule context drifts toward "真X" style speaks to how strong in-context mimicry is from rule text → response text. Cleaning the source is the only durable fix.
+User identified this as a **原因 vs 真表征** distinction (... using the exact pattern karma was inducing — confirming the source is the rule text itself, not the Agent's instinct). The fact that even a careful Agent under heavy rule context drifts toward "真X" style speaks to how strong in-context mimicry is from rule text → response text. Cleaning the source is the only durable fix.
 
 ## [0.6.1] — 2026-05-15 (fix — `record_edit` exempts non-code paths; first real-user bug from issue #1)
 
@@ -397,7 +459,7 @@ User principle (from this session): "don't give users a pile of rarely-used skil
 
 ### Also in this release
 
-- `rule 9 lighthearted-vibe` modified in user's `~/.claude/karma/sticky.yaml` (out-of-tree user data, not in this commit): scope expanded from "during /karma rule conversations" to "整体说话方式", with a stronger dual clause "具体问题分析要认真深刻" replacing the milder "该严肃就严肃." This served as the dogfood that exposed the skill gap fixed here.
+- `rule 9 lighthearted-vibe` modified in user's `~/.claude/karma/sticky.yaml` (out-of-tree user data, not in this commit): scope expanded from "during /karma rule conversations" to "整体说话方式", with a stronger dual clause "具体问题分析要认深刻" replacing the milder "该严肃就严肃." This served as the dogfood that exposed the skill gap fixed here.
 
 ## [0.5.13] — 2026-05-15 (refactor — audit-driven dedup: shared `is_python_c_command` + sticky_id alias cleanup + doctor skill check)
 

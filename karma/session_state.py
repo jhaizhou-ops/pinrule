@@ -17,9 +17,9 @@ from karma.paths import karma_home
 DEFAULT_DIR = karma_home() / "session-state"
 MAX_RECENT_BASH = 15  # 保留最近 N 条 Bash 摘要
 
-# Claude Code 真实 background tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}
+# Claude Code 实际 background tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}
 # 老 marker regex（扫字面 "Command running in background..."）只在文档/示例字面里出现，
-# 真实 hook payload 用不上。改成从 dict 提取 backgroundTaskId + 从 command 解析 > 重定向。
+# 实际 hook payload 用不上。改成从 dict 提取 backgroundTaskId + 从 command 解析 > 重定向。
 
 # shell stdout 重定向 — `cmd > /path` / `cmd >> /path` 提取目标
 # 要求 `>` 前是开头或空白，避开 `2>` `3>` fd 重定向；后面是路径字符
@@ -82,10 +82,10 @@ _TEST_CMD_RE = re.compile(
 )
 
 # v0.6.1: 非代码 edit 路径豁免 — record_edit 不更新 last_edit_ts.
-# 真根因（issue #1 dogfooding 真复现）: has_recent_test_pass 语义是
+# 原因（issue #1 dogfooding 复现）: has_recent_test_pass 语义是
 # `last_test_pass_ts >= last_edit_ts`, 测试通过后改 README/docs/.gitignore
 # 等非代码文件也无差别让 has_recent_test_pass 翻 False, 导致 git commit
-# 被 loud-failure-with-evidence 误拦. 真业务代码改了仍按设计该重测.
+# 被 loud-failure-with-evidence 误拦. 业务代码改了仍按设计该重测.
 #
 # 豁免清单（cross-language 通用）:
 # - 文档: .md / .rst / .txt / .markdown / .adoc
@@ -128,12 +128,12 @@ class SessionState:
     agent_id: str | None = None
     # v0.4.35 模型自适应阈值：当前 Agent 模型 ID（如 claude-opus-4-7）
     # SessionStart hook 从 payload.model 写入主 state（v0.4.36 修：只 SessionStart
-    # payload 真有 model，PreToolUse / PostToolUse 等都没）。中段 sticky 注入用
-    # model_threshold.threshold_for_model(state.model) 按真模型阈值（Opus 80K /
+    # payload 有 model，PreToolUse / PostToolUse 等都没）。中段 sticky 注入用
+    # model_threshold.threshold_for_model(state.model) 按模型阈值（Opus 80K /
     # Sonnet 60K / Haiku 30K / 未知 fallback 60K）。
     model: str | None = None
-    # v0.4.37 子 Agent model 真捕获：主 Agent 派子 Agent 时 PreToolUse(tool_name=
-    # "Agent") payload tool_input 真含 model 字段（manual run 实验真验证）。
+    # v0.4.37 子 Agent model 捕获到：主 Agent 派子 Agent 时 PreToolUse(tool_name=
+    # "Agent") payload tool_input 含 model 字段（manual run 实验验证）。
     # karma 主 PreToolUse 把 model 入队 pending_subagent_models，SubagentStart
     # 触发时 pop 队首写子 Agent state.model。并行 Task 按 FIFO 队列对应（dogfooding
     # 验证 SubagentStart 触发顺序跟 PreToolUse 入队顺序一致）。
@@ -143,7 +143,7 @@ class SessionState:
     recent_bash: list[BashSnapshot] = field(default_factory=list)
     last_test_pass_ts: float = 0.0   # 最近一次测试通过的时间戳（0 = 从未通过）
     last_edit_ts: float = 0.0        # 最近一次代码 Edit/Write 的时间戳（0 = 本 session 未改代码）
-    # background 任务 pending list — 启动时无真实输出，等下次 hook 触发 catchup 读 output file
+    # background 任务 pending list — 启动时无输出，等下次 hook 触发 catchup 读 output file
     pending_bg_tasks: list[dict] = field(default_factory=list)
     # session 内 turn 序号 — user_prompt_submit hook 每次 +1
     # 用于按 turn 距离统计漂移（不是人类时钟，对 Agent 注意力更准）
@@ -152,14 +152,14 @@ class SessionState:
     # 每个 user_prompt_submit 重置 0；累积 ≥ max 后 Stop hook 放 Agent 停
     stop_block_count: int = 0
     # v0.4.32 中段注入 token 启发式（锚定刷新阈值，不是「衰减阈值」）：
-    # tool_byte_seq 累积主 Agent 真看到的 tool_input + tool_response 字节数
+    # tool_byte_seq 累积主 Agent 看到的 tool_input + tool_response 字节数
     # （估算 token = bytes // 3，粗略中英文混合）。每个 PostToolUse +=
     # _estimate_tokens(...)。每 turn 起手 user_prompt_submit hook 重置 0。
     # last_reinject_byte_seq 跟踪「上次中段注入时的累积值」— 累积差 >= 阈值
     # （sticky.yaml reinject_every_n_tokens 默认 8000）下个 PostToolUse 注入。
     #
-    # 设计意图（v0.4.34 叙事对齐 — web 调研真验证）:
-    # 当代 Claude Sonnet/Opus 4.6 真衰减拐点是 70K-200K（不是 8K）。Anthropic
+    # 设计意图（v0.4.34 叙事对齐 — web 调研验证）:
+    # 当代 Claude Sonnet/Opus 4.6 衰减拐点是 70K-200K（不是 8K）。Anthropic
     # 200K 是原生可靠边界。8K 阈值不是「模型开始忘」的判据，是「sticky 在
     # attention 里被新上下文稀释到该重新锚定」的判据 — 真价值是抗稀释不是
     # 抗遗忘。Liu 2023 的 8K 衰减数据来自 GPT-3.5/Claude-1.3 旧模型时代，
@@ -202,7 +202,7 @@ class SessionState:
         self.edit_files.append(_normalize_path(file_path))
         # v0.6.1: 非代码 edit (README / docs / .gitignore 等) 不推 last_edit_ts.
         # 否则 docker pytest 1190 passed 后改 README 再 commit 会被 evidence
-        # check 误拦 (issue #1 真复现根因). 业务代码 edit 仍正常推, 设计 by
+        # check 误拦 (issue #1 复现根因). 业务代码 edit 仍正常推, 设计 by
         # intent 让「改完没重测」拦截保留.
         if _is_non_code_edit_path(file_path):
             return
@@ -216,7 +216,7 @@ class SessionState:
             return
         is_test = bool(_TEST_CMD_RE.search(command))
 
-        # Claude Code 真实 tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}
+        # Claude Code 实际 tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}
         # 老协议 / 同步直传 string 也要兼容
         if isinstance(output, dict):
             stdout = str(output.get("stdout", "") or "")
@@ -225,7 +225,7 @@ class SessionState:
         else:
             out_str = str(output or "")
 
-        # background 任务启动 — stdout/stderr 是空的，真实输出在用户重定向文件
+        # background 任务启动 — stdout/stderr 是空的，输出在用户重定向文件
         # 推 pending 等 catchup 读重定向目标文件
         if run_in_background:
             redirect_target = _parse_redirect_target(command)
@@ -399,7 +399,7 @@ def get_current_session_id(base_dir: Path | None = None) -> str | None:
 def purge_subagent_state(session_id: str, agent_id: str, base_dir: Path | None = None) -> bool:
     """SubagentStop 时销毁子 Agent 临时 state（v0.4.34 子 Agent 独立架构）。
 
-    返回 True 真删了文件，False 文件不存在。失败抛 OSError 让调用方决定如何处理。
+    返回 True 删了文件，False 文件不存在。失败抛 OSError 让调用方决定如何处理。
     """
     if not agent_id:
         return False

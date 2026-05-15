@@ -104,10 +104,10 @@ def main() -> int:
         _passthrough()
         return 0
 
-    # 2026-05-15 真根因 fix：PreCompact 协议**不支持 hookSpecificOutput**
+    # 2026-05-15 原因 fix：PreCompact 协议**不支持 hookSpecificOutput**
     # （Claude Code 官方文档：PreCompact 仅 decision/reason 模式，无 additionalContext）
     # snapshot 已落盘（上面 write_text 完成），SessionStart(source=compact) 重起
-    # 时会读 snapshot 重新注入 sticky baseline — 这才是真起作用的路径。
+    # 时会读 snapshot 重新注入 sticky baseline — 这才是起作用的路径。
     # PreCompact 自身输出 additionalContext 一直被 Claude Code 静默拒绝，
     # 即使生效 Claude 也已开始 compact 看不到（compact 中 Agent 已停止）。
     _passthrough()

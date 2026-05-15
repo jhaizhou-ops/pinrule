@@ -6,14 +6,14 @@ Claude Code 实际协议:
   或者 fail-loud {"decision": "block", "reason": "..."} (我们不用)
 
 v0.4.24（proactive 锚定第一步）：智能 sticky reinject 解决「sticky 注入头部强
-尾部弱」真根因。当前 sticky 仅 UserPromptSubmit 注入 1 次/turn，长 response
+尾部弱」原因。当前 sticky 仅 UserPromptSubmit 注入 1 次/turn，长 response
 中段 Agent 注意力漂移导致单 turn 累积违反（实测本回合 33 keep-pushing + 11
 chinese-plain）。
 
 策略：**不是每次都注入**（token 成本高），仅当最近 N turn 内**该 sticky 真
-触发过**才 reinject 它的简化提醒。这样 sticky 跟违反检测真闭环：
+触发过**才 reinject 它的简化提醒。这样 sticky 跟违反检测闭环：
 - 违反某 sticky → 下次 tool call 后 reinject 该 sticky anchor
-- 多次违反 → 多次 reinject 直到 Agent 真改行为
+- 多次违反 → 多次 reinject 直到 Agent 改行为
 - 没违反的 sticky → 不注入省 token
 
 性能预算：< 50ms
@@ -70,10 +70,10 @@ def main() -> int:
     tool_response = payload.get("tool_response", "") or ""
 
     state = session_state.load(session_id, agent_id=agent_id)
-    # v0.4.39 真根本路径：PostToolUse payload 没 model 字段（manual run 真验证），
-    # 但所有 hook payload 真有 transcript_path → 读 jsonl 找最后一条 assistant
+    # v0.4.39 根本本路径：PostToolUse payload 没 model 字段（manual run 验证），
+    # 但所有 hook payload 有 transcript_path → 读 jsonl 找最后一条 assistant
     # message 的 model 字面（每个 assistant message 都含 model 字段，跳合成）。
-    # 这才是协议层真路径 — 不依赖 payload 直接含 model 字段。
+    # 这才是协议层路径 — 不依赖 payload 直接含 model 字段。
     transcript_path = payload.get("transcript_path")
     if transcript_path:
         from karma.model_threshold import extract_model_from_transcript
@@ -87,7 +87,7 @@ def main() -> int:
 
     failed = _tool_failed(tool_response)
 
-    # v0.4.32 累积 token 估算 — 主 Agent 真看到的 tool_input + tool_response
+    # v0.4.32 累积 token 估算 — 主 Agent 看到的 tool_input + tool_response
     # 字节数 // 3 约为 token 数（中英文混合粗略估，sub-agent 也按主 Agent 真
     # 看到的最终 tool_response 算，子 Agent 内部 thinking 是子 Agent 自己
     # context 不算主 Agent 衰减）
@@ -144,7 +144,7 @@ def main() -> int:
 
 
 def _estimate_tokens(tool_input, tool_response) -> int:
-    """启发式估算主 Agent 真看到的 token 数（bytes // 3 粗略中英文混合）。
+    """启发式估算主 Agent 看到的 token 数（bytes // 3 粗略中英文混合）。
 
     sub-agent (Task) 也按主 Agent 看到的最终 tool_response 算 — 子 Agent
     内部 thinking + 中间 tool 是子 Agent 自己 context，不算主 Agent 衰减。
@@ -157,11 +157,11 @@ def _build_smart_reinject(session_id: str, state) -> str:
 
     设计意图（用户 v0.4.32 决策 + v0.4.34 叙事对齐）：
     1. 中段注入是「抵御长 turn context 累积导致 sticky attention 稀释」补丁
-       （不是「抵御模型遗忘」 — 当代 Claude 在 8K 几乎没真衰减，真衰减拐点
+       （不是「抵御模型遗忘」 — 当代 Claude 在 8K 几乎没衰减，衰减拐点
        在 70K-200K。8K 阈值是抗稀释频率，不是抗遗忘频率。详 session_state.py
        tool_byte_seq 字段注释）
     2. 每 turn 起手 user_prompt_submit 已全量注入 sticky → 中段不该立即重复
-    3. 真发生违反时已在 PreToolUse / Stop hook 响亮提醒 → 中段不重复警告
+    3. 发生违反时已在 PreToolUse / Stop hook 响亮提醒 → 中段不重复警告
     4. 累积 token 达阈值（默认 8000）后下个 PostToolUse 注入一次「锚定刷新」
     5. 注入只取最近触发过的 sticky（不是全 sticky）— 跟 v0.4.24 保持一致
 
@@ -185,7 +185,7 @@ def _build_smart_reinject(session_id: str, state) -> str:
         window_turns = int(cfg.get("recent_violation_turns", 5))
         # v0.4.35 阈值来源优先级：sticky.yaml 显式配置 > 按模型自适应 > DEFAULT 60K
         # 用户 sticky.yaml 给 reinject_every_n_tokens 数字 → 强制覆盖
-        # 没给 → 按 state.model 真模型阈值（model_threshold 表）
+        # 没给 → 按 state.model 模型阈值（model_threshold 表）
         configured = cfg.get("reinject_every_n_tokens")
         if configured is not None:
             reinject_threshold = int(configured)

@@ -75,7 +75,7 @@ def test_deny_bash_sleep(monkeypatch, tmp_path):
 def test_write_keyword_layer_scans_comments_only(monkeypatch, tmp_path):
     """Write/Edit 关键词层只扫注释 + docstring，不扫代码主体。
 
-    用户反馈：关键词层全放 Write/Edit 会漏真违反（注释里写意图字面是真违反）。
+    用户反馈：关键词层全放 Write/Edit 会漏违反（注释里写意图字面是违反）。
     新语义：关键词层 Write/Edit 扫注释行 + docstring，代码主体不扫
     （主体里字面赋值几乎全是数据/描述假阳）。
     """
@@ -86,7 +86,7 @@ def test_write_keyword_layer_scans_comments_only(monkeypatch, tmp_path):
             "violation_keywords": ["硬编码", "先打个补丁"],
         },
     ])
-    # Write 注释里写违反字眼 → deny（真意图表达）
+    # Write 注释里写违反字眼 → deny（实际意图）
     out = _run_hook(monkeypatch, {
         "tool_name": "Write",
         "tool_input": {
@@ -94,7 +94,7 @@ def test_write_keyword_layer_scans_comments_only(monkeypatch, tmp_path):
             "content": "# 先打个补丁\nMAGIC = 42",
         },
     })
-    assert out["permissionDecision"] == "deny", "注释里字面是真意图，要拦"
+    assert out["permissionDecision"] == "deny", "注释里字面是实际意图，要拦"
 
     # Write 代码主体字面赋值（字符串数据）→ allow（不扫代码主体）
     out = _run_hook(monkeypatch, {
@@ -129,7 +129,7 @@ def test_write_keyword_layer_scans_comments_only(monkeypatch, tmp_path):
 
 
 def test_bash_keyword_layer_still_scans(monkeypatch, tmp_path):
-    """Bash command 关键词层仍扫 — 这是明确执行意图，关键词出现就是真违反。"""
+    """Bash command 关键词层仍扫 — 这是明确执行意图，关键词出现就是违反。"""
     _patch(monkeypatch, tmp_path, [
         {
             "id": "no-sleep",
@@ -178,7 +178,7 @@ def test_description_context_exempts_engine_checks(monkeypatch, tmp_path):
     })
     assert out["permissionDecision"] == "allow"
 
-    # 正常源码下写同样代码 → 拦（真违反）
+    # 正常源码下写同样代码 → 拦（违反）
     out = _run_hook(monkeypatch, {
         "tool_name": "Write",
         "tool_input": {

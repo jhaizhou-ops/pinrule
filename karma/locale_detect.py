@@ -2,7 +2,7 @@
 
 设计思路：
 - macOS：`defaults read -g AppleLanguages`（用户系统语言列表，反映「系统设置 →
-  语言与地区」里设的真实偏好）。`locale.getlocale()` 在 macOS 不准，因为
+  语言与地区」里设的偏好）。`locale.getlocale()` 在 macOS 不准，因为
   shell 默认 `LANG=en_US.UTF-8` 不继承系统语言偏好。
 - Linux：环境变量 `$LC_ALL` / `$LC_MESSAGES` / `$LANG`（按优先级），这是 POSIX
   标准做法，桌面环境会自动设置。

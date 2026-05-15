@@ -110,8 +110,8 @@ def test_word_error_alone_not_failed(tmp_path):
 def test_record_bg_task_then_catchup(tmp_path):
     """background 任务启动 → pending；任务完成 → catchup 读用户重定向 log。
 
-    Claude Code 真实 tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}。
-    catchup 从 command 解析 `> /path` 重定向取真实输出。
+    Claude Code 实际 tool_response 是 dict {stdout, stderr, backgroundTaskId, ...}。
+    catchup 从 command 解析 `> /path` 重定向取输出。
     """
     s = SessionState(session_id="s")
     log_path = tmp_path / "bg.log"
@@ -122,7 +122,7 @@ def test_record_bg_task_then_catchup(tmp_path):
     )
     # background 启动 stdout 是空，还没 PASS 信号
     assert not s.has_recent_test_pass()
-    # 任务真完成，写入 log
+    # 任务完成，写入 log
     log_path.write_text("===== 99 passed in 0.05s =====")
     # catchup
     n = s.catchup_pending_bg()
@@ -195,7 +195,7 @@ def test_catchup_idempotent_no_race(tmp_path):
 def test_bg_no_redirect_no_pending(tmp_path):
     """background 任务命令没有 > 重定向 → pending 不能定位 output file，跳过 record。
 
-    （catchup 没有可读的真实输出，evidence check 无法接到通过证据 — 用户应该总是
+    （catchup 没有可读的输出，evidence check 无法接到通过证据 — 用户应该总是
     重定向 background 任务的 stdout）。
     """
     s = SessionState(session_id="s")
@@ -298,7 +298,7 @@ def test_write_implies_read_for_same_file(tmp_path):
     post_tool_use hook 对 Write/NotebookEdit 既 record_edit 也 record_read，
     避免后续 Edit 同文件被 read_first 多余拦。
     """
-    # 这个测试验证 has_read 逻辑 — 真实 record_read 由 post_tool_use 触发
+    # 这个测试验证 has_read 逻辑 — 实际 record_read 由 post_tool_use 触发
     s = SessionState(session_id="s")
     s.record_edit("/x/new.py")
     s.record_read("/x/new.py")  # 模拟 post_tool_use 对 Write 做的事
@@ -360,10 +360,10 @@ def test_get_current_session_id_excludes_subagent(tmp_path):
     assert get_current_session_id(base_dir=tmp_path) == "main-session"
 
 
-# -------- v0.6.1: 非代码 edit 路径豁免 (issue #1 真根因 fix) --------
+# -------- v0.6.1: 非代码 edit 路径豁免 (issue #1 原因 fix) --------
 
 def test_v061_edit_readme_after_test_pass_keeps_fresh():
-    """v0.6.1 真根因 fix (issue #1 真复现):
+    """v0.6.1 原因 fix (issue #1 复现):
     docker pytest 通过 → 改 README.md → has_recent_test_pass 仍 True.
     """
     from karma.session_state import SessionState

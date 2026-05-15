@@ -1,4 +1,4 @@
-# karma Hook 协议逆向工程 — 9 个剩余 hook 的真实协议
+# karma Hook 协议逆向工程 — 9 个剩余 hook 的实际协议
 
 **日期**：2026-05-14  
 **研究方法**：官方 Claude Code hooks 文档 (https://code.claude.com/docs/en/hooks)  

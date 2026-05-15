@@ -10,7 +10,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 
 ### 第 1 步：调研客户端 hook 协议
 
-按 [karma sticky #1 长期根本] **真跑不凭假设**，调研以下：
+按 [karma sticky #1 长期根本] **跑不凭假设**，调研以下：
 
 1. **hook 配置文件路径** — 通常 `~/.<client>/settings.json` 或 `~/.<client>/hooks.json`
 2. **hook event 名** — 写进配置文件的 event 名（如 `UserPromptSubmit` vs Gemini 的
@@ -22,7 +22,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 5. **是否需要启用步骤** — 像 Codex 要 `[features] hooks = true`
 6. **每条 hook entry 是否需要 matcher / timeout 字段** — 各家不一样
 
-调研来源优先级：① 官方文档 ② 真跑客户端 + trace hook 看 stdin 字段
+调研来源优先级：① 官方文档 ② 跑客户端 + trace hook 看 stdin 字段
 ③ 看现有桥工具（vibe-island）的实现 ④ GitHub issues
 
 ### 第 2 步：在 `karma/backends/` 新建一个 backend 文件
@@ -148,9 +148,9 @@ Stop 字段三家不同（karma stop.py 已三选一适配）：
 `tests/test_hooks.py::test_stop_hook_uses_codex_last_assistant_message_field`
 加一条字段 fallback 测试。
 
-## 实测验证（按 sticky #1 真跑不凭假设）
+## 实测验证（按 sticky #1 跑不凭假设）
 
-加完后**必须真跑**验证：
+加完后**必须跑**验证：
 
 ```bash
 karma install-hooks --backend <new-name>
@@ -169,15 +169,15 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 
 ## 不能省的步骤（按 karma 项目原则）
 
-- ❌ **不要凭文档完成，必须真跑**（karma sticky #1 + #4）
+- ❌ **不要凭文档完成，必须跑**（karma sticky #1 + #4）
 - ❌ **不要破坏他人 hook 共存**（vibe-island / rtk 等同 event 多 entry 必须保留）
 - ❌ **配置文件原子写**（基类已实现 tmp + os.replace 不用动）
 - ❌ **不要硬编码 backend id 名字到核心逻辑** — 加 backend 不该改 cli.py 等核心代码
 
-## 候选 backend 清单（vibe-island 实证情报，待真装实测）
+## 候选 backend 清单（vibe-island 实证情报，待装上实测）
 
 读 `~/.vibe-island/bin/vibe-island-bridge` zsh 脚本第 28 行拿到的 vibe-island
-实证支持的客户端配置文件路径清单。**这是二手情报需要真装客户端实测协议字段**
+实证支持的客户端配置文件路径清单。**这是二手情报需要实际装客户端实测协议字段**
 才能加 backend — 留这里给未来贡献者按列表挑：
 
 | 客户端 | 推测配置路径 | 状态 |
@@ -192,7 +192,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 | CodeBuddy | `~/.codebuddy/settings.json` | 待装 + 实测 |
 | Kimi CLI | `~/.kimi/config.toml`（TOML 不是 JSON！） | 待装 + 实测 — TOML 格式可能不能直接继承 JsonHooksBackend |
 
-**端到端测试每家**前看清这家 hook 协议文档（如有）+ vibe-island 那家用啥
+**测试每家**前看清这家 hook 协议文档（如有）+ vibe-island 那家用啥
 event 名 + 客户端版本号（vibe-island 情报可能过时 — 我们实测发现 Codex
 真 feature 名是 `hooks` 不是 vibe-island config.toml 用的 `codex_hooks`）。
 

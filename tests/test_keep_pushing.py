@@ -64,7 +64,7 @@ def test_silent_stop_xianzheli_blocked():
 
 def test_silent_stop_gaoyiduanluo_blocked():
     """末尾「告一段落」— 命中。"""
-    hit = _check("这阶段任务完成。告一段落，等真实数据再迭代。")
+    hit = _check("这阶段任务完成。告一段落，等数据再迭代。")
     assert hit is not None
 
 
@@ -74,7 +74,7 @@ def test_silent_stop_with_push_signal_exempted():
     assert hit is None
 
 
-# ---- 用户反馈核心：无问句无推进的纯陈述 = 真停下 ----
+# ---- 用户反馈核心：无问句无推进的纯陈述 = 停下 ----
 
 def test_pure_statement_no_push_no_question_blocked():
     """纯陈述完结无推进无问号 → 命中（用户反馈核心场景）。
@@ -83,7 +83,7 @@ def test_pure_statement_no_push_no_question_blocked():
     证据」一致），所以这里用「目前情况如此」类纯文字陈述，没数字证据。
     """
     # v0.4.22：「就这样了」加入 _STOP_HINT_RE 后会被更精准识别为停顿语气而非
-    # 「纯陈述无推进」。两种 trigger 都算成功识别真停下。
+    # 「纯陈述无推进」。两种 trigger 都算成功识别停下。
     hit = _check("commit ffcbd07 已推 origin/main。目前情况看起来差不多。")
     assert hit is not None
     assert "纯陈述" in hit.trigger or "无推进" in hit.trigger
@@ -91,7 +91,7 @@ def test_pure_statement_no_push_no_question_blocked():
 
 def test_success_report_with_numbers_exempted():
     """成功汇报（数字 + 通过词）→ 豁免。这是 sticky #4 鼓励的行为不该被罚。
-    评审 B Agent 发现：'测试 100/100 通过' 类汇报被错拦是真痛点。
+    评审 B Agent 发现：'测试 100/100 通过' 类汇报被错拦是痛点。
     """
     hit = _check("commit 已推。测试 232/232 通过。")
     assert hit is None
@@ -112,7 +112,7 @@ def test_pure_statement_with_next_step_exempted():
 # ---- edge cases ----
 
 def test_single_char_response_blocked():
-    """极短回复无任何信号 → 命中（用户反馈：陈述完结无下一步 = 真停下）。"""
+    """极短回复无任何信号 → 命中（用户反馈：陈述完结无下一步 = 停下）。"""
     hit = _check("✓")
     assert hit is not None
 
@@ -144,7 +144,7 @@ def test_response_with_action_then_summary_passes():
 def test_success_report_chinese_quanguo_exempted():
     """「N 测试全过」语序也算成功汇报豁免。
 
-    dogfooding 实测真假阳：「316 测试全过，Release 链接：...」末尾被错拦。
+    dogfooding 实测假阳：「316 测试全过，Release 链接：...」末尾被错拦。
     `\\d+ 测试 全过` 跟 `\\d+ 测试 通过` 等价是真成功汇报应豁免。
     """
     assert _check("316 测试全过，Release 链接：https://example.com") is None
@@ -153,10 +153,10 @@ def test_success_report_chinese_quanguo_exempted():
 
 def test_future_plan_xia_ci_jie_shou_exempted():
     """v0.4.19 第 3 类假阳治理：「下次接手做 X」「下个 session 推进 X」类
-    未来推进规划 → 真有下一步计划应豁免（不是「就此停下」）。
+    未来推进规划 → 有下一步计划应豁免（不是「就此停下」）。
 
     dogfooding 实测：本回合末尾我多次写「下次接手做 non-blocking 治理」
-    被错算停下，但实际是真规划下一步推进延续。
+    被错算停下，但是规划下一步推进延续。
     """
     cases = [
         "本回合饱和收口。下次接手做 non-blocking 假阳治理。",
@@ -203,7 +203,7 @@ def test_v420_push_signal_in_middle_tail_pure_statement_exempted():
     """v0.4.20：推进信号在 response 中段，末尾是列表 / 收尾陈述 → 整段已有
     推进意图应豁免。
 
-    dogfooding 真触发：「下次接手做 HANDOFF 候选...（chinese-plain / long-term
+    dogfooding 触发：「下次接手做 HANDOFF 候选...（chinese-plain / long-term
     / audit）」 — 「下次接手做」在中段，列表「(X / Y / Z)」在末尾，tail 80
     字看不到推进信号被错算无推进。
     """
@@ -215,17 +215,17 @@ def test_v420_push_signal_in_middle_tail_pure_statement_exempted():
 
 def test_v420_push_in_middle_tail_stop_hint_still_caught():
     """v0.4.20 对偶守护：整 response 有推进 + 末尾窗口含明确停顿语气 → 仍命中
-    （真停顿优先于「整段有推进」豁免，否则推进 + 停顿同时存在该按停顿算）。
+    （停顿优先于「整段有推进」豁免，否则推进 + 停顿同时存在该按停顿算）。
     """
     case = "做了 A 跟 B。下次接手做 C 推进规划很完整。" + \
         "中段细节内容填充很长。" * 8 + "\n\n但今天不做了。先到这。"
     hit = _check(case)
-    assert hit is not None, "整段有推进 + 末尾真停顿语气仍应拦"
+    assert hit is not None, "整段有推进 + 末尾停顿语气仍应拦"
     assert "先到这" in hit.trigger or "停顿" in hit.trigger
 
 
 def test_v419_real_stop_still_caught():
-    """对偶守护：v0.4.19 豁免不影响真停顿语气拦截。"""
+    """对偶守护：v0.4.19 豁免不影响停顿语气拦截。"""
     cases = [
         ("commit 已推。下次再说吧。", "下次再说"),
         ("改完了。先到这。", "先到这"),
@@ -234,7 +234,7 @@ def test_v419_real_stop_still_caught():
     ]
     for cmd, expected_word in cases:
         hit = _check(cmd)
-        assert hit is not None, f"真停顿语气仍应拦: {cmd!r}"
+        assert hit is not None, f"停顿语气仍应拦: {cmd!r}"
         assert expected_word in hit.trigger, f"trigger 应识别 {expected_word!r}: {hit.trigger}"
 
 
@@ -250,8 +250,8 @@ def test_push_signal_woqu_kan_exempted():
 
 
 def test_v0441_user_stop_hint_exempts_keep_pushing():
-    """v0.4.41 真根因 fix：user 上 turn 含明确叫停字眼 → 整 turn 豁免反思 hook
-    （HANDOFF v3 第三步候选真落地，今晚多次 dogfooding 真触发）。
+    """v0.4.41 原因 fix：user 上 turn 含明确叫停字眼 → 整 turn 豁免反思 hook
+    （HANDOFF v3 第三步候选实际落地，今晚多次 dogfooding 触发）。
     """
     fn = REGISTRY["keep_pushing_no_stop"]
     bare_stop = "好了，这一波我处理好了。"  # 纯陈述无数字证据无问号无停顿词 → 默认命中
@@ -290,7 +290,7 @@ def test_v0441_user_normal_prompt_no_exempt():
 def test_v056_next_push_point_phrasing_exempted():
     """v0.5.6: 「下一推进点 / 下一步是 / 接下来打算 / 下一波」类未来规划短语豁免.
 
-    dogfooding 真触发: 今晚 7 次错拦本是合法推进规划. _PUSH_SIGNAL_RE 漏覆盖
+    dogfooding 触发: 今晚 7 次错拦本是合法推进规划. _PUSH_SIGNAL_RE 漏覆盖
     这类未来规划表达 (跟 v0.4.19 根因相同). 同 sticky #7 合法推进意图.
     """
     fn = REGISTRY["keep_pushing_no_stop"]
@@ -304,11 +304,11 @@ def test_v056_next_push_point_phrasing_exempted():
     ]
     for phrase in push_phrases:
         result = fn(response=phrase)
-        assert result is None, f"未来推进规划短语 {phrase!r} 应豁免, 实际拦: {result}"
+        assert result is None, f"未来推进规划短语 {phrase!r} 应豁免, 拦: {result}"
 
 
 def test_v056_partial_stop_still_blocked():
-    """v0.5.6 对偶: 真停下不能因为加入「下一」字眼就豁免."""
+    """v0.5.6 对偶: 停下不能因为加入「下一」字眼就豁免."""
     fn = REGISTRY["keep_pushing_no_stop"]
     # 「下一次再说吧」是推卸不是推进 — 不该豁免
     fake_push = "做完了。下一次再说吧。"
@@ -317,23 +317,23 @@ def test_v056_partial_stop_still_blocked():
 
 
 def test_v0519_agent_saturation_declaration_exempted():
-    """v0.5.19: Agent 自己声明真饱和 → 豁免反思 hook.
+    """v0.5.19: Agent 自己声明任务饱和 → 豁免反思 hook.
 
-    sticky #8 例外条件 ②「任务真饱和明说卡在哪」— 跟 v0.4.41 用户叫停豁免对偶.
+    sticky #8 例外条件 ②「任务饱和明说卡在哪」— 跟 v0.4.41 用户叫停豁免对偶.
     关键: 强饱和信号字眼 (饱和/卡点/明天接力) 才豁免, 不跟 v0.4.22 柔性停顿
     (今天到此为止/就这样吧) 重叠.
     """
     fn = REGISTRY["keep_pushing_no_stop"]
     saturation_phrases = [
-        "今天 16 个 release 一波完了 真饱和, 明天接力。",
-        "卡在 v0.6.0 真实施这步 — 大变更不该一天 ship 完，明天再继续做 fix。",
+        "今天 16 个 release 一波完了 任务饱和, 明天接力。",
+        "卡在 v0.6.0 实际施这步 — 大变更不该一天 ship 完，明天再继续做 fix。",
         "本 session 饱和。等下次。",
-        "审计跑完, 任务真饱和, 卡在「需要用户拍方向」让你知道。",
+        "审计跑完, 任务饱和, 卡在「需要用户拍方向」让你知道。",
         "我饱和了, 下次接力。",
     ]
     for phrase in saturation_phrases:
         result = fn(response=phrase)
-        assert result is None, f"Agent 强饱和声明 {phrase!r} 应豁免, 实际拦: {result}"
+        assert result is None, f"Agent 强饱和声明 {phrase!r} 应豁免, 拦: {result}"
 
 
 def test_v0519_agent_soft_stop_without_saturation_still_blocked():

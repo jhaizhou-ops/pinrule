@@ -266,7 +266,7 @@ def test_count_recent_turns_by_session(tmp_path: Path) -> None:
 def test_recent_turns_skips_legacy_no_turn_field(tmp_path: Path) -> None:
     """老格式没 turn 字段 → 跳过，不要 fallback 成 0 落入当前窗口造成假阳。
 
-    真实场景：Claude Code session compact 不换 session_id，turn 维度引入前的
+    场景：Claude Code session compact 不换 session_id，turn 维度引入前的
     老违反沿用到「新对话」开头 turn_count=1 时，window=3 → cutoff=-2 →
     fallback 0 落入窗口 → 触发 force_block 假阳（dogfooding 实际踩过）。
     """

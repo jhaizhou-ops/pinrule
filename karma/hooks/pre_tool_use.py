@@ -66,12 +66,12 @@ def main() -> int:
     # 主 Agent payload 没 agent_id 字段；子 Agent (Task tool 启动) payload 含 uuid
     agent_id = payload.get("agent_id") or None
 
-    # v0.4.37 子 Agent model 真捕获 — manual run 实验真验证：
+    # v0.4.37 子 Agent model 捕获到 — manual run 实验验证：
     # PreToolUse 派子 Agent 时 tool_name == "Agent"（不是 "Task"，dogfooding 真名）
-    # tool_input 真含 model 字段（如 "sonnet" / "opus" / "haiku"）。
+    # tool_input 含 model 字段（如 "sonnet" / "opus" / "haiku"）。
     # 主 Agent 派子 Agent 流程：主 PreToolUse(Agent, model=X) → SubagentStart(agent_id) →
     # 子 Agent 内 PostToolUse → SubagentStop。karma 在主 PreToolUse 时把 model
-    # 入队 pending，SubagentStart 时 pop 出队写子 Agent state.model 让按真模型阈值。
+    # 入队 pending，SubagentStart 时 pop 出队写子 Agent state.model 让按模型阈值。
     if tool_name == "Agent":
         sub_model = tool_input.get("model")
         if sub_model:
@@ -114,7 +114,7 @@ def main() -> int:
     # 关键词层（兜底）—
     # Bash: 扫命令骨架（剥引号字面、剥 python/cat 等 heredoc 数据）
     # Write/Edit 非描述上下文: 扫代码注释 + docstring，不扫代码主体
-    #   （主体字面词几乎全是数据/描述假阳；注释里写意图字面才是真违反）
+    #   （主体字面词几乎全是数据/描述假阳；注释里写意图字面才是违反）
     # Write/Edit 描述上下文 (.md / tests / /tmp / probe): 不扫
     keyword_violations: list[Violation] = []
     scan_text = ""

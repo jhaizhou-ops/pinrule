@@ -112,9 +112,9 @@ def test_load_real_example() -> None:
 
 
 def test_load_real_minimal_example() -> None:
-    """data/rules.dev.minimal.example.yaml 5 条真跨用户中性核心 — 砍场景化两条。
+    """data/rules.dev.minimal.example.yaml 5 条跨用户中性核心 — 砍场景化两条。
 
-    评审 C Agent 真痛点：默认 7 条含 chinese-plain（中文用户偏好）+
+    评审 C Agent 痛点：默认 7 条含 chinese-plain（中文用户偏好）+
     no-testset（ML 场景）违反 CLAUDE.md「不针对当前用户作弊」原则。这个
     精简版让英文母语 / 非 ML 用户拿到中性默认。
     """

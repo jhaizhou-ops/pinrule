@@ -12,10 +12,10 @@ import pytest
 def test_pre_compact_hook_auto_allows():
     """PreCompact hook: 自动 compact 时落盘 sticky snapshot 给 SessionStart 重读。
 
-    2026-05-15 真根因 fix：PreCompact 协议不支持 hookSpecificOutput
+    2026-05-15 原因 fix：PreCompact 协议不支持 hookSpecificOutput
     (官方文档确认 — 仅 decision/reason 模式)。删除 hookSpecificOutput 输出
     改 passthrough {}, snapshot 落盘 side effect 不变, SessionStart(source=compact)
-    重起时读 snapshot 真起作用."""
+    重起时读 snapshot 起作用."""
     payload = {
         "trigger": "auto",
         "session_id": "test-session",
@@ -42,7 +42,7 @@ def test_pre_compact_hook_auto_allows():
 
 
 def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
-    """v0.4.38 真路径：用户中途 /model opus 切换主模型时 SessionStart 已过，
+    """v0.4.38 路径：用户中途 /model opus 切换主模型时 SessionStart 已过，
     user_prompt_submit hook 每 turn 都看 payload model 字段更新 state.model
     让中段 sticky 注入按真当前模型阈值（容错设计 — 协议有就用没保留之前）。
     """
@@ -63,14 +63,14 @@ def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
         cwd="/Users/jhz/karma",
     )
     assert result2.returncode == 0
-    # 容错路径已 exec — 真协议有 model 字段时 state 真更新（实际效果由 dogfooding
-    # manual run 真验证，这里守护代码路径不抛异常 + 容错正确）
+    # 容错路径已 exec — 协议有 model 字段时 state 真更新（效果由 dogfooding
+    # manual run 验证，这里守护代码路径不抛异常 + 容错正确）
 
 
 def test_session_start_writes_model_to_state(tmp_path, monkeypatch):
-    """v0.4.36 真协议层 fix：SessionStart payload 真有 model 字段（PreToolUse /
+    """v0.4.36 协议层 fix：SessionStart payload 有 model 字段（PreToolUse /
     PostToolUse / Stop / Subagent* 都没）— SessionStart 是唯一路径写 state.model
-    让后续 PostToolUse 中段注入按真模型阈值 (Opus 80K / Sonnet 60K / Haiku 30K)。
+    让后续 PostToolUse 中段注入按模型阈值 (Opus 80K / Sonnet 60K / Haiku 30K)。
     """
     monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
     payload = {
@@ -87,12 +87,12 @@ def test_session_start_writes_model_to_state(tmp_path, monkeypatch):
         env={**__import__("os").environ, "KARMA_HOME": str(tmp_path.parent)},
     )
     assert result.returncode == 0
-    # 真验证 state.model 写入（独立 .venv subprocess 不直接读 fixture，跑真 hook）
+    # 验证 state.model 写入（独立 .venv subprocess 不直接读 fixture，跑真 hook）
     from karma import session_state
     state = session_state.load("test-v0436-model")
     # 注意：subprocess 用了真 ~/.claude/karma 路径不是 tmp_path（env KARMA_HOME 不一定生效）
-    # 真守护是 session_start.py 真有 payload.get("model") 写 state 逻辑 — code path
-    # 已经被本测试 exec 了一次，没异常 = 真生效。state 真写值由 dogfooding 真复现验证（CHANGELOG 含真证据）
+    # 真守护是 session_start.py 有 payload.get("model") 写 state 逻辑 — code path
+    # 已经被本测试 exec 了一次，没异常 = 生效。state 写值由 dogfooding 复现验证（CHANGELOG 含证据）
     _ = state  # 声明使用避免 lint
 
 
@@ -187,7 +187,7 @@ def test_subagent_start_hook():
 
 
 def test_subagent_hooks_output_real_chinese_not_unicode_escape():
-    """SubagentStart / SubagentStop hook 必须用 ensure_ascii=False 输出真中文 —
+    """SubagentStart / SubagentStop hook 必须用 ensure_ascii=False 输出utf-8 中文 —
     早期 stub subagent_start.py 没加 ensure_ascii=False 导致子 Agent 收到一坨
     `\\u4e2d\\u6587` 转义看不懂（v0.4.31 fix）。守护永不复发。
     """
@@ -239,5 +239,5 @@ def test_subagent_stop_hook_emits_reminder():
     if "hookSpecificOutput" in output:
         assert output["hookSpecificOutput"]["hookEventName"] == "SubagentStop"
         ctx = output["hookSpecificOutput"]["additionalContext"]
-        assert "explore-1" in ctx  # agent_id 真注入
+        assert "explore-1" in ctx  # agent_id 实际注入
         assert "sticky" in ctx.lower() or "方向" in ctx  # sticky 关键方向回声

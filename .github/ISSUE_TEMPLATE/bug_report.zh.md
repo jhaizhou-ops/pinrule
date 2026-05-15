@@ -16,7 +16,7 @@ assignees: ''
 2. ...
 3. 看到的错误 / 不预期行为
 
-## 真实状态（用 `karma doctor` 输出）
+## 状态（用 `karma doctor` 输出）
 
 ```
 （贴 `karma doctor` 完整输出）
