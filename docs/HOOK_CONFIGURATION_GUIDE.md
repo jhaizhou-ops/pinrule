@@ -1,157 +1,139 @@
-# karma Hook 配置指南 — v0.5/0.6
+# karma Hook 配置指南
 
-本指南说明如何在 Claude Code 中启用 karma hook，以及每个 hook 的实际作用。
+`karma install-hooks` 把 8 个 hook 写进 Claude Code `~/.claude/settings.json`。本指南说明每个 hook 做什么、什么时候触发、你能看到什么。
 
 ## 快速开始
 
-karma 已在你的 Claude Code `settings.json` 中配置了 7 个 hook。如果你从未见过 karma，只需知道：
+```bash
+karma init           # 创建 ~/.claude/karma/ + 复制规则模板
+karma install-hooks  # 装 8 个 hook 到 settings.json
+karma doctor         # 验证装机
+```
 
-**karma = 让 AI Agent 在长 session 中不遗忘你的核心方向**
-
-当你设置了 `~/.claude/karma/sticky.yaml`，这 7 个 hook 就会自动生效。
+装完重启 Claude Code，hook 立即生效。规则在 `~/.claude/karma/rules.yaml` — 用 `karma rule edit` 编辑，或 `/karma <自然语言>` 让 skill 替你写。
 
 ---
 
-## 7 个 Hook 速查表
+## 8 个 hook 速查
 
-### 1️⃣ UserPromptSubmit（已有）
-**何时触发**：你提交 prompt 前  
-**作用**：把你的核心方向注入到 prompt 头部  
-**你会看到**：无特殊通知（后台工作）
+| Hook | 何时触发 | 作用 | 用户感知 |
+|---|---|---|---|
+| **UserPromptSubmit** | 你提交 prompt 前 | 把核心方向注入 prompt 头部 + 标偏离回顾 | 后台工作，无通知 |
+| **PreToolUse** | Agent 调 tool 前 | 拦截违反核心方向的工具调用 | 命中时 ❌ 权限被拒（附理由） |
+| **PostToolUse** | tool 调用成功后 | 跟踪 session 状态；累积到当前模型衰减拐点中段补一次提醒 | 后台跟踪，无通知 |
+| **Stop** | Agent 想停下前 | 检测违反 + 静默停止时启发继续推进 | ⚠️ stderr 提醒 + 桌面通知 |
+| **PreCompact** | 客户端自动 compact 前 | 完整规则状态落盘 snapshot | 后台落盘，无通知 |
+| **SessionStart** | session 起手 / compact 后重起 | 规则 baseline 注入；compact 重起时读 snapshot 强注入 | 后台注入，无通知 |
+| **SubagentStart** | 启动子 Agent 时 | 子 Agent 自动继承完整规则 + 维护独立监控状态 | 子 Agent 头部看到规则注入 |
+| **SubagentStop** | 子 Agent 结束时 | 子 Agent 临时状态自动销毁，不污染主 session | 后台清理，无通知 |
 
-### 2️⃣ PreToolUse（已有）
-**何时触发**：Agent 要调 tool（Bash/Edit/Read）前  
-**作用**：拦截违反你核心方向的工具调用  
-**你会看到**：❌ 权限被拒（有理由说明）
-
-### 3️⃣ PostToolUse（已有）
-**何时触发**：Tool 调用成功后  
-**作用**：跟踪 session 状态，中段重新强化关键方向  
-**你会看到**：无通知（后台跟踪）
-
-### 4️⃣ Stop（已有）
-**何时触发**：Agent 要停下回复前  
-**作用**：检测违反，强制 Agent 继续修正  
-**你会看到**：⚠️ 提醒（Agent 继续推进）
-
-### 5️⃣ PreCompact（v0.5.0 新加）
-**何时触发**：自动 context compact 前  
-**作用**：检查 compact 会不会淡化你的 sticky  
-**你会看到**：💡 提醒（compact 前告知 sticky 会重注）
-
-### 6️⃣ PostCompact（v0.5.0 新加）
-**何时触发**：Context compact 后  
-**作用**：验证 sticky 还活着，丢失则补注  
-**你会看到**：✓ 验证通过 或 ⚠️ 补注摘要
-
-### 7️⃣ SessionStart（v0.5.0 新加）
-**何时触发**：Session 恢复或启动  
-**作用**：重加载 sticky 配置，防过期复活  
-**你会看到**：💬 Session 恢复时的状态提醒
-
-### 8️⃣ SubagentStart（v0.6.0 新加）
-**何时触发**：启动子 Agent  
-**作用**：子 Agent 继承父 session 的 sticky 约束  
-**你会看到**：📋 子 Agent 收到的约束列表
-
-### 9️⃣ SubagentStop（v0.6.0 新加）
-**何时触发**：子 Agent 完成  
-**作用**：检查子 Agent 有无违反，溅回主 session  
-**你会看到**：✓ 无违反 或 ⚠️ 违反列表
+所有 hook 输出严格按 Claude Code 官方协议 schema — 不会被客户端 UI 报错。
 
 ---
 
 ## 配置路径
 
-### sticky 规则配置
 ```bash
-~/.claude/karma/sticky.yaml        # 你的核心方向（手工编辑）
-```
-
-### Hook 脚本位置
-```bash
-~/.claude/hooks/karma_*.py         # 9 个 hook wrapper（自动生成）
-```
-
-### Claude Code 设置
-```bash
-~/.claude/settings.json             # 包含 hooks 配置（自动注入）
+~/.claude/karma/rules.yaml           # 你的核心方向（手工编辑或 /karma skill）
+~/.claude/karma/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
+~/.claude/karma/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
+~/.claude/karma/session-state/       # 每个 session 一份 json（30 天自动清理）
+~/.claude/karma/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
+~/.claude/hooks/karma_*.py           # 8 个 hook wrapper（karma install-hooks 自动生成）
+~/.claude/settings.json              # Claude Code 配置（karma 写入 hooks 段）
 ```
 
 ---
 
-## 场景
+## 典型场景
 
-### 场景 A：长 session 中 compact
+### A. 长 session 跨 compact
 
-**你的 sticky**：「长期正确优雅」/ 「失败要响亮」
-
-**你在做**：多小时的开发任务，Agent 已累积 50+ turns
+**你在做**：多小时开发任务，Agent 累积 60K+ context。
 
 **发生的事**：
-1. Claude Code 自动 compact context（保省 token）
-2. **PreCompact hook 触发**：检查 sticky marker 会不会被冲掉 → 允许 + 提醒
-3. Compact 执行
-4. **PostCompact hook 触发**：检查 sticky 还在不在 → 若丢失补注
-5. **SessionStart hook 触发**（compact 后）：重新加载 sticky 版本
+1. Claude Code 自动触发 compact
+2. **PreCompact hook**：完整 `rules.yaml` 状态落盘到 `pre_compact_snapshot.md`
+3. compact 执行（Claude Code 自己的压缩）
+4. **SessionStart hook**（compact 后重起触发）：读 snapshot 强注入完整规则
 
-**结果**：你的 3-5 条核心方向跨 compact 仍然活跃，Agent 不会因为 compact 突然忘掉方向
+**结果**：规则跨 compact 不丢，Agent 不会把核心方向压成模糊词。
 
 ---
 
-### 场景 B：使用子 Agent 并行
+### B. 子 Agent 并发执行
 
-**你的 sticky**：「不阻塞前端」/ 「读代码前先写」
-
-**你在做**：启动 2 个子 Agent 搜索代码 + 改 bug
+**你在做**：起 2 个子 Agent 并行搜索代码 + 改 bug。
 
 **发生的事**：
-1. **SubagentStart hook 触发**（子 Agent 启动）：父 sticky 传到子 context
-2. 子 Agent 在隔离 context 中仍然看得到父方向约束
+1. **SubagentStart hook**：完整规则注入到子 Agent context
+2. 子 Agent 在自己 session 里仍然看得到约束 + 维护独立监控状态
 3. 子 Agent 完成
-4. **SubagentStop hook 触发**（子 Agent 结束）：检查子 Agent 有无「读代码前先写」违反
-5. 若有违反，提醒主 Agent 「这个子任务没遵守约束」
+4. **SubagentStop hook**：子 Agent 临时 session-state 自动销毁
 
-**结果**：子 Agent 不会脱离你的核心方向独立判断，跨隔离仍保持约束
+**结果**：子 Agent 跟主 Agent 同等监管力度；多次起子 Agent 不会让主 session 数据混乱。
+
+---
+
+### C. 静默停止时被提示继续
+
+**你在做**：给 Agent 多个明确步骤的方向，期待自主推进。
+
+**发生的事**：
+1. Agent 完成第 1 步，response 末尾纯陈述无下一步信号
+2. **Stop hook** 检测到静默停止 → 输出 `decision=block` + 启发继续提示
+3. Agent 看到提示后接着推进下一步
+4. Safeguard：单 turn 内累积 block ≥ 2 次（`stop_block_max_per_turn` 可调）后让 Agent 停下，防死循环
+5. 任务真饱和时 Agent 明说卡在哪 → karma 不再推
+
+**结果**：Agent 完成一波后立刻找下个推进点继续，不再「下一步做什么」反复问。
 
 ---
 
 ## 常见问题
 
-### Q：Hook 拒了我的操作？
-**A**：看拒绝理由，这通常意味着你的 sticky 规则认为这是违反。有两种处理：
-- 修改 sticky.yaml（调整规则）
-- 明确告诉 Agent「绕过这个 check」（Agent 会记录并解释为什么）
+### Q：Hook 拒了我的操作怎么办？
 
-### Q：Compact 后 Agent 忘了方向？
-**A**：这是 v0.5.0 之前的已知问题。现在 PreCompact/PostCompact 会防护。若仍遗忘，这是 karma bug 而非 Agent bug，请报告。
+看拒绝理由（stderr / 通知里都有）— 这通常说明你的规则认为这是违反。两种处理：
+- 修 `rules.yaml`（调整规则措辞 / keyword / engine check）
+- 明确告诉 Agent「绕一下先跑」（用户授权的例外）
 
-### Q：子 Agent 能绕过我的 sticky 吗？
-**A**：不能。SubagentStart 把约束传进去，SubagentStop 检查有无违反。但子 Agent 的 hook 是独立的（各自 session），所以覆盖范围是启发式的（关键词检测），不是万金油。
+如果你认为是 karma 误拦（假阳），跑 `karma audit` 看「⚠️ 可能假阳」标记，欢迎提 issue。
 
 ### Q：能关掉某个 hook 吗？
-**A**：能。编辑 `~/.claude/settings.json`，在 `hooks` 部分删除或注释掉对应 event 即可。但建议先用一周看效果再删。
+
+能。两种方式：
+- `karma uninstall-hooks` 拆掉全部
+- 手工编辑 `~/.claude/settings.json`，在 `hooks` 段删 / 注释掉对应 event
+
+但建议先用一周看效果。
+
+### Q：子 Agent 能绕过规则吗？
+
+绕不了。`SubagentStart` 把完整规则注入子 Agent 头部，子 Agent 自己的 hook 也跑同样的检查。但**子 Agent 的状态隔离**意味着关键词检测是按子 session 独立计数 — 这是设计上的隐私 / 性能取舍。
+
+### Q：自定义阈值怎么配？
+
+`~/.claude/karma/config.yaml`（不存在时走 `karma/config.py:DEFAULTS`）：
+
+```yaml
+recent_violation_turns: 5         # 偏离标记窗口
+stop_block_max_per_turn: 2        # Stop hook 单 turn 启发上限
+force_block_threshold: 5          # 累积强制查根因阈值
+session_state_max_age_days: 30    # session 状态自动清理周期
+```
+
+`karma doctor` 会显示当前生效的所有阈值。
 
 ---
 
 ## 设计原则
 
-所有 hook 都遵循这些原则：
-
-1. **Fail open**：配置错 / 加载失败 → hook 不会卡 Agent，静默继续
-2. **启发式检测**：用关键词/正则，不用 LLM 判断（保省 token）
-3. **可见化**：违反/拦截都有提醒，不黑盒
-4. **可调整**：你随时改 sticky.yaml，下个 turn 立刻生效
+1. **Fail open** — 配置错 / 加载失败 → hook 不会卡 Agent，静默继续
+2. **零 LLM** — 全工程化（regex / 关键词 / 计数），无外部依赖
+3. **可见化** — 拦截 / 启发都有 stderr + 桌面通知，不黑盒
+4. **可调** — 你改 `rules.yaml` 下个 turn 立即生效
 
 ---
 
-## 下一步
-
-- 查看 `~/.claude/karma/sticky.yaml` 看你的规则
-- 运行 `claude` 启动一个 session
-- 执行违反操作看 hook 拦截效果
-- 改进 sticky 规则以适应你的风格
-
-**文档生成**：2026-05-14  
-**支持的 hook**：9 个（v0.5.0 + v0.6.0）  
 **官方协议参考**：https://code.claude.com/docs/en/hooks

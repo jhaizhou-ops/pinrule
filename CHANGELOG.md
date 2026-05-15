@@ -10,6 +10,65 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-05-15 (docs — hand-audit every GitHub-visible doc: marketing fluff → natural, stale commands → current, missing status → labeled archive)
+
+### Why a whole-repo doc audit
+
+User directive: "GitHub 所有文件加起来也没多少字，你手工再检查下吧，别走批处理替换了，一个一个文档检查梳理一下，要求对外展示的文档抓人眼球有爆款潜质，所有文档表达自然、逻辑严密流畅、可读性强不做作。" Followed by: "「真」字大爆发之外还有哪些欠妥当的表述问题，都完整检查和修复一下。"
+
+Per-file audit, not batch replacement. The "真X" problem from v0.7.0–v0.7.2 was the obvious trigger; this release goes after the broader category: marketing fluff in landing copy, "≈ 0%" overclaims, stale `sticky` command names that survived v0.6.0, milestone tags that froze at M3 / v0.5.x while the project is at v0.7, missing archive labels on shipped plan docs.
+
+### What changed (33 markdown files reviewed; 22 touched)
+
+**Tier 1 — landing pages (`README.md` / `README.zh.md`)**:
+- Replaced "Measured violation rate ≈ 0%" overclaim with honest "the single change that moves the needle most"
+- Cut "500+ hours real-world tuning" / "5481 lines" marketing-precise numbers; replaced with verifiable quality gates (427 tests / `ruff` / `mypy` / dead-code, all green)
+- Reframed v0.6.0 BREAKING banner from "top-of-page warning" to "older-versions footnote" — banner-as-warning misled new users; the BREAKING was 3 weeks ago and is mechanical to migrate
+- Tightened pain-point table phrasing; switched section headers from "全面监管" to "全覆盖" (less salesy)
+- Removed the dead "Full English translation lands in v0.5.3" promise (over 18 releases ago)
+
+**Tier 2 — project contracts (`CLAUDE.md/.zh.md`, `CODE_OF_CONDUCT.md/.zh.md`, `SECURITY.md/.zh.md`)**:
+- Dropped the dead M0 milestone block and the obsolete "Strict LLM authorization v1+" section (karma is firmly no-LLM, not "v0 no LLM")
+- Renamed the doc heading from "karma v2" to "karma" — v2 framing was internal to v1 archival, no longer relevant
+- Replaced the "stay under ~200 lines" rule with "small by default, larger batches OK when user explicitly asks one commit" — matches the v0.7.0 651-line user-authorized batch precedent
+- `SECURITY.md` reporting line: removed the "look up author email via gh" instruction, pointed directly at GitHub private Security Advisory
+
+**Tier 3 — CHANGELOG**: only added this entry; historical release notes are archive (per user rule-5: no retroactive rewrites)
+
+**Tier 4 — architecture / handoff / hook guides**:
+- `PRD.md/.zh.md`: removed obsolete "Future possibilities: LLM-judged check upgrade" — directly contradicts the firm no-LLM boundary
+- `PRD.md/.zh.md`: corrected hard-cap from "14 attention inflection point" to "12" (matches `rule.py:HARD_MAX` and Mnilax's empirical study)
+- `ARCHITECTURE.zh.md`: full sweep of `sticky.yaml` → `rules.yaml` and `karma sticky list/edit/remove` → `karma rule …` (these survived v0.6.0); injection header text updated to current "[karma — 你跟用户的长期默契]" collaborative-agreement tone; performance figure < 50ms → < 60ms (matches measurements)
+- `ARCHITECTURE.md/.zh.md` titles: dropped frozen "(M3 current state)" tag
+- `HANDOFF.md`: rewrote the milestone status section as "Recent milestones (latest first)" with v0.7.2 head; fixed broken `./HOWTO.md` link to `./HANDOFF.md`; removed the obsolete "post-v0.5.3 bilingual handoff" plan
+- `HANDOFF.zh.md`: same rename — title from "M3 六波结束" to "karma 内部接力文档"; current-version line updated to v0.7.2
+- `HOOK_CONFIGURATION_GUIDE.md`: full rewrite. Corrected hook count from 9 to actual 8 (the old guide listed a non-existent `PostCompact`); switched all `sticky.yaml` references to `rules.yaml`; updated scenarios to match how Stop / SubagentStart / PreCompact + SessionStart actually work in v0.7
+- `HOOK_PROTOCOL_RESEARCH.md`: added archive header — research dated 2026-05-14, conclusions already landed; clarified that `ARCHITECTURE.zh.md` is the current source of truth
+
+**Tier 5 — historical plan docs**: confirmed `RULES_REDESIGN_PROPOSAL`, `V0_6_0_PLAN`, `REFACTOR_PLAN_RULE_AND_I18N` all have "shipped" / "implemented" status banners (added to English `REFACTOR_PLAN` where missing)
+
+**Tier 6 — operational templates**:
+- `.github/PULL_REQUEST_TEMPLATE.md/.zh.md`: replaced the rigid "under ~200 lines" checklist item with "small by default, larger batches OK when explicitly asked" — matches CLAUDE.md
+- `.github/ISSUE_TEMPLATE/feature_request.zh.md`: `sticky.yaml` → `rules.yaml`
+- `karma/backends/HOWTO.md/.zh.md`: replaced internal `[karma rule #1 long-term fundamental]` cross-references with natural prose pointing to rule slugs
+- `CODE_OF_CONDUCT.md`: fixed broken `./README.en.md` link to `./README.md`
+
+### What did NOT happen (correctness restraint)
+
+- **No batch find/replace.** Per user directive, every file was hand-read. Several places intentionally kept the modifier when context required it (e.g., `真阻塞` / `真阳` engineering dualism in `ARCHITECTURE` and tests)
+- **No retroactive CHANGELOG / HANDOFF history rewrites.** Per project rule 5 (eval cleanliness), historical entries stay as-shipped; only headers / current-status sections updated
+- **No SKILL.md churn.** The skill content is consumed by Agents, not landing-page readers; it was already clear and on-tone
+
+### Verification
+
+- `pytest`: 427/427 passing (no code changed)
+- `ruff`: 0 issues
+- 22 files changed, 447 / 510 lines (net −63)
+
+### Real karma value
+
+This release is a "rule 9 (docs-sync-after-commit)" catch-up — a careful pass at the level of "would a first-time karma reader feel this is a viral-quality project or a fragmentary one?" Marketing fluff and stale commands both signal sloppiness; removing them makes the project read as more honest, not less impressive.
+
 ## [0.7.2] — 2026-05-15 (refactor — remove `chinese_plain` Check 3 reactive monitor: source treated, symptom monitor obsolete)
 
 ### Root cause

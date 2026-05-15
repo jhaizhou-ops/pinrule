@@ -1,16 +1,15 @@
-# karma v2 交接 — 2026-05-14（M3 六波结束）
+# karma 内部接力文档
 
 **[🇬🇧 English](./HANDOFF.md) · [🇨🇳 中文（当前）](./HANDOFF.zh.md)**
 
 > **⚠️ 这是 karma 内部开发的「Agent 接力文档」，不是最终用户文档。**
-> 如果你是想用 karma 的 Claude Code 用户，请看 [README.md](README.md) /
-> [PRD.md](PRD.md) / [ARCHITECTURE.md](ARCHITECTURE.md)。
-> 本文档保留各 milestone 阶段未解 bug / 错误诊断教训 / 下次 session 的 TODO，
-> 是给「接力开发的下一个 Agent」看的。
+> 如果你是想用 karma 的 Claude Code 用户，请看 [README.zh.md](../README.zh.md) /
+> [PRD.zh.md](./PRD.zh.md) / [ARCHITECTURE.zh.md](./ARCHITECTURE.zh.md)。
+>
+> 本文档记录各 milestone 阶段的未解 bug、错误诊断教训、下次 session 的 TODO —
+> 给「接力开发的下一个 Agent」看的。当前进度 v0.7.2（2026-05-15）。
 
-> 给下个 session 的快速接手指引。
-
-## 当前状态：M3 第六波完成，karma 装到本机并经历完整 dogfooding
+## 历史里程碑（从早到近）
 
 ### 已交付里程碑
 
@@ -59,6 +58,7 @@
 | **v0.6.0 ⚠️ BREAKING + v0.6.1 第一个外部 user bug** | v0.6.0 删 `karma.sticky` 模块 + `.sticky_id` @property + `karma sticky` CLI + 内部 alias，废弃周期 18 个 v0.5.x release。**v0.6.1** 修 issue #1（首位外部贡献者 @fyn1320068837-source）：`docker pytest` 通过后改 README 再 git commit 被 `loud-failure-with-evidence` 错拦。根因在 `has_recent_test_pass()` 的 `last_test_pass_ts >= last_edit_ts` 语义 — 任何 edit（包括 docs / .gitignore）都推 `last_edit_ts`。Reporter 的 `_TEST_CMD_RE` regex 诊断错层。Real fix：`record_edit` 加 `_NON_CODE_EDIT_RE` 豁免非代码路径。装 colima + docker 实测复现根因。**首次外部 dogfood 闭环跑通**。 | v0.6.0 + v0.6.1 |
 | **v0.7.0 + v0.7.1「真X」治根 mimicry refactor** | 用户抓到 Agent 反复堆「真X」前缀 — 不是 Agent 习惯，是 karma 自己规则文本和 locale 用「真X」模式被 LLM 在 response 里 in-context mimic。用户精准纠正治根不治表：**v0.7.0** 撤掉计划中的 `defensive_prefix_stacking` engine check，改写规则模板 + locale + 用户面文档 ~140 处。**v0.7.1** 用户进一步指出同义词替换也不够，防御修饰本身大部分上下文不必要 — 10 波 perl pipeline 覆盖 100 文件，767 → 120 处（84% 减少）。剩 120 全是合理保留（named concept 真字狂魔 / eval 术语 真阳 / 工程对偶 真阻塞 / test fixture / 自然搭配 真心 真话）。修 doubled artifact `任务任务到饱和`。**用户「一次性修复完再提交，别留负债」**指令 — 一次 commit 覆盖源码注释 + 测试 + 历史归档。**核心洞察**：v0.7.0 假定问题是字「真」；v0.7.1 确认问题是**防御修饰本身**（不论真/实际/确实），都是 Agent 过度声明而非直接陈述。这是 sticky #4 在语言层的体现。| v0.7.0 + v0.7.1 |
 | **v0.7.2 撤 chinese_plain Check 3 reactive 监控**（治根闭环 follow-up）| `karma audit` 数据揭示 v0.7.0+v0.7.1 治根后 Check 3 在 168 条 violation 里 0 次触发 — reactive 监控冗余了。Check 3 是 v0.4.40 加的「真字狂魔」治表对冲（自己代码注释「治症状不治根因」）。跟用户 v0.7.0 对 `defensive_prefix_stacking` 用过的同款逻辑 — 源治根了，治表监控该撤。撤：`_check_repeated_prefix()` + 2 个 locale key + 2 个专用测试。闭环了「治根不治表」哲学。| v0.7.2 |
+| **v0.7.3 手工 audit 全部 GitHub 可见文档**（rule 9 补课）| 用户指令逐个读不批处理 — 入口页要读出爆款级而不是 fragmentary。33 个 markdown 审过，22 个动了。删营销话术（「≈ 0%」过宣称 /「500+ 小时调优」），清 v0.6.0 漏网 `sticky` 老命令名，修过时数字（硬上限 14 → 12，hook 数 9 → 实际 8），去掉冻结 milestone 标签（标题里的 M3 / v0.5.x），已落地 plan 文档标归档，重写过时 `HOOK_CONFIGURATION_GUIDE.md`。净 −63 行，0 代码改动（全文档）。| v0.7.3 |
 
 ### 用户终极评价归档（2026-05-15 接力 session 收尾）
 

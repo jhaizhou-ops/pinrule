@@ -18,7 +18,7 @@ karma's validation criterion is "the author / user can describe 3 concrete cases
 - [ ] No LLM dependency introduced
 - [ ] No retrieval / cosine / scoring system introduced
 - [ ] No backward-incompatible breakage of existing rule configs
-- [ ] Under ~200 lines (keep changes small and reviewable; large changes split into multiple PRs)
+- [ ] Small and reviewable by default; larger batches OK when the maintainer has explicitly asked for "one PR, don't fragment it"
 
 ## Related
 

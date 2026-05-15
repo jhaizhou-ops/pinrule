@@ -6,6 +6,65 @@
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-05-15（docs — 手工逐个 audit 全部 GitHub 可见文档：营销话术 → 自然、老命令名 → 现行、缺归档标 → 标清楚）
+
+### 为什么做全仓库文档 audit
+
+用户原话：「GitHub 所有文件加起来也没多少字，你手工再检查下吧，别走批处理替换了，一个一个文档检查梳理一下，要求对外展示的文档抓人眼球有爆款潜质，所有文档表达自然、逻辑严密流畅、可读性强不做作。」接着：「『真』字大爆发之外还有哪些欠妥当的表述问题，都完整检查和修复一下。」
+
+逐文件手工 audit，不走批处理。v0.7.0–v0.7.2 解决的「真X」是明显触发点；这一波处理更广类别：landing 页的营销话术、「≈ 0%」过度宣称、v0.6.0 BREAKING 之后还残留的 `sticky` 老命令名、卡在 M3 / v0.5.x 的 milestone 标签（项目已 v0.7）、已落地 plan 文档缺归档标识。
+
+### 改了什么（33 个 markdown 文件审过，22 个动了）
+
+**Tier 1 — 入口页（`README.md` / `README.zh.md`）**：
+- 删「实测违规率 ≈ 0%」过度宣称，换成诚实的「这是真正影响遵循率的单一最关键改动」
+- 砍掉「500+ 小时实战调优」/「5481 行源码」营销精度数字，换成可验证的质量门禁（427 测试 / `ruff` / `mypy` / 死代码扫，全绿）
+- v0.6.0 BREAKING banner 从「顶部警告」改成「历史版本脚注」— 当 banner 警告会误导新用户；BREAKING 已是 3 周前的事且迁移机械化
+- 痛点表格措辞收紧；section 标题从「全面监管」改「全覆盖」（不那么销售口吻）
+- 删过期承诺「Full English translation lands in v0.5.3」（18 个 release 之前的事）
+
+**Tier 2 — 项目契约（`CLAUDE.md/.zh.md`、`CODE_OF_CONDUCT.md/.zh.md`、`SECURITY.md/.zh.md`）**：
+- 砍掉已过期的 M0 milestone 段、过时的「Strict LLM authorization v1+」段（karma 是坚定不依赖 LLM，不是「v0 不用 LLM」）
+- 文档标题从「karma v2」改回「karma」— v2 框架是 v1 归档时期的产物，不再相关
+- 「不超过 ~200 行」规则换成「默认小，用户明确要求一波到位时合理」— 匹配 v0.7.0 一次 651 行授权 batch 的先例
+- `SECURITY.md` 报告通道：去掉「用 gh 查作者邮箱」的间接路径，直接指向 GitHub 私密 Security Advisory
+
+**Tier 3 — CHANGELOG**：只加这条 entry；历史 release notes 保留为归档（按用户 rule 5：不做回溯性重写）
+
+**Tier 4 — 架构 / 接力 / hook 指南**：
+- `PRD.md/.zh.md`：删过时的「Future possibilities：LLM-judged check 升级」— 跟坚定不依赖 LLM 的边界冲突
+- `PRD.md/.zh.md`：修正硬上限数字从「14 注意力拐点」改为「12」（跟 `rule.py:HARD_MAX` 跟 Mnilax 实证研究一致）
+- `ARCHITECTURE.zh.md`：全文清 `sticky.yaml` → `rules.yaml` + `karma sticky list/edit/remove` → `karma rule …`（这些是 v0.6.0 漏网的）；注入头部文本同步到当前「[karma — 你跟用户的长期默契]」合作默契语气；性能数字 < 50ms → < 60ms（匹配实测）
+- `ARCHITECTURE.md/.zh.md` 标题：去掉冻结的「(M3 现状)」标签
+- `HANDOFF.md`：重写 milestone status 段为「Recent milestones (latest first)」头部 v0.7.2；修破链 `./HOWTO.md` → `./HANDOFF.md`；删过期「post-v0.5.3 bilingual handoff」段
+- `HANDOFF.zh.md`：同名改 — 标题从「M3 六波结束」改「karma 内部接力文档」；当前版本行更新到 v0.7.2
+- `HOOK_CONFIGURATION_GUIDE.md`：完整重写。修 hook 数字从 9 改正确的 8（旧版本列了不存在的 `PostCompact`）；全文 `sticky.yaml` → `rules.yaml`；场景描述匹配 v0.7 现状里 Stop / SubagentStart / PreCompact + SessionStart 实际怎么跑
+- `HOOK_PROTOCOL_RESEARCH.md`：加归档头 — 研究日期 2026-05-14，结论已落地；明确指出 `ARCHITECTURE.zh.md` 是当前 source of truth
+
+**Tier 5 — 历史 plan 文档**：确认 `RULES_REDESIGN_PROPOSAL` / `V0_6_0_PLAN` / `REFACTOR_PLAN_RULE_AND_I18N` 都有「shipped / 已落地」状态 banner（英文 `REFACTOR_PLAN` 缺的补上）
+
+**Tier 6 — 操作模板**：
+- `.github/PULL_REQUEST_TEMPLATE.md/.zh.md`：硬性「不超过 ~200 行」checklist 项换成「默认小，明确要求时一波也合理」— 跟 CLAUDE.md 一致
+- `.github/ISSUE_TEMPLATE/feature_request.zh.md`：`sticky.yaml` → `rules.yaml`
+- `karma/backends/HOWTO.md/.zh.md`：把内部 cross-reference `[karma rule #1 long-term fundamental]` 改成自然话术指向规则 slug
+- `CODE_OF_CONDUCT.md`：修破链 `./README.en.md` → `./README.md`
+
+### 没做的（节制原则）
+
+- **没走批处理 find/replace**。按用户指令每个文件手读。多处刻意保留修饰（如 `真阻塞` / `真阳` 在 `ARCHITECTURE` 跟测试里的工程对偶语义）
+- **没回溯重写历史 CHANGELOG / HANDOFF entries**。按项目 rule 5（eval cleanliness）历史 entry 保留原貌；只更新 header / 当前状态段
+- **SKILL.md 没动**。skill 内容是 Agent 用的，不是 landing 页读者；本来就够清晰
+
+### 验证
+
+- `pytest`：427/427 通过（没改代码）
+- `ruff`：0 issue
+- 22 个文件改动，447 / 510 行（净 −63）
+
+### karma 实际价值
+
+这一版是 rule 9（docs-sync-after-commit）的补课 — 按「第一次看 karma 的读者会觉得这是爆款级项目还是 fragmentary 项目」的标准过一遍。营销话术和老命令名都是「不够认真」的信号，去掉以后项目读起来更诚实，不是更弱。
+
 ## [0.7.2] — 2026-05-15（refactor — 撤掉 `chinese_plain` Check 3 reactive 监控：源已治根，监控冗余）
 
 ### 原因

@@ -8,7 +8,7 @@ karma currently supports 3 clients out-of-the-box (Claude Code / Codex / Gemini 
 
 ### Step 1: Research the client's hook protocol
 
-Per [karma rule #1 long-term fundamental] **actually run, don't assume**, research:
+Per karma's `long-term-fundamental` rule — **actually run, don't assume.** Research:
 
 1. **Hook config file path** — usually `~/.<client>/settings.json` or `~/.<client>/hooks.json`
 2. **Hook event names** — the event names written in config (e.g., Claude Code's `UserPromptSubmit` vs. Gemini's `BeforeAgent`)
@@ -137,7 +137,7 @@ Reference `tests/test_backends.py`:
 
 If stop.py adapter field added: reference `tests/test_hooks.py::test_stop_hook_uses_codex_last_assistant_message_field` for a field-fallback test.
 
-## Real-world verification (per rule #1 actually run, don't assume)
+## Real-world verification (actually run, don't assume)
 
 After adding, **must actually run** to verify:
 
@@ -158,7 +158,7 @@ echo '{"session_id":"t","prompt_response":"I'll patch this quickly","<other fiel
 
 ## Non-skippable steps (per karma project principles)
 
-- ❌ **Don't complete only based on docs — must actually run** (karma rule #1 + #4)
+- ❌ **Don't ship based on docs alone — actually run the new backend end-to-end** (karma's `long-term-fundamental` + `loud-failure-with-evidence` rules)
 - ❌ **Don't break coexistence with other hooks** (vibe-island / rtk etc. same-event multiple entries must be preserved)
 - ❌ **Atomic config file writes** (base class already implements tmp + os.replace, no need to touch)
 - ❌ **Don't hardcode backend id names into core logic** — adding a backend shouldn't require modifying cli.py or other core code

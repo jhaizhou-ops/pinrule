@@ -1,77 +1,57 @@
-# karma v2 — Project collaboration charter
+# karma — Project collaboration charter
 
 **[🇬🇧 English (current)](./CLAUDE.md) · [🇨🇳 中文](./CLAUDE.zh.md)**
 
 ## One-line positioning
 
-karma = Keep Agents from forgetting the user's most-valued core directions in long tasks.
+karma keeps the user's most-valued directions from being lost in long Agent tasks.
 
 ## Strict boundaries (non-negotiable)
 
-karma v2 clear boundaries learned from v1's failure (see [karma-v1/ARCHIVE.md](https://github.com/jhaizhou-ops/karma-v1/blob/main/ARCHIVE.md)):
+These boundaries come from v1's lessons (see [karma-v1/ARCHIVE.md](https://github.com/jhaizhou-ops/karma-v1/blob/main/ARCHIVE.md)). Each one closes off a path that proved costly:
 
 ### Things we don't do
 
-- ❌ **No auto-distilling new rules** — User manually maintains core directions, avoiding LLM distillation noise / misalignment
-- ❌ **No retrieval / cosine / scene routing** — 5-10 rules all always-on, no selection needed
-- ❌ **Don't compete with memory systems** — "Facts about the user" go to Claude Code auto-memory
-- ❌ **v0 no LLM** — All engineering (keywords / regex / counting)
-- ❌ **No reward / RL / scoring** — Behavioral reminders aren't reward functions
-
-### Strict LLM authorization (if v1+ uses LLM)
-
-Inherits v1 lessons:
-
-- ✅ Local mlx Qwen3.6 — small tasks + ≤4 concurrent
-- ✅ OpenRouter qwen3.5-flash-02-23 nothinking — only allowed remote
-- ❌ sonnet / claude API — forbidden
+- ❌ **No auto-distilling new rules** — User manually maintains directions; LLM distillation produces noise and misalignment
+- ❌ **No retrieval / cosine / scene routing** — 5-10 rules are all always-on; selection layer not needed
+- ❌ **Don't compete with memory systems** — "Facts about the user" belong in the client's built-in memory
+- ❌ **No LLM dependency** — pure engineering (keywords / regex / counting); decision is firm, not just for v0
+- ❌ **No reward / RL / scoring** — behavioral reminders aren't reward functions; scoring rules makes the model optimize the score, not the behavior
 
 ## Working principles
 
-### 1. No cheating against current user
+### 1. Don't cheat the current user
 
-karma v2's validation method is author self-use. **Never**, for self-comfort:
+karma is validated by author self-use. To keep that signal honest, **never** do these for short-term comfort:
 - Hardcode author-specific rules into default templates
-- Hardcode author's empirically-found violation words into hooks
+- Hardcode author's empirically-found violation phrases into hooks
 - Train anything on author's session data
 
-karma's "defaults" must be **cross-user reasonable** (CLAUDE.md / Anthropic best practice level universal).
+karma's defaults have to be **cross-user reasonable** — at CLAUDE.md / Anthropic best-practice level of universality.
 
 ### 2. Always design from "I am the user" perspective
 
-For every change, ask yourself:
+For every change, ask:
 - Can a first-time karma user get started in 5 minutes?
-- Is the yaml config straightforward? Do they need docs to understand?
-- After hook install, does the first violation detection make the user say "ah, I see"?
+- Is the yaml config self-explanatory, or do they need to read docs to understand it?
+- Does the first violation detection make them say "ah, I see"?
 
 If a feature only works for the author → cut it.
 
-### 3. Validation > accuracy numbers
+### 3. Validation beats accuracy numbers
 
-karma v1 obsessed over accuracy numbers (67% inj precision etc.), causing optimization direction drift.
+karma v1 fixated on accuracy numbers (67% precision, etc.) and that fixation pulled optimization off-target.
 
-karma v2's validation criterion is **whether the author can describe 3 concrete cases after a week of self-use**:
-- "During some long task, I didn't speak up and the Agent reminded me of X by itself"
-- "After some compact, the Agent still remembered Y"
-- "Once when the Agent wanted to do Z, I saw the ⚠ prompt and corrected"
+karma's validation criterion is **whether the author can describe 3 concrete cases after a week of self-use**:
+- "During a long task, I didn't say anything and the Agent reminded itself of X"
+- "After a compact, the Agent still remembered Y"
+- "When the Agent was about to do Z, I saw the ⚠ prompt and corrected it"
 
-If after a week, can't describe such cases → karma's hypothesis is wrong, redesign.
-
-## Task management
-
-karma v2 doesn't maintain complex task lists. "One milestone, one PR" thinking.
-
-### Current milestone: M0 skeleton
-
-- Project initialization ✓
-- rules.yaml schema
-- 2 hook prototypes
-- karma CLI skeleton
-- 5-10 seed rules
+If a week passes with no such cases → karma's hypothesis is wrong, redesign.
 
 ## Commit conventions
 
-Commit messages explain what was done + why. Brief and direct:
+Commit messages explain what was done and why. Brief and direct:
 
 ```
 feat: rules.yaml parser + schema validation
@@ -81,22 +61,22 @@ Schema validates 5-10 rule cap + id uniqueness
 ```
 
 No complex templates needed. But every commit must:
-- Pass lint
-- Not introduce new LLM dependencies (v0 stage)
-- Stay under ~200 lines (keep changes small and reviewable)
+- Pass lint and tests
+- Not introduce LLM dependencies
+- Stay small and reviewable by default; a larger batch is fine when the user explicitly asks for "one commit, don't fragment it"
 
 ## Reporting style
 
 Completion reports in 1-3 sentences: **what was done + test results + push status**.
 Don't:
 - List long todos
-- Expand diff
+- Expand the diff
 - Explain tool mechanics
 - Write "next possible things" over 3 lines
 
 ## Autonomous execution authorization
 
-Inherits v1 authorization:
+Default to autonomous on these:
 - ✅ After completing tasks, directly git add + commit + push
 - ✅ Run tests / install dependencies / fix lint
 - ✅ Create comments / issues / PRs
@@ -105,20 +85,19 @@ Inherits v1 authorization:
 Still need pre-approval:
 - `git push --force` / `git reset --hard` of published commits
 - gh repo archive / settings modifications
-- Data destruction (~/.claude/karma/ clearing)
+- Data destruction (`~/.claude/karma/` clearing)
 - Cross-repo changes
 
 ## Failure handling
 
-karma v2's first principle is **honesty** — same as v1:
+karma's first principle is **honesty**:
 
-- If hook doesn't take effect, say so plainly, don't fake it
-- If violation detection missed a real violation, record it, don't cover up
-- If author self-uses for a week with no felt value, plainly say redesign — don't strongarm to maintain sunk cost
+- If a hook doesn't take effect, say so plainly — don't fake it
+- If a check missed a real violation, record it — don't cover it up
+- If a week of self-use produces no felt value, say redesign — don't preserve sunk cost
 
 ## Relationship with v1
 
-v1 archived in [jhaizhou-ops/karma-v1](https://github.com/jhaizhou-ops/karma-v1).
-Any reusable v1 assets (SEED 20 rules / qwen3.5 helper / etc.) can be referenced, but **not required** to reuse.
+v1 is archived at [jhaizhou-ops/karma-v1](https://github.com/jhaizhou-ops/karma-v1). Reusable v1 assets (SEED 20 rules, qwen3.5 helper, etc.) can be referenced but aren't required to reuse.
 
-v2 is a cognitive reboot, not a v1 refactor. If some component designs changed, dropping v1's solution is fine.
+v2 is a cognitive reboot, not a v1 refactor. If a component's design changed, dropping the v1 solution is fine.

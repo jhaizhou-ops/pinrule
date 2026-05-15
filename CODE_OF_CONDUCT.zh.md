@@ -8,8 +8,8 @@ karma 是为 AI 协作痛点而生的工具，社区氛围跟项目调性一致 
 
 - **直接说真话** — 看到 bug / 设计缺陷直接说，不用绕弯子。负面反馈是项目改进的信号
 - **拿证据** — 报 bug 附 `karma audit` / `karma doctor` 输出 / 复现命令，不要「应该 / 可能」掩盖
-- **尊重边界** — karma 明确**不做**的事（自动蒸馏 / retrieval / LLM 依赖等）有历史教训，先看 [README「karma 不做的事」段](./README.md#karma-不做的事)再提建议
-- **接受被拒** — 你提的功能可能不符合 karma 设计哲学被关闭，不代表不尊重你。看 [karma v1 失败归档](https://github.com/jhaizhou-ops/karma-v1) 理解为什么 v2 这么严守边界
+- **尊重边界** — karma 明确**不做**的事（自动蒸馏 / retrieval / LLM 依赖等）背后有历史教训，先看 [README「试过但放弃的」段](./README.zh.md#试过但放弃的karma-不做的事) 再提相关建议
+- **接受被拒** — 你提的功能可能不符合 karma 设计哲学而被关闭 — 这不是对你不尊重。看 [karma v1 归档](https://github.com/jhaizhou-ops/karma-v1) 能理解为什么 v2 这么严守边界
 
 ## 不能做的
 

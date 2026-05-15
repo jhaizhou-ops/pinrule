@@ -2,6 +2,8 @@
 
 **[🇬🇧 English (current)](./REFACTOR_PLAN_RULE_AND_I18N.md) · [🇨🇳 中文](./REFACTOR_PLAN_RULE_AND_I18N.zh.md)**
 
+> ✅ **Status: shipped.** Direction 1 (sticky → rule rename + `/karma` skill) landed across v0.5.0 / v0.5.1 / v0.5.16; the backward-compat scaffolding was removed in v0.6.0. Direction 2 (i18n) landed in v0.5.2–v0.5.4. Kept as the original plan + design rationale, not current operating state — see [ARCHITECTURE.md](./ARCHITECTURE.md) for current state.
+
 ## Two user-authorized refactor directions
 
 ### Direction 1 — `/karma rule XXX` natural-language rule input + sticky → rule rename

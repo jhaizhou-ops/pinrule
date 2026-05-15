@@ -1,4 +1,4 @@
-# karma Technical Architecture (M3 current state)
+# karma Technical Architecture
 
 **[🇬🇧 English (current)](./ARCHITECTURE.md) · [🇨🇳 中文](./ARCHITECTURE.zh.md)**
 
@@ -358,6 +358,7 @@ Performance hasn't been a bottleneck — measured far below budget.
 | v0.7.0 treat-root-cause refactor — rewrite "真X" defensive prefixes in karma source rule texts. User caught Agent stacking "真X" mimicry from karma's own rule injection headers (in-context mimicry). Reverted attempted `defensive_prefix_stacking` engine check (treat-symptom) in favor of cleaning the source. ~140 occurrences rewritten across rule templates + locale + user-facing docs. | ✅ |
 | v0.7.1 deep "真X" cleanup follow-up — user pointed out v0.7.0's synonym substitution (`真→实际/确实`) wasn't enough; defensive modifier itself is unnecessary in most contexts. 10-phase perl pipeline across 100 files: 767 → 120 (84% reduction). 120 remaining are all legitimate (named concept 真字狂魔 / eval term 真阳 / engineering dualism 真阻塞 / test fixtures / natural collocations 真心 真话). Fixed doubled artifact `任务任务到饱和` bug. One batched commit per user directive. | ✅ |
 | v0.7.2 remove `chinese_plain` Check 3 reactive monitor — source treated via v0.7.0+v0.7.1, monitor obsolete. Check 3 was v0.4.40's reactive treat-symptom hedge ("治症状不治根因" — own code comment said so). `karma audit` confirmed 0 triggers in 168 violations after root-cause cleanup. Same logic user applied to `defensive_prefix_stacking` in v0.7.0; v0.7.2 closes the parallel loop on the older symptom monitor. Removed: `_check_repeated_prefix()` + 2 locale keys + 2 dedicated tests. | ✅ |
+| v0.7.3 hand-audit every GitHub-visible doc — user directive to read each file individually (33 markdowns reviewed, 22 touched, no batch find/replace). Removed marketing fluff ("≈ 0%" overclaim / "500+ hours real-world tuning") + cleared stale `sticky` command names that survived v0.6.0 + corrected hard-cap from 14 → 12 + dropped frozen "M3" / "v0.5.x" milestone tags + relabeled shipped plan docs as archive + rewrote outdated `HOOK_CONFIGURATION_GUIDE.md` (9 hooks listed including non-existent `PostCompact` → corrected to actual 8). Net −63 lines. | ✅ |
 
 Details in [CHANGELOG.md](../CHANGELOG.md) for per-release rationale; [HANDOFF.md](./HANDOFF.md) for internal context.
 

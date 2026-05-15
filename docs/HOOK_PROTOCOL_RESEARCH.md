@@ -1,7 +1,9 @@
-# karma Hook 协议逆向工程 — 9 个剩余 hook 的实际协议
+# karma Hook 协议逆向工程（历史研究归档）
 
-**日期**：2026-05-14  
-**研究方法**：官方 Claude Code hooks 文档 (https://code.claude.com/docs/en/hooks)  
+> 📚 **归档说明**：这份文档是 v0.4.x 时期的 hook 协议研究记录。研究结论已落地为 karma 当前的 8 个 hook 实现 — 当前生效状态以 [ARCHITECTURE.zh.md](./ARCHITECTURE.zh.md) 为准。本文保留是为了让后续接手者看到决策过程，不是当前操作指南。
+
+**日期**：2026-05-14
+**研究方法**：官方 Claude Code hooks 文档 (https://code.claude.com/docs/en/hooks)
 **目标**：完整协议 + karma 价值排序 + v0.5.0 优先级
 
 ---

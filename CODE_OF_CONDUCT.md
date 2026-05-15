@@ -8,7 +8,7 @@ karma is a tool born from real AI-collaboration pain points. Community atmospher
 
 - **Speak truth directly** — see a bug / design flaw, say so directly without beating around the bush. Negative feedback is a real signal for project improvement
 - **Bring evidence** — bug reports should include `karma audit` / `karma doctor` output / actual reproduction commands; don't hide behind "should" / "maybe"
-- **Respect boundaries** — what karma **doesn't do** (auto-distillation / retrieval / LLM dependency etc.) has real historical lessons; read [README's "What karma doesn't do" section](./README.en.md#tried-and-rejected-what-karma-doesnt-do) before suggesting changes
+- **Respect boundaries** — what karma **doesn't do** (auto-distillation / retrieval / LLM dependency etc.) has historical lessons behind it; read the [README's "Tried and rejected" section](./README.md#tried-and-rejected-what-karma-doesnt-do) before proposing changes there
 - **Accept rejections** — features you propose may be closed for not fitting karma's design philosophy. That's not disrespecting you. See [karma v1 archive](https://github.com/jhaizhou-ops/karma-v1) to understand why v2 strictly preserves boundaries
 
 ## What's not allowed

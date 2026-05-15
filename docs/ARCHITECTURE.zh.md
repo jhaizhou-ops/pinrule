@@ -1,4 +1,4 @@
-# karma 技术架构（M3 现状）
+# karma 技术架构
 
 **[🇬🇧 English](./ARCHITECTURE.md) · [🇨🇳 中文（当前）](./ARCHITECTURE.zh.md)**
 
@@ -7,7 +7,7 @@
 ```
 ┌───────────────────────────────────────────────────────────┐
 │  ~/.claude/karma/                                         │
-│  ├── sticky.yaml             ← 用户手工维护核心方向        │
+│  ├── rules.yaml              ← 用户手工维护核心方向        │
 │  ├── violations.jsonl        ← 违反历史（5000 行自动 rotation）│
 │  └── session-state/          ← 每 session 一 json (30 天自动清理)│
 │      └── {session_id}.json   ← read_files / edit_files /  │
@@ -34,7 +34,7 @@
 
 ## 数据模型
 
-### sticky.yaml（用户手工维护）
+### rules.yaml（用户手工维护）
 
 ```yaml
 - id: long-term-fundamental         # kebab-case slug，CLI 用
@@ -107,21 +107,21 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 
 输出 stdout：
 ```json
-{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "...sticky 注入..."}}
+{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "...规则注入..."}}
 ```
 
 实现：`karma/hooks/user_prompt_submit.py`
-- 加载 sticky.yaml
-- 读 violations.jsonl 按 turn 距离取最近违反过的 sticky_id（标 ⚠️）
-- 格式化 `[karma sticky — 用户最高优先级方向，请始终遵守]` + 编号规则
+- 加载 `rules.yaml`
+- 读 `violations.jsonl` 按 turn 距离取最近偏离过的 `rule_id`（标〔...偏离... 看看对齐〕回顾标记）
+- 格式化 `[karma — 你跟用户的长期默契]` + 编号规则
 - 顺带跑 `purge_old_states` + `catchup_pending_bg`（异常吞掉不阻塞）
-- **强提醒 fallback**（关键机制）：读 transcript 取上一 assistant message
-  → 跑所有 sticky 的 violation_checks → 命中的违反 + suggested_fix 注入「强提醒」段
+- **协作回顾 fallback**（关键机制）：读 transcript 取上一 assistant message
+  → 跑所有规则的 `violation_checks` → 命中的违反 + `suggested_fix` 注入「回顾」段
   覆盖 keep-pushing / chinese-plain / evidence 等所有 response 类 check
   这是「Stop hook 在 user 立刻接 prompt 时不一定跑」场景的事后兜底
   （Stop hook 装机正确时实战会跑 — matcher fix 后 trace 已实证 5 条实际 session 触发）
 
-性能：< 50ms。
+性能：< 60ms。
 
 ### PreToolUse hook（实时拦截，最关键的干预层）
 
@@ -185,7 +185,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 2. 扫 violation_keywords 关键词层 + 工程层 violation_checks（chinese_plain / evidence / keep_pushing 主要在这层）
 3. 命中违反写 `violations.jsonl` + stderr 通知 + 桌面通知 + 累积告警
 4. **keep-pushing-no-stop 命中 → 输出 `{"decision": "block", "reason": "..."}`** 让 Agent
-   不立即停下继续生成（干预 sticky #7「不主动停」）。Safeguard：单 turn 内累积 block ≥ N
+   不立即停下继续生成（干预规则 #7「不主动停」）。Safeguard：单 turn 内累积 block ≥ N
    次（config `stop_block_max_per_turn` 默认 2）后让 Agent 停下，防死循环
 5. 否则输出 `additionalContext` 给下次 UserPromptSubmit 看
 
@@ -199,9 +199,9 @@ UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 实际 sessio
 
 ## 8 个 violation_check 函数（工程层精准检测）
 
-`karma/checks/__init__.py:REGISTRY` 映射 sticky.yaml 的 `violation_checks` 字符串 → 函数：
+`karma/checks/__init__.py:REGISTRY` 映射 `rules.yaml` 的 `violation_checks` 字符串 → 函数：
 
-| check 名 | sticky | 检测内容 |
+| check 名 | 规则 | 检测内容 |
 |---|---|---|
 | `long_term_fundamental` | 长期方案 | 长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 实际注释 / 意图字面注释 / commit message 主语 hack 词 |
 | `non_blocking_parallel` | 不阻塞 | sleep / wait / 长任务无 background / 间接 shell 执行 |
@@ -209,7 +209,7 @@ UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 实际 sessio
 | `loud_failure_with_evidence` | 完成证据 | 完成词 / weak claim 在代码任务上下文 + 无测试证据 |
 | `no_testset_no_future_leakage` | 不喂测试集 | gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值位置 |
 | `read_before_write` | 先读再写 | Edit/Write 前未 Read 该 file_path（Write 新文件豁免） |
-| `keep_pushing_no_stop` | 不主动停 | 优先级判：0) **user prompt 上文含叫停字眼**（不用了 / 休息吧 / 明天再说 / 先到这 / 算了 / 晚安 / 够了 等 sticky #8 例外清单）→ 整 turn 豁免（最高优先级）1) response 末尾 80 字含推进信号（我现在/接下来 + 动词）→ 豁免 2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中 4) 默认命中（纯陈述完结无推进无问号）|
+| `keep_pushing_no_stop` | 不主动停 | 优先级判：0) **user prompt 上文含叫停字眼**（不用了 / 休息吧 / 明天再说 / 先到这 / 算了 / 晚安 / 够了 等规则 #8 例外清单）→ 整 turn 豁免（最高优先级）1) response 末尾 80 字含推进信号（我现在 / 接下来 + 动词）→ 豁免 2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中 4) 默认命中（纯陈述完结无推进无问号）|
 | `bypass_karma_detection` | 不绕检测 | Bash 命令含 karma 内部字面（last_test_pass_ts / pending_bg_tasks / session-state json 路径）+ 写操作 → 命中「绕开 karma」。豁免：karma 官方 CLI / 只读 inspection / commit message 引号字面（剥后骨架不含敏感字面） |
 
 每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
@@ -243,22 +243,26 @@ UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 实际 sessio
 
 ```bash
 # 初始化
-karma init                       # 创建 ~/.claude/karma/ + 复制 sticky 模板
+karma init                       # 创建 ~/.claude/karma/ + 复制规则模板 + 装 skill
 
-# sticky 管理
-karma sticky list                # 列出所有 sticky
-karma sticky edit                # $EDITOR 打开 sticky.yaml 编辑
-karma sticky remove <id>         # 移除某条
+# 规则管理
+karma rule list                  # 列出所有规则
+karma rule edit                  # $EDITOR 打开 rules.yaml 编辑
+karma rule remove <id>           # 移除某条
+karma rule add --from-yaml <f>   # 程序化加规则（schema + REGISTRY 校验）
+karma rule preview --from-yaml <f>  # dry-run 校验 + 注入预览
 
 # 观察
 karma stats                      # 每条规则违反统计
 karma violations recent [N]      # 最近 N 条违反详情
 karma violations clear           # 清违反历史（需确认）
+karma audit                      # 每条规则 top 触发词频次 + 跨 locale 稳定分组
 
 # 装机
-karma install-hooks              # 生成 wrapper + 自动写 settings.json (Claude Code 8 个 event)
+karma install-hooks              # 生成 wrapper + 自动写 settings.json
+karma install-skill [--force]    # 装 / 升级 /karma 自然语言 skill（多 backend）
 karma uninstall-hooks            # 删 wrapper + 清 settings.json 里 karma entry
-karma doctor                     # 检查环境 + 全部 hook 安装状态（Claude Code 8 个）
+karma doctor                     # 检查环境 + 全部 hook / skill 装机状态
 ```
 
 `install-hooks` 关键特性：
@@ -275,11 +279,11 @@ karma doctor                     # 检查环境 + 全部 hook 安装状态（Cla
 | 字段 | 默认 | 含义 |
 |---|---|---|
 | `notify_enabled` | `true` | 桌面通知开关（也可用 `KARMA_NO_NOTIFY=1` 环境变量关） |
-| `recent_violation_turns` | `5` | ⚠️ 标记窗口 — 最近 N turn 内违反过的 sticky 下次注入时标红 |
+| `recent_violation_turns` | `5` | 偏离标记窗口 — 最近 N turn 内违反过的规则下次注入时标〔偏离〕回顾 |
 | `escalate_window_turns` | `3` | 累积告警窗口（按 turn 距离） |
-| `escalate_threshold` | `3` | 累积告警次数阈值 — 窗口内同 sticky 命中 ≥ N 次升级 🚨 严重通知 |
+| `escalate_threshold` | `3` | 累积告警次数阈值 — 窗口内同规则命中 ≥ N 次升级 🚨 严重通知 |
 | `stop_block_max_per_turn` | `2` | Stop hook 单 turn 内 `decision=block` 上限（防 keep-pushing 干预死循环）。`0` 完全关闭干预 |
-| `force_block_threshold` | `5` | 累积强制 block 阈值 — 同 sticky 窗口内违反 ≥ N 次 Stop hook 输出 `decision=block` 强制 fix 根因。`0` 完全关闭。可在 sticky.yaml 单条规则用 `force_block_exempt: true` 豁免 |
+| `force_block_threshold` | `5` | 累积强制 block 阈值 — 同规则窗口内违反 ≥ N 次 Stop hook 输出 `decision=block` 强制查根因。`0` 完全关闭。可在 `rules.yaml` 单条规则用 `force_block_exempt: true` 豁免 |
 | `violations_max_lines` | `5000` | `violations.jsonl` 行数上限触发 rotation |
 | `violations_keep_history` | `3` | rotation 保留几个历史 `.jsonl.{N}` |
 | `session_state_max_age_days` | `30` | `session-state/*.json` 自动清理周期（天） |
@@ -296,21 +300,21 @@ karma doctor                     # 检查环境 + 全部 hook 安装状态（Cla
 
 ## 状态目录路径（`KARMA_HOME` 环境变量）
 
-karma 状态默认存 `~/.claude/karma/`（含 `sticky.yaml` / `violations.jsonl` /
+karma 状态默认存 `~/.claude/karma/`（含 `rules.yaml` / `violations.jsonl` /
 `session-state/` / `config.yaml`）。通过 `KARMA_HOME` 环境变量可改路径 — 用
 于 dry-run / CI / 多 profile 隔离不污染默认 home：
 
 ```bash
 KARMA_HOME=/tmp/karma-test karma init           # 不动 ~/.claude/karma/
-KARMA_HOME=~/karma-profile-A karma sticky list  # 多 profile 隔离
+KARMA_HOME=~/karma-profile-A karma rule list    # 多 profile 隔离
 ```
 
 注：path 在 module-level 常量 import 时 freeze，所以 `KARMA_HOME` 必须在
-启动 karma 进程**前**set。已被 hook wrapper 调用的 karma 不会读这个 env
+启动 karma 进程**之前** set。已被 hook wrapper 调用的 karma 不会读这个 env
 （wrapper 不传 env），实际使用以 `~/.claude/karma/` 为主。
 
-实现单一来源：`karma/paths.py:karma_home()` — 所有 5 个 module（sticky /
-violations / session_state / config / cli）都用它读 env。
+实现单一来源：`karma/paths.py:karma_home()` — 所有相关 module（rule /
+violations / session_state / config / cli）都从它读 env。
 
 ## 性能预算
 
@@ -376,6 +380,7 @@ violations / session_state / config / cli）都用它读 env。
 | v0.7.0 治根 refactor — 改写 karma 源规则文本里「真X」防御性前缀。用户抓到 Agent 从 karma 自身规则注入头部 in-context mimicry 出「真X」堆叠。撤销原计划的 `defensive_prefix_stacking` engine check（治表）改清源。规则模板 + locale + 用户面文档共 ~140 处重写。| ✅ |
 | v0.7.1「真X」深度清理接力 — 用户指出 v0.7.0 同义词替换（`真→实际/确实`）不够，防御修饰本身大部分上下文里不必要。10 波 perl pipeline 覆盖 100 文件：767 → 120（84% 减少）。剩 120 处全是合理保留（named concept 真字狂魔 / eval 术语 真阳 / 工程对偶 真阻塞 / test fixture / 自然搭配 真心 真话）。修 doubled artifact `任务任务到饱和` bug。按用户「一次性修复完再提交」一次 commit。| ✅ |
 | v0.7.2 撤掉 `chinese_plain` Check 3 reactive 监控 — v0.7.0+v0.7.1 治根后监控冗余。Check 3 是 v0.4.40 加的 reactive 治表对冲（代码注释自承「治症状不治根因」）。`karma audit` 确认治根后 168 条 violation 里 0 次触发。跟用户 v0.7.0 对 `defensive_prefix_stacking` 用过的同款逻辑；v0.7.2 闭环三个月前漏掉的同款思路。撤：`_check_repeated_prefix()` + 2 个 locale key + 2 个专用测试。| ✅ |
+| v0.7.3 手工 audit 全部 GitHub 可见文档 — 用户指令逐个读不批处理（33 个 markdown 审过，22 个动了）。删营销话术（「≈ 0%」过度宣称 /「500+ 小时实战调优」）+ 清 v0.6.0 漏网的 `sticky` 老命令名 + 修正硬上限数字 14 → 12 + 砍冻结的「M3」「v0.5.x」milestone 标签 + 已落地 plan 文档标归档 + 重写过时 `HOOK_CONFIGURATION_GUIDE.md`（旧版列 9 hook 含不存在的 `PostCompact` → 改正为实际的 8 个）。净 −63 行。| ✅ |
 
 详见 [CHANGELOG.md](../CHANGELOG.md) 每版本的设计动机；[HANDOFF.md](./HANDOFF.md) 内部接力 context。
 

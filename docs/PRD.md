@@ -4,7 +4,7 @@
 
 ## User pain points (empirical)
 
-karma v2's design starts from a **real long-term pain point**, user's own words:
+karma's design starts from a **long-term pain point**, in the user's own words:
 
 > The rules I keep stressing but the Agent keeps violating: the Agent's approach is always short-sighted, cheating, opportunistic, and patch-oriented; while I'm always pursuing fundamental, long-term, universal, and correct. I have to keep repeating and emphasizing, but the Agent still hardcodes, cheats, pursues short-term goal achievement while forgetting long-term goals.
 
@@ -36,11 +36,11 @@ These examples share the same pattern:
 | **Claude Code auto-memory** | Leans toward "factual memory" (I use Mac / I like X), doesn't specialize in "behavioral-direction preferences"; recall timing is wrong |
 | **karma v1** | Tried auto-distillation + retrieval — but the real pain point is "persistence" not "recall," directionally misaligned |
 
-## karma v2 design philosophy
+## karma design philosophy
 
-### 1. Core directions "pinned" rather than "retrieved"
+### 1. Core directions "pinned," not "retrieved"
 
-User's highest-priority directions (cap 10 (close to but not exceeding 14 attention inflection point)) **always-on**, injected before every user_prompt.
+User's highest-priority directions (soft cap 10, hard cap 12 — the attention cliff point per Mnilax's empirical study) **always-on**, injected before every user_prompt.
 
 No cosine / scene needed to pick which one — because these are all **user-publicly-declared highest priority**, should be seen every time.
 
@@ -192,9 +192,8 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 
 ## Non-functional requirements
 
-- **Cannot use sonnet** — strictly inherits v1 LLM authorization rules
-- **Local ≤4 concurrent small tasks can use mlx Qwen3.6** — but karma v0 design doesn't need LLM
-- **Hook performance** — user_prompt_submit hook must be < 60ms (can't slow Agent response)
+- **No LLM dependency, ever** — karma is firmly pure-engineering (regex / keywords / counting). Not just for v0 — this is a permanent boundary
+- **Hook performance** — `user_prompt_submit` hook must stay under 60ms (can't slow the Agent's response)
 
 ## v0 scope explicitly excludes
 
@@ -209,11 +208,10 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 
 ## Future possibilities (v1+)
 
-If v0 validates karma is useful:
+Once v0 has validated the core hypothesis:
 
-- **Cross-IDE/platform**: Cursor / Windsurf / Codex support
-- **Team-level rules**: Team shares one set of core directions (e.g. SWE team's code style)
-- **Behavioral violation detection enhancement**: Upgrade from "keyword" to "LLM-judged" (but local small model, zero external)
-- **Core direction template marketplace**: Cross-user sharing of useful rule sets (not karma auto-using, just reference)
+- **More backends**: Cursor / Windsurf / Factory / Qoder / Copilot / etc.
+- **Team-level rules**: Teams sharing one set of core directions (e.g. an SWE team's code-style baseline)
+- **Rule template marketplace**: Cross-user sharing of useful rule sets — opt-in reference, not auto-use
 
-But **v0 doesn't do these**. First validate minimum hypothesis.
+What v1+ **won't** add: an LLM dependency, even a local one. Pure engineering is a permanent boundary, not a v0 stopgap.

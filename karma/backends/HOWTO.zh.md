@@ -10,7 +10,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 
 ### 第 1 步：调研客户端 hook 协议
 
-按 [karma sticky #1 长期根本] **跑不凭假设**，调研以下：
+按 karma 的 `long-term-fundamental` 规则 — **真跑不凭假设**，调研以下：
 
 1. **hook 配置文件路径** — 通常 `~/.<client>/settings.json` 或 `~/.<client>/hooks.json`
 2. **hook event 名** — 写进配置文件的 event 名（如 `UserPromptSubmit` vs Gemini 的
@@ -148,7 +148,7 @@ Stop 字段三家不同（karma stop.py 已三选一适配）：
 `tests/test_hooks.py::test_stop_hook_uses_codex_last_assistant_message_field`
 加一条字段 fallback 测试。
 
-## 实测验证（按 sticky #1 跑不凭假设）
+## 实测验证（跑不凭假设）
 
 加完后**必须跑**验证：
 
@@ -169,7 +169,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 
 ## 不能省的步骤（按 karma 项目原则）
 
-- ❌ **不要凭文档完成，必须跑**（karma sticky #1 + #4）
+- ❌ **不要凭文档结束，必须端到端跑过**（karma 的 `long-term-fundamental` + `loud-failure-with-evidence` 规则）
 - ❌ **不要破坏他人 hook 共存**（vibe-island / rtk 等同 event 多 entry 必须保留）
 - ❌ **配置文件原子写**（基类已实现 tmp + os.replace 不用动）
 - ❌ **不要硬编码 backend id 名字到核心逻辑** — 加 backend 不该改 cli.py 等核心代码

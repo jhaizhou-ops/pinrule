@@ -4,7 +4,7 @@
 
 ## Reporting vulnerabilities
 
-If you discover a security issue with karma, **do not open a public issue**. Email the project maintainer (see `gh repo view jhaizhou-ops/karma` for contact) or use private GitHub Security Advisory.
+If you find a security issue in karma, **don't open a public issue**. Use [GitHub's private Security Advisory](https://github.com/jhaizhou-ops/karma/security/advisories/new) — that's the fastest channel.
 
 ## karma's real threat model
 

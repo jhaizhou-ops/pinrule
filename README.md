@@ -9,21 +9,23 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/karma?label=release)](https://github.com/jhaizhou-ops/karma/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/karma)](https://github.com/jhaizhou-ops/karma/commits/main)
 
-> ⚠️ **v0.6.0 breaking change (2026-05-15)**: `karma.sticky` module, `.sticky_id` attribute, and `karma sticky` CLI subcommand are removed (deprecation cycle complete). Migration is mechanical — `s/sticky/rule/` for symbols, `karma rule` for CLI. See [CHANGELOG v0.6.0](./CHANGELOG.md) for the cookbook. Internal user data (`sticky.yaml` / historical `violations.jsonl`) still auto-migrates and stays readable.
->
-> **Andrej Karpathy's 60k-stars [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to make AI never violate your rules in long tasks, and most importantly, how to auto-correct violations before they frustrate you.**
+> Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
 > **Two sides of the same loop**:
 >
-> 🛡️ **Pin your rules → Agent complies.** 5-10 core directions injected into every prompt header; real-time hook detection; cross-compact + cross-locale + cross-backend. Measured violation rate in long-running tasks: **≈ 0%.**
+> 🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 >
-> ✨ **Tell karma in plain words → Agent writes the rule.** Type `/karma <natural language>` — Claude Code / Codex / Gemini CLI launches the karma skill that refines your phrasing into karma's validated "collaborative agreement" tone, previews the injection text, confirms with you, then adds to your rules.yaml. Auto-installed across all three backends on `karma init`.
+> ✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
 >
-> Works with Claude Code / Codex CLI / Gemini CLI. Pure engineering, zero LLM dependency, violation monitoring response < 60ms.
+> Pure engineering, zero LLM dependency, hook response under 60ms.
+>
+> ---
+>
+> **Older versions**: v0.6.0 (2026-05-15) removed the legacy `karma.sticky` module / `.sticky_id` attribute / `karma sticky` CLI after an 18-release deprecation cycle. Migration is mechanical (`s/sticky/rule/` for symbols, `karma rule` for CLI). Your existing `sticky.yaml` and `violations.jsonl` auto-migrate and stay readable — see [CHANGELOG v0.6.0](./CHANGELOG.md) for the cookbook.
 
 ---
 
-**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance-quantified) · [8 hook monitoring](#8-hook-positions-full-monitoring) · [Customize rules](#customize-your-own-rules) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [FAQ](#faq) · [Docs](#documentation)
+**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [8 hook coverage](#8-hook-positions-all-covered) · [Customize rules](#customize-your-own-rules) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [FAQ](#faq) · [Docs](#documentation)
 
 ---
 
@@ -31,13 +33,13 @@
 
 | Real pain | Failure scene | How karma solves |
 |---|---|---|
-| **"I said use long-term solutions, not patches" — after 30 turns the Agent patches again** | Turn 1: you say "use the cleanest solution," Agent answers "got it." Turn 50: "let me patch this quickly." Your preference got diluted by new content. | Pin 5-10 core directions at the most prominent position of every prompt — Agent can't miss them |
+| **"I said use long-term solutions, not patches" — 30 turns later the Agent patches again** | Turn 1: you say "use the cleanest solution," Agent answers "got it." Turn 50: "let me patch this quickly." Your preference got diluted by new content. | Pin 5-10 core directions at the prompt header on every turn — the Agent sees them first, not last |
 | **"I said don't block the frontend — keep working while tests run" — Agent runs `sleep` anyway** | Agent runs `sleep 30`, UI blocks for 30s, you watch the progress bar — Agent never realized this is "stuck waiting" | Real-time block of `sleep` / `wait` / long tasks without background mode, hit → deny before tool runs |
 | **After compact the Agent compressed my preferences into vague words** | At 80K context, compact triggers; after SessionStart, Agent compresses "no patches" into "write clean code," intent lost | Auto-dump full rule state pre-compact; auto-reload + strong-inject post-compact restart |
 | **Long context accumulation → attention decay → Agent drifts** | At 60-80K accumulated context, headers get diluted — Agent isn't ignorant, attention decayed | Per-model adaptive threshold (different decay points per model), auto-reinject mid-conversation when accumulation hits threshold |
-| **Agent sees reminders → triggers defense reactions / rationalization** | LLMs trained to please users — when faced with violation reminders, the first reaction is defensive self-justification or shortest-path patching, not genuine correction | Translate "rule" tone into "collaborative agreement" tone. Long-term real-world testing shows: LLMs facing "collaborative agreement" language switch first reaction to "align and comply" rather than "find workaround" |
-| **Agent finishes one small feature, then stops to ask "what's next?" (the author is fully-delegating)** | User gives clear direction → Agent finishes step 1 → "What should I do next?" → user comes back from other work and finds Agent stopped for 30 minutes | Stop hook detects silent stops, injects reflective prompt with up to 2 nudges encouraging continued execution until progress truly saturates |
-| **"I want to add a rule but writing yaml is too heavy / my phrasing doesn't make the Agent comply"** | You know what behavior you want but writing the rule itself is a chore — wrong `violation_keywords` format triggers false positives, wrong tone makes Agents defensive | Type `/karma <natural language>` in any of Claude Code / Codex / Gemini CLI — karma's skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes — 30 seconds end-to-end |
+| **Agent sees a reminder → reacts defensively or rationalizes around it** | LLMs trained to please users — when faced with a violation reminder, the first reaction is to self-justify or find the shortest patch around it, not to genuinely correct | Rephrase rule tone as "collaborative agreement" tone. The Agent reads "the user you're working with hopes…" and switches to "let me realign" instead of "let me defend" |
+| **Agent finishes one small step, then stops to ask "what's next?" (you're fully delegating)** | You give a clear direction → Agent finishes step 1 → "What should I do next?" → you come back from other work and find the Agent has been idle for 30 minutes | Stop hook catches silent stops and injects a continuation nudge — up to 2 in a row, then it lets the Agent saturate if it genuinely is stuck |
+| **"I want to add a rule but writing yaml is heavy / my phrasing doesn't change Agent behavior"** | You know what behavior you want, but writing the rule is its own chore — wrong `violation_keywords` format triggers false positives, wrong tone makes the Agent defensive | Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI — the karma skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes. ~30 seconds end-to-end |
 
 ---
 
@@ -87,11 +89,11 @@ cp ~/.claude/settings.json.before-karma ~/.claude/settings.json # Restore origin
 
 ## Usage effects
 
-After installing karma and restarting your AI client, you'll see these automatic interventions in typical scenarios:
+After install + restart, here's what you'll see karma doing automatically:
 
-### 1. Every conversation auto-injects rule full text + past violation highlights
+### 1. Every prompt header injects full rules + drift markers
 
-Every user prompt submission, your AI client auto-prepends your 5-10 core directions + reminders about which rules drifted in your last response. The Agent sees them first:
+On every user prompt, your client prepends your 5-10 core directions plus a marker on any rule that drifted in the last response. The Agent reads them before anything else:
 
 ```
 [karma — Your long-term agreement with the user]
@@ -105,9 +107,9 @@ are the collaborative agreements they hope to build with you.
 3. Your user is non-technical — they want comprehensible reports...
 ```
 
-### 2. Long-context accumulation triggers mid-conversation reminders (anti-drift)
+### 2. Mid-conversation refresh when context accumulates
 
-LLMs' attention decays in long contexts — headers get diluted by new content. karma tracks accumulation per tool call, and once the current model's decay threshold is hit (per-model adaptive), auto-injects a concise reminder at the point where the Agent is about to drift, re-anchoring at the precise context length:
+LLM attention decays in long contexts — header content gets diluted by everything that came after it. karma tracks accumulation per tool call, and once the current model's decay point is hit (each model has its own), injects a concise refresh right at the boundary:
 
 ```
 [karma — After long context, recall the agreement with the user]
@@ -119,9 +121,9 @@ to avoid future drift):
   ▸ chinese-plain-no-jargon: Your user is non-technical...
 ```
 
-### 3. Real-time violation check before tool calls + targeted reminders
+### 3. Real-time check before tool calls
 
-Before Agent runs Bash / Edit / Write tools, karma scans the command content + keywords. Hits → deny tool with improvement suggestion:
+Before the Agent runs Bash / Edit / Write, karma scans command content and keywords. A hit denies the tool call with a targeted suggestion:
 
 ```
 $ Bash sleep 30
@@ -131,17 +133,17 @@ karma ⚠️: 'non-blocking-parallel' violation — sleep periods make the user
 [permission deny]
 ```
 
-### 4. Subagent monitoring with full coverage
+### 4. Subagent coverage
 
-When the main Agent spawns subagents via the Task tool, karma auto-injects the full rule set to the subagent + maintains independent monitoring state. Subagents are monitored at the same intensity as the main Agent; state auto-destroys on completion without polluting the main session.
+When the main Agent spawns a subagent via the Task tool, karma injects the full rule set there too, with its own monitoring state. The subagent is held to the same standard as the main Agent; state cleans up on completion so it doesn't bleed into the main session.
 
-### 5. Context-compression auto-injection (anti-compact-amnesia)
+### 5. Survives compact
 
-When the AI client auto-triggers compact for long sessions, karma dumps the full rule state to a local file before compression. After compression restart, immediately re-reads and strong-injects — rules survive compact without loss.
+When the client auto-compacts a long session, karma dumps the full rule state to disk first. After the post-compact restart, it reads the snapshot back and re-injects — rules don't get summarized into vague paraphrases.
 
-### 6. Silent-stop reflective injection
+### 6. Silent-stop nudge
 
-When Agent finishes a wave and tries to stop and ask "what's next?", karma detects this silent-stop behavior and injects a reflective prompt encouraging continued progress:
+When the Agent finishes a wave and tries to stop with "what's next?", karma catches it and injects a continuation nudge:
 
 ```
 [karma — Your last response showed no next-step signal]
@@ -152,7 +154,7 @@ silently wait.
 (Reminder 1/2)
 ```
 
-Up to 2 consecutive reflective prompts — if truly saturated, the Agent can say where it's stuck, and karma won't force-push.
+Up to 2 nudges in a row. If the Agent is genuinely saturated and says where it's stuck, karma backs off — it won't force-push past real saturation.
 
 ---
 
@@ -212,44 +214,44 @@ Without `--force`, the new version is written to a `.new` sibling file so you ca
 
 ## Why it works
 
-karma isn't a linter, isn't a scoring system, isn't a retrieval system. It addresses 3 real but overlooked LLM collaboration problems:
+karma isn't a linter, a scorer, or a retrieval system. It addresses four real but commonly-overlooked LLM collaboration problems:
 
 ### 1. Long-context attention decay is real
 
-Modern LLMs' attention decay isn't as early as early models — but it still has decay points. Rules at the conversation top get diluted by new content after dozens of turns. karma per-model adaptively re-injects a reminder at the exact context-length point where decay begins.
+Modern LLMs decay later than early ones, but they still decay. Rules at the conversation top get diluted by everything that came after, and after dozens of turns the Agent isn't ignoring them — its attention has just moved on. karma re-injects at the exact context length each model's decay starts.
 
 ### 2. Each conversation "re-forgets" everything
 
-Every AI client conversation works by "send all context to the model again" — the model doesn't persistently remember anything. Your stated preferences need to be re-sent each time. karma does this automatically so you don't have to repeat yourself.
+Every AI client works by re-sending the full context to the model on each turn — the model doesn't persistently remember anything between turns. Your stated preferences have to be re-sent every time. karma does that for you, so you don't have to repeat yourself.
 
-### 3. "Collaborative agreement" tone activates different reactions than "rule system" tone
+### 3. "Collaborative agreement" tone reads differently than "rule system" tone
 
-When LLMs see warnings like "you must always follow X" / "⚠️ violation," the first reaction is defensive self-justification or finding a workaround — because that activates the "I'm being scolded" psychology.
+When an LLM sees warnings like "you must always follow X" or "⚠️ violation," the first reaction is to defend or to look for a workaround — that wording activates a "being scolded" frame.
 
-karma uses "the human user you're collaborating with hopes..." style collaborative agreement tone instead of rule-system tone — LLMs facing this style switch first reaction to "adjust to align with collaboration" instead of "find workaround." This is karma's core finding from long-term real-world testing and the key to driving violation rates to ≈ 0%.
+karma rephrases rules as "the human user you're working with hopes…" — the Agent reads it as an agreement to honor, not a verdict to escape. In sustained self-use, this is the single change that moves the needle most on whether reminders actually get internalized.
 
-### 4. Monitoring covers all hook positions, no blind spots
+### 4. Hook coverage has no blind spots
 
-After installation, karma monitors at 8 hook positions in your AI client (detailed below) — not just "inject once at conversation start." Before/after every tool call / subagent start/stop / pre/post compact / silent Agent stop — all have targeted injections or interceptions, covering every drift opportunity.
+karma installs at 8 hook positions (detailed below) — not just "inject once at conversation start." Before / after every tool call, subagent start / stop, pre / post compact, silent Agent stop — every drift opportunity has a targeted injection or check.
 
 ---
 
-## Performance (quantified)
+## Performance
 
 | Dimension | Number | Note |
 |---|---|---|
-| **Runtime dependencies** | **Zero** | Uses only Python ecosystem standard YAML parser (PyYAML is a 15+ year mature core component). No LLM API key / no network calls / no ML framework. |
-| **Source code total** | 5481 lines | All Python, readable and modifiable |
-| **Test coverage** | Full 4-check green + 5610 test lines + 500+ hours real-world development tuning | lint / type check / dead code scan / unit tests |
-| **Violation monitoring latency** | **< 60ms** (measured user_prompt_submit hook ~49ms) | AI client protocol requirement < 200ms |
-| **Token injection cost** | ~400 tokens/turn at header + ~60 tokens/mid-conversation refresh | 1 turn 60K context total injection < 1% |
+| **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
+| **Source code** | ~5.5K lines Python | Readable, modifiable, no magic |
+| **Quality gates** | lint / type-check / dead-code / 427 unit tests, all green | Plus continuous real-world dogfooding |
+| **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
+| **Token cost per turn** | ~400 tokens header + ~60 tokens mid-conversation refresh | Under 1% of a 60K context |
 | **Disk usage** | < 10MB | Config + violation history + session state |
-| **Supported models** | Per-model adaptive thresholds | Each major model auto-fits its real decay point |
-| **Supported clients** | 3 mainstream | Claude Code / Codex CLI / Gemini CLI |
+| **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
+| **Supported clients** | Claude Code / Codex CLI / Gemini CLI | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
 
 ---
 
-## 8 hook positions: full monitoring
+## 8 hook positions, all covered
 
 | Hook position | Function + scenario | Pain point solved |
 |---|---|---|
@@ -303,7 +305,7 @@ All hook outputs strictly comply with the AI client's official protocol schema �
 
 **Key design points**:
 - **`violation_keywords` use "intent-prefix + action" format** ("I'll hardcode" instead of "hardcode") — distinguishes discussion concepts vs. real action statements, avoiding false positives like "don't hardcode" type natural-language discussions
-- **Soft cap 10, hard cap 12** — too many rules backfire; LLMs tend to pattern-match "rule exists" rather than truly read; compliance rate drops. Keep rule count within 10 is empirically optimal
+- **Soft cap 10, hard cap 12** — past ~12 rules, LLMs pattern-match "a list exists" instead of reading it, and compliance drops. Keeping count under 10 is the safe zone
 - **`force_block_exempt`** for "should keep pushing" type rules — otherwise cumulative penalties contradict the rule semantics itself
 
 ### 8 built-in engine-layer check functions
@@ -323,31 +325,31 @@ All hook outputs strictly comply with the AI client's official protocol schema �
 
 ## Tried and rejected (what karma doesn't do)
 
-The author iterated for 2+ months with 3 major refactors and long-term self-use validation:
+Several ideas looked attractive but failed in practice. Recorded here so the same alleys don't get re-walked:
 
-| Tried | Reason rejected (user perspective) |
+| Tried | Why it was rejected |
 |---|---|
-| **LLM auto-distilling new rules** | Not just cost — response time drops significantly hurting UX, and auto-distilled rules often produce noise / misalignment (hearing a user say something once doesn't mean it's a core direction). Chose "user manually maintains 5-10 rules" approach, giving users full control |
-| **Retrieval / cosine recall** | Real pain point is "persistence," not "recall" — 5-10 rules can all be always-on, no need to select; retrieval introduces extra latency and matching errors |
-| **More than 12 rules** | Too many rules backfire — LLMs tend to pattern-match "rule exists" rather than truly read, compliance drops from 76% to 52%. Keeping rule count within 10 is empirically optimal |
-| **Competing with memory systems** | "Facts / preferences about the user" are better handled by AI clients' built-in memory systems. karma only does "pin down things you've already repeatedly said" — that one thing |
-| **Introducing LLM dependency** | Not just cost — response time drops significantly hurting UX. So we chose pure engineering, zero dependency, < 60ms ultra-low latency approach |
-| **Reward / RL scoring system** | Behavior reminders aren't reward functions — scoring rules makes LLMs focus on "score" rather than "behavior," degrading performance |
-| **Blocking compact** | Compact is the AI client's protection mechanism — karma shouldn't interfere. We use PreCompact dump + SessionStart re-read to span across, rather than forcibly preventing |
-| **"Must follow X / Fix immediately / Don't repeat" warning words** | LLMs facing warning words first react defensively or find workarounds — not genuine correction. Switching to collaborative-agreement tone, LLMs' first reaction becomes "align" not "workaround," and violation rates drop significantly |
-| **Precise numeric thresholds in suggested_fix text** | LLMs seeing "34% < 40%" optimize the number (pad Chinese chars) rather than the underlying UX. Changed to goal descriptions like "let users read without needing to look up words" for better effects |
+| **LLM auto-distilling new rules** | Latency hurts UX, and auto-distilled rules introduce noise — hearing a user say something once doesn't mean it's a core direction. karma keeps users in charge of their 5-10 rules instead |
+| **Retrieval / cosine recall** | The real pain is "persistence," not "recall" — 5-10 rules can all be always-on, no selection needed. Retrieval adds latency and matching errors with no upside |
+| **More than 12 rules** | Beyond ~12, LLMs pattern-match "a rule list exists" instead of reading it (see [Mnilax's 30-codebase empirical study](https://x.com/Mnilax/status/2053116311132155938) for the compliance cliff). Keeping the count under 10 is the empirically safe zone |
+| **Competing with memory systems** | "Facts / preferences about the user" belong in the AI client's built-in memory. karma only does the one thing memory systems don't: pin behaviors you've already repeated |
+| **Adding an LLM dependency** | Latency and cost, both. Pure-engineering keeps the hook under 60ms and the install reproducible |
+| **Reward / RL scoring** | Behavior reminders aren't reward functions. Scoring rules makes the model optimize the score, not the behavior |
+| **Blocking compact** | Compact is the client's protection mechanism — karma shouldn't fight it. PreCompact dump + SessionStart re-read bridges the gap instead |
+| **"Must follow X / Fix immediately / Don't repeat" warning wording** | Activates defense or workaround-seeking. The collaborative-agreement rephrase changes the first reaction to "let me align" — the biggest single lever for actual compliance |
+| **Hardcoded numeric thresholds in `suggested_fix`** | "34% < 40%" gets optimized by padding Chinese characters instead of fixing readability. Goal descriptions ("readable without looking up words") avoid the gaming |
 
 ---
 
 ## Honest tool boundaries
 
-karma is a **regex literal matching + counting** engineering tool, not LLM semantic understanding:
+karma is **regex matching + counting**, not LLM semantic understanding. That means:
 
-- **False positives exist** (legitimate operations may get blocked): table cell term references / `python -c` string literals / commit message descriptions of violation terms — all can cause false hits. Use `karma audit` to see "⚠️ possible false positive" markers and report back
-- **False negatives exist** (real violations missed): users intentionally disguising violations — regex can't distinguish. karma trusts users won't deliberately cheat
-- **`karma audit` 0 triggers after fix ≠ fix is correct**: the pattern might just be too wide swallowing real violations. Historical audit data is suspicion hints, not ground truth
+- **False positives happen.** Table cells quoting a term, `python -c` string literals, commit messages describing a violation — all can hit the regex. `karma audit` flags suspected false positives with "⚠️ possible false positive" so you can report them
+- **False negatives happen.** Regex can't tell when a user is intentionally disguising a violation. karma assumes you're not cheating yourself
+- **Zero triggers after a fix doesn't prove the fix is correct.** The pattern might just be too wide, swallowing real cases. Audit numbers are hints, not ground truth
 
-Treat karma as **"a tool between git and lint"** — provides signals, doesn't replace decisions.
+Think of karma as sitting between `git` and a linter — it gives signals, you make decisions.
 
 ---
 
@@ -390,40 +392,38 @@ Codex CLI 0.130+ requires manual `/hooks` approval of karma's 4 wrappers in TUI.
 
 ## Mental model
 
-> **A rules file isn't a wishlist. It's a behavioral contract that closes out specific failure modes you've observed. Each rule should answer: what error is this rule preventing?**
+> A rules file isn't a wishlist. It's a behavioral contract closing out specific failure modes you've observed. Each rule should answer: **what error is this rule preventing?**
 
-karma works the same way:
+karma works the same way. **6 rules targeting failures you've actually hit beats 12 rules where 6 are aspirational.**
 
-> **6 rules targeting failures you've actually hit > 12 rules including 6 you'll never use.**
-
-karma's `data/rules.dev.example.yaml` 7 default rules are real pain points the author accumulated from self-use — **not for you to copy verbatim**. After installation, run `karma rule list` to see the defaults, keep those matching your real failure scenes, delete the rest and replace with your own real pain points.
+The 7 default rules in `data/rules.dev.example.yaml` are real pain points accumulated from self-use — they aren't a template to copy verbatim. After install, run `karma rule list`, keep what matches your own failure scenes, and replace the rest with your own.
 
 ---
 
 ## Documentation
 
-- [docs/PRD.md](./docs/PRD.md) — Product requirements + validation criteria + scenario positioning (Chinese)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Technical architecture + hook protocol details + 8 check implementations (Chinese)
-- [CHANGELOG.md](./CHANGELOG.md) — Version change history (Chinese)
+- [docs/PRD.md](./docs/PRD.md) — Product requirements, validation criteria, scenario positioning (Chinese)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Technical architecture, hook protocol, 8 check implementations (Chinese)
+- [CHANGELOG.md](./CHANGELOG.md) — Version change history (bilingual from v0.5.1 onward; pre-v0.5.1 is Chinese-only)
 - [docs/HANDOFF.md](./docs/HANDOFF.md) — Internal development handoff doc (Chinese)
-- [docs/RULES_REDESIGN_PROPOSAL.md](./docs/RULES_REDESIGN_PROPOSAL.md) — "Collaborative agreement" tone design proposal (core design philosophy) (Chinese)
+- [docs/RULES_REDESIGN_PROPOSAL.md](./docs/RULES_REDESIGN_PROPOSAL.md) — "Collaborative agreement" tone design proposal — the core philosophy shift (Chinese)
 - [docs/REFACTOR_PLAN_RULE_AND_I18N.md](./docs/REFACTOR_PLAN_RULE_AND_I18N.md) — sticky → rule rename + i18n implementation plan (Chinese)
 - [CLAUDE.md](./CLAUDE.md) — Project charter for Claude Code collaboration (Chinese)
 
-Full English translation of all auxiliary docs lands in v0.5.3 (Phase D of the refactor plan).
+Most internal docs are Chinese-only — translating them was deprioritized in favor of shipping. README + CHANGELOG are bilingual.
 
-## Related projects and acknowledgments
+## Acknowledgments
 
-- [Andrej Karpathy's CLAUDE.md coding-principles template](https://github.com/forrestchang/andrej-karpathy-skills) (60k stars / universal coding principles) — complementary to karma, not competing. Karpathy teaches AI how to write good code; karma helps AI never drift from your preferences in long tasks
-- [Mnilax's 30-codebase 6-week CLAUDE.md rule-count empirical study](https://x.com/Mnilax/status/2053116311132155938) — karma's "soft cap 10 / hard cap 12" design directly borrows from this study's findings
+- [Andrej Karpathy's CLAUDE.md coding-principles template](https://github.com/forrestchang/andrej-karpathy-skills) — universal coding principles. Complementary to karma, not competing: Karpathy teaches the model *how* to write code; karma keeps your *preferences* from drifting in long tasks
+- [Mnilax's 30-codebase 6-week CLAUDE.md rule-count study](https://x.com/Mnilax/status/2053116311132155938) — karma's "soft cap 10 / hard cap 12" design comes directly from this empirical work
 
 ## Contributing
 
 - Bug reports / suggestions: [GitHub Issues](https://github.com/jhaizhou-ops/karma/issues)
-- Add new AI client backend: [karma/backends/HOWTO.md](./karma/backends/HOWTO.md)
-- Add new scenario rule templates (writing / research / legal etc.): PR to `data/`
+- Add a new AI client backend: see [karma/backends/HOWTO.md](./karma/backends/HOWTO.md)
+- Add scenario rule templates (writing / research / legal etc.): PR welcome to `data/`
 
-karma is in early **real-user phase** — new-user first-install pain points will continuously trigger improvements.
+karma is still early — new-user install friction and first-week false positives drive most of the iteration.
 
 ## License
 

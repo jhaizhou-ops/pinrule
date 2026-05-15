@@ -1,23 +1,23 @@
 # karma Internal Development Handoff
 
-**[🇬🇧 English (current)](./HOWTO.md) · [🇨🇳 中文](./HANDOFF.zh.md)**
+**[🇬🇧 English (current)](./HANDOFF.md) · [🇨🇳 中文](./HANDOFF.zh.md)**
 
-> 📝 **Internal development handoff document.** This is a Chinese-primary handoff doc used by the author and Claude Code Agents collaborating on karma development. Records each milestone's known bugs / wrong-diagnosis lessons / TODOs for the next session.
+> 📝 **Internal development handoff doc.** A Chinese-primary handoff used by the author and the Claude Code Agents collaborating on karma's development. Records each milestone's known bugs, wrong-diagnosis lessons, and TODOs for the next session.
 >
-> The Chinese version ([HANDOFF.zh.md](./HANDOFF.zh.md)) contains the complete handoff history. This English page provides only an entry point — for full internal context, refer to the Chinese version.
+> The Chinese version ([HANDOFF.zh.md](./HANDOFF.zh.md)) holds the full handoff history. This English page is an entry point — for the complete internal context, refer to the Chinese version.
 
 ## Quick context for new contributors
 
 If you're a new contributor reading this:
 
-- **For user-facing docs**, see [README.md](../README.md) / [docs/PRD.md](./PRD.md) / [docs/ARCHITECTURE.md](./ARCHITECTURE.md)
-- **For adding new AI client backend**, see [karma/backends/HOWTO.md](../karma/backends/HOWTO.md)
-- **For understanding why current design is what it is**, see [docs/RULES_REDESIGN_PROPOSAL.md](./RULES_REDESIGN_PROPOSAL.md) + [docs/REFACTOR_PLAN_RULE_AND_I18N.md](./REFACTOR_PLAN_RULE_AND_I18N.md)
-- **For change history**, see [CHANGELOG.md](../CHANGELOG.md)
+- **User-facing docs** — [README.md](../README.md) / [docs/PRD.md](./PRD.md) / [docs/ARCHITECTURE.md](./ARCHITECTURE.md)
+- **Adding a new AI client backend** — [karma/backends/HOWTO.md](../karma/backends/HOWTO.md)
+- **Why the current design is what it is** — [docs/RULES_REDESIGN_PROPOSAL.md](./RULES_REDESIGN_PROPOSAL.md) + [docs/REFACTOR_PLAN_RULE_AND_I18N.md](./REFACTOR_PLAN_RULE_AND_I18N.md)
+- **Change history** — [CHANGELOG.md](../CHANGELOG.md)
 
-## Current status
+## Recent milestones (latest first)
 
-All v0.5.x phases delivered as of 2026-05-15 (12 releases v0.5.3 → v0.5.14 shipped in one focused session):
+As of 2026-05-15, karma is at v0.7.2. Recent shipped work:
 
 - ✅ v0.5.0 — `sticky` → `rule` rename across entire codebase, backward-compat `.sticky_id` alias preserved until v0.6.0
 - ✅ i18n English-default documentation swap (README / PRD / ARCHITECTURE / SECURITY / CODE_OF_CONDUCT / CLAUDE / HOWTO / .github templates all English primary + `.zh.md` backup)
@@ -39,15 +39,12 @@ All v0.5.x phases delivered as of 2026-05-15 (12 releases v0.5.3 → v0.5.14 shi
 - ✅ **v0.7.0 — treat-root-cause refactor: rewrite "真X" defensive prefixes in karma source rule texts**. User caught Agent doing in-context mimicry from karma's own rule injection headers. Reverted attempted `defensive_prefix_stacking` engine check (treat-symptom approach) per user direction. ~140 occurrences rewritten across rule templates + locale + user-facing docs.
 - ✅ **v0.7.1 — deep "真X" cleanup follow-up**. User sharpened v0.7.0 critique: synonym substitution (`真→实际/确实`) wasn't enough; defensive modifier itself is unnecessary in most contexts. 10-phase perl pipeline across 100 tracked files: 767 → 120 (84% reduction). 120 remaining all legitimate (named concept 真字狂魔 / eval term 真阳 / engineering dualism 真阻塞 / test fixtures / natural collocations 真心 真话). Doubled artifact bug fixed (`任务任务到饱和`). One batched commit per user "一次性修复完再提交" directive.
 - ✅ **v0.7.2 — remove `chinese_plain` Check 3 reactive monitor**. `karma audit` confirmed 0 triggers in 168 violations after v0.7.0+v0.7.1 root-cause cleanup. Check 3 was v0.4.40's reactive treat-symptom hedge (its own code comment said "治症状不治根因"). Same logic user applied to `defensive_prefix_stacking` in v0.7.0 — source treated, symptom monitor obsolete. Removed `_check_repeated_prefix()` + 2 locale keys + 2 dedicated tests. Closes the "treat root not symptom" loop.
+- ✅ **v0.7.3 — hand-audit every GitHub-visible doc**. User directive: read each file individually, not batch find/replace; landing pages should read viral-quality not fragmentary. 33 markdowns reviewed, 22 touched. Removed marketing fluff ("≈ 0%" overclaim, "500+ hours tuning"), cleared `sticky` command-name leftovers from v0.6.0, corrected stale numbers (hard-cap 14 → 12, hook count 9 → actual 8), dropped frozen milestone tags (M3 / v0.5.x in titles), relabeled shipped plan docs as archive, rewrote outdated `HOOK_CONFIGURATION_GUIDE.md`. Net −63 lines, 0 test changes (all docs).
 
-🔜 Next session — `karma audit` data drives the next refinement pass: chinese-plain 29 violations (English jargon residual), keep-pushing 79 violations (Agent stop-and-ask pattern after rule 8 became more salient). Both are pattern + Agent-behavior tuning, not deprecation cliffs.
+🔜 Next session — `karma audit` data continues to drive refinement: chinese-plain residual jargon, keep-pushing pattern tuning. The treat-root philosophy from v0.7.x is now the default lens for new check additions.
 
-## Why Chinese is the primary internal handoff language
+## Why Chinese is the primary handoff language
 
-The author and the karma project's primary AI collaborator (Claude Code) work in Chinese for thinking depth (the author finds it faster to think in Chinese for design reflection). The handoff document captures these reflections, decision context, and "wrong diagnosis lessons" — translating each lesson loses nuance.
+The author and the karma project's primary AI collaborator (Claude Code) work in Chinese — the author finds it faster for design reflection. The handoff doc captures those reflections, decision context, and "wrong-diagnosis lessons"; translating each lesson loses nuance.
 
-If you're an English contributor and want to understand a specific historical decision, use any LLM-based translation on the relevant section in [HANDOFF.zh.md](./HANDOFF.zh.md), or open an issue asking the author/maintainer to translate a specific section.
-
-## For future English bilingual handoff (post-v0.5.3)
-
-After Phase D (full English content) lands, future handoff entries will be bilingual. The historical Chinese-only entries will remain as-is for accuracy preservation.
+If you're an English contributor and want to understand a specific historical decision, run any LLM-based translation on the relevant section of [HANDOFF.zh.md](./HANDOFF.zh.md), or open an issue asking the maintainer to translate that section.
