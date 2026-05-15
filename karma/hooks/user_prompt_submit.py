@@ -34,10 +34,12 @@ def _advance_turn_state(session_id: str, payload: dict):
     v0.4.39 用 transcript_path 路径探 model（user_prompt_submit payload
     没 model 字段，需读 transcript jsonl 找最后一条 assistant model 字面）。
 
+    v0.9.8: 用 update_state 让 load → modify → save 整段对同 session atomic
+    （多 hook 同时跑时不丢更新）。
+
     返回 (current_turn, state) — 失败时 (0, None) 让调用方 fallback。
     """
-    try:
-        state = session_state.load(session_id)
+    def _advance(state):
         state.catchup_pending_bg()
         state.turn_count += 1
         state.stop_block_count = 0
@@ -52,7 +54,9 @@ def _advance_turn_state(session_id: str, payload: dict):
             new_model = extract_model_from_transcript(transcript_path)
             if new_model:
                 state.model = new_model
-        session_state.save(state)
+
+    try:
+        state, _ = session_state.update_state(session_id, _advance)
         return state.turn_count, state
     except Exception:
         return 0, None

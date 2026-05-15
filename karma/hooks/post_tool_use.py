@@ -69,67 +69,73 @@ def main() -> int:
     tool_input = payload.get("tool_input", {}) or {}
     tool_response = payload.get("tool_response", "") or ""
 
-    state = session_state.load(session_id, agent_id=agent_id)
-    # v0.4.39 根本本路径：PostToolUse payload 没 model 字段（manual run 验证），
-    # 但所有 hook payload 有 transcript_path → 读 jsonl 找最后一条 assistant
-    # message 的 model 字面（每个 assistant message 都含 model 字段，跳合成）。
-    # 这才是协议层路径 — 不依赖 payload 直接含 model 字段。
-    transcript_path = payload.get("transcript_path")
-    if transcript_path:
-        from karma.model_threshold import extract_model_from_transcript
-        new_model = extract_model_from_transcript(transcript_path)
-        if new_model:
-            state.model = new_model
-
-    # 先 catchup 之前 pending 的 background 任务输出（任务可能在中间完成了）
-    # 这样能在后续 record 之前更新 last_test_pass_ts，保证 evidence check 看见
-    state.catchup_pending_bg()
-
+    # v0.9.8: 整段 modify + smart_reinject 进 update_state fn，让跨进程原子。
+    # fn 返回 additional_context 给 stdout 输出（_build_smart_reinject 在 lock
+    # 内跑保证 last_reinject_byte_seq 节流也跨进程一致）。
     failed = _tool_failed(tool_response)
 
-    # v0.4.32 累积 token 估算 — 主 Agent 看到的 tool_input + tool_response
-    # 字节数 // 3 约为 token 数（中英文混合粗略估，sub-agent 也按主 Agent 真
-    # 看到的最终 tool_response 算，子 Agent 内部 thinking 是子 Agent 自己
-    # context 不算主 Agent 衰减）
-    state.tool_byte_seq += _estimate_tokens(tool_input, tool_response)
+    def _do_post_tool_use(state):
+        # v0.4.39 协议层路径：PostToolUse payload 没 model 字段（manual run 验证），
+        # 但所有 hook payload 有 transcript_path → 读 jsonl 找最后一条 assistant
+        # message 的 model 字面（每个 assistant message 都含 model 字段，跳合成）。
+        transcript_path = payload.get("transcript_path")
+        if transcript_path:
+            from karma.model_threshold import extract_model_from_transcript
+            new_model = extract_model_from_transcript(transcript_path)
+            if new_model:
+                state.model = new_model
 
-    if tool_name == "Bash":
-        # Bash 失败仍 record — has_recent_test_pass 由 _FAIL_RE 在 record_bash 内部判
-        cmd = tool_input.get("command", "") or ""
-        is_bg = bool(tool_input.get("run_in_background"))
-        state.record_bash(cmd, tool_response, run_in_background=is_bg)
-    elif not failed:
-        # 非 Bash tool — 只在成功时 record，失败时不动 read_files/edit_files
-        # 防 Read 失败也 record_read 让后续 Edit 绕过 read_first 检测
-        if tool_name == "Read":
-            fp = tool_input.get("file_path", "")
-            state.record_read(fp)
-        elif tool_name in ("Write", "NotebookEdit"):
-            # Write / NotebookEdit 替换或创建整个文件
-            # 描述上下文文件（.md / .yaml / tests/ 等）的改不算「代码改动」—
-            # 不推 last_edit_ts（避免 docs / 配置 Edit 后 evidence check 误判
-            # 「自最近代码改动以来未测试」）。仍 record_read（已知内容不被 read_first 拦）
-            fp = tool_input.get("file_path", "") or tool_input.get("notebook_path", "")
-            is_desc, _ = is_description_context(tool_name, tool_input)
-            if not is_desc:
-                state.record_edit(fp)
-            state.record_read(fp)
-        elif tool_name == "Edit":
-            # Edit 只改部分 — 仍要求事先 Read 全文
-            # 描述上下文文件 Edit 不推 last_edit_ts（同 Write/NotebookEdit 逻辑）
-            fp = tool_input.get("file_path", "")
-            is_desc, _ = is_description_context(tool_name, tool_input)
-            if not is_desc:
-                state.record_edit(fp)
+        # 先 catchup pending background 任务输出（任务可能在中间完成了）
+        # 这样能在后续 record 之前更新 last_test_pass_ts，保证 evidence check 看见
+        state.catchup_pending_bg()
 
-    # v0.4.24+v0.4.32：智能 sticky reinject — 按 token 累积阈值决定。
-    # 必须在 save 之前跑 — 它会修改 state.last_reinject_byte_seq 节流。
-    additional_context = _build_smart_reinject(session_id, state)
+        # v0.4.32 累积 token 估算 — 主 Agent 看到的 tool_input + tool_response
+        # 字节数 // 3 约为 token 数（中英文混合粗略估，sub-agent 也按主 Agent 真
+        # 看到的最终 tool_response 算，子 Agent 内部 thinking 是子 Agent 自己
+        # context 不算主 Agent 衰减）
+        state.tool_byte_seq += _estimate_tokens(tool_input, tool_response)
+
+        if tool_name == "Bash":
+            # Bash 失败仍 record — has_recent_test_pass 由 _FAIL_RE 在 record_bash 内部判
+            cmd = tool_input.get("command", "") or ""
+            is_bg = bool(tool_input.get("run_in_background"))
+            state.record_bash(cmd, tool_response, run_in_background=is_bg)
+        elif not failed:
+            # 非 Bash tool — 只在成功时 record，失败时不动 read_files/edit_files
+            # 防 Read 失败也 record_read 让后续 Edit 绕过 read_first 检测
+            if tool_name == "Read":
+                fp = tool_input.get("file_path", "")
+                state.record_read(fp)
+            elif tool_name in ("Write", "NotebookEdit"):
+                # Write / NotebookEdit 替换或创建整个文件
+                # 描述上下文文件（.md / .yaml / tests/ 等）的改不算「代码改动」—
+                # 不推 last_edit_ts（避免 docs / 配置 Edit 后 evidence check 误判
+                # 「自最近代码改动以来未测试」）。仍 record_read（已知内容不被 read_first 拦）
+                fp = tool_input.get("file_path", "") or tool_input.get("notebook_path", "")
+                is_desc, _ = is_description_context(tool_name, tool_input)
+                if not is_desc:
+                    state.record_edit(fp)
+                state.record_read(fp)
+            elif tool_name == "Edit":
+                # Edit 只改部分 — 仍要求事先 Read 全文
+                # 描述上下文文件 Edit 不推 last_edit_ts（同 Write/NotebookEdit 逻辑）
+                fp = tool_input.get("file_path", "")
+                is_desc, _ = is_description_context(tool_name, tool_input)
+                if not is_desc:
+                    state.record_edit(fp)
+
+        # v0.4.24+v0.4.32：智能 sticky reinject — 按 token 累积阈值决定。
+        # 在 lock 内跑保证 last_reinject_byte_seq 节流跨进程一致（fn 返回该值
+        # 给外面 stdout 输出）
+        return _build_smart_reinject(session_id, state)
 
     try:
-        session_state.save(state)
+        _state, additional_context = session_state.update_state(
+            session_id, _do_post_tool_use, agent_id=agent_id,
+        )
     except OSError as e:
         print(f"karma PostToolUse: 保存 session_state 失败 ({e})", file=sys.stderr)
+        additional_context = ""
 
     output = {}
     if additional_context:

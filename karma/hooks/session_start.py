@@ -60,10 +60,13 @@ def main() -> int:
     session_id = payload.get("session_id", "") or "default"
     if payload_model:
         try:
+            # v0.9.8: update_state 跨进程并发安全（之前直接 load+save 在多
+            # Claude Code 进程同时启动场景下可能丢更新）
             from karma import session_state
-            state = session_state.load(session_id)
-            state.model = payload_model
-            session_state.save(state)
+
+            def _set_model(state):
+                state.model = payload_model
+            session_state.update_state(session_id, _set_model)
         except Exception as e:
             print(f"karma SessionStart: 写 state.model 失败 ({e})", file=sys.stderr)
             # 失败不阻塞 sticky baseline 注入

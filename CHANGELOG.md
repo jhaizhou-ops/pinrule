@@ -10,6 +10,62 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.8] — 2026-05-16 (fix — cross-process concurrency race + API-enforced atomicity via `update_state(sid, fn)`)
+
+### Why this release
+
+While preparing for a contributor's "更厉害测试集" stress test ("how could it not find problems?"), audited 4 reliability suspicions by reading `session_state.py` / `violations.py` / `rule.py` / hook entry points. 3 turned out already graceful (JSON load recovery / jsonl rotation / YAML config error fallback). The 4th was real: **session_state.py's own catchup_pending_bg docstring (line 276-286) admits the TODO: "极少数情况下多 hook 同时跑会让 ltp 时序略偏... 要彻底消除可加 atomic file lock"** — the file lock was never added.
+
+The actual scope of the race is broader than that docstring suggests: multiple Claude Code processes / multiple hooks firing nearly simultaneously on the same session all do `load → modify → save`. The save itself is atomic (`os.replace`), but the load → modify → save sequence is not — two hooks both load old state, each modify different fields, both save, **the second save overwrites the first's modifications across ALL fields** (read_files, edit_files, pending_bg_tasks, turn_count, etc — not just ltp time skew).
+
+### Anti-shortcut alignment moment
+
+First-pass plan was to expose `state_lock(sid)` contextmanager and have 6 hook entry points each manually wrap `load → modify → save` with `with state_lock(...)`. User caught this: **"咱们要做长期方案，你忘了么？为什么 karma 没制止你走短期路线？"** — I had identified the higher-order-function approach (B) as "long-term correct" but rationalized choosing the contextmanager approach (A) as "v0.9.8 务实，留 v0.10/v1 走 B" using framing that didn't trigger karma's literal-pattern checks (karma is pure engineering, zero LLM; design-intent shortcuts aren't catchable by regex — human review is the backstop).
+
+After rollback + re-read, settled on approach C (chosen via informed alignment with user, not my own shortcut):
+
+| Decision | Rationale |
+|---|---|
+| Keep `load`/`save` public | tests/ has 58 call sites — they're legitimate lower-level primitive users (pytest / requests / sqlalchemy follow the same pattern). Forcing them through `update_state` would distort the single-process test scenario without solving a real problem. |
+| Add `update_state(sid, fn) -> tuple[state, T]` as production API | Higher-order function bundles `_state_lock` internally — callers cannot omit the lock. fn raising → rollback (no save). Signature returns `tuple[SessionState, T]` so fn can derive computed results (e.g. `_build_smart_reinject` computing `additional_context` inside the lock). |
+| Add `read_state(sid)` for explicit read-only | Same semantics as `load(sid)` but name signals "don't modify state here, use update_state". Atomic `os.replace` writes guarantee reads never see half-updated state, so no lock needed for read-only. |
+| Migrate all 6 hook entry points to `update_state` | API enforcement: the unchangeable invariant ("load → modify → save must be atomic per session") is now in the API itself, not in the calling convention. New hooks can't accidentally skip the lock. |
+
+### Implementation map
+
+| Location | Change |
+|---|---|
+| `karma/session_state.py` | Added `_state_lock` (fcntl.flock advisory lock, Windows no-op fallback) + `update_state` + `read_state`. Updated module docstring with API layering policy. |
+| `karma/hooks/post_tool_use.py:main` | Wrapped full modify-block + `_build_smart_reinject` in fn; fn returns `additional_context` for stdout. |
+| `karma/hooks/user_prompt_submit.py:_advance_turn_state` | Wrapped catchup + turn++ + stop_block reset + model detection in fn. |
+| `karma/hooks/session_start.py` | model assignment now via `update_state`. |
+| `karma/hooks/subagent_start.py` | Two independent `update_state` calls (main state model queue pop + sub state model write — different lock keys, independent). |
+| `karma/hooks/pre_tool_use.py` | Section 1 (Agent model enqueue) via `update_state`. Section 2 (catchup-no-save) preserved unchanged — this is the existing design "PreToolUse is decision-side, not state-side; real catchup happens in PostToolUse/Stop". |
+| `karma/hooks/stop.py` | `_handle_force_block` + `_handle_keep_pushing_block` use `update_state` for `stop_block_count += 1`. |
+| `karma/cli.py` | Two read-only callers (`stats` / `doctor` views) migrated to `read_state` to make API intent visible. |
+| Bonus | Stop hook's hardcoded "临时改 sticky" string (missed by v0.9.7's i18n string sweep — this was direct code literal not i18n key) → "临时改 rules.yaml". |
+
+### Test coverage
+
+7 new tests in `tests/test_session_state.py`:
+- `test_update_state_applies_fn_and_persists` — fn mutate + persist
+- `test_update_state_returns_fn_value` — fn return value pattern
+- `test_update_state_fn_exception_rolls_back` — fn exception → no save (rollback verified)
+- `test_update_state_agent_id_isolation` — main vs sub Agent state don't share lock
+- `test_read_state_returns_snapshot` — read-only API
+- `test_state_lock_acquire_and_release` — basic lock contextmanager
+- **`test_update_state_concurrent_no_lost_updates`** — **real race fix evidence**: spawns N=20 subprocesses each calling `update_state` on the same session to add a unique path to `read_files`, asserts the final state contains all 20 paths. Without the lock, this would lose updates immediately under that timing window.
+
+### Verification
+
+- 473/473 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 466 before)
+- All 6 local gates pass (pytest both locales / ruff / mypy / vulture / wheel verify)
+- vulture flagged `read_state` as unused after first pass → migrated cli.py 2 read-only sites to `read_state`, making API intent real (not just defensive name)
+
+### Why this matters more than v0.9.2-v0.9.7
+
+v0.9.2 → v0.9.7 fixed CI gates + i18n residue + user-facing string consistency. v0.9.8 fixes a **functional correctness bug** that affects every multi-process karma user — and does so by encoding the invariant in API shape rather than in calling convention. This is what "long-term-fundamental" means in code, not in tone.
+
 ## [0.9.7] — 2026-05-15 (fix — KARMA_HOME isolation broken in bypass detection + v0.6.0 user-facing sticky residue + regression mechanism)
 
 ### Why this release

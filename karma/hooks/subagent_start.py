@@ -43,15 +43,24 @@ def main() -> int:
     agent_id = payload.get("agent_id") or None
     if agent_id:
         try:
+            # v0.9.8: 用 update_state 让两段 load+save 都跨进程并发安全。
+            # 主 state pop 跟子 state 写是不同 (session, agent_id) key，
+            # 两把独立 lock 互不阻塞，但各自 load→modify→save 整段原子。
             from karma import session_state
-            main_state = session_state.load(session_id)
-            if main_state.pending_subagent_models:
-                sub_model = main_state.pending_subagent_models.pop(0)
-                session_state.save(main_state)
-                # 写子 Agent 独立 state（agent_id 路由）
-                sub_state = session_state.load(session_id, agent_id=agent_id)
-                sub_state.model = sub_model
-                session_state.save(sub_state)
+
+            captured: dict = {}
+
+            def _pop_sub_model(state):
+                if state.pending_subagent_models:
+                    captured["sub_model"] = state.pending_subagent_models.pop(0)
+
+            session_state.update_state(session_id, _pop_sub_model)
+
+            sub_model = captured.get("sub_model")
+            if sub_model:
+                def _set_sub_model(state):
+                    state.model = sub_model
+                session_state.update_state(session_id, _set_sub_model, agent_id=agent_id)
         except Exception as e:
             print(f"karma SubagentStart: pop 子 Agent model 失败 ({e})", file=sys.stderr)
             # 失败不阻塞 sticky baseline 注入

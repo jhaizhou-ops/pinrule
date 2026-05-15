@@ -772,7 +772,8 @@ def cmd_stats() -> int:
         # 顺便显示本 session stop_block_count（Stop hook 干预次数）
         from karma import session_state as ss
         try:
-            state = ss.load(current_session)
+            # 只读快照，不需要 lock（atomic os.replace 保证不读到半更新 state）
+            state = ss.read_state(current_session)
             if state.stop_block_count > 0:
                 print(
                     f"本 session={current_session[:8]}... turn={current_turn}，"
@@ -941,7 +942,8 @@ def cmd_doctor() -> int:
     active_session = _ss.get_current_session_id() or (all_v[-1].session_id if all_v else None)
     if active_session:
         try:
-            state = _ss.load(active_session)
+            # 只读快照（doctor 信息展示，无并发风险）
+            state = _ss.read_state(active_session)
             print(f"  当前活跃 session: {active_session}")
             print(f"    turn={state.turn_count}, stop_block={state.stop_block_count}, "
                   f"read={len(state.read_files)} files, edit={len(state.edit_files)} files")

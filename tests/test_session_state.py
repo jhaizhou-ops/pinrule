@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from karma.session_state import SessionState, get_current_session_id, load, save
 
 
@@ -418,3 +420,162 @@ def test_v061_edit_tests_dir_still_invalidates():
     state.record_bash("pytest", "5 passed in 1s")
     state.record_edit("/repo/tests/test_x.py")
     assert not state.has_recent_test_pass()
+
+
+# === v0.9.8: update_state / read_state / _state_lock ===
+# 跨进程 atomic load → modify → save，修「多 hook 同时跑覆盖彼此更新」race。
+# 之前直接 load + modify + save 在多个 Claude Code 进程同 session 并发场景下
+# 会丢更新（read_files / edit_files / pending_bg_tasks 任何字段都可能）。
+
+def test_update_state_applies_fn_and_persists(tmp_path):
+    """update_state 应用 fn 改 state 并落盘 — 下次 load 看到改动。"""
+    from karma.session_state import update_state, load
+
+    def _add_read(state):
+        state.record_read("/foo.py")
+
+    state, _ = update_state("sess1", _add_read, base_dir=tmp_path)
+    assert "/foo.py" in state.read_files
+
+    # 落盘验证
+    reloaded = load("sess1", base_dir=tmp_path)
+    assert "/foo.py" in reloaded.read_files
+
+
+def test_update_state_returns_fn_value(tmp_path):
+    """update_state 返回 (state, fn_return) — fn 可 derive 计算结果。"""
+    from karma.session_state import update_state
+
+    def _compute(state):
+        state.tool_byte_seq += 1000
+        return f"computed_{state.tool_byte_seq}"
+
+    state, derived = update_state("sess1", _compute, base_dir=tmp_path)
+    assert state.tool_byte_seq == 1000
+    assert derived == "computed_1000"
+
+
+def test_update_state_fn_exception_rolls_back(tmp_path):
+    """fn 抛异常 → state 不 save，磁盘保持旧状态（rollback）。"""
+    from karma.session_state import SessionState, save, update_state, load
+
+    initial = SessionState(session_id="sess1")
+    initial.record_read("/initial.py")
+    save(initial, base_dir=tmp_path)
+
+    def _bad_fn(state):
+        state.record_read("/should_not_persist.py")
+        raise RuntimeError("fn fails midway")
+
+    import pytest
+    with pytest.raises(RuntimeError):
+        update_state("sess1", _bad_fn, base_dir=tmp_path)
+
+    # 磁盘 state 没变（rollback）
+    reloaded = load("sess1", base_dir=tmp_path)
+    assert "/initial.py" in reloaded.read_files
+    assert "/should_not_persist.py" not in reloaded.read_files
+
+
+def test_update_state_agent_id_isolation(tmp_path):
+    """子 Agent agent_id 走独立 lock + 独立 state 文件 — 主子互不阻塞."""
+    from karma.session_state import update_state, load
+
+    def _set_main(state):
+        state.tool_byte_seq = 100
+
+    def _set_sub(state):
+        state.tool_byte_seq = 200
+
+    update_state("sess1", _set_main, base_dir=tmp_path)
+    update_state("sess1", _set_sub, base_dir=tmp_path, agent_id="agent-A")
+
+    main_loaded = load("sess1", base_dir=tmp_path)
+    sub_loaded = load("sess1", base_dir=tmp_path, agent_id="agent-A")
+    assert main_loaded.tool_byte_seq == 100
+    assert sub_loaded.tool_byte_seq == 200
+
+
+def test_read_state_returns_snapshot(tmp_path):
+    """read_state 是只读快照（语义跟 load 一样，名字提示『别在这改 state』）."""
+    from karma.session_state import SessionState, save, read_state
+
+    s = SessionState(session_id="sess1")
+    s.record_read("/x.py")
+    save(s, base_dir=tmp_path)
+
+    snap = read_state("sess1", base_dir=tmp_path)
+    assert "/x.py" in snap.read_files
+
+
+def test_state_lock_acquire_and_release(tmp_path):
+    """_state_lock contextmanager 能 acquire + release 不报错（单进程基础测）."""
+    from karma.session_state import _state_lock
+
+    with _state_lock("sess1", base_dir=tmp_path):
+        # lock 内可以读写文件（lock 文件位于 <state_path>.json.lock）
+        pass
+
+    # 再次 acquire 应该成功（前一次已释放）
+    with _state_lock("sess1", base_dir=tmp_path):
+        pass
+
+
+def test_update_state_concurrent_no_lost_updates(tmp_path):
+    """**核心 race fix 验证** — 多进程并发 update_state 不丢更新。
+
+    起 N=20 个子进程，每个往同 (session_id) 的 read_files 加自己唯一的 path。
+    全部跑完后 load state，验证 read_files 含全部 N 个 path（如果有 race
+    导致丢更新，最终 set 大小 < N）。
+
+    没 lock 时：N=20 + 短时间窗口几乎必丢；有 lock 时：永远 N=20。
+    """
+    import subprocess
+    import sys as _sys
+    from karma.session_state import load
+
+    n_workers = 20
+    worker_script = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from karma.session_state import update_state
+from pathlib import Path
+
+worker_id = sys.argv[2]
+base_dir = Path(sys.argv[3])
+
+def _add_my_read(state):
+    state.record_read(f"/worker_{worker_id}.py")
+
+update_state("concurrent_sess", _add_my_read, base_dir=base_dir)
+"""
+
+    # 写 worker script 到 tmp
+    worker_path = tmp_path / "worker.py"
+    worker_path.write_text(worker_script)
+
+    # 找 karma package 根（site-packages or repo root）
+    import karma
+    karma_pkg_dir = str(Path(karma.__file__).resolve().parent.parent)
+
+    # 并发起 N 个 subprocess
+    procs = [
+        subprocess.Popen(
+            [_sys.executable, str(worker_path), karma_pkg_dir, str(i), str(tmp_path)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        for i in range(n_workers)
+    ]
+
+    # 全部 wait
+    for p in procs:
+        p.wait(timeout=30)
+        assert p.returncode == 0, f"worker failed: {p.stderr.read().decode()}"
+
+    # 验证所有 N 个 update 都生效（无丢更新）
+    final_state = load("concurrent_sess", base_dir=tmp_path)
+    expected = {f"/worker_{i}.py" for i in range(n_workers)}
+    assert final_state.read_files == expected, (
+        f"丢更新 race: expected {n_workers} paths, got {len(final_state.read_files)}"
+        f"\n missing: {expected - final_state.read_files}"
+    )

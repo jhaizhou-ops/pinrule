@@ -6,6 +6,62 @@
 
 ## [Unreleased]
 
+## [0.9.8] — 2026-05-16（fix — 跨进程并发 race + API 强制原子性 `update_state(sid, fn)`）
+
+### 为什么发这版
+
+为同事「明天写个更厉害的测试集，怎么可能测不出问题」做准备，read-before-write 审了 4 个可靠性怀疑点（`session_state.py` / `violations.py` / `rule.py` / 6 个 hook entry point）。3 个发现已 graceful（JSON 损坏恢复 / jsonl rotation / YAML 配置错 fallback）。**第 4 个是真 bug — session_state.py 自己的 catchup_pending_bg docstring（行 276-286）就写着 TODO：「极少数情况下多 hook 同时跑会让 ltp 时序略偏... 要彻底消除可加 atomic file lock」**，但 file lock 从来没加。
+
+实际 race 范围比那段 docstring 描述的更广：多个 Claude Code 进程 / 同 session 多个 hook 几乎同时跑都是 `load → modify → save`。**save 本身原子**（`os.replace`），但 load → modify → save 整段不原子 — 两个 hook 都 load 旧 state，各改各的字段，都 save，**后者覆盖前者所有字段更新**（read_files / edit_files / pending_bg_tasks / turn_count 等都可能丢，不只 ltp 时序）。
+
+### 反短期路线对齐时刻
+
+第一遍方案是 expose `state_lock(sid)` contextmanager 让 6 个 hook 手动套 `with state_lock(...)`。用户拦下来：**「咱们要做长期方案，你忘了么？为什么 karma 没制止你走短期路线？」** — 我之前自己说过高阶函数方案 (B) 是「长期对的解」但用「v0.9.8 务实，留 v0.10/v1 走 B」搪塞自己选了 (A)。karma 自身检测层抓不到这层 framing（pure engineering 零 LLM 原则，design-intent 短期化抓不到字面 trigger） — **人工监督是兜底**，用户拦下来正是这个机制生效。
+
+回滚 + 重新 read 后用方案 C（**跟用户对齐后选的，不是我自己再次走短期**）：
+
+| 决策 | 理由 |
+|---|---|
+| 保留 `load`/`save` public | tests/ 58 处直接用 — 它们是合理的 lower-level primitive 用户（pytest / requests / sqlalchemy 都这模式）。强制 testing 走 update_state 会扭曲单进程测试场景而不解决真问题。 |
+| 加 `update_state(sid, fn) -> tuple[state, T]` 作为 production API | 高阶函数把 `_state_lock` 打包进 API 自身 — 调用方不可能漏套 lock。fn 抛异常 → 不 save 自动 rollback。签名返回 `tuple[SessionState, T]` 让 fn 能 derive 计算结果（如 `_build_smart_reinject` 在 lock 内算 `additional_context`）。 |
+| 加 `read_state(sid)` 显式只读 | 语义跟 `load(sid)` 一样，名字提示「这里别改 state，要改用 update_state」。`os.replace` 原子写保证读到的永远是完整 state，只读不需 lock。 |
+| 6 个 hook entry point 全迁 `update_state` | API 强制：不变量（「同 session load → modify → save 必须原子」）在 API 自身而非调用约定。**新加 hook 不可能漏套 lock**。 |
+
+### 实施 map
+
+| 位置 | 改动 |
+|---|---|
+| `karma/session_state.py` | 加 `_state_lock`（fcntl.flock advisory lock，Windows no-op fallback）+ `update_state` + `read_state`。module docstring 写清楚 API 分层政策。 |
+| `karma/hooks/post_tool_use.py:main` | 整段 modify + `_build_smart_reinject` 包进 fn；fn 返回 `additional_context` 给 stdout 输出。 |
+| `karma/hooks/user_prompt_submit.py:_advance_turn_state` | catchup + turn++ + stop_block reset + model 探测全包 fn。 |
+| `karma/hooks/session_start.py` | model 写入用 `update_state`。 |
+| `karma/hooks/subagent_start.py` | 2 个独立 `update_state` 调用（主 state 模型队列 pop + 子 state 模型写 — 不同 lock key 互不阻塞）。 |
+| `karma/hooks/pre_tool_use.py` | 段 1（Agent 模型入队）走 `update_state`。段 2（catchup-no-save）保留不动 — 已有设计「PreToolUse 是决策端不是 state 端，真正 catchup 在 PostToolUse / Stop」。 |
+| `karma/hooks/stop.py` | `_handle_force_block` + `_handle_keep_pushing_block` 的 `stop_block_count += 1` 用 `update_state`。 |
+| `karma/cli.py` | 2 处只读调用方（`stats` / `doctor` 视图）迁 `read_state` 让 API 意图真落地。 |
+| Bonus | Stop hook 硬编码字面「临时改 sticky」（v0.9.7 i18n 字符串 sweep 没扫到 — 这是直接代码字面非 i18n key）→「临时改 rules.yaml」。 |
+
+### 测试覆盖
+
+`tests/test_session_state.py` 加 7 个 case：
+- `test_update_state_applies_fn_and_persists` — fn mutate + persist
+- `test_update_state_returns_fn_value` — fn 返回值模式
+- `test_update_state_fn_exception_rolls_back` — fn 抛异常 → 不 save（rollback 真验证）
+- `test_update_state_agent_id_isolation` — 主 vs 子 Agent state 不共享 lock
+- `test_read_state_returns_snapshot` — 只读 API
+- `test_state_lock_acquire_and_release` — 基础 lock contextmanager
+- **`test_update_state_concurrent_no_lost_updates`** — **真 race fix 证据**：起 N=20 subprocess 各自 `update_state` 同 session 加自己唯一 path 到 `read_files`，最终 assert 20 path 全在。没 lock 时这个时间窗口必丢。
+
+### 验证
+
+- **473/473 通过**，`LANG=zh_CN.UTF-8` 跟 `LANG=en_US.UTF-8` 双 locale 都过（v0.9.7 是 466）
+- 6 道本机门禁全过（pytest 双 locale / ruff / mypy / vulture / wheel verify）
+- vulture 第一轮抓到 `read_state` 未用 → 迁 cli.py 2 处只读到 `read_state` 让 API 意图真落地（不只是防御性命名）
+
+### 为什么这版比 v0.9.2-v0.9.7 都重要
+
+v0.9.2 → v0.9.7 修的是 CI 门禁 + i18n 残留 + user-facing 字符串一致性。v0.9.8 修的是**功能正确性 bug** — 影响每个多进程 karma 用户 — 而且修法是**把不变量编码进 API 形状**而非调用约定。这才是「long-term-fundamental」在代码里真长成的样子，不只是嘴上说说。
+
 ## [0.9.7] — 2026-05-15（fix — KARMA_HOME 隔离 mode 下 bypass 检测失效 + v0.6.0 user-facing sticky 残留 + 加 regression 锁机制）
 
 ### 为什么发这版

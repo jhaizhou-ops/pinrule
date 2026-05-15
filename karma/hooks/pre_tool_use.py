@@ -76,9 +76,11 @@ def main() -> int:
         sub_model = tool_input.get("model")
         if sub_model:
             try:
-                main_state = session_state.load(session_id)
-                main_state.pending_subagent_models.append(sub_model)
-                session_state.save(main_state)
+                # v0.9.8: update_state 让入队对同 session 并发安全
+                # （主 Agent 同时派多个子 Agent 时多个 PreToolUse 同时跑会丢入队）
+                def _enqueue_sub_model(state):
+                    state.pending_subagent_models.append(sub_model)
+                session_state.update_state(session_id, _enqueue_sub_model)
             except Exception as e:
                 print(f"karma PreToolUse: 入队子 Agent model 失败 ({e})", file=sys.stderr)
 

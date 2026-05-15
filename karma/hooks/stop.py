@@ -169,15 +169,24 @@ def _handle_force_block(
     if not over_threshold or state.stop_block_count >= block_max:
         return False
 
-    state.stop_block_count += 1
+    # v0.9.8: update_state 让 stop_block_count + 1 跨进程原子（多个 Stop hook
+    # 几乎同时跑时不丢 count 更新）。state 对象的 stop_block_count 会被 fn
+    # 更新到内存反映。
+    def _bump_block_count(s):
+        s.stop_block_count += 1
     try:
-        session_state.save(state)
+        updated_state, _ = session_state.update_state(
+            state.session_id, _bump_block_count, agent_id=state.agent_id,
+        )
+        # 同步 state 内存对象给后续 reason 字串用
+        state.stop_block_count = updated_state.stop_block_count
     except OSError:
-        pass
+        # update_state 内部 save 失败 fallback 本地内存自增，不阻塞拦截
+        state.stop_block_count += 1
     reason = (
         f"karma 强制干预：累积违反 {over_threshold} 共 {sum(counts_force[s] for s in over_threshold)} 次。"
         f"必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。"
-        f"禁止继续绕（手动改 karma 状态 / 临时改 sticky）。"
+        f"禁止继续绕（手动改 karma 状态 / 临时改 rules.yaml）。"
     )
     print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
     return True
@@ -206,11 +215,17 @@ def _handle_keep_pushing_block(
     if block_max <= 0 or state.stop_block_count >= block_max:
         return False
 
-    state.stop_block_count += 1
+    # v0.9.8: update_state 让 stop_block_count + 1 跨进程原子
+    def _bump_block_count(s):
+        s.stop_block_count += 1
     try:
-        session_state.save(state)
+        updated_state, _ = session_state.update_state(
+            state.session_id, _bump_block_count, agent_id=state.agent_id,
+        )
+        state.stop_block_count = updated_state.stop_block_count
     except OSError:
-        pass
+        # update_state 内部 save 失败 fallback 本地内存自增，不阻塞拦截
+        state.stop_block_count += 1
     from karma.i18n import tr
     reason = tr(
         "stop.reason",

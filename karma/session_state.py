@@ -2,6 +2,28 @@
 
 post_tool_use 写入，pre_tool_use / post_response 读取。
 存到 ~/.claude/karma/session-state/{session_id}.json。
+
+## API 分层（v0.9.8 加 update_state 后）
+
+- `update_state(sid, fn)` — **production 首选**。原子的 load → fn(state) → save，
+  跨进程并发安全（fcntl.flock）。fn 抛异常自动 rollback（不 save）。返回
+  `(state, fn_return_value)` 让 fn 能 derive 计算结果。所有 hook 应用这个。
+- `load(sid)` / `save(state)` — lower-level primitive，**测试 / CLI 只读 / 调试用**。
+  production code 直接调可能 race（多 hook 同时 load → 各自 modify → 都 save
+  → 后写覆盖前写）。`os.replace` 让单次 save 原子，但 load → modify → save
+  整段不原子 — 这是 update_state 要解决的不变量。
+- `read_state(sid)` — 显式只读快照。语义跟 `load(sid)` 一样，但名字提示「不要
+  在这里改 state，要改用 update_state」。
+
+## 跨进程并发问题（v0.9.8 修）
+
+多 Claude Code 进程 / 同 session 多 hook 几乎同时跑时，没锁会让两个 hook 都
+load 旧 state、各改各的、都 save → 后写的覆盖前写的全部更新（不只行
+catchup_pending_bg docstring 里讲的 ltp 时序略偏 — read_files / edit_files /
+pending_bg_tasks 任何字段都可能丢更新）。
+
+修法：`update_state` 内部用 fcntl.flock advisory lock 让 load → modify → save
+整段对同 (session_id, agent_id) 串行化。Windows 无 fcntl 自动 no-op fallback。
 """
 
 from __future__ import annotations
@@ -9,10 +31,24 @@ from __future__ import annotations
 import json
 import re
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable, TypeVar
 
 from karma.paths import karma_home
+
+# fcntl.flock advisory lock — Unix 内置 stdlib 0 依赖。
+# Windows 没 fcntl，graceful fallback no-op lock（karma classifier 只声明
+# macOS/Linux，Windows 用户走 WSL — 这里 fallback 让代码不挂，但并发保护失效，
+# 属于已声明的不支持平台 trade-off）。
+try:
+    import fcntl
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
+
+T = TypeVar("T")
 
 DEFAULT_DIR = karma_home() / "session-state"
 MAX_RECENT_BASH = 15  # 保留最近 N 条 Bash 摘要
@@ -329,6 +365,88 @@ def _state_path(session_id: str, base_dir: Path | None = None, agent_id: str | N
         safe_aid = re.sub(r"[^\w.-]", "_", agent_id)
         return base / f"{safe_sid}__{safe_aid}.json"
     return base / f"{safe_sid}.json"
+
+
+@contextmanager
+def _state_lock(session_id: str, agent_id: str | None = None, base_dir: Path | None = None):
+    """跨进程互斥锁 — 让 load → modify → save 整段对同 (session_id, agent_id)
+    atomic（v0.9.8 加，update_state 的内部 primitive）。
+
+    实现用 `fcntl.flock` advisory lock — 进程退出 / 崩 OS 自动释放 fd → 锁自动
+    释放（不会留 stale lock）。lock 文件路径跟 state 文件一一对应，不同 session
+    / 子 Agent 独立锁互不阻塞。Windows 无 fcntl 时退化为 no-op contextmanager。
+
+    advisory lock 单次 acquire / release < 100µs，不影响 hook 60ms 预算。
+
+    内部 helper — 调用方应用 `update_state(sid, fn)` 而非直接套这个 lock，
+    确保 load → modify → save 完整路径都在锁内。
+    """
+    if not _HAS_FCNTL:
+        yield
+        return
+
+    p = _state_path(session_id, base_dir, agent_id=agent_id)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = p.with_suffix(".json.lock")
+    # 'a' 模式：创建 + append（不清空文件内容）— 文件本身不写入，纯粹拿 fd 给 flock
+    with open(lock_path, "a", encoding="utf-8") as lockf:
+        fcntl.flock(lockf.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lockf.fileno(), fcntl.LOCK_UN)
+
+
+def update_state(
+    session_id: str,
+    fn: Callable[[SessionState], T],
+    *,
+    agent_id: str | None = None,
+    base_dir: Path | None = None,
+) -> tuple[SessionState, T]:
+    """Atomic load → fn(state) → save 一站式（跨进程并发安全）。
+
+    **production code 应用这个 API** 而非直接调 load + save —— 后者在多 hook
+    同时跑时会丢更新（race condition）。
+
+    用法：
+        # fn 不需要返回值：mutate state 即可
+        state, _ = update_state(sid, lambda s: s.record_read("foo.py"))
+
+        # fn 返回 derived value：lock 内一站算完，避免「拿 state 出来后再算」
+        # 跟其他进程更新交叉
+        def _do(state):
+            state.tool_byte_seq += 1000
+            return _build_smart_reinject(sid, state)
+        state, additional_context = update_state(sid, _do)
+
+    fn 抛异常 → state 不 save 自动 rollback（磁盘干净，下次 load 仍是旧状态）。
+
+    返回 tuple[SessionState, fn_return_value]：
+    - state 是更新后的内存对象（供调用方读字段如 turn_count）
+    - fn 返回值默认 None；fn 想 derive 数据回传给调用方就 return
+    """
+    with _state_lock(session_id, agent_id=agent_id, base_dir=base_dir):
+        state = load(session_id, base_dir=base_dir, agent_id=agent_id)
+        result = fn(state)
+        save(state, base_dir=base_dir)
+        return state, result
+
+
+def read_state(
+    session_id: str,
+    *,
+    agent_id: str | None = None,
+    base_dir: Path | None = None,
+) -> SessionState:
+    """只读 state 快照。语义跟 `load(sid)` 一样，**名字提示「这里别改 state」**。
+
+    单次读不需要 lock：`save()` 用 `os.replace(tmp, p)` 原子写，load 拿到的要么
+    是 update 前完整 state、要么是 update 后完整 state，不会半更新。
+
+    要改 state 时用 `update_state(sid, fn)`。
+    """
+    return load(session_id, base_dir=base_dir, agent_id=agent_id)
 
 
 def load(session_id: str, base_dir: Path | None = None, agent_id: str | None = None) -> SessionState:
