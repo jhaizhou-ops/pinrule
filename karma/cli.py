@@ -46,8 +46,11 @@ from karma.violations import load_all
 from karma.paths import karma_home
 
 KARMA_DIR = karma_home()
-EXAMPLE_STICKY = Path(__file__).parent.parent / "data" / "sticky.dev.example.yaml"
-EXAMPLE_STICKY_MINIMAL = Path(__file__).parent.parent / "data" / "sticky.dev.minimal.example.yaml"
+EXAMPLE_RULES = Path(__file__).parent.parent / "data" / "rules.dev.example.yaml"
+EXAMPLE_RULES_MINIMAL = Path(__file__).parent.parent / "data" / "rules.dev.minimal.example.yaml"
+# v0.5.x deprecated alias (v0.6.0 移除)
+EXAMPLE_STICKY = EXAMPLE_RULES
+EXAMPLE_STICKY_MINIMAL = EXAMPLE_RULES_MINIMAL
 EXAMPLE_CONFIG = Path(__file__).parent.parent / "data" / "config.example.yaml"
 
 def cmd_init(minimal: bool | None = None) -> int:
@@ -76,17 +79,31 @@ def cmd_init(minimal: bool | None = None) -> int:
             lang_label = lang or "无法检测"
             auto_chose = f"（检测到系统语言 {lang_label!r} → 装精简 5 条砍 chinese_plain）"
 
-    template = EXAMPLE_STICKY_MINIMAL if minimal else EXAMPLE_STICKY
-    label = "5 条真中性核心" if minimal else "7 条完整开发场景"
-    # sticky 模板
-    if STICKY_PATH.exists():
-        print(f"sticky.yaml 已存在: {STICKY_PATH}")
+    template = EXAMPLE_RULES_MINIMAL if minimal else EXAMPLE_RULES
+    label = "5 条中性核心" if minimal else "7 条完整开发场景"
+
+    # v0.5.0 migration: 检测旧 sticky.yaml 自动迁移到 rules.yaml
+    # STICKY_PATH 来自 karma.rule.DEFAULT_PATH (fallback 优先 rules.yaml)
+    # 测试 monkeypatch STICKY_PATH 仍生效
+    rules_path = STICKY_PATH
+    legacy_sticky_path = rules_path.parent / "sticky.yaml"
+    if legacy_sticky_path.exists() and not rules_path.exists() and rules_path.name == "rules.yaml":
+        # 旧用户 — migrate sticky.yaml → rules.yaml + backup 老文件
+        rules_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = legacy_sticky_path.with_suffix(".yaml.bak")
+        shutil.copyfile(legacy_sticky_path, rules_path)
+        legacy_sticky_path.rename(backup_path)
+        print(f"⚠ 检测到旧 sticky.yaml — 自动迁移到 {rules_path}")
+        print(f"  老文件备份到: {backup_path}")
+    elif rules_path.exists():
+        print(f"{rules_path.name} 已存在: {rules_path}")
     elif not template.exists():
         print(f"模板文件不存在: {template}", file=sys.stderr)
         return 1
     else:
-        shutil.copyfile(template, STICKY_PATH)
-        print(f"创建 sticky.yaml: {STICKY_PATH} ({label}) {auto_chose}".rstrip())
+        rules_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(template, rules_path)
+        print(f"创建 {rules_path.name}: {rules_path} ({label}) {auto_chose}".rstrip())
     # config 模板
     config_path = KARMA_DIR / "config.yaml"
     if config_path.exists():
@@ -94,7 +111,7 @@ def cmd_init(minimal: bool | None = None) -> int:
     elif EXAMPLE_CONFIG.exists():
         shutil.copyfile(EXAMPLE_CONFIG, config_path)
         print(f"创建 config.yaml: {config_path}")
-    print("编辑用: karma sticky edit  /  vim ~/.claude/karma/config.yaml")
+    print("编辑用: karma rule edit  /  vim ~/.claude/karma/config.yaml")
     if auto_chose:
         override_flag = "--no-minimal" if minimal else "--minimal"
         print(f"自动选不对？强制覆盖：karma init {override_flag}")

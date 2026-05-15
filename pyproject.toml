@@ -51,8 +51,8 @@ packages = ["karma"]
 artifacts = ["data/*.yaml"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"data/sticky.dev.example.yaml" = "data/sticky.dev.example.yaml"
-"data/sticky.dev.minimal.example.yaml" = "data/sticky.dev.minimal.example.yaml"
+"data/rules.dev.example.yaml" = "data/rules.dev.example.yaml"
+"data/rules.dev.minimal.example.yaml" = "data/rules.dev.minimal.example.yaml"
 "data/config.example.yaml" = "data/config.example.yaml"
 
 [tool.pytest.ini_options]
