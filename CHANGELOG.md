@@ -10,6 +10,51 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-05-15 (fix — third independent CI failure: mypy type error in signals.py)
+
+### Pattern: I never ran mypy locally
+
+After v0.9.3 push (which fixed vulture-min-conf-60 mismatch), CI **still red**. Third independent root cause: `karma/signals.py:116` `mypy` error introduced in v0.8.1:
+
+```
+karma/signals.py:116: error: Argument 1 to "product" has incompatible type
+                            "*list[list[Any] | None]"; expected "Iterable[Any]"
+```
+
+In `_expand_yaml_signals`, `resolved` has type `list[tuple[str, list | None]]` after `resolve_key()`. The `if any(v is None for _, v in resolved): continue` guard ensures non-None before `product(*word_lists)`, but mypy can't narrow through that pattern.
+
+### The deeper admission
+
+I never ran `mypy` locally. My local "quality gates" check before push was just `pytest + ruff`. CI runs `pytest + ruff + mypy karma/ + mypy tests/ + vulture --min-conf 60`. My local subset missed mypy + low-conf vulture, so 2 of 4 CI checks could silently fail.
+
+This is the **deepest root cause** of the v0.8.6 → v0.9.3 CI red streak — not 3 unrelated bugs, but **one systemic gap**: my "passing locally" claim was based on a strict subset of CI's actual checks.
+
+### Fix
+
+Type-narrowed `word_lists` via explicit filter:
+
+```python
+word_lists: list[list] = [v for _, v in resolved if v is not None]
+```
+
+The `any(v is None)` guard above already ensures this, but the explicit filter both satisfies mypy and is defensively correct.
+
+### Checklist now (matching CI exactly)
+
+Local gates before any tag/release:
+
+1. `pytest -q` — 460/460 passing
+2. `ruff check karma/ tests/` — All checks passed
+3. `mypy karma/ && mypy tests/` — no issues
+4. `vulture karma/ whitelist.py --min-confidence 60` — exit 0
+5. `gh run list --limit 1` after push — verify CI is actually green
+
+All 4 of these gates now match what CI runs. Step 5 is the final verification.
+
+### Verification
+
+All 4 local gates green + this push's CI run should be green for the first time since v0.8.5.
+
 ## [0.9.3] — 2026-05-15 (fix — actually green up CI: 3 more dead-code items + vulture whitelist)
 
 ### Following up on v0.9.2

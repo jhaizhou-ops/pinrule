@@ -111,8 +111,9 @@ def _expand_yaml_signals(path: Path) -> list[str]:
                 seen.add(tmpl)
                 out.append(tmpl)
             continue
-        # cartesian 展开
-        word_lists = [v for _, v in resolved]
+        # cartesian 展开 — 上面 `any(v is None)` 守护已确保 v 非 None,
+        # 显式 assert 让 mypy narrow Optional[list] → list
+        word_lists: list[list] = [v for _, v in resolved if v is not None]
         for combo in product(*word_lists):
             phrase = tmpl
             for (k, _), v in zip(resolved, combo):

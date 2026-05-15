@@ -6,6 +6,51 @@
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-05-15（fix — 第 3 个独立 CI fail 根因：signals.py 的 mypy type error）
+
+### 模式：我从来没本机跑 mypy
+
+v0.9.3 push 后（修了 vulture 阈值不匹配）CI **仍红**。第 3 个独立根因：`karma/signals.py:116` 的 `mypy` error，v0.8.1 加 yaml loader 时引入：
+
+```
+karma/signals.py:116: error: Argument 1 to "product" has incompatible type
+                            "*list[list[Any] | None]"; expected "Iterable[Any]"
+```
+
+`_expand_yaml_signals` 里 `resolved` 类型 `list[tuple[str, list | None]]`（`resolve_key()` 返回 Optional）。`if any(v is None for _, v in resolved): continue` 守护虽然保证后续非 None，但 mypy 无法通过这种 pattern narrow。
+
+### 更深的承认
+
+我从来不在本机跑 `mypy`。本机 release 前「质量门禁」只跑 `pytest + ruff`。CI 跑 `pytest + ruff + mypy karma/ + mypy tests/ + vulture --min-conf 60`。本机是 CI 严格子集 → 4 项 check 中有 2 项可以本机绿 CI 红。
+
+这是 v0.8.6 → v0.9.3 CI 红 streak 的**最深根因** — 不是 3 个独立 bug，是**一个系统性 gap**：「本机通过」基于 CI 实际检查的严格子集。
+
+### Fix
+
+显式 type-narrow `word_lists`：
+
+```python
+word_lists: list[list] = [v for _, v in resolved if v is not None]
+```
+
+上面 `any(v is None)` 守护本来已保证，但显式 filter 让 mypy 满足 + 防御性更稳。
+
+### 现在的 checklist（完全匹配 CI）
+
+tag/release 前本机门禁：
+
+1. `pytest -q` — 460/460 通过
+2. `ruff check karma/ tests/` — All checks passed
+3. `mypy karma/ && mypy tests/` — no issues
+4. `vulture karma/ whitelist.py --min-confidence 60` — exit 0
+5. push 后 `gh run list --limit 1` — 验证 CI 真绿
+
+4 个门禁完全匹配 CI 跑的。第 5 步是终极验证。
+
+### 验证
+
+4 个本机门禁全绿 + 这次 push 的 CI run 应该是 v0.8.5 后第一次绿。
+
 ## [0.9.3] — 2026-05-15（fix — 真正让 CI 绿：3 处死代码 + vulture whitelist）
 
 ### 接 v0.9.2
