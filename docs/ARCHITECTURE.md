@@ -347,6 +347,9 @@ Performance hasn't been a bottleneck — measured far below budget.
 | v0.5.12 `karma init` auto-installs `karma-rule` skill + new `karma install-skill [--force]` command | ✅ |
 | v0.5.13 audit-driven dedup — shared `is_python_c_command` helper + 34 `.sticky_id` callsites → `.rule_id` + `karma doctor` reports skill status | ✅ |
 | v0.5.14 skill teaches modify recipe via existing `remove + add` composition (no new CLI; user principle: don't grow surface area for rare flows) | ✅ |
+| v0.5.15 v0.6.0 preparation — plan doc `docs/V0_6_0_PLAN.md` + internal 11+4 `from karma.sticky` import migration to `from karma.rule` so v0.6.0 can ship as pure deletion commit | ✅ |
+| v0.5.16 `/karma <natural language>` skill actually works — first release; multi-backend install (Claude Code / Codex / Gemini) with Markdown → TOML format adaptation for Gemini commands path; v0.5.1-15 honest disclosure (wrong install path → skill never triggered before) | ✅ |
+| v0.5.17 README narrative rewrite — `/karma <NL>` skill promoted to top-level section instead of patch-style mention; PRD F5 rewritten; ARCHITECTURE + HANDOFF synced to v0.5.16 reality | ✅ |
 
 Details in [CHANGELOG.md](../CHANGELOG.md) for per-release rationale; [HANDOFF.md](./HANDOFF.md) for internal context.
 

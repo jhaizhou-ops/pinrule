@@ -10,6 +10,45 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.5.17] — 2026-05-15 (docs — README narrative rewrite: `/karma <NL>` skill promoted to top-level section, not patch-style mention)
+
+### Why this release
+
+v0.5.16 shipped the working skill but README still treated it as a patch-style mention buried inside the "Customize your own rules" section — the "Agent writes the rule for you" capability was a one-line aside while the "Agent complies with rules" capability owned the entire hero/pitch. This release rewrites README narrative so both sides of karma's loop get equal billing on the landing page, per user principle:
+
+> "对外说明文档一定不要只是打补丁，要很「爆款」的融入整体说明，重要亮点和功能说明展示好。"
+> (Don't just patch — fold new capabilities into the overall narrative; flagship features deserve flagship presentation.)
+
+### What changed (README + README.zh.md, symmetric)
+
+**1. Hero opening rewritten** — was a single "monitor Agent" paragraph + violation-rate stat. Now explicitly frames karma as "two sides of the same loop": 🛡️ pin rules / Agent complies + ✨ tell karma in plain words / Agent writes the rule. Both with concrete one-liners.
+
+**2. Table of contents** — adds `/karma natural-language rule input` as a top-level entry alongside install / how-it-works / customize.
+
+**3. Real-problems table** — adds a 7th row covering the actual pain point that v0.5.16 solves ("I want to add a rule but writing yaml is too heavy / my phrasing doesn't make Agent comply"), so the value-prop appears in the same comparative format as the other 6 pains.
+
+**4. Quick install section** — adds a one-line callout that `karma init` auto-installs the skill across all three backends (no extra step), so users know it ships ready-to-use, not as an opt-in upgrade.
+
+**5. New top-level section `/karma <natural language>` — Agent writes the rule for you** — replaces the 20-line "Recommended:" sub-section that v0.5.15 had patched into "Customize." New section is 55+ lines: 7-step workflow visualization, "what the skill handles for you" 6-row table (tone / format / overlap / scope / locale / modify), "three backends, one command" install table, upgrade flow (`karma install-skill --force` / `--backend`).
+
+**6. "Customize your own rules" reduced to a 1-line pointer** — directs users to the new top-level skill section, with a note that the manual-yaml fallback is for advanced users / no-skill environments. The yaml example block remains as fallback reference; the duplicated "Recommended:" content from v0.5.15 is removed (no more redundancy).
+
+### Other docs synced
+
+- **`docs/PRD.md` + `.zh.md` F5** — Rewritten with v0.5.16 multi-backend reality. Old version still claimed "v0.5.1+" availability; new version flags "v0.5.16+ — first release where the skill actually triggers" with the honest history disclosure.
+- **`docs/ARCHITECTURE.md` + `.zh.md`** — Milestone table gains v0.5.15 / v0.5.16 / v0.5.17 rows.
+- **`docs/HANDOFF.md`** — Current status updated to v0.5.17.
+
+### Verification
+
+- `pytest`: 411/411 passing (pure docs, no code change)
+- `ruff`: 0 issues
+- Manual sanity: TOC anchor `#karma-natural-language--agent-writes-the-rule-for-you` resolves; sectioning makes sense for a first-time reader landing on the README
+
+### Trigger
+
+This release was triggered by user typing `/karma 每次commit以后必须更新所有 github 文档至最新版本...要很「爆款」的融入整体说明` — the karma skill's first live end-to-end use added rule 10 (`docs-sync-after-commit`), and this commit is the immediate first application of that newly-added rule.
+
 ## [0.5.16] — 2026-05-15 (feat — `/karma <natural language>` skill works for real, multi-backend install)
 
 ### Why this release is big

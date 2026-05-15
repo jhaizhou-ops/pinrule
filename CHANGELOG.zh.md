@@ -6,6 +6,44 @@
 
 ## [Unreleased]
 
+## [0.5.17] — 2026-05-15（docs — README narrative 重写：`/karma <NL>` skill 提升为顶级 section，不再是 patch 式提及）
+
+### 这版动机
+
+v0.5.16 ship 了真工作的 skill 但 README 仍然把它当成「Customize 章节内的 patch 式提及」— 「Agent 替你写规则」能力是一行 aside，「Agent 守规则」能力独占整个 hero。本版按用户原则重写 README narrative 让 karma 两面闭环在 landing page 上平起平坐：
+
+> 「对外说明文档一定不要只是打补丁，要很「爆款」的融入整体说明，重要亮点和功能说明展示好。」
+
+### 改了啥（README + README.zh.md 对称）
+
+**1. Hero opening 重写** — 之前是单段「监督 Agent」+ 违规率数字。现在明确把 karma framing 为「同一闭环的两面」：🛡️ 钉规则 / Agent 守 + ✨ 大白话告诉 karma / Agent 替你写。两面各配具体一行。
+
+**2. 目录** — 加 `/karma 自然语言录入规则` 作为顶级 entry，跟 install / 原理 / 自定义并列。
+
+**3. 真痛点表格** — 加第 7 行 v0.5.16 真解决的痛点（「想加规则但 yaml 太重 / 措辞 Agent 不响应」），让 value-prop 用跟其他 6 个痛点同样的对照表格出现。
+
+**4. Quick install 段** — 加一行 callout 说 `karma init` 自动装 skill 到三家 backend，让用户从 install 起就知道开箱即用不需要额外步骤。
+
+**5. 新顶级 section `/karma <自然语言>` — Agent 替你写规则** — 替换 v0.5.15 在 Customize 内 patch 的 20 行「推荐路径」子段。新 section 55+ 行：7 步流程可视化、「skill 替你做的事」6 行表（语气 / 格式 / 重叠 / scope / locale / modify）、「三家 backend 一个命令」装机表、升级流程（`karma install-skill --force` / `--backend`）。
+
+**6. 「自定义你自己的核心方向」缩成 1 行 pointer** — 指向新顶级 skill section，注明手工 yaml fallback 是给进阶用户 / 无 skill 环境。yaml 示例块保留作 fallback 参考；v0.5.15 patch 的重复「推荐：」内容删除（不再冗余）。
+
+### 其他 doc 同步
+
+- **`docs/PRD.md` + `.zh.md` F5** — 用 v0.5.16 多 backend 现实重写。老版本仍说「v0.5.1+」可用；新版本明确「v0.5.16+ — skill 第一次真触发」含诚实历史披露
+- **`docs/ARCHITECTURE.md` + `.zh.md`** — milestone 表加 v0.5.15 / v0.5.16 / v0.5.17 行
+- **`docs/HANDOFF.md`** — Current status 更新到 v0.5.17
+
+### 验证
+
+- `pytest`：411/411 通过（纯文档无代码改）
+- `ruff`：0 issues
+- 手工 sanity：TOC anchor `#karma-自然语言--agent-替你写规则` resolve；首次读者落到 README 的章节切分合理
+
+### 触发
+
+本 release 由用户输 `/karma 每次commit以后必须更新所有 github 文档至最新版本...要很「爆款」的融入整体说明` 触发 — karma skill 第一次现场端到端使用加了 rule 10（`docs-sync-after-commit`），本 commit 是新加规则的第一次立即应用。
+
 ## [0.5.16] — 2026-05-15（feat — `/karma <自然语言>` skill 真工作，多 backend 装机）
 
 ### 这版为啥重要

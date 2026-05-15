@@ -28,6 +28,9 @@ All v0.5.x phases delivered as of 2026-05-15 (12 releases v0.5.3 → v0.5.14 shi
 - ✅ v0.5.10–v0.5.12 — UX polish: `karma --help` lists `rule add/preview` subcommands, `skills/karma-rule.md` clarity audit (5 gaps closed), `karma init` auto-installs skill + new `karma install-skill [--force]` command
 - ✅ v0.5.13 — audit-driven dedup: `is_python_c_command` helper extracted to `karma/checks/common.py` (was duplicated across 3 check files), 34 `.sticky_id` callsites cleaned to `.rule_id`, `karma doctor` reports skill installation status
 - ✅ v0.5.14 — `karma-rule` skill teaches the modify recipe (`rule preview` → `rule remove && rule add`) via existing commands; no new CLI added, by user principle: don't grow surface area for rare flows
+- ✅ v0.5.15 — v0.6.0 preparation; `docs/V0_6_0_PLAN.md` draft + internal 11+4 `from karma.sticky` import migration to `from karma.rule` so v0.6.0 can ship as pure deletion commit
+- ✅ v0.5.16 — **`/karma <natural language>` skill actually triggers for the first time**; multi-backend install (Claude Code / Codex / Gemini with Markdown → TOML adaptation); honest disclosure that v0.5.1–v0.5.15 shipped skill at wrong path (`<name>.md` flat instead of required `<name>/SKILL.md` directory) so it never triggered
+- ✅ v0.5.17 — README narrative rewrite (skill promoted to top-level section, not patch-style mention); PRD F5 rewritten; ARCHITECTURE + HANDOFF synced to v0.5.16 reality
 
 🔜 v0.6.0 — remove the `.sticky_id` backward-compat alias on `CheckHit` + `Violation` (all internal callsites migrated in v0.5.13; external user code had one release cycle to update)
 

@@ -365,6 +365,9 @@ violations / session_state / config / cli）都用它读 env。
 | v0.5.12 `karma init` 自动装 `karma-rule` skill + 新加 `karma install-skill [--force]` 命令 | ✅ |
 | v0.5.13 audit 驱动 dedup — `is_python_c_command` helper 共享 + 34 处 `.sticky_id` callsite 清理 + `karma doctor` 报 skill 状态 | ✅ |
 | v0.5.14 skill 教会 Agent 用 `remove + add` 现有命令组合做 modify（不加新 CLI；用户原则：不要为低频场景扩 CLI 表面）| ✅ |
+| v0.5.15 v0.6.0 准备 — 计划稿 `docs/V0_6_0_PLAN.md` + 内部 11+4 处 `from karma.sticky` import 迁到 `from karma.rule` 让 v0.6.0 可以纯删除 commit | ✅ |
+| v0.5.16 `/karma <自然语言>` skill 第一次真工作 — 多 backend 装机（Claude Code / Codex / Gemini）含 Markdown → TOML 格式适配给 Gemini commands 路径；v0.5.1-15 诚实披露（装机路径错 → skill 从未真触发）| ✅ |
+| v0.5.17 README narrative 重写 — `/karma <NL>` skill 提升为顶级 section 而不是 patch 式提及；PRD F5 重写；ARCHITECTURE + HANDOFF 同步到 v0.5.16 现实 | ✅ |
 
 详见 [CHANGELOG.md](../CHANGELOG.md) 每版本的设计动机；[HANDOFF.md](./HANDOFF.md) 内部接力 context。
 

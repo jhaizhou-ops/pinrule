@@ -11,13 +11,17 @@
 
 > **Andrej Karpathy's 60k-stars [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to make AI never violate your rules in long tasks, and most importantly, how to auto-correct violations before they frustrate you.**
 >
-> **Measured violation rate in long-running tasks: ≈ 0%.**
+> **Two sides of the same loop**:
+>
+> 🛡️ **Pin your rules → Agent complies.** 5-10 core directions injected into every prompt header; real-time hook detection; cross-compact + cross-locale + cross-backend. Measured violation rate in long-running tasks: **≈ 0%.**
+>
+> ✨ **Tell karma in plain words → Agent writes the rule.** Type `/karma <natural language>` — Claude Code / Codex / Gemini CLI launches the karma skill that refines your phrasing into karma's validated "collaborative agreement" tone, previews the injection text, confirms with you, then adds to your rules.yaml. Auto-installed across all three backends on `karma init`.
 >
 > Works with Claude Code / Codex CLI / Gemini CLI. Pure engineering, zero LLM dependency, violation monitoring response < 60ms.
 
 ---
 
-**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [Usage effects](#usage-effects) · [Performance](#performance-quantified) · [8 hook monitoring](#8-hook-positions-full-monitoring) · [Customize rules](#customize-your-own-rules) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [FAQ](#faq) · [Docs](#documentation)
+**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance-quantified) · [8 hook monitoring](#8-hook-positions-full-monitoring) · [Customize rules](#customize-your-own-rules) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [FAQ](#faq) · [Docs](#documentation)
 
 ---
 
@@ -31,6 +35,7 @@
 | **Long context accumulation → attention decay → Agent drifts** | At 60-80K accumulated context, headers get diluted — Agent isn't ignorant, attention decayed | Per-model adaptive threshold (different decay points per model), auto-reinject mid-conversation when accumulation hits threshold |
 | **Agent sees reminders → triggers defense reactions / rationalization** | LLMs trained to please users — when faced with violation reminders, the first reaction is defensive self-justification or shortest-path patching, not genuine correction | Translate "rule" tone into "collaborative agreement" tone. Long-term real-world testing shows: LLMs facing "collaborative agreement" language switch first reaction to "align and comply" rather than "find workaround" |
 | **Agent finishes one small feature, then stops to ask "what's next?" (the author is fully-delegating)** | User gives clear direction → Agent finishes step 1 → "What should I do next?" → user comes back from other work and finds Agent stopped for 30 minutes | Stop hook detects silent stops, injects reflective prompt with up to 2 nudges encouraging continued execution until progress truly saturates |
+| **"I want to add a rule but writing yaml is too heavy / my phrasing doesn't make the Agent comply"** | You know what behavior you want but writing the rule itself is a chore — wrong `violation_keywords` format triggers false positives, wrong tone makes Agents defensive | Type `/karma <natural language>` in any of Claude Code / Codex / Gemini CLI — karma's skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes — 30 seconds end-to-end |
 
 ---
 
@@ -43,6 +48,8 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 ```
 
 > Restart Claude Code / Codex CLI / Gemini CLI — takes effect immediately.
+>
+> `karma init` auto-installs the `/karma` natural-language skill across all three backends (`~/.claude/skills/karma/`, `~/.agents/skills/karma/`, `~/.gemini/skills/karma/` + `~/.gemini/commands/karma.toml`). No extra step.
 
 ### Or ask your AI client to install it
 
@@ -147,6 +154,60 @@ Up to 2 consecutive reflective prompts — if truly saturated, the Agent can say
 
 ---
 
+## `/karma <natural language>` — Agent writes the rule for you
+
+This is karma's other half — the **partner** side, not the **monitor** side.
+
+```
+You (in Claude Code):   /karma When I say "done" I want test pass evidence attached
+                        Don't accept vague "should work" claims.
+
+Agent (karma skill walks 7 steps automatically):
+  ① Understand intent — flags anchor-vs-scope ambiguity if any
+  ② Check existing rules — semantic overlap detection (modify vs add)
+  ③ Draft yaml inline — collaborative-agreement tone, locale-aware
+  ④ karma rule preview — schema + REGISTRY validation
+  ⑤ Confirm with you — adjust wording / keywords / engine-check
+  ⑥ karma rule add — atomic write to rules.yaml
+  ⑦ Report — count, takes-effect timing, redundancy suggestions
+
+→ 30 seconds end-to-end, rule live on next UserPromptSubmit.
+```
+
+### What the skill handles for you
+
+| Hard part of writing a rule | What the skill does |
+|---|---|
+| **Tone — "you must always X" backfires on LLMs** | Rewrites in karma's "collaborative agreement" phrasing. Long-term testing shows LLMs respond with "let me align" rather than "let me argue" |
+| **Format — bare keywords trigger false positives** | Converts to "intent-prefix + action" format (e.g. `"I'll hardcode"` not `"hardcode"`) so discussion vs. action is distinguishable |
+| **Overlap — accidentally adding a duplicate rule wastes a slot** | 4-row decision table on overlap shape (full duplicate / superset / keyword-overlap / no overlap); offers modify-existing path instead of bloating to 11 rules |
+| **Scope ambiguity — "during X, do Y" is often anchor not scope** | Surfaces the ambiguity verbatim ("just to check: whenever we collaborate, or strictly during X?") instead of silently guessing |
+| **Locale — mixing English skill body for Chinese user** | Detects user's chat language; writes Chinese `preference` for Chinese users, English for English users. Built-in `violation_checks` function names stay English (stable identifiers) |
+| **Modify vs add — no separate `rule replace` command** | Knows the `remove + add` recipe atomically; preserves `id` so violation history stays linked |
+
+### Three backends, one command
+
+| Backend | Path (auto-installed) | Trigger in client |
+|---|---|---|
+| Claude Code | `~/.claude/skills/karma/SKILL.md` | `/karma <natural language>` |
+| Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` shared with Anthropic) | `/skills` menu, `$karma <description>` inline, or auto-trigger |
+| Gemini CLI | `~/.gemini/skills/karma/SKILL.md` (auto) + `~/.gemini/commands/karma.toml` (explicit) | `/karma <natural language>` (explicit) or auto-trigger (skill path) |
+
+The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); the `karma install-skill` command handles the Markdown → TOML conversion for the Gemini commands path automatically (`$ARGUMENTS` ↔ `{{args}}` syntax translation included).
+
+### Updating the skill after a karma upgrade
+
+```bash
+karma install-skill --force          # overwrite all backends' skills with current version
+karma install-skill --backend codex  # update one backend only
+```
+
+Without `--force`, the new version is written to a `.new` sibling file so you can `diff` your local edits against upstream before deciding.
+
+`karma doctor` reports per-backend skill status so you can see at a glance which is up-to-date.
+
+---
+
 ## Why it works
 
 karma isn't a linter, isn't a scoring system, isn't a retrieval system. It addresses 3 real but overlooked LLM collaboration problems:
@@ -205,28 +266,9 @@ All hook outputs strictly comply with the AI client's official protocol schema �
 
 ## Customize your own rules
 
-### Recommended: `/karma rule <natural language>` (Claude Code skill, ships out-of-box)
+> 👉 **For most users, use `/karma <natural language>`** ([see above](#karma-natural-language--agent-writes-the-rule-for-you)) — the skill handles tone / overlap / locale / schema validation for you. This section is for **advanced users** who want direct yaml control or are running karma in an environment without the skill loaded.
 
-The fastest path — describe what you want in plain language, the Agent refines it into karma's structure, previews, confirms with you, then writes. `karma init` auto-installs the skill (v0.5.12+), so it's ready after install.
-
-```
-You (in Claude Code): /karma rule When I say "done" I want test pass evidence attached
-
-Agent: [checks existing rules, drafts yaml, runs `karma rule preview`,
-        confirms with you, then runs `karma rule add` — 30 sec total]
-```
-
-What the skill handles for you:
-- **Tone refinement** — turns "you must always X" into karma's "collaborative agreement" phrasing (LLMs respond better to it)
-- **Overlap detection** — flags semantic conflicts with existing rules; offers modify / merge / add-sibling decisions instead of silently creating duplicates
-- **Anchor-vs-scope check** — surfaces ambiguity like "during X, do Y" (is X just an example, or a hard scope?) before writing
-- **Locale-aware** — writes Chinese `preference` when you're talking Chinese, English when talking English
-- **Schema + REGISTRY validation** — schema check + `violation_checks` function-name verification before any disk write
-- **Modify recipe** — for revising an existing rule, the skill knows the `remove + add` composition pattern (no separate "replace" command needed)
-
-Skill source: [`skills/karma-rule.md`](./skills/karma-rule.md). Install location after `karma init`: `~/.claude/skills/karma-rule.md`. Upgrade: `karma install-skill` (use `--force` only to overwrite local edits — without it, the new version is written to `karma-rule.md.new` so you can diff first).
-
-### Fallback: manual `rules.yaml` editing
+### Manual `rules.yaml` editing
 
 `~/.claude/karma/rules.yaml` (`karma init` copies the default template):
 

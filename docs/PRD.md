@@ -113,11 +113,29 @@ Three hook feedback points:
 - `karma install-hooks / uninstall-hooks` — Auto-write/clean settings.json (idempotent + backup + preserve other hooks)
 - `karma install-skill [--force]` — Install / upgrade the `karma-rule` Claude Code skill (`karma init` runs this automatically; standalone command for upgrades)
 
-### F5. Natural-language rule input via Claude Code skill ✅ (v0.5.1+)
+### F5. Natural-language rule input via `/karma` skill ✅ (v0.5.16+ — first release where the skill actually triggers)
 
-- `karma rule add --from-yaml <file>` / `karma rule add --from-stdin` — Programmatic rule write with schema + id-conflict + REGISTRY validation
-- `karma rule preview --from-yaml/--from-stdin` — Dry-run schema check + header-injection preview before writing
-- `skills/karma-rule.md` Claude Code skill template — User types `/karma rule <natural language>`, Agent walks a 7-step workflow (intent → existing-rule overlap check → draft yaml → preview → confirm with user → write → report). Skill handles tone refinement (collaborative-agreement phrasing), locale-aware drafting (Chinese/English by user's language), overlap decisions (modify / merge / add-sibling), and modify recipe (`remove + add` composition — no separate "replace" command)
+**Triggering**: user types `/karma <natural language>` in any of Claude Code / Codex CLI / Gemini CLI. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft yaml inline → `karma rule preview` schema check → confirm with user → `karma rule add` write → report.
+
+**What the skill handles**:
+- Tone refinement (collaborative-agreement phrasing — LLMs respond with alignment instead of defensive argument)
+- `violation_keywords` reformatting to "intent-prefix + action" form (`"I'll hardcode"` not `"hardcode"`)
+- Overlap detection (4-shape decision table: full duplicate / superset / keyword-overlap / no overlap)
+- Anchor-vs-scope ambiguity surfacing (always-on injection has no scene routing)
+- Locale-aware preference drafting (matches user's chat language; `violation_checks` function names stay English as stable identifiers)
+- Modify recipe (`remove + add` composition — no separate "replace" CLI needed)
+
+**Backing CLI** (callable independently from skill or scripts):
+- `karma rule add --from-yaml <file>` / `karma rule add --from-stdin` — Programmatic write with schema + id-conflict + REGISTRY validation
+- `karma rule preview --from-yaml/--from-stdin` — Dry-run validation + header-injection preview
+
+**Multi-backend installation** (v0.5.16+):
+- Claude Code: `~/.claude/skills/karma/SKILL.md` (Markdown + YAML frontmatter)
+- Codex CLI: `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/`, not `~/.codex/` — shared namespace with Anthropic per OpenAI design)
+- Gemini CLI: `~/.gemini/skills/karma/SKILL.md` (auto-trigger) **plus** `~/.gemini/commands/karma.toml` (explicit `/karma` slash, generated via `karma/skill_packaging.py` Markdown → TOML conversion with `$ARGUMENTS` ↔ `{{args}}` syntax translation)
+- `karma init` auto-installs to all three; `karma install-skill [--force] [--backend <name>]` for upgrades; `karma doctor` reports per-backend skill status
+
+**Honest history**: v0.5.1 shipped the skill template but at the wrong location (`<name>.md` flat file instead of required `<name>/SKILL.md` directory structure). The skill never actually triggered for v0.5.1 through v0.5.15 — manual CLI testing worked but the natural-language → auto-refine path was vapor. v0.5.16 rebuilt installation per Claude Code's documented protocol; the SessionStart hook of the session that shipped v0.5.16 was the first to see karma skill in its available-skills list. See [CHANGELOG.md v0.5.16](../CHANGELOG.md) for the full disclosure.
 
 ### F6. Internationalization (v0.5.2+) ✅
 

@@ -120,11 +120,29 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - `karma install-hooks / uninstall-hooks` — 自动写/清 settings.json（idempotent + 备份 + 保留他人 hook）
 - `karma install-skill [--force]` — 装 / 升级 `karma-rule` Claude Code skill（`karma init` 自动跑过；独立命令给升级用）
 
-### F5. 自然语言规则录入（Claude Code skill）✅（v0.5.1+）
+### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次真触发的 release）
 
+**触发方式**：用户在 Claude Code / Codex CLI / Gemini CLI 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
+
+**skill 替你做的事**：
+- 语气优化（协作默契语气 — 大模型对此回应是「我对齐」不是「我争辩」）
+- `violation_keywords` 转「意图前缀 + 动作」格式（`"我先打个补丁"` 不是 `"补丁"`）
+- 重叠检测（4 形态决策表：完全重复 / superset / keyword 交集 / 无重叠）
+- anchor-vs-scope 歧义识别（always-on 注入无 scene routing）
+- locale 感知 preference 起草（按用户聊天语言；`violation_checks` 函数名保持英文为稳定标识符）
+- modify recipe（`remove + add` 组合 — 不需要单独的 `replace` CLI 命令）
+
+**底层 CLI**（可独立从 skill 或脚本调用）：
 - `karma rule add --from-yaml <file>` / `karma rule add --from-stdin` — 程序化写规则，含 schema + id 唯一性 + REGISTRY 校验
-- `karma rule preview --from-yaml/--from-stdin` — dry-run schema 检查 + 头部注入预览，写盘前可看效果
-- `skills/karma-rule.md` Claude Code skill 模板 — 用户在 Claude Code 里输 `/karma rule <自然语言>`，Agent 走 7 步流程（识别意图 → 检查现有规则重叠 → 起草 yaml → preview → 跟用户确认 → 写入 → 反馈报告）。skill 负责语气优化（协作默契语气）、locale 感知（用户讲哪种语言写哪种 preference）、重叠决策（修改/合并/新加 sibling）、modify recipe（`remove + add` 组合 — 无需单独的「replace」命令）
+- `karma rule preview --from-yaml/--from-stdin` — dry-run 校验 + 头部注入预览
+
+**多 backend 装机**（v0.5.16+）：
+- Claude Code: `~/.claude/skills/karma/SKILL.md`（Markdown + YAML frontmatter）
+- Codex CLI: `~/.agents/skills/karma/SKILL.md`（注：`~/.agents/` 不是 `~/.codex/` — 按 OpenAI 设计跟 Anthropic 共享命名空间）
+- Gemini CLI: `~/.gemini/skills/karma/SKILL.md`（auto-trigger）**加** `~/.gemini/commands/karma.toml`（显式 `/karma` slash，通过 `karma/skill_packaging.py` Markdown → TOML 转换生成，含 `$ARGUMENTS` ↔ `{{args}}` 语法翻译）
+- `karma init` 自动装到所有三家；`karma install-skill [--force] [--backend <name>]` 给升级用；`karma doctor` 报每个 backend skill 状态
+
+**诚实历史**：v0.5.1 ship 了 skill 模板但路径错（`<name>.md` 裸文件而不是 Claude Code 协议要求的 `<name>/SKILL.md` 目录结构）。v0.5.1 ~ v0.5.15 skill 从未真触发 — 手工 CLI 测试能用，但自然语言 → 自动 refine 路径是空气。v0.5.16 按 Claude Code 协议重建装机；ship v0.5.16 那个 session 的 SessionStart hook 是 karma skill 第一次出现在 available skills 列表里。完整披露见 [CHANGELOG.md v0.5.16](../CHANGELOG.md)。
 
 ### F6. 国际化（v0.5.2+）✅
 
