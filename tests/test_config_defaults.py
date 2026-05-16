@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from karma.config import DEFAULTS, get, load
 
