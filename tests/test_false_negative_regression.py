@@ -126,6 +126,77 @@ def test_long_term_response_no_response_no_check():
     assert fn() is None  # 完全没参数
 
 
+# v0.11.4 — long_term response-level 英文对偶 pattern (类 3 + 类 4)
+# 真根因: v0.11.0 加 zh pattern, 英文 dogfood (codex / 英文用户) 漏拦.
+# 实测 stop hook fires on en transcript with these phrases.
+
+def test_long_term_response_patch_intent_en_let_me_hardcode():
+    """v0.11.4 类 3 EN: 「Let me hardcode this case」第一人称短期动作宣告 → engine 拦."""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(response="Let me just hardcode this case to ship it.")
+    assert hit is not None, "「Let me hardcode」第一人称短期意图应 engine 拦"
+    assert hit.trigger_key == "check.long_term.response_patch_intent.trigger"
+
+
+def test_long_term_response_patch_intent_en_ill_patch():
+    """v0.11.4 类 3 EN: 「I'll patch this」+「quick fix」/「skip the test」类短期动词 → engine 拦."""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(response="I'll patch this for now and revisit later.")
+    assert hit is not None, "「I'll patch」短期意图应 engine 拦"
+    hit2 = fn(response="For now let's just skip the test and ship.")
+    assert hit2 is not None, "「For now let's just skip test」应 engine 拦"
+
+
+def test_long_term_response_acknowledge_but_proceed_en():
+    """v0.11.4 类 4 EN: 「I know this is a hack, but it works for now」承认但仍 ship → engine 拦.
+
+    样本刻意避开类 3 字眼 (let's just / I'll patch / hardcode), 测纯类 4 unique pattern:
+    intent prefix (I know / aware) + acknowledgement (is a hack / not right) + pivot (but / for now).
+    """
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(response="I know this is a hack, but it works for now.")
+    assert hit is not None, "「I know ... is a hack ... but ... for now」转折应 engine 拦"
+    assert hit.trigger_key == "check.long_term.response_acknowledge_but_proceed.trigger"
+
+
+def test_long_term_response_en_reflection_no_false_positive():
+    """v0.11.4 EN 假阳防御: 反思字面 (含 patch/hardcode 词但不是宣告意图) 不该假阳."""
+    fn = REGISTRY["long_term_fundamental"]
+    # 「short-term patches won't work, dig the root cause」是反思
+    hit = fn(response="Short-term patches won't work, we should dig the root cause.")
+    assert hit is None, "反思「short-term patches won't work」不应被算成短期意图宣告"
+    # 单纯讨论 hardcode 词也不拦
+    hit2 = fn(response="The hardcoded constants in legacy code are tech debt.")
+    assert hit2 is None, "讨论 hardcoded 字面不应假阳"
+
+
+# v0.11.4 — i18n hook output templates (pre_tool_use deny reason)
+# 真根因: pre_tool_use.py + stop.py 之前硬编码中文模板, KARMA_LOCALE=en 没影响.
+# 这一波改成 走 tr(). lockdown 防未来 PR 回退到硬编码.
+
+def test_pre_tool_use_deny_reason_uses_tr_not_hardcoded_chinese():
+    """v0.11.4 i18n lockdown: pre_tool_use.py 不能再硬编码中文模板 'karma 拦截：违反'."""
+    import pathlib
+    src = pathlib.Path("karma/hooks/pre_tool_use.py").read_text(encoding="utf-8")
+    # 硬编码中文 reason 模板字面在 source 里出现 = 没走 tr() = 回退
+    assert "f\"karma 拦截：违反" not in src, (
+        "pre_tool_use.py 不应再硬编码 'karma 拦截：违反' — 必须走 tr('hook.pre_tool_use.deny_*_reason')"
+    )
+
+
+def test_stop_violation_line_uses_tr_not_hardcoded_chinese():
+    """v0.11.4 i18n lockdown: stop.py 不能再硬编码 'Agent 违反' / '建议：' 模板."""
+    import pathlib
+    src = pathlib.Path("karma/hooks/stop.py").read_text(encoding="utf-8")
+    # 硬编码中文 stderr 模板字面 — 必须 tr()
+    assert "f\"⚠️ karma: Agent 违反 {h.rule_id!r}" not in src, (
+        "stop.py 不应再硬编码 'Agent 违反' — 必须走 tr('hook.stop.violation_line')"
+    )
+    assert "f\"   建议：{h.suggested_fix}\"" not in src, (
+        "stop.py 不应再硬编码 '   建议：' — 必须走 tr('hook.stop.suggestion_line')"
+    )
+
+
 # ============================================================
 # v0.11.1 (Agent 1 deep_fix L3 时序 pattern): 测试失败 → 立刻 Edit 没 Read 错源
 # = 「报错没看源代码就改」草草了事 pattern. 用户 #1 最重视 rule.
