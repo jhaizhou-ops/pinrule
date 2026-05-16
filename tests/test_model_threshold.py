@@ -162,3 +162,85 @@ def test_model_from_payload_empty_payload_returns_none():
     """完全空 payload → None (不抛)."""
     from karma.model_threshold import model_from_payload
     assert model_from_payload({}) is None
+
+
+# v0.10.6 (Agent 3 F3.3 集成 lockdown): 3 hook 真把 payload.model 写进 state.model.
+# 单元测试 model_from_payload 本身已经覆盖 (上面 5 条), 但 hook 接入字面 (一行
+# import + 一行调用) 没 lockdown — 未来 refactor 手抖写 `payload.get("model_id")`
+# 或漏 import, model_from_payload 单元测试仍全过但 hook 真跑会 fallback 到
+# transcript 拿不到 mid-session /model 切换. 同 v0.9.12 trigger_key 漏传 family.
+
+def test_session_start_writes_payload_model_to_state(tmp_path, monkeypatch):
+    """v0.10.6: session_start.py 真把 payload.model 写进 state.model."""
+    import io
+    import json as _json
+    import sys
+    from karma.hooks import session_start
+    from karma import session_state
+
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("karma.paths.karma_home", lambda: tmp_path)
+    payload = {
+        "session_id": "test-ss-model",
+        "source": "startup",
+        "model": "gpt-5.5",
+        "transcript_path": "/nonexistent",  # transcript 故意坏路径确认走 payload.model
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    session_start.main()
+    state = session_state.load("test-ss-model", base_dir=tmp_path)
+    assert state.model == "gpt-5.5", (
+        f"session_start 应优先 payload.model='gpt-5.5', 实际 state.model={state.model!r}. "
+        f"v0.10.4 model_from_payload 接入 hook 失效."
+    )
+
+
+def test_user_prompt_submit_writes_payload_model_to_state(tmp_path, monkeypatch):
+    """v0.10.6: user_prompt_submit.py 真把 payload.model 写进 state.model."""
+    import io
+    import json as _json
+    import sys
+    from karma.hooks import user_prompt_submit
+    from karma import session_state
+
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    payload = {
+        "session_id": "test-ups-model",
+        "prompt": "hi",
+        "model": "gpt-5.4-mini",
+        "transcript_path": "/nonexistent",
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    user_prompt_submit.main()
+    state = session_state.load("test-ups-model", base_dir=tmp_path)
+    assert state.model == "gpt-5.4-mini", (
+        f"user_prompt_submit 应优先 payload.model='gpt-5.4-mini', 实际 state.model={state.model!r}"
+    )
+
+
+def test_post_tool_use_writes_payload_model_to_state(tmp_path, monkeypatch):
+    """v0.10.6: post_tool_use.py 真把 payload.model 写进 state.model."""
+    import io
+    import json as _json
+    import sys
+    from karma.hooks import post_tool_use
+    from karma import session_state
+
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    payload = {
+        "session_id": "test-pt-model",
+        "tool_name": "Bash",
+        "tool_input": {"command": "echo hi"},
+        "tool_response": "hi",
+        "model": "gpt-5.3-codex",
+        "transcript_path": "/nonexistent",
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    post_tool_use.main()
+    state = session_state.load("test-pt-model", base_dir=tmp_path)
+    assert state.model == "gpt-5.3-codex", (
+        f"post_tool_use 应优先 payload.model='gpt-5.3-codex', 实际 state.model={state.model!r}"
+    )

@@ -108,6 +108,29 @@ class Backend(Protocol):
         """生成 allow output JSON string (backend-specific shape)."""
         ...
 
+    def emit_context_injection(
+        self, event_name: str, additional_context: str, payload: dict,
+    ) -> str:
+        """生成 ContextInjection 类 hook output JSON string (v0.10.6 引入).
+
+        ContextInjection 类 hook 含 SessionStart / UserPromptSubmit /
+        PostToolUse / SubagentStart 等向 Agent 注入 additionalContext 的事件.
+        Claude Code 用 hookSpecificOutput.additionalContext shape, 其他
+        backend 可能 shape 不同 (Codex / Gemini 没文档化对 ContextInjection
+        类 event 的支持 — v0.9.15 同款假设潜伏点).
+        """
+        ...
+
+    def emit_stop_block(self, reason: str, payload: dict) -> str:
+        """生成 Stop hook 强制 block output JSON string (v0.10.6 引入).
+
+        Stop hook 是 karma 干预 Agent 最强动作 (force_block / keep_pushing_block).
+        Claude Code 用顶层 {decision: "block", reason} shape, 其他 backend
+        可能不接受 (Gemini AfterAgent 没 block 概念, Codex Stop event
+        是否接受这个 shape 未验证).
+        """
+        ...
+
     def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
         """返回该 backend 装 skill 的目标 [(dest_path, content_format), ...].
 

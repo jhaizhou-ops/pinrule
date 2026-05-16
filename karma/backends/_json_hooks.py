@@ -182,3 +182,30 @@ class JsonHooksBackend:
                 "permissionDecision": "allow",
             }
         })
+
+    def emit_context_injection(
+        self, event_name: str, additional_context: str, payload: dict,
+    ) -> str:
+        """生成 ContextInjection 类 hook output JSON (v0.10.6 引入).
+
+        默认 Claude Code shape: `{hookSpecificOutput: {hookEventName, additionalContext}}`.
+        Codex / Gemini 等 backend 文档没明确说对 SessionStart / UserPromptSubmit
+        类 ContextInjection event 接受什么 shape — 默认这个跟 PreToolUse Claude
+        shape 一致, 各 backend 真测到失败时各自 override.
+        """
+        return json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": event_name,
+                "additionalContext": additional_context,
+            }
+        }, ensure_ascii=False)
+
+    def emit_stop_block(self, reason: str, payload: dict) -> str:
+        """生成 Stop hook 强制 block output JSON (v0.10.6 引入).
+
+        默认 Claude Code 顶层 shape: `{decision: "block", reason}`.
+        Stop event 通常跨 backend 不一致 — Gemini AfterAgent 没 block 概念,
+        Codex Stop 接受未验证. 默认 Claude shape, Gemini 等 override 返 `{}`
+        让通用 stop.py 主逻辑 fail-open 不阻塞 Agent.
+        """
+        return json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False)

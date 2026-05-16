@@ -92,6 +92,23 @@ def test_emit_allow_returns_valid_json_string(backend):
     assert isinstance(parsed, dict)
 
 
+def test_emit_context_injection_returns_valid_json_string(backend):
+    """v0.10.6: emit_context_injection 必须返合法 JSON string (任何 event_name)."""
+    out = backend.emit_context_injection("SessionStart", "test context", {})
+    assert isinstance(out, str)
+    parsed = json.loads(out)
+    assert isinstance(parsed, dict)
+
+
+def test_emit_stop_block_returns_valid_json_string(backend):
+    """v0.10.6: emit_stop_block 必须返合法 JSON string. Gemini 等 fail-open 返 {}
+    也是合法的, 调用方 stop.py 主逻辑接受 (printed {} = passthrough 不阻塞)."""
+    out = backend.emit_stop_block("test reason", {})
+    assert isinstance(out, str)
+    parsed = json.loads(out)
+    assert isinstance(parsed, dict)
+
+
 # --- 元契约：装机相关 method ---
 
 def test_hook_events_returns_nonempty_dict(backend):

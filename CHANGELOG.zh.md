@@ -6,6 +6,44 @@
 
 ## [Unreleased]
 
+## [0.10.6] — 2026-05-16（minor — 关掉 v0.10.5 推迟的 3 项: emit_context_injection / emit_stop_block backend 契约 + model_from_payload 3 hook 集成测试）
+
+v0.10.5 audit sweep 推迟 3 个结构性 finding; v0.10.6 关掉.
+
+### Backend Protocol 从 6 个契约扩到 8 个
+
+`karma/backends/_base.py:Backend` 加 2 个新契约方法:
+- `emit_context_injection(event_name, additional_context, payload) -> str`
+- `emit_stop_block(reason, payload) -> str`
+
+`JsonHooksBackend` (默认基类) 提供 Claude-shape 默认匹配之前直 print 行为 — Claude 用户 0 行为变化. Gemini override `emit_stop_block` 返 `{}` (AfterAgent 无 block 概念 — fail-open 不静默被拒). Codex 先继承 Claude shape (Stop event 是否接受待真 codex 测试 — codex backend owner TODO).
+
+### 4 个 ContextInjection hook 现在走 `protocol_adapter.emit_context_injection`
+
+修 Agent 2 F2.2: `session_start.py` / `user_prompt_submit.py` / `post_tool_use.py` / `subagent_start.py` 之前直 print `{hookSpecificOutput: {hookEventName, additionalContext}}` Claude shape, 不走 backend dispatch. Codex SessionStart/UserPromptSubmit shape 是否接受未测试 (v0.9.15 同 pattern 咬过). 4 个 hook 现在都走 `protocol_adapter.emit_context_injection(event_name, additional_context, payload)` — backend 决定 shape, Claude 用户不变, Codex/Gemini 可 override.
+
+### Stop hook 走 `protocol_adapter.emit_stop_block`
+
+修 Agent 2 F3: `stop.py` force_block + keep_pushing_block 路径之前直 print `{decision: "block", reason}` Claude shape. Gemini `AfterAgent` 没 `decision: block` 语义; Codex Stop hook 接受未验证. 两条 block 路径现在都走 `emit_stop_block(reason, payload)`. Gemini 返 `{}` (Stop 干预 AfterAgent 不适用 — fail-open Agent 不受影响). Stop.py `_handle_force_block` + `_handle_keep_pushing_block` 签名加 `payload` 参数; main() 透传.
+
+### `model_from_payload` 3 hook 集成测试 (F3.3)
+
+`tests/test_model_threshold.py` 加 3 个集成测试: 每个 hook (session_start / user_prompt_submit / post_tool_use) 验证 `state.model` 真从 `payload.model` 字段写, 不是 transcript fallback (transcript_path 故意指不存在文件证明 payload.model 是真 source). 测试覆盖 `gpt-5.5` / `gpt-5.4-mini` / `gpt-5.3-codex` 跨 3 个 hook. 同 v0.9.12 trigger_key 教训 (单行 hook 集成易 refactor 破 — 锁每行).
+
+### 2 个新跨 backend 契约测试
+
+`tests/contract/test_backend_contract.py` 加 parametrize 测试 2 个新方法. 3 backend × 2 method = 6 新契约 check 确保 `emit_context_injection` / `emit_stop_block` 在任何 backend 返合法 JSON string.
+
+### 验证
+
+- **606/606 通过** 双 `LANG=zh_CN.UTF-8` 和 `LANG=en_US.UTF-8` (原 597 — +9 个新 lockdown: 6 contract emit_* + 3 hook model integration)
+- 全 6 道本地 gate 通过
+- Backend Protocol 现在 8 个契约方法 (原 6) — `tests/contract/` 自动验证所有 8 × N backend 在每个新 backend 注册时
+
+### v0.10.x cross-perspective audit pattern 完全关闭
+
+v0.10.5 audit sweep 18 个 finding 全部处理完: 10 个在 v0.10.5 + 3 个 v0.10.6 + 5 个 Agent 2 minor 已在 v0.10.5 ship. **6 个连续 v0.10.x release (v0.10.0 → v0.10.6) 构成完整 backend 所有权分工 + 跨平台平价循环**: 架构 (v0.10.0) → codex 3 PR (v0.10.1-3) → karma 维护者 parity 推 (v0.10.4) → audit sweep (v0.10.5) → 结构性关闭 (v0.10.6).
+
 ## [0.10.5] — 2026-05-16（minor — 4 视角 cross-audit sweep: 10 finding 修在 docs / functional / state / boundary 四类）
 
 用户在 5 个连续 v0.10.x release 后触发 4 视角 cross-audit (3 个 Claude 并行 agent + dogfooding 证据视角). 印证 v0.9.13 pattern: 快速迭代累积新 drift. 18 个 finding 浮现 — 17 个 hand-verified 真 (0 假阳). v0.10.5 批量修 10 个 (functional + critical + minor); v0.10.6 处理 4 个结构性的 (context-injection / stop-block backend 契约方法 + 3-hook 集成测试).

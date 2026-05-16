@@ -70,6 +70,12 @@ class GeminiCLIBackend(JsonHooksBackend):
         """Gemini 默认 allow — 空 dict passthrough，不需要显式 allow shape."""
         return json.dumps({})
 
+    def emit_stop_block(self, reason: str, payload: dict) -> str:
+        """Gemini AfterAgent 没 block 概念 — 返 {} 让通用 stop.py 主逻辑 fail-open
+        不阻塞 Agent. Stop block 干预在 Gemini 下不适用 (官方协议无对应 shape).
+        """
+        return json.dumps({})
+
     def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
         """Gemini CLI 装两个 (双轨支持):
 

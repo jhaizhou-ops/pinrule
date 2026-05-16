@@ -136,6 +136,7 @@ def _handle_force_block(
     sticky_list,
     hit_sticky_ids: set,
     session_id: str,
+    payload: dict | None = None,
 ) -> bool:
     """累积强制 block — 同规则累积违反超阈值 → 输出 decision=block 强制查根因。
 
@@ -188,7 +189,10 @@ def _handle_force_block(
         f"必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。"
         f"禁止继续绕（手动改 karma 状态 / 临时改 rules.yaml）。"
     )
-    print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
+    # v0.10.6 (Agent 2 F3 fix): 走 protocol_adapter.emit_stop_block —
+    # Gemini AfterAgent 没 block 概念 backend 自己 fail-open 返 {}.
+    from karma.backends.protocol_adapter import emit_stop_block
+    print(emit_stop_block(reason, payload or {}))
     return True
 
 
@@ -196,6 +200,7 @@ def _handle_keep_pushing_block(
     check_hits: list,
     keyword_violations: list,
     state,
+    payload: dict | None = None,
 ) -> bool:
     """keep-pushing 干预 — Agent 沉默式停下时让继续生成。
 
@@ -232,7 +237,8 @@ def _handle_keep_pushing_block(
         count=state.stop_block_count,
         max=block_max,
     )
-    print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
+    from karma.backends.protocol_adapter import emit_stop_block
+    print(emit_stop_block(reason, payload or {}))
     return True
 
 
@@ -357,11 +363,11 @@ def main() -> int:
     )
 
     # 机制 1: 累积强制 block — 累积违反超阈值 → decision=block 强制查根因
-    if _handle_force_block(state, sticky_list, hit_sticky_ids, session_id):
+    if _handle_force_block(state, sticky_list, hit_sticky_ids, session_id, payload):
         return 0
 
     # 机制 2: keep-pushing 干预 — Agent 沉默式停下时让继续生成
-    if _handle_keep_pushing_block(check_hits, keyword_violations, state):
+    if _handle_keep_pushing_block(check_hits, keyword_violations, state, payload):
         return 0
 
     # 2026-05-15 原因 fix：Stop hook 协议**不支持 hookSpecificOutput**

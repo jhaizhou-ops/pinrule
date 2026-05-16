@@ -121,3 +121,25 @@ def emit_deny(reason: str, payload: dict) -> str:
 def emit_allow(payload: dict) -> str:
     """生成 backend-specific allow output JSON string."""
     return _backend_for(payload).emit_allow(payload)
+
+
+def emit_context_injection(
+    event_name: str, additional_context: str, payload: dict,
+) -> str:
+    """生成 backend-specific ContextInjection hook output JSON string (v0.10.6).
+
+    SessionStart / UserPromptSubmit / PostToolUse / SubagentStart 等向 Agent
+    注入 additionalContext 的事件统一走这个调度入口, 不再 4 个 hook 各自
+    直 print Claude shape (v0.9.15 同款潜伏点).
+    """
+    return _backend_for(payload).emit_context_injection(event_name, additional_context, payload)
+
+
+def emit_stop_block(reason: str, payload: dict) -> str:
+    """生成 backend-specific Stop hook block output JSON string (v0.10.6).
+
+    Stop hook force_block / keep_pushing_block 走这个调度入口. Claude
+    顶层 `{decision: block, reason}`; Gemini override 返 `{}` fail-open
+    (AfterAgent 没 block 概念); Codex 跟 Claude shape 一致 (待验证).
+    """
+    return _backend_for(payload).emit_stop_block(reason, payload)

@@ -222,15 +222,12 @@ def main() -> int:
         print(f"karma PostToolUse: 保存 session_state 失败 ({e})", file=sys.stderr)
         additional_context = ""
 
-    output = {}
     if additional_context:
-        output = {
-            "hookSpecificOutput": {
-                "hookEventName": "PostToolUse",
-                "additionalContext": additional_context,
-            }
-        }
-    print(json.dumps(output, ensure_ascii=False))
+        # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
+        from karma.backends.protocol_adapter import emit_context_injection
+        print(emit_context_injection("PostToolUse", additional_context, payload))
+    else:
+        print(json.dumps({}))
     return 0
 
 

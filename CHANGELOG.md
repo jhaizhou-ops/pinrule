@@ -10,6 +10,44 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.10.6] — 2026-05-16 (minor — close v0.10.5 deferred 3: emit_context_injection / emit_stop_block backend contracts + model_from_payload hook integration tests)
+
+v0.10.5 audit sweep deferred 3 structural findings; v0.10.6 closes them.
+
+### Backend Protocol expanded 6 → 8 contract methods
+
+`karma/backends/_base.py:Backend` adds:
+- `emit_context_injection(event_name, additional_context, payload) -> str`
+- `emit_stop_block(reason, payload) -> str`
+
+`JsonHooksBackend` (default base) provides Claude-shape implementations matching previous direct-print behavior — Claude users see zero behavior change. Gemini override `emit_stop_block` returns `{}` (AfterAgent has no block concept — fail-open instead of silently rejected). Codex inherits Claude shape for now (Stop event acceptance still needs real codex testing — codex backend owner TODO).
+
+### 4 ContextInjection hooks now route through `protocol_adapter.emit_context_injection`
+
+Fixes Agent 2 F2.2: `session_start.py` / `user_prompt_submit.py` / `post_tool_use.py` / `subagent_start.py` previously direct-printed `{hookSpecificOutput: {hookEventName, additionalContext}}` Claude shape, never reaching backend dispatch. Codex SessionStart/UserPromptSubmit shape acceptance was untested (v0.9.15 same-pattern bit us). All 4 now go through `protocol_adapter.emit_context_injection(event_name, additional_context, payload)` — backend decides shape, Claude users unchanged, Codex/Gemini override-able.
+
+### Stop hook routes through `protocol_adapter.emit_stop_block`
+
+Fixes Agent 2 F3: `stop.py` force_block + keep_pushing_block paths previously direct-printed `{decision: "block", reason}` Claude shape. Gemini `AfterAgent` has no `decision: block` semantic; Codex Stop hook acceptance unverified. Both block paths now go through `emit_stop_block(reason, payload)`. Gemini returns `{}` (Stop intervention not applicable on AfterAgent — fail-open Agent unaffected). Stop.py `_handle_force_block` + `_handle_keep_pushing_block` signatures extended with `payload` param; main() passes it through.
+
+### `model_from_payload` 3-hook integration tests (F3.3)
+
+`tests/test_model_threshold.py` adds 3 integration tests: each hook (session_start / user_prompt_submit / post_tool_use) verifies `state.model` is written from `payload.model` field, not from transcript fallback (transcript_path deliberately points to nonexistent file to prove payload.model is the actual source). Tests cover `gpt-5.5` / `gpt-5.4-mini` / `gpt-5.3-codex` across the three hooks. Matches v0.9.12 trigger_key lesson (single-line hook integration is easy to refactor-break — lockdown each line).
+
+### 2 new cross-backend contract tests
+
+`tests/contract/test_backend_contract.py` adds parametrized tests for the new 2 methods. All 3 backends × 2 methods = 6 new contract checks ensuring `emit_context_injection` / `emit_stop_block` return valid JSON strings on any backend.
+
+### Verification
+
+- **606/606 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 597 — +9 new lockdowns: 6 contract emit_* + 3 hook model integration)
+- All 6 local gates pass (pytest zh + en / ruff / mypy / vulture --min-confidence 60 / wheel build+verify+smoke)
+- Backend Protocol now 8 contract methods (was 6) — `tests/contract/` auto-validates all 8 × N backends on every new backend registration
+
+### Cross-perspective audit pattern fully closed for v0.10.x
+
+All 18 findings from v0.10.5 audit sweep now addressed: 10 in v0.10.5 + 3 in v0.10.6 + 5 had been Agent 2 minors already shipped within v0.10.5. **6 consecutive v0.10.x releases (v0.10.0 → v0.10.6) constitute a complete backend ownership-split + cross-platform parity cycle**: architecture (v0.10.0) → codex 3 PRs (v0.10.1-3) → karma maintainer parity push (v0.10.4) → audit sweep (v0.10.5) → structural close (v0.10.6).
+
 ## [0.10.5] — 2026-05-16 (minor — 4-perspective cross-audit sweep: 10 findings fixed across docs / functional / state / boundary)
 
 User triggered 4-perspective cross-audit (3 Claude parallel agents + dogfooding evidence) after 5 consecutive v0.10.x releases. Recovered v0.9.13-pattern truth: rapid iteration accumulates new drift. 18 findings surfaced — 17 hand-verified true (0 false positives). v0.10.5 batch-fixes 10 (functional + critical + minor); v0.10.6 will tackle the 4 structural ones (context-injection / stop-block backend contract methods + 3-hook integration tests).

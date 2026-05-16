@@ -32,13 +32,13 @@ def _passthrough() -> None:
     print(json.dumps({}))
 
 
-def _emit(additional_context: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": additional_context,
-        }
-    }, ensure_ascii=False))
+def _emit(additional_context: str, payload: dict | None = None) -> None:
+    # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
+    # 让 backend 自己决定 shape (codex / gemini 可能不接受 Claude shape).
+    # 之前直 print hookSpecificOutput 是 v0.9.15 类型潜伏点 — 不响亮 fail
+    # 静默被 backend reject 时 Agent 看不到 baseline 注入.
+    from karma.backends.protocol_adapter import emit_context_injection
+    print(emit_context_injection("SessionStart", additional_context, payload or {}))
 
 
 def main() -> int:
@@ -75,7 +75,7 @@ def main() -> int:
         rule_list = load_sticky()
     except RuleConfigError as e:
         print(f"karma SessionStart: {e}", file=sys.stderr)
-        _emit(f"❌ 规则配置错误：{e}")
+        _emit(f"❌ 规则配置错误：{e}", payload)
         return 0
     except Exception as e:
         print(f"karma SessionStart: 规则加载失败 ({e})", file=sys.stderr)
@@ -125,7 +125,7 @@ def main() -> int:
     lines.append(format_for_injection(rule_list))
     if source == "compact":
         lines.append(tr("session_start.compact.tail"))
-    _emit("\n".join(lines))
+    _emit("\n".join(lines), payload)
     return 0
 
 

@@ -84,12 +84,9 @@ def main() -> int:
         lines.append(f"  ▸ {s.id}: {first_line}")
     lines.append(tr("subagent_start.tail"))
 
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "SubagentStart",
-            "additionalContext": "\n".join(lines),
-        }
-    }, ensure_ascii=False))
+    # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
+    from karma.backends.protocol_adapter import emit_context_injection
+    print(emit_context_injection("SubagentStart", "\n".join(lines), payload))
     return 0
 
 
