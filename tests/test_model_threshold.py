@@ -197,7 +197,12 @@ def test_session_start_writes_payload_model_to_state(tmp_path, monkeypatch):
 
 
 def test_user_prompt_submit_writes_payload_model_to_state(tmp_path, monkeypatch):
-    """v0.10.6: user_prompt_submit.py 真把 payload.model 写进 state.model."""
+    """v0.10.6: user_prompt_submit.py 真把 payload.model 写进 state.model.
+
+    v0.11.2 加强: 显式 mock 空 rules.yaml — turn/model 推进必须早于 sticky_list
+    加载检查, 不能因为没装 rules 就跳过. CI 干净 home 下空 rules 是常态,
+    这个 case 必须 hold. 上一版 fail 因为 main() 在 sticky_list 空时早 return.
+    """
     import io
     import json as _json
     import sys
@@ -205,6 +210,8 @@ def test_user_prompt_submit_writes_payload_model_to_state(tmp_path, monkeypatch)
     from karma import session_state
 
     monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    # 模拟 CI clean home: 空 rules — 验证 model 推进不依赖 rules 存在
+    monkeypatch.setattr("karma.hooks.user_prompt_submit.load", lambda: [])
     payload = {
         "session_id": "test-ups-model",
         "prompt": "hi",
@@ -216,7 +223,11 @@ def test_user_prompt_submit_writes_payload_model_to_state(tmp_path, monkeypatch)
     user_prompt_submit.main()
     state = session_state.load("test-ups-model", base_dir=tmp_path)
     assert state.model == "gpt-5.4-mini", (
-        f"user_prompt_submit 应优先 payload.model='gpt-5.4-mini', 实际 state.model={state.model!r}"
+        f"user_prompt_submit 应优先 payload.model='gpt-5.4-mini', 实际 state.model={state.model!r}. "
+        f"v0.11.2 lockdown: model/turn 推进必须早于 sticky_list 检查, 空 rules 也要 hold"
+    )
+    assert state.turn_count == 1, (
+        "v0.11.2 lockdown: turn_count 必须 +1 即使 rules 为空 (CI 干净 home 常态)"
     )
 
 
