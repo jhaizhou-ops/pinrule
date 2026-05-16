@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -46,6 +47,58 @@ _APPLY_PATCH_OP_RE = re.compile(
     re.MULTILINE,
 )
 _APPLY_PATCH_BEGIN = "*** Begin Patch"
+
+_SIMPLE_SHELL_READ_COMMANDS = frozenset({
+    "tail",
+    "head",
+    "cat",
+    "less",
+    "more",
+    "wc",
+    "file",
+})
+_SHELL_COMPLEX_TOKENS = frozenset({
+    "|",
+    "||",
+    "&",
+    "&&",
+    ";",
+    ";;",
+    ">",
+    ">>",
+    "<",
+    "<<",
+    "<<<",
+    "(",
+    ")",
+})
+_SHELL_COMPLEX_COMMANDS = frozenset({"find", "xargs"})
+_TAIL_HEAD_OPTIONS_WITH_VALUES = frozenset({
+    "-n",
+    "--lines",
+    "-c",
+    "--bytes",
+})
+_GREP_OPTIONS_WITH_VALUES = frozenset({
+    "-A",
+    "--after-context",
+    "-B",
+    "--before-context",
+    "-C",
+    "--context",
+    "-m",
+    "--max-count",
+})
+_GREP_RECURSIVE_FLAGS = frozenset({
+    "-r",
+    "-R",
+    "--recursive",
+    "--dereference-recursive",
+})
+
+_SED_ADDR = r"(?:\d+|\$|/[^\n/]*/)(?:\s*,\s*(?:\d+|\$|/[^\n/]*/))?"
+_SED_PRINT_ONLY_RE = re.compile(rf"^\s*(?:{_SED_ADDR})?\s*p\s*$")
+_SED_PRINT_THEN_DELETE_RE = re.compile(rf"^\s*(?:{_SED_ADDR})?\s*p\s*;\s*d\s*$")
 
 
 def parse_apply_patch_envelope(envelope: str) -> list[dict[str, str]]:
@@ -82,6 +135,246 @@ def _extract_codex_patch_text(raw_tool_input: Any) -> str:
             if isinstance(v, str) and v.strip():
                 return v
     return ""
+
+
+def _shell_tokens(command: str) -> list[str]:
+    """Tokenize a simple shell command without executing it."""
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars="|&;<>()")
+        lexer.whitespace_split = True
+        return list(lexer)
+    except ValueError:
+        return []
+
+
+def _command_basename(token: str) -> str:
+    return token.rsplit("/", 1)[-1]
+
+
+def _has_wildcard(path: str) -> bool:
+    return "*" in path or "?" in path
+
+
+def _is_recordable_path(path: str) -> bool:
+    return bool(path) and path != "-" and not _has_wildcard(path)
+
+
+def _has_complex_shell_shape(tokens: list[str]) -> bool:
+    if not tokens:
+        return True
+    for token in tokens:
+        if token in _SHELL_COMPLEX_TOKENS:
+            return True
+        if _command_basename(token) in _SHELL_COMPLEX_COMMANDS:
+            return True
+    return False
+
+
+def _option_takes_value(token: str, options_with_values: frozenset[str]) -> bool:
+    if token in options_with_values:
+        return True
+    if token.startswith("--") and "=" in token:
+        return False
+    return token in options_with_values
+
+
+def _path_operands(
+    tokens: list[str],
+    *,
+    options_with_values: frozenset[str] = frozenset(),
+    plus_is_option: bool = False,
+) -> list[str]:
+    operands: list[str] = []
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "--":
+            operands.extend(tokens[i + 1:])
+            break
+        if _option_takes_value(token, options_with_values):
+            i += 2
+            continue
+        if token.startswith("--") and any(
+            token.startswith(f"{opt}=") for opt in options_with_values if opt.startswith("--")
+        ):
+            i += 1
+            continue
+        if token.startswith("-") and token != "-":
+            i += 1
+            continue
+        if plus_is_option and token.startswith("+"):
+            i += 1
+            continue
+        operands.append(token)
+        i += 1
+    return operands
+
+
+def _single_path(operands: list[str]) -> list[str]:
+    if len(operands) != 1:
+        return []
+    path = operands[0]
+    if not _is_recordable_path(path):
+        return []
+    return [path]
+
+
+def _sed_write_in_place(tokens: list[str]) -> bool:
+    for token in tokens[1:]:
+        if token == "--in-place" or token.startswith("--in-place="):
+            return True
+        if token == "-i" or token.startswith("-i"):
+            return True
+    return False
+
+
+def _extract_sed_read_paths(tokens: list[str]) -> list[str]:
+    silent = False
+    scripts: list[str] = []
+    operands: list[str] = []
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "--":
+            operands.extend(tokens[i + 1:])
+            break
+        if token in ("-n", "--quiet", "--silent"):
+            silent = True
+            i += 1
+            continue
+        if token == "-e":
+            if i + 1 >= len(tokens):
+                return []
+            scripts.append(tokens[i + 1])
+            i += 2
+            continue
+        if token.startswith("-e") and len(token) > 2:
+            scripts.append(token[2:])
+            i += 1
+            continue
+        if token == "-f" or token.startswith("--file"):
+            return []
+        if token.startswith("-") and token != "-":
+            i += 1
+            continue
+        if not scripts:
+            scripts.append(token)
+        else:
+            operands.append(token)
+        i += 1
+
+    if len(operands) != 1 or not scripts:
+        return []
+    path = operands[0]
+    if not _is_recordable_path(path):
+        return []
+
+    if silent and all(_SED_PRINT_ONLY_RE.fullmatch(script.strip()) for script in scripts):
+        return [path]
+    if not silent and len(scripts) == 1 and _SED_PRINT_THEN_DELETE_RE.fullmatch(scripts[0].strip()):
+        return [path]
+    return []
+
+
+def _grep_is_recursive(tokens: list[str]) -> bool:
+    for token in tokens[1:]:
+        if token in _GREP_RECURSIVE_FLAGS:
+            return True
+        if token.startswith("--"):
+            continue
+        if token.startswith("-") and ("r" in token[1:] or "R" in token[1:]):
+            return True
+    return False
+
+
+def _extract_grep_read_paths(tokens: list[str]) -> list[str]:
+    if _grep_is_recursive(tokens):
+        return []
+
+    operands: list[str] = []
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "--":
+            operands.extend(tokens[i + 1:])
+            break
+        # -e / -f make it harder to distinguish pattern files from searched files.
+        if token in ("-e", "--regexp", "-f", "--file") or token.startswith(("-e", "-f")):
+            return []
+        if _option_takes_value(token, _GREP_OPTIONS_WITH_VALUES):
+            i += 2
+            continue
+        if token.startswith("--") and any(
+            token.startswith(f"{opt}=") for opt in _GREP_OPTIONS_WITH_VALUES if opt.startswith("--")
+        ):
+            i += 1
+            continue
+        if token.startswith("-") and token != "-":
+            i += 1
+            continue
+        operands.append(token)
+        i += 1
+
+    if len(operands) != 2:
+        return []
+    path = operands[1]
+    if not _is_recordable_path(path):
+        return []
+    return [path]
+
+
+def _extract_awk_read_paths(tokens: list[str]) -> list[str]:
+    operands: list[str] = []
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "--":
+            operands.extend(tokens[i + 1:])
+            break
+        if token in ("-f", "-v"):
+            return []
+        if token.startswith("-") and token != "-":
+            i += 1
+            continue
+        operands.append(token)
+        i += 1
+
+    if len(operands) != 2:
+        return []
+    script, path = operands
+    if ">" in script or "|" in script or not _is_recordable_path(path):
+        return []
+    return [path]
+
+
+def extract_read_paths_from_exec_command(command: str) -> tuple[list[str], bool]:
+    """Return (read_file_paths, is_write) for conservative Codex shell reads."""
+    tokens = _shell_tokens(command)
+    if not tokens:
+        return [], False
+
+    command_name = _command_basename(tokens[0])
+    if command_name == "sed" and _sed_write_in_place(tokens):
+        return [], True
+    if _has_complex_shell_shape(tokens):
+        return [], False
+
+    if command_name in _SIMPLE_SHELL_READ_COMMANDS:
+        options_with_values = (
+            _TAIL_HEAD_OPTIONS_WITH_VALUES if command_name in ("tail", "head") else frozenset()
+        )
+        return _single_path(_path_operands(
+            tokens,
+            options_with_values=options_with_values,
+            plus_is_option=command_name in ("tail", "head", "less", "more"),
+        )), False
+    if command_name == "sed":
+        return _extract_sed_read_paths(tokens), False
+    if command_name == "grep":
+        return _extract_grep_read_paths(tokens), False
+    if command_name == "awk":
+        return _extract_awk_read_paths(tokens), False
+    return [], False
 
 
 class CodexBackend(JsonHooksBackend):
@@ -189,9 +482,27 @@ class CodexBackend(JsonHooksBackend):
               "multi_file_targets": [{"op", "path"}...], # v0.10.0 canonical 多文件字段
             }
 
-        非 apply_patch tool_call: passthrough 原 input。
+        exec_command 只读 shell: 保留原 input，并补 read_file_paths 给通用层后续 record_read。
+        其他非 apply_patch tool_call: passthrough 原 input。
         envelope 解析失败（malformed / 非 envelope 字符串）: passthrough 原 input。
         """
+        if raw_tool_name == "exec_command":
+            if not isinstance(raw_tool_input, dict):
+                return raw_tool_input
+            command = raw_tool_input.get("command")
+            if not isinstance(command, str) or not command.strip():
+                command = raw_tool_input.get("cmd")
+            if not isinstance(command, str) or not command.strip():
+                return raw_tool_input
+            read_paths, is_write = extract_read_paths_from_exec_command(command)
+            if not read_paths and not is_write:
+                return raw_tool_input
+            normalized = dict(raw_tool_input)
+            if read_paths:
+                normalized["read_file_paths"] = read_paths
+            if is_write:
+                normalized["is_write"] = True
+            return normalized
         if raw_tool_name != "apply_patch":
             return raw_tool_input
         envelope = _extract_codex_patch_text(raw_tool_input)
