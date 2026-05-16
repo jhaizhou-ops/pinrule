@@ -176,7 +176,7 @@ Input stdin payload (**no** response field — must read transcript):
 
 Implementation: `karma/hooks/stop.py`
 1. Read transcript_path JSONL, find last `type=assistant` and take all text content
-2. Scan violation_keywords (keyword layer) + engine-layer violation_checks (chinese_plain / evidence / keep_pushing primarily here)
+2. Scan violation_keywords (keyword layer) + engine-layer violation_checks (chinese_plain / evidence / keep_pushing / **long_term_fundamental response-level** primarily here — v0.11.0+ added response-level patch-intent detection)
 3. Hits write to `violations.jsonl` + stderr notify + desktop notify + cumulative alerts
 4. **keep-pushing-no-stop hit → output `{"decision": "block", "reason": "..."}`** to keep Agent from immediately stopping (intervenes rule #7 "don't auto-stop"). Safeguard: cumulative block ≥ N within single turn (`stop_block_max_per_turn` default 2) → let Agent stop, prevents loops
 5. Otherwise outputs passthrough (Stop hook doesn't support `hookSpecificOutput` per Claude Code protocol — fixed in v0.4.43)
@@ -191,14 +191,14 @@ Performance: < 200ms.
 
 | check name | rule | Detects |
 |---|---|---|
-| `long_term_fundamental` | long-term solutions | Long-hash if branches / blacklist-whitelist literals / all-caps constant lists / TODO actual comments / intent literal comments / commit message hack words |
+| `long_term_fundamental` | long-term solutions | **L1 tool_input layer**: Long-hash if branches / blacklist-whitelist literals / all-caps constant lists / TODO actual comments / intent literal comments / commit message hack words. **L2 response-level layer (v0.11.0+)**: first-person intent prefix (我/咱/这次/临时/目前/当前/让我) + short-term action verb within 12 chars (先打补丁/硬编码/临时方案/绕过验证/patch 一下) → combo pattern hit; reflection like "短期补丁不行" still passes |
 | `non_blocking_parallel` | non-blocking | sleep / wait / long tasks without background / indirect shell execution |
 | `chinese_plain_no_jargon` | plain Chinese | Chinese ratio (denominator strips dotted engineering identifiers / path literals / commit message quote blocks) + jargon detection (strip code blocks / inline code) + same-prefix-char ≥ 5/response triggers self-check (whitelist exemptions: 一/不/是/有/没/我/你/他/这/那/在) |
 | `loud_failure_with_evidence` | completion evidence | Completion words / weak claims in code-task context + no test evidence |
 | `no_testset_no_future_leakage` | no testset feedback | gold_cases backfeeding / cross-split copying / long hashes in comparison or assignment positions |
 | `read_before_write` | read before write | Edit/Write before Read on same file_path (new file Write exempt) |
 | `keep_pushing_no_stop` | no silent stop | Priority: 0) **user prompt contains stop-words** (no need / let's rest / tomorrow / etc.) → exempt entire turn (highest priority); 1) response-tail 80-char push signal (I'll now/next + verb) → exempt; 2) question mark → exempt (reasonable decision-seeking encouraged); 3) pause-tone words (next time / let's stop / wrap up) → hit; 4) default hit (pure statement-ending with no push/no question) |
-| `bypass_karma_detection` | no bypass | Bash command contains karma internal literals (last_test_pass_ts / pending_bg_tasks / session-state json paths) + write operations → "bypass karma" hit. Exemptions: karma official CLI / read-only inspection / commit message quoted literals (post-strip skeleton doesn't contain sensitive literals) |
+| `bypass_karma_detection` | no bypass (sticky #1 deep-fix) | **L1 literal layer**: Bash command contains karma internal literals (last_test_pass_ts / pending_bg_tasks / session-state json paths) + write operations → "bypass karma" hit. Exemptions: karma official CLI / read-only inspection / commit message quoted literals. **L3 timing layer (v0.11.1+)**: pre_tool_use Edit + last Bash was test command + test failed + current file_path never Read this session → "shallow patch after failure" hit. L4 (cognitive depth — did the Agent really dig?) cannot be caught engineering-wise; relies on preference injection |
 
 Each check function signature: `def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`.
 

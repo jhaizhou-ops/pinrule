@@ -182,7 +182,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 
 实现：`karma/hooks/stop.py`
 1. 读 transcript_path JSONL，找最后一条 `type=assistant` 取所有 text content
-2. 扫 violation_keywords 关键词层 + 工程层 violation_checks（chinese_plain / evidence / keep_pushing 主要在这层）
+2. 扫 violation_keywords 关键词层 + 工程层 violation_checks（chinese_plain / evidence / keep_pushing / **long_term_fundamental response-level** 主要在这层 — v0.11.0+ 加了 response-level 短期意图话术检测）
 3. 命中违反写 `violations.jsonl` + stderr 通知 + 桌面通知 + 累积告警
 4. **keep-pushing-no-stop 命中 → 输出 `{"decision": "block", "reason": "..."}`** 让 Agent
    不立即停下继续生成（干预规则 #7「不主动停」）。Safeguard：单 turn 内累积 block ≥ N
@@ -203,14 +203,14 @@ UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 实际 sessio
 
 | check 名 | 规则 | 检测内容 |
 |---|---|---|
-| `long_term_fundamental` | 长期方案 | 长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 实际注释 / 意图字面注释 / commit message 主语 hack 词 |
+| `long_term_fundamental` | 长期方案 | **L1 tool_input 层**：长 hash if 分支 / 黑白名单字面 / 全大写常量名单 / TODO 实际注释 / 意图字面注释 / commit message 主语 hack 词。**L2 response-level 层 (v0.11.0+)**：第一人称意图前缀 (我/咱/这次/临时/目前/当前/让我) + 12 字内短期动作动词 (先打补丁/硬编码/临时方案/绕过验证/patch 一下) → combo pattern 命中；反思话语「短期补丁不行」仍干净通过 |
 | `non_blocking_parallel` | 不阻塞 | sleep / wait / 长任务无 background / 间接 shell 执行 |
 | `chinese_plain_no_jargon` | 中文 | 中文占比（分母剥含点号工程标识符 / 路径字面 / commit message 引号块）+ jargon 检测（剥 code block / inline code）+ 同前缀字 ≥ 5 次/response 触发自审（白名单豁免一/不/是/有/没/我/你/他/这/那/在）|
 | `loud_failure_with_evidence` | 完成证据 | 完成词 / weak claim 在代码任务上下文 + 无测试证据 |
 | `no_testset_no_future_leakage` | 不喂测试集 | gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值位置 |
 | `read_before_write` | 先读再写 | Edit/Write 前未 Read 该 file_path（Write 新文件豁免） |
 | `keep_pushing_no_stop` | 不主动停 | 优先级判：0) **user prompt 上文含叫停字眼**（不用了 / 休息吧 / 明天再说 / 先到这 / 算了 / 晚安 / 够了 等规则 #8 例外清单）→ 整 turn 豁免（最高优先级）1) response 末尾 80 字含推进信号（我现在 / 接下来 + 动词）→ 豁免 2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中 4) 默认命中（纯陈述完结无推进无问号）|
-| `bypass_karma_detection` | 不绕检测 | Bash 命令含 karma 内部字面（last_test_pass_ts / pending_bg_tasks / session-state json 路径）+ 写操作 → 命中「绕开 karma」。豁免：karma 官方 CLI / 只读 inspection / commit message 引号字面（剥后骨架不含敏感字面） |
+| `bypass_karma_detection` | 不绕检测（sticky #1 深挖根因） | **L1 字面层**：Bash 命令含 karma 内部字面 (last_test_pass_ts / pending_bg_tasks / session-state json 路径) + 写操作 → 命中「绕开 karma」。豁免：karma 官方 CLI / 只读 inspection / commit message 引号字面。**L3 时序层 (v0.11.1+)**：pre_tool_use Edit + 上一 Bash 是测试命令且失败 + 当前 file_path 本 session 未 Read → 命中「报错后没看源代码就改」草草了事 pattern。L4 (认知深度 — Agent 心里有没有真挖) 工程拦不到，靠 preference 注入 |
 
 每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
 
