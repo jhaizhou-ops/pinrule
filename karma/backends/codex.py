@@ -16,6 +16,18 @@
   且每个 hook 必须 TUI `/hooks` 手动 approve（GitHub issue #17532）
 - 真捕获的 apply_patch envelope 来自 codex 0.130 + GPT-5.5 session rollout
   (rollout-2026-05-16T13-51-47-...jsonl)
+
+ADR-001: PermissionRequest event 不接入 (2026-05-16)
+Codex 0.130 支持 PermissionRequest event (codex agent 申请运行需要审批的
+工具时 fire). karma 决策不接入:
+
+- karma 已在 PreToolUse 层用 bypass_karma / testset / read_first 等 check
+  拦截危险操作, 跟 PermissionRequest 时机重叠
+- 双层拦截只增加假阳率, 不增加新拦截维度
+- karma 哲学是行为先验注入 + 工程层拦截, 不是权限审批系统
+  (跟 codex 自身 permission_mode 是不同维度)
+- 如果后续真需要 PermissionRequest 维度的拦截 (例如"危险 git 操作要 karma
+  二次确认"), 应该作为新独立 check 加入, 不是简单挂 PermissionRequest hook.
 """
 
 from __future__ import annotations
@@ -168,6 +180,19 @@ def _has_complex_shell_shape(tokens: list[str]) -> bool:
     if not tokens:
         return True
     for token in tokens:
+        if token in _SHELL_COMPLEX_TOKENS:
+            return True
+        if _command_basename(token) in _SHELL_COMPLEX_COMMANDS:
+            return True
+    return False
+
+
+def _has_complex_pipe_chain_shape(tokens: list[str]) -> bool:
+    if not tokens or tokens.count("|") != 1:
+        return True
+    for token in tokens:
+        if token == "|":
+            continue
         if token in _SHELL_COMPLEX_TOKENS:
             return True
         if _command_basename(token) in _SHELL_COMPLEX_COMMANDS:
@@ -352,6 +377,47 @@ def _extract_awk_read_paths(tokens: list[str]) -> list[str]:
     return [path]
 
 
+def _extract_head_tail_pipe_read_paths(tokens: list[str]) -> list[str]:
+    """Recognize single-file read-only `cat/head/tail file | head/tail` chains.
+
+    Deliberate skips:
+    - `find ... | xargs cat` reads unknown files; `read_first` needs exact paths.
+    - `grep -r/-R/--recursive` reads a tree; directory prefixes do not satisfy
+      karma's per-file read tracking.
+    """
+    if _has_complex_pipe_chain_shape(tokens):
+        return []
+
+    pipe_index = tokens.index("|")
+    left = tokens[:pipe_index]
+    right = tokens[pipe_index + 1:]
+    if not left or not right:
+        return []
+
+    left_command = _command_basename(left[0])
+    right_command = _command_basename(right[0])
+    if left_command not in {"cat", "head", "tail"}:
+        return []
+    if right_command not in {"head", "tail"}:
+        return []
+
+    if _path_operands(
+        right,
+        options_with_values=_TAIL_HEAD_OPTIONS_WITH_VALUES,
+        plus_is_option=True,
+    ):
+        return []
+
+    options_with_values = (
+        _TAIL_HEAD_OPTIONS_WITH_VALUES if left_command in {"head", "tail"} else frozenset()
+    )
+    return _single_path(_path_operands(
+        left,
+        options_with_values=options_with_values,
+        plus_is_option=left_command in {"head", "tail"},
+    ))
+
+
 def extract_read_paths_from_exec_command(command: str) -> tuple[list[str], bool]:
     """Return (read_file_paths, is_write) for conservative Codex shell reads."""
     tokens = _shell_tokens(command)
@@ -361,6 +427,9 @@ def extract_read_paths_from_exec_command(command: str) -> tuple[list[str], bool]
     command_name = _command_basename(tokens[0])
     if command_name == "sed" and _sed_write_in_place(tokens):
         return [], True
+    pipe_read_paths = _extract_head_tail_pipe_read_paths(tokens)
+    if pipe_read_paths:
+        return pipe_read_paths, False
     if _has_complex_shell_shape(tokens):
         return [], False
 

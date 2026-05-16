@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tomllib
 
+from karma.backends import codex as codex_backend
 from karma.backends.codex import CodexBackend, codex_hook_trusted_hash
 
 
@@ -71,6 +72,33 @@ def test_exec_command_with_pipe_does_not_extract_read_file_paths():
     assert out == {"command": "cat /path/to/file.py | sed -n '1,20p'"}
 
 
+def test_simple_pipe_head_tail_recognized():
+    cases = {
+        "head -n 40 /path/to/file.py | tail -n 10": "/path/to/file.py",
+        "cat /path/to/file.py | head -n 20": "/path/to/file.py",
+        "cat /path/to/file.py | tail -n 20": "/path/to/file.py",
+        "tail -n 80 /path/to/file.py | head -n 20": "/path/to/file.py",
+    }
+
+    for command, path in cases.items():
+        out = _normalize({"command": command})
+        assert out == {"command": command, "read_file_paths": [path]}
+
+
+def test_xargs_cat_not_recognized_documented_skip():
+    """find/xargs reads many unknown files; read_first needs exact file paths."""
+    command = "find tests -name '*.py' -print0 | xargs -0 cat"
+    out = _normalize({"command": command})
+    assert out == {"command": command}
+
+
+def test_recursive_grep_not_recognized_documented_skip():
+    """recursive grep reads a tree; directory prefixes do not satisfy read_first."""
+    command = "grep -R needle karma"
+    out = _normalize({"command": command})
+    assert out == {"command": command}
+
+
 def test_exec_command_with_wildcard_does_not_extract_read_file_paths():
     out = _normalize({"command": "tail -n 20 karma/*.py"})
     assert out == {"command": "tail -n 20 karma/*.py"}
@@ -89,6 +117,12 @@ def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
     out = CodexBackend().emit_allow({})
     assert out == "{}"
     assert json.loads(out) == {}
+
+
+def test_module_docstring_contains_adr_001():
+    assert codex_backend.__doc__
+    assert "ADR-001" in codex_backend.__doc__
+    assert "PermissionRequest event 不接入" in codex_backend.__doc__
 
 
 def test_exec_command_grep_without_recursive_flag_extracts_single_file_path():
