@@ -451,6 +451,8 @@ violations / session_state / config / cli）都从它读 env。
 
 | **v0.10.2 第二个 codex 自提 PR (#4) 关掉对 Claude code 覆盖主要缺口**. Codex backend 现在覆盖 codex 0.130 的 6 个 event 中的 5 个 (SessionStart / UserPromptSubmit / Pre&PostToolUse / Stop). 三项: SessionStart event 注册 + 真捕获 payload 跟 Claude shape 完全兼容 (codex 在第一轮 prompt 前 fire 不是 TUI 启动 — 功能正确性保留); `exec_command → Bash` 映射 + `cmd → command` 字段拷贝让 `record_bash` / `is_test_cmd` / `last_test_pass_ts` 在 codex 下工作; **`trust_karma_hooks()` 装机时自动给 karma 自家 wrapper 写 `trusted_hash` 到 `~/.codex/config.toml`**, 消除手动 `/hooks` 审批 (karma v0.10.0 期最大 onboarding 痛点). 安全限定: 只 karma `is_karma_entry` 验证的 wrapper, hash 算法变了回落到 `/hooks` "modified" 不是静默漂移. karma 维护者配套: README alert box 翻成 "自动信任" + 双语文档 v0.10.2 段. 575/575 双 locale. **所有权分工连续 2 个 PR 验证** — codex 真证据 (真 session rollout) + 准时 + bonus 超预期. | ✅ |
 
+| **v0.10.3 codex 简单 pipe 读 (第三次 codex 贡献) + user_stop_hints 类 3「协作等候」 + 文档措辞修正**. codex commit `8c0e136` 扩展 shell-as-Read 识别 `head N | tail M` / `cat | head/tail` 简单 chain (单 pipe, 两侧都只读). karma 端: user_stop_hints 类 3 (中文 16 + 英文 18) 修本 session 100+ keep_pushing 假阳 — 真信号来自人-Agent-Agent 协作场景, 用户说「等」不是放弃也不是完成. v0.10.2 错措辞修正 (Codex 内部有 compaction / fanout feature flag, 只是 hook API 不暴露). 580/580 双 locale. | ✅ |
+
 详见 [CHANGELOG.md](../CHANGELOG.md) 每版本的设计动机；[HANDOFF.md](./HANDOFF.md) 内部接力 context。
 
 ## 持续观察 = 持续开发

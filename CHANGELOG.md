@@ -10,6 +10,47 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.10.3] — 2026-05-16 (patch — codex simple pipe reads + user_stop_hints "collaborative waiting" category 3 + docs wording fix)
+
+Three small but high-value patches integrated:
+
+### codex backend — simple pipe read recognition
+
+Third codex-owned change (commit `8c0e136`). Extends `extract_read_paths_from_exec_command()` to recognize **simple read-only command chains**:
+- `head -N <file> | tail -M` and `tail -N <file> | head -M`
+- `cat <file> | head -N` and `cat <file> | tail -N`
+
+Constraints: only single pipe `|`, only read-only commands on both sides, no `xargs cat` / `find ... -exec` / recursive grep (high FP risk). 4 new codex-private tests covering recognized + skipped cases.
+
+Real evidence: codex agents in 2026-05-16 sessions commonly use `head N | tail M` to read file slices instead of single `tail` calls — these now properly register as Read, no false-positive `read_first` denial on subsequent `apply_patch`.
+
+### karma — user_stop_hints category 3 "collaborative waiting/pause"
+
+Real-world signal from 2026-05-16 dogfooding session: while collaborating with Codex CLI as a contributor backend, user accumulated 100+ keep_pushing false-positive triggers because phrases like `等候即可` / `不着急赶工` / `先等等, 等 codex 那边出 PR` weren't covered by `user_stop_hints` wordlist (only had cat-1 tired/dismissive + cat-2 satisfied/confirmation).
+
+Cat-3 = **collaborative waiting/pause** is semantically distinct:
+- Not cat-1 (not quitting the work)
+- Not cat-2 (job not done, user knows it's mid-flight)
+- Just "I'm waiting on the flow, don't push me this turn"
+
+16 new zh entries (`等候即可 / 先等等 / 不着急 / 慢慢来 / 不用赶 / 先这样` etc) + 18 new en entries (`just wait / no rush / take your time / standby / sit tight / let me know when` etc). Real session evidence quoted in test_keep_pushing.py.
+
+Plus locked-down known FN: `"不动 + 等 X"` combo pattern (e.g., `"不 commit 挡 working tree 不动, 等 codex"`) not covered by single-token wordlist — too risky to add bare `不动` or `等 codex` without combo-pattern engine. Documented in `test_v0103_known_fn_combo_pattern_documented`.
+
+### docs — correct "codex has no equivalent concepts" wording
+
+v0.10.2 CHANGELOG/HANDOFF claimed `"codex has no compact / sub-agent dispatch concepts"` — wrong without real verification (rule #4 deviation). Real evidence:
+- Codex 0.130 has **6 hook events** (SessionStart / PreToolUse / PermissionRequest / PostToolUse / UserPromptSubmit / Stop), no PreCompact / SubagentStart / SubagentStop in hook API
+- Codex platform internally **has the concepts** via `enable_request_compression` (stable=true), `enable_fanout` / `child_agents_md` (under-development feature flags)
+- They're just **not surfaced as hookable lifecycle events** to third parties
+
+Wording corrected to precise: "codex hook API doesn't expose these events" instead of "codex has no equivalent concepts".
+
+### Verification
+
+- **580/580 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 575 — +4 codex pipe tests + +5 user_stop_hints tests, includes new FN lockdown)
+- All 6 local gates pass
+
 ## [0.10.2] — 2026-05-16 (minor — codex closes the gap to Claude Code parity: SessionStart + exec_command→Bash + auto-trust onboarding)
 
 **Second codex-owned PR merged**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) by Codex CLI itself. Codex backend gains 3 capabilities (SessionStart event, exec_command→Bash normalization, auto-trust hooks) closing the major v0.10.1 gaps. Concrete coverage table at the bottom of this section — only PreCompact + SubagentStart/Stop remain not covered because Codex's 6 hook events don't expose those lifecycle moments to third-party hooks (Codex platform internally has the concepts via `enable_request_compression` and `enable_fanout` feature flags, but they're not hookable). Doc clarification post-v0.10.2 (the earlier "codex has no equivalent concepts" wording was incorrect — Codex has the concepts, the hook API just doesn't surface them).

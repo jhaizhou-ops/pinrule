@@ -6,6 +6,47 @@
 
 ## [Unreleased]
 
+## [0.10.3] — 2026-05-16（patch — codex 简单 pipe 读识别 + user_stop_hints「协作等候」类 3 + 文档措辞修正）
+
+三项小但高价值 patch 集成:
+
+### codex backend — 简单 pipe 读识别
+
+第三个 codex-owned 变更 (commit `8c0e136`). 扩展 `extract_read_paths_from_exec_command()` 识别**简单只读命令 chain**:
+- `head -N <file> | tail -M` 和 `tail -N <file> | head -M`
+- `cat <file> | head -N` 和 `cat <file> | tail -N`
+
+约束: 只支持单 pipe `|`, 两侧都必须是只读命令, 不识别 `xargs cat` / `find ... -exec` / recursive grep (假阳风险高). 4 个新 codex 私有测试.
+
+真证据: codex agent 在 2026-05-16 sessions 常用 `head N | tail M` 读文件切片而不是单 `tail` — 这些现在真正注册成 Read, 后续 `apply_patch` 不再被 `read_first` 假阳拦.
+
+### karma — user_stop_hints 类 3「协作等候/暂停」
+
+2026-05-16 真实 dogfooding session 信号: 用户跟 Codex CLI 作为贡献者协作时累积 100+ 次 keep_pushing 假阳, 因为 `等候即可` / `不着急赶工` / `先等等, 等 codex 那边出 PR` 等字眼没被现有 user_stop_hints (类 1 累了/推卸 + 类 2 满意/确认) 覆盖.
+
+类 3 = **协作等候/暂停** 语义独立:
+- 不是类 1 (没放弃工作)
+- 不是类 2 (事情没完, 用户知道 mid-flight)
+- 是「我在等流程, 你别催」
+
+中文 16 条 (`等候即可 / 先等等 / 不着急 / 慢慢来 / 不用赶 / 先这样` 等) + 英文 18 条 (`just wait / no rush / take your time / standby / sit tight / let me know when` 等). 真 session 证据在 test_keep_pushing.py.
+
+加锁定 known FN: `"不动 + 等 X"` 组合 pattern (例如 `"不 commit 挡 working tree 不动, 等 codex"`) 单字眼词表覆盖不到 — 单字 `不动` 或 `等 codex` 语义过宽不能加. 文档化在 `test_v0103_known_fn_combo_pattern_documented`.
+
+### docs — 修正「codex 无等价概念」错表述
+
+v0.10.2 CHANGELOG/HANDOFF 写「codex 无 compact / sub-agent dispatch 概念」— 没真查就下结论 (rule #4 偏离). 真证据:
+- Codex 0.130 有 **6 个 hook event** (SessionStart / PreToolUse / PermissionRequest / PostToolUse / UserPromptSubmit / Stop), hook API 里没 PreCompact / SubagentStart / SubagentStop
+- Codex 平台内部**有这些概念**, 通过 `enable_request_compression` (stable=true), `enable_fanout` / `child_agents_md` (under-development feature flag)
+- 只是**不作为 hookable lifecycle event** 暴露给第三方
+
+措辞精确化: 「codex hook API 没暴露这些 event」取代「codex 无等价概念」.
+
+### 验证
+
+- **580/580 通过** 双 `LANG=zh_CN.UTF-8` 和 `LANG=en_US.UTF-8` (原 575 — +4 codex pipe 测试 + +5 user_stop_hints 测试含新 FN lockdown)
+- 全 6 道本地 gate 通过
+
 ## [0.10.2] — 2026-05-16（minor — codex 关掉对 Claude Code 平价的主要缺口: SessionStart + exec_command→Bash + 自动信任 onboarding）
 
 **第二个 codex 自提 PR 合并**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) Codex CLI 自己提的. Codex backend 拿下 3 项能力 (SessionStart event / exec_command→Bash 归一化 / 自动信任 hook), 关掉 v0.10.1 主要差距. 完整覆盖表见本段末尾 — 只剩 PreCompact + SubagentStart/Stop 没覆盖, 因为 Codex 6 个 hook event 没暴露这俩 lifecycle moment 给第三方 hook (Codex 平台内部**有**这些概念, 通过 `enable_request_compression` 和 `enable_fanout` 等 feature flag, 但不 hookable). v0.10.2 之后修正措辞 (之前 "codex 无等价概念" 表述错误 — codex 平台内部有, 只是 hook API 没暴露).
