@@ -13,7 +13,7 @@
 
 ![karma demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
-> 5-scene animated SVG (~80s loop): **(1)** rule header injection at every UserPromptSubmit, **(2)** real-time `sleep 30` block, **(3)** short-term intent detection ("Let me just hardcode this case") via v0.11.0 response-level engine, **(4)** silent-stop nudge, **(5)** mid-conversation full reinject when `tool_byte_seq` hits Opus 60K decay threshold — all real hook output, no mocks. Chinese version: [`assets/demo-zh.svg`](./assets/demo-zh.svg). Regenerate: `bash scripts/regenerate-demo-svg.sh`.
+> 5-scene animated SVG (~80s loop): **(1)** compact rule reminder injected on every user prompt, **(2)** real-time block on UI-stalling commands, **(3)** Agent shortcut attempt caught ("Let me just hardcode this case"), **(4)** Agent silent stop → nudge to keep pushing, **(5)** long-context accumulation → mid-conversation full rule reinject (auto-detects each model's decay point) — all real screencaps, no manual mocks.
 
 Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
@@ -23,7 +23,7 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 ✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
 
-Chinese + English users covered; adding a new language is one `.txt` per signal directory — no Python code.
+Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
 ---
 
@@ -53,15 +53,15 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-Restart Claude Code / Codex CLI / Gemini CLI — takes effect immediately. `karma init` auto-installs the `/karma` natural-language skill across all three backends.
+Restart Claude Code / Codex CLI / Gemini CLI — all hook positions + default rules take effect immediately.
+For custom rules, just type `/karma <natural-language rule>`.
 
 ### Or ask your AI client to install it
 
-Paste this to Claude Code / Codex / Gemini CLI:
+Paste this to Claude Code / Codex / Gemini (desktop or CLI):
 
 ```
-Install karma (github.com/jhaizhou-ops/karma) — a lightweight hook system
-that keeps my core direction preferences from being lost in long tasks.
+Install karma (github.com/jhaizhou-ops/karma) — a lightweight hook system that keeps my core direction preferences from being lost in long tasks.
 Steps:
 1. git clone to ~/karma
 2. Create .venv and pip install -e .
@@ -70,9 +70,9 @@ Steps:
 5. Run `karma doctor` to verify installation
 ```
 
-`karma init` ends with a summary of the default rules it enabled. When the Agent runs it for you, it relays that summary — you see at a glance which 5-7 rules are now active. To modify any rule afterward, tell the Agent "remove rule X" / "change rule Y" — it knows to use the `/karma` skill.
+After install, the Agent shows a summary of default rules — you see at a glance which 5-7 rules are active. To modify any rule afterward, tell the Agent "remove karma rule X" / "change karma rule Y" — it knows to use the `/karma` skill.
 
-### Per-client install commands
+### Per-client manual install commands
 
 | Client | Install command | Note |
 |---|---|---|
@@ -203,9 +203,11 @@ Agent (karma skill walks 7 steps automatically):
 → 30 seconds end-to-end, rule live on next UserPromptSubmit.
 ```
 
-> **Type `/karma` with no arguments** anytime to get a dogfood-data dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions are most-violated in your sessions, so you can decide whether to tune any check or drop a rule.
+> **Type `/karma` with no arguments** anytime to see the interception dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions the Agent violates most in your sessions, so you can decide whether to add or drop a rule.
 
 ### What the skill handles for you
+
+The `/karma` skill helps you phrase a rule in the way Agent responds to best:
 
 | Hard part of writing a rule | What the skill does |
 |---|---|
@@ -255,7 +257,8 @@ flowchart LR
     V -.->|next-turn drift marker| K
 ```
 
-`rules.yaml` is the only thing you maintain. karma reads it, injects it into every prompt header, scans tool calls and responses for violations, and feeds detected drift back into the next turn's marker. No retrieval, no scoring, no LLM in the loop.
+`rules.yaml` is karma's single core rule list — the only thing you maintain. karma auto-injects it into every prompt header.
+karma's zero-network engineering scan reads Agent tool calls + Agent responses looking for signs of rule violation, then prompts / warns / blocks accordingly, and feeds detected drift back into the next turn's marker. No retrieval, no scoring, no LLM in the loop.
 
 karma isn't a linter, a scorer, or a retrieval system. It addresses four real but commonly-overlooked LLM collaboration problems:
 
