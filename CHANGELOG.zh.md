@@ -6,6 +6,63 @@
 
 ## [Unreleased]
 
+## [0.9.13] — 2026-05-16（fix — 全面 instrumentation audit 抓出 4 个准确性 bug：agent_id 字段往返 / turn 窗口 off-by-one / pre_tool_use catchup 无 save / zh weak_claims 覆盖缺口）
+
+### 为什么发这版
+
+v0.9.12 收官后（v0.9.11 instrumentation bug + 元教训「规则 4 双向适用 — 验证结果不是 instrument artifact」），用户问「全面排查下，还有没有这种 bug，直接影响 karma 运行准确性和统计准确性的」。用 v0.9.12 bug pattern 作模板起综合 audit — Type A（字段缺失）/ Type B（聚合 off-by-one）/ Type C（race / load-modify-no-save）/ Type D（i18n 不一致）。
+
+子 Agent 报告 5 个发现。按规则 4「不轻信 Agent 报告必须 read 验证」，逐个手动 verify：
+
+| 发现 | 子 Agent 判定 | 我验证后 | 真实影响 |
+|---|---|---|---|
+| A1: `load_all()` 漏读 `agent_id` | 真 bug | ✓ 确认 | audit/stats 无法真区分主 vs 子 Agent |
+| A2: `save()` payload 漏写 `agent_id` | 真 bug | ✗ 误判 — 编码在文件名 `<sid>__<aid>.json` | design choice 非 bug |
+| B1: turn 窗口 cutoff off-by-one | 真 bug | ⚠️ 确认 + 比子 Agent 说的更严重 | **`stop.py:162 force_block` 假阳风险** — Agent 被已修过的旧违反误算入 force threshold |
+| C1: `pre_tool_use.py` catchup 无 save | 真 bug | ✓ 我之前 read 时误判为 design — 子 Agent 拍我对 | pending_bg_tasks 不持久化 / 重复 catchup |
+| D1: zh weak_claims 覆盖缺口 | 真 bug | ✓ 确认 — zh 8 字眼 vs en 23 字眼 | 中文用户 evidence check 弱声明召回率 ~35% |
+
+### Fix 1 — `load_all()` 读 `agent_id` 字段
+
+`karma/violations.py:370` 反序列化 `Violation()` 时加 `agent_id=d.get("agent_id")`。跟 `to_json()` 写路径对称（行 59-60）。audit/stats 视图能真按主/子 Agent 分组。
+
+### Fix 2 — turn 窗口 cutoff: `cur - (window - 1)` 替代 `cur - window`
+
+`karma/violations.py:309 recent_turns` + `karma/violations.py:343 count_recent_turns` + `karma/cli.py:836 cmd_audit` 漂移视图三处 cutoff 一致改。
+
+**真实影响**：`stop.py:162 force_block` 影响最严重。`force_window=3, force_threshold=5`，旧 `cutoff=cur-3` 匹配 `[cur-3, cur]` 共 4 个 turn — 用户 3 turn 前已修过原因仍可能被第 4 turn 旧违反算进 threshold 触发 force_block。config.yaml 注释字面写「最近 N turn 内同一规则违反 ≥ M 次」，N 应该是 N 个 turn 不是 N+1。
+
+修后 `cur - (window - 1)` 让 `window=N` 真匹配 N turn。子 Agent 报为「中等严重性统计偏差」— 真语义是「force_block 触发条件不准影响 karma 干预行为准确性」。
+
+现有测试 `test_recent_turns_filters` / `test_count_recent_turns_by_session` 边界 assert 仍过（r2 turn=5 在 / r1 turn=2 出 — 两种 cutoff 都能 bracket 正确）。test docstring 更新对齐新语义。加新 lockdown `test_recent_turns_window_lockdown_v0913` 显式 assert `window=3, current=10 → [8,9,10]`（3 turn 不是 4）+ `window=1 → 只匹配 current turn`。
+
+`test_stop_hook_force_blocks_on_accumulated_violations` 之前 fixture（1 条/turn × 5 turn = 5 条 + 1 新 keyword 命中）严丝合缝卡在旧 cutoff 4+1=5 达 threshold；fix 后只 3 个 turn 算（3+1=4 不够）。这条测试本意是「累积超 threshold 触发 force_block」不是 verify cutoff 边界 — fixture 加大到 6 条都在 `[3,5]` 窗口让两种 cutoff 实现都能达 threshold=5。这是 **fixture 调整反映 fix 正确性**，不是「改 test 让它过」，注释清楚说明原因。
+
+### Fix 3 — `pre_tool_use.py` catchup 迁 `update_state`
+
+`karma/hooks/pre_tool_use.py:98-100` 之前 `state = session_state.load(...); state.catchup_pending_bg()` **不 save**。跟 v0.9.8 `update_state` 架构不一致 — 其他所有 hook 写路径用 `update_state` 原子 load-modify-save。子 Agent 报告捕到我早期判断错（v0.9.8 时 read 这块判 design choice「PreToolUse 是决策端不是 state 端」）。但 `catchup_pending_bg()` 改 `pending_bg_tasks` 跟 `recent_bash` — 不持久化让下次 hook 重复 catchup 同一 task。改用 `session_state.update_state(session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id)` 跟 post_tool_use.py 一致。
+
+### Fix 4 — zh weak_claims signal 覆盖跟 en 对齐
+
+`data/signals/weak_claims/zh.txt` 从 8 字眼扩到 25 个 hedge phrase 覆盖英文版所有 pattern 的中文同义：「应该」家族 / 「大概 / 概率」 / 「可能 / 也许」 / 「推测 / 我猜 / 估计」 / 「看起来 / 似乎 / 好像」。中文用户 `evidence` check 弱声明召回率跟英文用户对等（从 ~35% 估到 ~90%+）。
+
+### Regression tests
+
+`tests/test_violations.py` 加 3 个新 case：
+- `test_load_all_reads_agent_id_field` — agent_id round-trip lockdown
+- `test_recent_turns_window_lockdown_v0913` — 显式 cutoff 边界 lockdown（`window=N → N turn 不是 N+1`）
+- `test_weak_claims_zh_en_coverage_parity` — lockdown 锁 zh/en 字眼数差距 < 30%，未来 PR 让某语言落后 CI 直接红
+
+### 验证
+
+- 485/485 双 locale 都过（v0.9.12 是 482）
+- 6 道本机门禁全过
+- 1 个现有 test fixture 调整（`test_stop_hook_force_blocks_on_accumulated_violations`）含诚实注释说明原因
+
+### 元 pattern
+
+4 个 bug 里 3 个（A1, B1, D1）匹配 v0.9.12 的 pattern：「意图跟实现 instrumentation drift，多年沉淀没人重新验证过」。暴露 v0.9.12 bug 的 verify 循环 — 用户对自信解读的高质量 follow-up question 触发原数据检查 — 同 audit 面上又找出 3 个 peer bug。这版印证元 pattern 可靠：**一个对「自信解读」的高质量 follow-up question 能暴露一群相关 bug 而非孤立单个**。
+
 ## [0.9.12] — 2026-05-16（fix — v0.9.11 audit `--by-check` 数据归类 bug：`_build_strong_reminder` hook fallback 漏传 `trigger_key` 让 engine 命中被错归 keyword-only）
 
 ### 响亮失败声明

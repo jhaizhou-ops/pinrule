@@ -227,7 +227,11 @@ def test_count_recent_no_file(tmp_path: Path) -> None:
 # ---- turn-based recent / count ----
 
 def test_recent_turns_filters_by_session_and_turn_window(tmp_path: Path) -> None:
-    """recent_turns 只统计本 session 最近 N turn 内的违反。"""
+    """recent_turns 只统计本 session 最近 N turn 内的违反。
+
+    v0.9.13 cutoff 收紧（off-by-one fix）：window=N 真匹配 N 个 turn 不是 N+1。
+    session a, current_turn=6, window_turns=3 → 匹配 [cur-(N-1), cur] = [4, 6] 共 3 个 turn。
+    """
     from karma.violations import recent_turns
     p = tmp_path / "violations.jsonl"
     # 不同 session + 不同 turn
@@ -238,7 +242,7 @@ def test_recent_turns_filters_by_session_and_turn_window(tmp_path: Path) -> None
         Violation(ts=1300, session_id="b", rule_id="r3", trigger="x", snippet=".", turn=3),  # 别的 session
     ]
     append(items, path=p)
-    # session a，当前 turn=6，窗口 3 → 只算 turn >= 3 的
+    # session a，当前 turn=6，窗口 3 → 真 3 turn 匹配 [4, 5, 6]
     out = recent_turns("a", current_turn=6, window_turns=3, path=p)
     assert "r2" in out
     assert out["r2"] == 5
@@ -247,7 +251,11 @@ def test_recent_turns_filters_by_session_and_turn_window(tmp_path: Path) -> None
 
 
 def test_count_recent_turns_by_session(tmp_path: Path) -> None:
-    """count_recent_turns 数本 session 内 N turn 内违反次数。"""
+    """count_recent_turns 数本 session 内 N turn 内违反次数。
+
+    v0.9.13 cutoff 收紧（off-by-one fix）：window=N 真匹配 N 个 turn。
+    current=7, window=3 → 匹配 [5, 6, 7] 共 3 个 turn。
+    """
     from karma.violations import count_recent_turns
     p = tmp_path / "violations.jsonl"
     items = [
@@ -258,9 +266,38 @@ def test_count_recent_turns_by_session(tmp_path: Path) -> None:
         Violation(ts=1400, session_id="b", rule_id="r1", trigger="x", snippet=".", turn=7),  # 别 session
     ]
     append(items, path=p)
-    # session a, current_turn=7, window=3 → 算 turn >= 4 的
+    # session a, current_turn=7, window=3 → 真 3 turn [5,6,7]
     out = count_recent_turns("a", current_turn=7, window_turns=3, path=p)
     assert out["r1"] == 3  # turn 5/6/7
+
+
+def test_recent_turns_window_lockdown_v0913(tmp_path: Path) -> None:
+    """v0.9.13 off-by-one lockdown：window=N 真匹配 N 个 turn 不是 N+1。
+
+    场景：current=10, window=3 → 期望匹配 [8, 9, 10] 共 3 个 turn。
+    旧 cutoff = current - window = 7 → 匹配 [7, 8, 9, 10] 共 4 个 turn (off-by-one)
+    新 cutoff = current - (window - 1) = 8 → 匹配 [8, 9, 10] 共 3 个 turn ✓
+
+    锁 force_block / escalation 阈值不被旧实现多算 1 turn 历史误算。
+    """
+    from karma.violations import recent_turns, count_recent_turns
+    p = tmp_path / "violations.jsonl"
+    items = [
+        Violation(ts=t, session_id="s", rule_id="r", trigger="x", snippet=".", turn=t)
+        for t in [6, 7, 8, 9, 10]
+    ]
+    append(items, path=p)
+
+    # window=3 真匹配 3 个 turn ([8,9,10])
+    out = recent_turns("s", current_turn=10, window_turns=3, path=p)
+    assert "r" in out
+    assert out["r"] == 10
+    # 关键 assert: turn=7 不该被算进 window=3 窗口
+    counts = count_recent_turns("s", current_turn=10, window_turns=3, path=p)
+    assert counts["r"] == 3, f"window=3 应匹配 [8,9,10] 共 3 turn, 实际 {counts['r']}"
+    # window=1 真匹配 1 个 turn (current 自己)
+    counts1 = count_recent_turns("s", current_turn=10, window_turns=1, path=p)
+    assert counts1["r"] == 1, f"window=1 应只匹配 current turn=10, 实际 {counts1['r']}"
 
 
 def test_recent_turns_skips_legacy_no_turn_field(tmp_path: Path) -> None:
@@ -321,3 +358,50 @@ def test_load_all_handles_missing_turn_field(tmp_path: Path):
     out = load_all(p)
     assert len(out) == 1
     assert out[0].turn == 0
+
+
+def test_load_all_reads_agent_id_field(tmp_path: Path):
+    """v0.9.13 fix: load_all() 之前漏读 agent_id 字段（to_json 写了但 load 不读）—
+    audit / stats 视图无法真按主/子 Agent 分组。Now properly round-trips。
+    """
+    p = tmp_path / "violations.jsonl"
+    items = [
+        Violation(ts=1, session_id="s", rule_id="r", trigger="x", snippet=".",
+                  turn=1, agent_id="sub-uuid-123"),  # 子 Agent 违反
+        Violation(ts=2, session_id="s", rule_id="r", trigger="x", snippet=".",
+                  turn=2),  # 主 Agent（agent_id=None）
+    ]
+    append(items, path=p)
+    out = load_all(p)
+    assert len(out) == 2
+    # 子 Agent agent_id 反序列化回来
+    assert out[0].agent_id == "sub-uuid-123"
+    # 主 Agent agent_id 是 None（不在 to_json，load 也得 None）
+    assert out[1].agent_id is None
+
+
+def test_weak_claims_zh_en_coverage_parity():
+    """v0.9.13 fix: 中文 weak_claims 字眼数过去 8 vs 英文 23，中文 evidence
+    check 召回率严重不足。补齐后两语言字眼覆盖差距应 < 30% 让中文用户也能
+    可靠检测 hedge 字眼。
+
+    数差距阈值：30% 给字眼性质有自然语言差异留余地（不强求 1:1）。
+    """
+    from pathlib import Path
+
+    def _count_entries(path: Path) -> int:
+        return sum(
+            1 for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        )
+
+    root = Path(__file__).resolve().parent.parent
+    zh = _count_entries(root / "data" / "signals" / "weak_claims" / "zh.txt")
+    en = _count_entries(root / "data" / "signals" / "weak_claims" / "en.txt")
+    assert zh > 0 and en > 0, f"两语言 weak_claims 字眼都必须非空: zh={zh}, en={en}"
+    smaller, larger = min(zh, en), max(zh, en)
+    diff_ratio = (larger - smaller) / larger
+    assert diff_ratio < 0.3, (
+        f"weak_claims zh/en 字眼数差距 {diff_ratio*100:.0f}% 超过 30% 阈值: "
+        f"zh={zh}, en={en}. 补字眼让中文 evidence check 召回率对齐英文。"
+    )

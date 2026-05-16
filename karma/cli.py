@@ -832,7 +832,10 @@ def cmd_audit(
     current_turn = max((v.turn for v in violations if v.session_id == current_session), default=0)
     if current_turn > 0:
         turns_window = 10
-        cutoff = current_turn - turns_window
+        # v0.9.13 fix off-by-one: 跟 violations.recent_turns / count_recent_turns
+        # 同步 — 「最近 N turn」字面意义匹配 N 个 turn 不是 N+1。原 `cur - window`
+        # 让 audit 视图「漂移近况」段也多算 1 turn 跟 stop hook escalation 不一致。
+        cutoff = current_turn - (turns_window - 1)
         recent = Counter(
             v.rule_id for v in violations
             if v.session_id == current_session and v.turn >= cutoff and v.turn > 0

@@ -95,9 +95,17 @@ def main() -> int:
         _allow()
         return 0
 
-    state = session_state.load(session_id, agent_id=agent_id)
-    # catchup pending background 任务（覆盖 PostToolUse 之外的 hook 触发场景）
-    state.catchup_pending_bg()
+    # v0.9.13 fix race/no-save: catchup 之前用 load + modify 不 save 让 catchup
+    # 改动（移除已处理的 pending_bg_tasks / record_bash 推 last_test_pass_ts /
+    # recent_bash）全丢失，下次 hook load 又看到原 pending 列表重复处理。改用
+    # v0.9.8 加的 update_state 高阶 API 让 load → catchup → save 跨进程原子 +
+    # 持久化（跟 post_tool_use.py 的 update_state 一致）。后续决策仍用拿到的
+    # state 内存对象。
+    state, _ = session_state.update_state(
+        session_id,
+        lambda s: s.catchup_pending_bg(),
+        agent_id=agent_id,
+    )
 
     # 工程层 violation_checks
     check_hits = []

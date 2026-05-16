@@ -385,15 +385,19 @@ def test_stop_hook_force_blocks_on_accumulated_violations(monkeypatch, tmp_path,
         },
     ])
     monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
-    # 预设 5 条同 sticky 违反 + 本 session turn=3
+    # v0.9.13 fixture 增强：cutoff off-by-one fix 后 force_block window=3 真
+    # 匹配 3 个 turn。原 fixture（1 条/turn × 5 turn = 5 条 + 1 新 keyword 命中）
+    # 严丝合缝卡在旧 cutoff 4+1=5 达 threshold；fix 后只有 3 个 turn 算（3+1=4 不够）。
+    # 这条测试本意是「累积超 threshold 触发 force_block」，不是 verify cutoff
+    # 边界 — fixture 加大到 6 条历史让两种 cutoff 实现都能达 threshold=5。
     from karma.violations import Violation, append as v_append
     items = [
         Violation(ts=i, session_id="force", rule_id="long-term-fundamental",
                   trigger="先打个补丁", snippet=".", turn=t)
-        for i, t in enumerate(range(1, 6))
+        for i, t in enumerate([3, 3, 4, 4, 5, 5])  # 6 条都在 window=3 内 ([3,4,5])
     ]
     v_append(items, path=violations_path)
-    # session_state turn=5（窗口内 5 条都算）
+    # session_state turn=5
     state = session_state.SessionState(session_id="force")
     state.turn_count = 5
     session_state.save(state, base_dir=tmp_path)

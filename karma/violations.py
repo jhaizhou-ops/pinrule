@@ -306,7 +306,12 @@ def recent_turns(
     """
     if path is None:
         path = DEFAULT_PATH
-    cutoff_turn = current_turn - window_turns
+    # v0.9.13 fix off-by-one: 之前 cutoff = current_turn - window_turns 让
+    # turn >= cutoff 匹配 [cur-window, cur] 共 window+1 个 turn，跟 config.yaml
+    # 用户面文案「最近 N turn 内」字面意思（N 个 turn）不一致。force_block
+    # 累积阈值会被多 1 turn 历史误算 → 假阳干预。Now 真匹配 N 个 turn：
+    # cutoff = current - (window - 1) 让 [cur-(window-1), cur] 共 window 个 turn.
+    cutoff_turn = current_turn - (window_turns - 1)
     out: dict[str, int] = {}
     for d in _scan_tail_jsonl(path, tail_lines):
         if d.get("session_id") != session_id:
@@ -335,7 +340,10 @@ def count_recent_turns(
     """
     if path is None:
         path = DEFAULT_PATH
-    cutoff_turn = current_turn - window_turns
+    # v0.9.13 fix off-by-one: 跟 recent_turns 同步收紧到真 N turn 窗口
+    # （之前 cutoff = current - window 让窗口实际是 N+1 个 turn，stop hook
+    # force_block / escalation 阈值会被多 1 turn 历史误算 → 假阳干预）
+    cutoff_turn = current_turn - (window_turns - 1)
     out: dict[str, int] = {}
     for d in _scan_tail_jsonl(path, tail_lines):
         if d.get("session_id") != session_id:
@@ -374,6 +382,12 @@ def load_all(path: Path | None = None) -> list[Violation]:
                 trigger=d.get("trigger", ""),
                 snippet=d.get("snippet", ""),
                 turn=int(d.get("turn", 0)),
+                # v0.4.34 子 Agent 独立架构：子 Agent 违反写 agent_id 字段
+                # v0.9.13 fix: load_all() 之前漏读这个字段，audit/stats 无法
+                # 真正按主/子 Agent 分组（to_json 写了但 load 读不到 → 字段往返
+                # 不对称）。Now properly read back，default None 跟 to_json 一致
+                # （主 Agent agent_id=None 时 to_json 不写 → load 也得 None）。
+                agent_id=d.get("agent_id"),
                 trigger_key=d.get("trigger_key", ""),  # v0.5.7: 老格式无字段 → ""
             ))
         except (json.JSONDecodeError, KeyError, ValueError):

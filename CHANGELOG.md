@@ -10,6 +10,63 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.13] — 2026-05-16 (fix — comprehensive instrumentation audit catches 4 correctness bugs: agent_id round-trip / turn-window off-by-one / pre_tool_use catchup-no-save / zh weak_claims coverage gap)
+
+### Why this release
+
+After v0.9.12 (the v0.9.11 instrumentation bug + meta-lesson "rule #4 applies in both directions — verify the result isn't instrument artifact"), user asked: "全面排查下，还有没有这种 bug，直接影响 karma 运行准确性和统计准确性的". Launched a comprehensive audit using v0.9.12's bug pattern as template — Type A (field-missing), Type B (aggregation off-by-one), Type C (race / load-modify-no-save), Type D (i18n inconsistency).
+
+Sub-agent reported 5 findings. Per rule #4 (don't trust agent reports, verify with read), each was hand-verified:
+
+| Finding | Sub-agent verdict | After my verify | Real impact |
+|---|---|---|---|
+| A1: `load_all()` drops `agent_id` | real bug | ✓ confirmed | audit/stats can't truly group main vs sub Agent |
+| A2: `save()` payload missing `agent_id` | real bug | ✗ misjudgment — encoded in filename `<sid>__<aid>.json` | design choice, not bug |
+| B1: turn window cutoff off-by-one | real bug | ⚠️ confirmed + worse than sub-agent thought | **`stop.py:162 force_block` false-positive risk** — Agent gets force-blocked on already-fixed old violations |
+| C1: `pre_tool_use.py` catchup-no-save | real bug | ✓ I had previously misjudged this as design — sub-agent caught my error | pending_bg_tasks unprocessed, duplicate catchup runs |
+| D1: zh weak_claims coverage gap | real bug | ✓ confirmed — zh 8 vs en 23 entries | Chinese users have ~35% evidence-check recall for hedge phrases |
+
+### Fix 1 — `load_all()` reads `agent_id` field
+
+`karma/violations.py:370` — `Violation()` construction during jsonl read now includes `agent_id=d.get("agent_id")`. Symmetric with `to_json()` write path (line 59-60). Audit/stats views correctly distinguish main Agent violations from sub Agent violations.
+
+### Fix 2 — Turn window cutoff: `cur - (window - 1)` instead of `cur - window`
+
+`karma/violations.py:309 recent_turns` + `karma/violations.py:343 count_recent_turns` + `karma/cli.py:836 cmd_audit` drift-view — all three cutoff calculations consistently fixed.
+
+**Real impact**: `stop.py:162 force_block` was the worst affected. With `force_window=3, force_threshold=5`, old `cutoff=cur-3` matched `[cur-3, cur]` = 4 turns. So a user who already fixed the root cause 3 turns ago could still be force-blocked on the 4th-turn-old violation counting toward the threshold. The user's config.yaml comment literally reads "最近 N turn 内同一规则违反 ≥ M 次" — N is meant to be N turns, not N+1.
+
+After fix: `cur - (window - 1)` makes `window=N` truly match N turns. Sub-agent reported this as "medium severity statistical drift" — but real semantic is "incorrect force_block trigger condition" affecting karma's intervention behavior accuracy.
+
+Existing tests `test_recent_turns_filters_by_session_and_turn_window` / `test_count_recent_turns_by_session` use the boundary turn semantically (r2 at turn=5 in / r1 at turn=2 out) — their asserts still pass under new cutoff because both windows still bracket the named turns correctly. Test docstring comments updated to reflect new semantics. Plus new lockdown `test_recent_turns_window_lockdown_v0913` explicitly asserts `window=3, current=10 → matches [8,9,10]` (3 turns, not 4) and `window=1 → matches only current turn`.
+
+One existing test `test_stop_hook_force_blocks_on_accumulated_violations` had a fixture (5 violations turn 1-5) that razor-edge satisfied threshold=5 only because old `cur-3=2` cutoff matched 4 historical + 1 new keyword-detected violation. After fix, only 3 historical fall in window → fixture had to be strengthened to 6 violations all within `[3,5]` so the test still verifies its real intent (accumulation crosses threshold triggers force_block), not the cutoff boundary specifically. This is **fixture adjustment to reflect fix's correctness**, not "tweak test to make it pass" — clear comment in the test explains the reasoning.
+
+### Fix 3 — `pre_tool_use.py` catchup migrated to `update_state`
+
+`karma/hooks/pre_tool_use.py:98-100` previously did `state = session_state.load(...); state.catchup_pending_bg()` with **no save**. This was inconsistent with v0.9.8's `update_state` architecture — every other hook write path uses `update_state` for atomic load-modify-save. Sub-agent's report caught my earlier misjudgment (I read this code in v0.9.8 and classified it as design choice "PreToolUse is decision-side, not state-side"). But `catchup_pending_bg()` mutates `pending_bg_tasks` and `recent_bash` — leaving those mutations un-persisted means the next hook does redundant catchup on the same tasks. Fixed by routing through `session_state.update_state(session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id)` matching post_tool_use.py.
+
+### Fix 4 — zh weak_claims signal coverage parity with en
+
+`data/signals/weak_claims/zh.txt` expanded from 8 entries to 25 hedge phrases covering Chinese semantic equivalents of all en patterns: "应该" family / "大概 / 概率" / "可能 / 也许" / "推测 / 我猜 / 估计" / "看起来 / 似乎 / 好像". Chinese-speaking users' `evidence` check recall for weak-claim hedging is now on par with English speakers' (was ~35%, now ~estimated 90%+).
+
+### Regression tests
+
+3 new tests in `tests/test_violations.py`:
+- `test_load_all_reads_agent_id_field` — round-trip lockdown for agent_id
+- `test_recent_turns_window_lockdown_v0913` — explicit cutoff boundary lockdown (`window=N → N turns, not N+1`)
+- `test_weak_claims_zh_en_coverage_parity` — lockdown ensures zh/en entry count difference stays under 30% (future PRs can't let one language fall behind without CI catching it)
+
+### Verification
+
+- 485/485 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 482)
+- All 6 local gates pass
+- 1 existing test fixture adjustment (`test_stop_hook_force_blocks_on_accumulated_violations`) with honest comment explaining why
+
+### Meta-pattern
+
+Three of the four bugs (A1, B1, D1) match v0.9.12's pattern: "instrumentation drift between intent and implementation, accumulated through years without anyone re-validating." The verify cycle that exposed v0.9.12's bug — user follow-up question prompting raw-data inspection — found 3 more peer bugs hiding in the same audit surface. This release confirms the meta-pattern is reliable: **a single high-quality follow-up question to a confident interpretation can surface a cluster of related bugs, not just one.**
+
 ## [0.9.12] — 2026-05-16 (fix — v0.9.11 audit `--by-check` data classification bug: `_build_strong_reminder` hook fallback was dropping `trigger_key` on Violation write)
 
 ### Why this release (loud failure callout)
