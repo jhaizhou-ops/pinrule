@@ -87,7 +87,7 @@ def main() -> int:
     raw_tool_name = payload.get("tool_name", "")
     tool_name = normalize_tool_name(raw_tool_name, payload)
     # v0.9.16 cross-backend phase 2: tool_input 也归一化 — Codex apply_patch
-    # envelope → karma canonical Edit-shape dict 含 _codex_patch_files 让
+    # envelope → karma canonical Edit-shape dict 含 multi_file_targets 让
     # record_edit 遍历所有 Update/Add 路径推 last_edit_ts.
     raw_tool_input = payload.get("tool_input", {})
     tool_input = normalize_tool_input(raw_tool_name, raw_tool_input, payload)
@@ -143,14 +143,14 @@ def main() -> int:
                     state.record_edit(fp)
                 state.record_read(fp)
             elif tool_name == "Edit":
-                # v0.9.16 Codex apply_patch multi-file: protocol_adapter 把
-                # envelope 解出 _codex_patch_files = [{"op", "path"}, ...].
-                # 遍历每条 Update / Add 各 record_edit + record_read（Update 视为
-                # 已读因为 apply_patch 自身带 context；Add 是 Write 等价新建）.
+                # v0.10.0 多文件 patch canonical（backend-neutral）— Codex
+                # apply_patch / 未来某 backend envelope 协议都走 multi_file_targets.
+                # 遍历每条 Update/Add 各 record_edit + record_read（Update 视为已读
+                # 因为多文件 envelope 自身带 context；Add 是 Write 等价新建）.
                 # Delete 不算代码 edit，跳过.
-                codex_patch_files = tool_input.get("_codex_patch_files")
-                if codex_patch_files:
-                    for f in codex_patch_files:
+                multi_file_targets = tool_input.get("multi_file_targets")
+                if multi_file_targets:
+                    for f in multi_file_targets:
                         op = f.get("op")
                         path = f.get("path", "")
                         if not path:

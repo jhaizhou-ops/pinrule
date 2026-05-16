@@ -18,6 +18,7 @@ protocol_adapter.py 修这个：input normalize + output shape 分流。本测�
 from __future__ import annotations
 
 import json
+import sys
 
 from karma.backends.protocol_adapter import (
     detect_backend,
@@ -78,21 +79,56 @@ SYNTHETIC_MULTI_FILE_CODE_ENVELOPE = (
 
 
 def test_detect_backend_gemini_by_event_name():
-    """Gemini stdin payload 含 hook_event_name in {BeforeAgent/BeforeTool/...}."""
-    assert detect_backend({"hook_event_name": "BeforeTool"}) == "gemini"
-    assert detect_backend({"hook_event_name": "AfterTool"}) == "gemini"
-    assert detect_backend({"hook_event_name": "BeforeAgent"}) == "gemini"
-    assert detect_backend({"hook_event_name": "AfterAgent"}) == "gemini"
+    """Gemini stdin payload 含 hook_event_name in {BeforeAgent/BeforeTool/...}.
+
+    v0.10.0: detect_backend 返回 REGISTRY key (gemini-cli) 不是简写 (gemini)
+    让调用方可以直接 `REGISTRY[detect_backend(payload)]` 拿 backend 实例.
+    """
+    assert detect_backend({"hook_event_name": "BeforeTool"}) == "gemini-cli"
+    assert detect_backend({"hook_event_name": "AfterTool"}) == "gemini-cli"
+    assert detect_backend({"hook_event_name": "BeforeAgent"}) == "gemini-cli"
+    assert detect_backend({"hook_event_name": "AfterAgent"}) == "gemini-cli"
 
 
 def test_detect_backend_claude_codex_by_event_name():
-    """Claude / Codex stdin payload 含 hook_event_name in PreToolUse/Stop/..."""
-    assert detect_backend({"hook_event_name": "PreToolUse"}) == "claude"
-    assert detect_backend({"hook_event_name": "PostToolUse"}) == "claude"
-    assert detect_backend({"hook_event_name": "Stop"}) == "claude"
-    assert detect_backend({"hook_event_name": "UserPromptSubmit"}) == "claude"
-    # 缺字段 default claude（Codex / Claude 是 majority case 且 output shape 一致）
-    assert detect_backend({}) == "claude"
+    """Claude / Codex stdin payload 含 hook_event_name in PreToolUse/Stop/...
+
+    v0.10.0: claude-code 是 REGISTRY canonical key (取代之前的简写 'claude').
+    """
+    assert detect_backend({"hook_event_name": "PreToolUse"}) == "claude-code"
+    assert detect_backend({"hook_event_name": "PostToolUse"}) == "claude-code"
+    assert detect_backend({"hook_event_name": "Stop"}) == "claude-code"
+    assert detect_backend({"hook_event_name": "UserPromptSubmit"}) == "claude-code"
+    # 缺字段 default claude-code（detect 走 fallback）
+    assert detect_backend({}) == "claude-code"
+
+
+def test_detect_backend_codex_by_wrapper_path(monkeypatch):
+    """v0.10.0 真测试 2026-05-16 抓到 codex 不接受 permissionDecision:allow shape.
+
+    detect_backend 必须真识别 codex 来路 (sys.argv[0] 含 /.codex/hooks/)，
+    不能 fallback 到 claude-code, 否则 emit_allow 走错 shape 让 codex 报
+    'unsupported permissionDecision:allow' 失败. 这是 v0.9.15 假设错的根因 lockdown.
+    """
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    assert detect_backend({}) == "codex"
+    assert detect_backend({"hook_event_name": "PreToolUse"}) == "codex"
+
+
+def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
+    """v0.10.0 Bug A lockdown — codex docs 原文:
+    > "permissionDecision: 'allow' ... not supported yet"
+    > "To permit a tool call, either return an empty JSON object ({})"
+
+    真测试 2026-05-16 codex 0.130 cli 报: unsupported permissionDecision:allow.
+    任何后续 PR 让 codex.emit_allow 退回 Claude hookSpecificOutput shape 必须挂.
+    """
+    from karma.backends import REGISTRY as _REG
+    out = _REG["codex"].emit_allow({})
+    assert out == "{}", (
+        f"Codex emit_allow 必须返 '{{}}' 让 codex 通过 fail-open 路径, "
+        f"不能用 Claude hookSpecificOutput.allow shape (codex 拒绝). 实际: {out!r}"
+    )
 
 
 def test_normalize_tool_name_gemini_to_claude_canonical():
@@ -301,7 +337,7 @@ def test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape():
     assert out["new_string"] == REAL_CODEX_SINGLE_FILE_ENVELOPE, (
         "new_string 应该是整个 envelope 让 keyword scan 看到全部内容"
     )
-    assert out["_codex_patch_files"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
+    assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
 
 
 def test_normalize_tool_input_codex_apply_patch_dict_form_input_field():
@@ -311,7 +347,7 @@ def test_normalize_tool_input_codex_apply_patch_dict_form_input_field():
     out = normalize_tool_input("apply_patch", wrapped, codex_payload)
     assert isinstance(out, dict)
     assert out["file_path"] == "/tmp/karma-codex-toy.py"
-    assert out["_codex_patch_files"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
+    assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
 
 
 def test_normalize_tool_input_non_apply_patch_passthrough():
@@ -326,7 +362,7 @@ def test_normalize_tool_input_multi_file_primary_is_first_update():
     payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     out = normalize_tool_input("apply_patch", SYNTHETIC_MULTI_FILE_ENVELOPE, payload)
     assert out["file_path"] == "/tmp/a.py"
-    assert len(out["_codex_patch_files"]) == 4
+    assert len(out["multi_file_targets"]) == 4
 
 
 def test_normalize_tool_input_malformed_envelope_passthrough():
@@ -352,7 +388,7 @@ def test_read_first_multi_file_blocks_when_any_update_unread(tmp_path, monkeypat
     tool_input = {
         "file_path": "/tmp/a.py",  # primary
         "new_string": SYNTHETIC_MULTI_FILE_ENVELOPE,
-        "_codex_patch_files": [
+        "multi_file_targets": [
             {"op": "Update", "path": "/tmp/a.py"},
             {"op": "Update", "path": "/tmp/b.py"},  # 这个没 Read
             {"op": "Add", "path": "/tmp/c.py"},     # 新建豁免
@@ -379,7 +415,7 @@ def test_read_first_multi_file_allows_when_all_updates_read(tmp_path):
     tool_input = {
         "file_path": "/tmp/a.py",
         "new_string": SYNTHETIC_MULTI_FILE_ENVELOPE,
-        "_codex_patch_files": [
+        "multi_file_targets": [
             {"op": "Update", "path": "/tmp/a.py"},
             {"op": "Update", "path": "/tmp/b.py"},
             {"op": "Add", "path": "/tmp/c.py"},

@@ -320,8 +320,12 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 | 客户端 | 装机命令 | 备注 |
 |---|---|---|
 | Claude Code | `karma install-hooks`（默认） | 立即生效 |
-| Codex CLI | `karma install-hooks --backend codex` | **codex 0.130+ 须 TUI 内 `/hooks` 手动审批** karma 4 个 wrapper |
+| Codex CLI | `karma install-hooks --backend codex` | ⚠️ **Codex 关键最后一步 — 看下方警示框** |
 | Gemini CLI | `karma install-hooks --backend gemini-cli` | 立即生效 |
+
+> ⚠️ **Codex 关键一步 — `/hooks` TUI 审批必做（v0.10.0）**
+>
+> codex 0.130+ 不自动启用 hook. `karma install-hooks --backend codex` 写完 `~/.codex/hooks.json` 后**必须**启动 `codex` 在 TUI 内输 `/hooks` 然后逐个 approve karma 4 个 wrapper. **没审批 = karma 在 codex 下完全静默，所有规则失效无任何警告**. karma `install-hooks` 跟 `karma doctor` v0.10.0 起会响亮警示这条; 错过看 [docs/CODEX_BACKEND.zh.md](docs/CODEX_BACKEND.zh.md). codex `/hooks` 审批是它自身安全模型 — 第三方包括 karma 不能绕.
 
 ### 卸载
 

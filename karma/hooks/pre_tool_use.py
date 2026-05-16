@@ -68,7 +68,7 @@ def main() -> int:
     raw_tool_input = payload.get("tool_input", {})
     # v0.9.16 cross-backend phase 2: tool_input 也归一化 — Codex apply_patch 的
     # 字符串 envelope (*** Begin Patch ...) 解成 karma canonical {file_path,
-    # new_string, _codex_patch_files} 让 read_first / keyword scan / record_edit
+    # new_string, multi_file_targets} 让 read_first / keyword scan / record_edit
     # 真覆盖（之前只 normalize tool_name，Codex 编辑全部漏过这些 check）.
     tool_input = normalize_tool_input(raw_tool_name, raw_tool_input, payload)
     if not isinstance(tool_input, dict):

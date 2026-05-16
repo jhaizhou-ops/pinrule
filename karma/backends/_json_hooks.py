@@ -10,8 +10,19 @@
 - is_karma_entry 用前缀识别
 - client_installed 检测命令在 PATH 或配置目录存在
 
-抽到基类后，加新 backend 只需填 6 个类属性 + 可选 override build_event_entry /
-pre_install_setup。
+v0.10.0 加入 4 个**协议契约方法**默认实现，让 backend 私有协议适配
+（tool_name 映射、tool_input 解析、output shape）作为 backend 本身的责任：
+
+- `normalize_tool_name(raw, payload)` — 默认 passthrough
+- `normalize_tool_input(raw_name, raw_input, payload)` — 默认 passthrough
+- `emit_deny(reason, payload)` — 默认 Claude 风格 hookSpecificOutput shape
+- `emit_allow(payload)` — 默认 Claude 风格
+
+Codex / Gemini / 任何后续 backend 在自己的文件 override 这些方法 — 通用层
+`karma/hooks/*.py` 不再含 backend 字面。
+
+抽到基类后，加新 backend 只需填 6 个类属性 + 可选 override 这 4 个契约 +
+build_event_entry / pre_install_setup / post_install_message。
 
 参考 vibe-island 实证的 9 家清单（详 CHANGELOG v0.4.0+ notes）：
 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等都能继承本基类。
@@ -23,6 +34,7 @@ import json
 import os
 import shutil
 from pathlib import Path
+from typing import Any
 
 from karma.backends._base import SettingsParseError
 
@@ -105,3 +117,68 @@ class JsonHooksBackend:
     def pre_install_setup(self) -> list[str]:
         """默认无需启用 — Codex 类 override 启用 features 标志。"""
         return []
+
+    def post_install_message(self) -> list[str]:
+        """默认装完即生效，无额外提醒（Claude Code / Gemini CLI 都这样）。
+
+        Codex 类 override 返回审批步骤（v0.9.17 引入）— codex 0.130+ 安全模型
+        要求每个 hook 在 TUI `/hooks` 命令里被用户手动 approve 才生效，karma
+        无法绕；不响亮告诉用户这步等于让 user 装完就以为正常实际 0 hook fire.
+        """
+        return []
+
+    # ------------------------------------------------------------------ #
+    # v0.10.0 协议契约 — 让 hook 通用主逻辑跟具体 backend 解耦                    #
+    # 默认是 Claude Code 风格（pass-through name + hookSpecificOutput shape）。 #
+    # Codex / Gemini / 其他 backend 在自己文件 override 需要的方法。              #
+    # ------------------------------------------------------------------ #
+
+    def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
+        """归一化 tool_name 到 karma canonical（Claude 风格 `Bash`/`Read`/`Edit`/`Write`）。
+
+        默认 passthrough — Claude Code 自身用 canonical 名字所以不需要映射。
+        Codex / Gemini 在自己 backend 文件 override 映射各自 tool_name 到 canonical。
+        """
+        return raw_tool_name
+
+    def normalize_tool_input(
+        self, raw_tool_name: str, raw_tool_input: Any, payload: dict,
+    ) -> Any:
+        """归一化 tool_input 到 karma canonical shape。
+
+        默认 passthrough — Claude Code tool_input 已经是 karma 期望的 dict shape:
+        `{"file_path": ..., "new_string": ..., "command": ...}`。
+
+        Codex apply_patch 在 codex.py override 把 envelope 字符串解成 canonical
+        Edit shape + 多文件 `multi_file_targets` 列表。Gemini 默认 passthrough（字段名
+        几乎跟 Claude 同源）。
+        """
+        return raw_tool_input
+
+    def emit_deny(self, reason: str, payload: dict) -> str:
+        """生成 deny output JSON string。
+
+        默认 Claude Code 风格 `{hookSpecificOutput: {permissionDecision: "deny"}}`。
+        Codex 接受同样 shape 所以也用这个默认（codex docs 实验证），Gemini override
+        到顶层 `{decision: "deny", reason: ...}`（Gemini 官方文档要求）。
+        """
+        return json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": reason,
+            }
+        }, ensure_ascii=False)
+
+    def emit_allow(self, payload: dict) -> str:
+        """生成 allow output JSON string.
+
+        默认 Claude Code 风格 `{hookSpecificOutput: {permissionDecision: "allow"}}`。
+        Gemini override 到空 `{}`（Gemini 默认 allow 不需显式输出）。
+        """
+        return json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+            }
+        })

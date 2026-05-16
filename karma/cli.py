@@ -1152,6 +1152,41 @@ def cmd_doctor() -> int:
             any_install_missing = True
     if any_install_missing:
         print("  → 运行 `karma install-hooks --backend all` 修复")
+
+    # v0.9.17 L2: codex 审批状态 reminder. codex 0.130+ 不公开 approval 存储
+    # 位置 (sqlite / 文件 / keychain 都没查到), karma 没法程序化验证 4 个
+    # wrapper 是否真 approved. 诚实路径: 检测到 codex 装了 + hooks.json 写了
+    # karma entry → 响亮提醒用户去 TUI /hooks 确认审批 + 给完整 wrapper
+    # 路径让用户对照. 不假装能自动检测（rule #4: 假装查过比说没查过更失信任）.
+    if "codex" in _BACKENDS:
+        codex = _BACKENDS["codex"]
+        if codex.client_installed():
+            try:
+                codex_settings = codex.load_settings()
+                codex_has_karma_entry = any(
+                    any(codex.is_karma_entry(e) for e in codex_settings.get("hooks", {}).get(ev, []))
+                    for ev in codex.hook_events()
+                )
+            except Exception:
+                codex_has_karma_entry = False
+            if codex_has_karma_entry:
+                hooks_dir = codex.hooks_dir()
+                print("")
+                print("  ⚠️  Codex 审批状态自检（karma 无法自动验证，请人工确认）:")
+                print("     codex 0.130+ 安全设计要求每个 hook 在 TUI 内 `/hooks`")
+                print("     命令里手动 approve 才生效. karma hooks.json 写了不等于真生效.")
+                print("     **没 approve = 所有 karma 规则在 codex 下静默失效**.")
+                print("")
+                print("     ▶ 确认步骤:")
+                print("        1. 启动 `codex`")
+                print("        2. TUI 内输 `/hooks`")
+                print("        3. 检查这 4 个 wrapper 状态:")
+                for basename in codex.hook_events().values():
+                    wrapper = hooks_dir / f"karma_{basename}.py"
+                    print(f"           {wrapper}")
+                print("        4. 没 approved 的逐个 approve, 已 approved 跳过.")
+                print("")
+                print("     ▶ 验证: codex 改一个没先 Read 的文件 → 应被 karma 🛑 拦.")
     return 0 if all_ok else 1
 
 
@@ -1220,6 +1255,13 @@ def _install_to_backend(backend) -> int:
 
     backend.save_settings(settings)
     print(f"  已配置 {settings_path}（{len(backend.hook_events())} 个 hook event）")
+
+    # v0.9.17 L1: backend 装完后的响亮警示（如 Codex TUI /hooks 审批步骤）.
+    # 默认 backend 返回空 list 不打印额外内容; Codex override 返回完整审批框.
+    # 用 getattr 兜底避免老 Backend 实现没这方法时抛 AttributeError.
+    post_msg: list[str] = getattr(backend, "post_install_message", lambda: [])()
+    for line in post_msg:
+        print(line)
     return 0
 
 

@@ -6,6 +6,99 @@
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-16（minor — backend 架构：protocol_adapter 调度层 + 6 契约 method + codex 所有权分工接手）
+
+### 为什么发这版
+
+v0.9.16 真测试 codex 暴露 2 个新 bug：
+1. **Codex 拒绝 `permissionDecision:"allow"` shape** — v0.9.15 假设 Codex 接受 Claude `hookSpecificOutput.allow` shape, 2026-05-16 真测试 codex 0.130 报错 `unsupported permissionDecision:allow`. karma 错了 1 个 release.
+2. **Codex shell-as-Read 适配缺口** — codex 没独立 `Read` tool, 用 `exec_command` 跑 `tail`/`sed`/`cat` 读文件. karma `record_read` 只认 `tool_name == "Read"` → codex shell 读全看不到 → `read_first` 假阳拦 codex 编辑.
+
+用户反馈：「karma 的 hook 和判定的设计可能得针对不同的平台有针对性的开发和维护，你主要负责维护 karma 主程序和 claude 端，codex 端我让 codex 自行开发和测试」. 同意 — codex 协议细节归对 codex 平台变更信号最快的一方,就是 Codex CLI 自己.
+
+### Major — 架构分工
+
+karma 把 backend 所有权当**独立贡献者表面**:
+
+| 文件 | Owner |
+|---|---|
+| `karma/hooks/*.py` 主逻辑 + `karma/checks/*.py` engine check + `karma/backends/_base.py` Protocol + `karma/backends/_json_hooks.py` 基类 + `karma/backends/protocol_adapter.py` 调度 + `karma/backends/claude_code.py` + `karma/backends/gemini_cli.py` | karma 维护者 |
+| **`karma/backends/codex.py`** + **`tests/test_codex_backend.py`**（计划） | **Codex CLI 自己**（Codex session 发 PR） |
+| `tests/test_protocol_adapter.py` 跨 backend 契约测试 | karma 维护者 |
+| `README.md` / `CHANGELOG.md` / `HANDOFF.md` / `ARCHITECTURE.md` / `HOWTO.md` | karma 维护者 |
+
+新文档 [`docs/CODEX_BACKEND.md`](docs/CODEX_BACKEND.md)（+ `.zh.md`）定义所有权边界、6 契约 method、Codex backend 已知 TODO 议程.
+
+### Major — 6 契约 method 形式化
+
+`karma/backends/_base.py:Backend` Protocol 形式化每个 backend 必须提供的方法. `_json_hooks.py` 提供 Claude 风格默认; backend 只 override 不同的部分:
+
+| Method | 默认 (Claude) | Codex override | Gemini override |
+|---|---|---|---|
+| `pre_install_setup()` | `[]` | 启用 `features.hooks` | `[]` |
+| `post_install_message()` | `[]` | 响亮 `/hooks` 审批提醒 | `[]` |
+| `normalize_tool_name()` | passthrough | `apply_patch → Edit` (`_CODEX_TOOL_MAP`) | `run_shell_command → Bash` 等 (`_GEMINI_TOOL_MAP`) |
+| `normalize_tool_input()` | passthrough | 解 apply_patch envelope → `{file_path, new_string, multi_file_targets}` | passthrough |
+| `emit_deny(reason)` | `{hookSpecificOutput: {permissionDecision: "deny"}}` | 继承 Claude shape | `{decision: "deny", reason}` (Gemini 官方) |
+| `emit_allow()` | `{hookSpecificOutput: {permissionDecision: "allow"}}` | **`{}`** (codex 官方文档不接受 allow shape) | `{}` |
+
+### Bug A — codex.emit_allow 返回 `{}` (v0.9.15 错误假设根因 fix)
+
+[codex hooks 官方文档](https://developers.openai.com/codex/hooks)原话:
+
+> "permissionDecision: 'ask', legacy 'decision: 'approve', 'updatedInput', 'continue: false', 'stopReason', and 'suppressOutput' are parsed but not supported yet, so they fail open."
+> "To permit a tool call, either return an empty JSON object (`{}`) or exit with code `0` and no output."
+
+2026-05-16 真测试 codex 0.130 CLI 报错 `PreToolUse hook returned unsupported permissionDecision:allow`. v0.9.15 CHANGELOG 错说「Codex 接受新 hookSpecificOutput shape」. v0.10.0 修: `CodexBackend.emit_allow() → "{}"` + 锁定回归测试 `test_codex_emit_allow_returns_empty_dict_not_claude_shape` 防未来 PR 回退.
+
+### Internal — protocol_adapter.py 退化为纯调度
+
+之前 `karma/backends/protocol_adapter.py` 含 `_GEMINI_TOOL_MAP` / `_CODEX_TOOL_MAP` / `parse_apply_patch_envelope` / `_extract_codex_patch_text` / `normalize_tool_input` 等 backend 私货塞在「中立」文件. v0.10.0 把每条归到拥有该协议的 backend 文件:
+
+- Gemini tool name map → `karma/backends/gemini_cli.py:_GEMINI_TOOL_MAP`
+- Codex tool name map + envelope parser → `karma/backends/codex.py:_CODEX_TOOL_MAP` + `parse_apply_patch_envelope()` + `_extract_codex_patch_text()`
+
+`protocol_adapter.py` 现在只含:
+- `detect_backend(payload)` — Gemini 看 `hook_event_name`, codex 看 `sys.argv[0]` 路径含 `/.codex/hooks/`, fallback claude-code
+- `normalize_tool_name` / `normalize_tool_input` / `emit_deny` / `emit_allow` — 各 1 行调度到 `REGISTRY[detect_backend(payload)].method(...)`
+- `parse_apply_patch_envelope` 从 `karma.backends.codex` re-export 给 v0.9.16 测试向后兼容
+
+`detect_backend` 升级: 返回 canonical REGISTRY key (`claude-code` / `codex` / `gemini-cli`) 不再用 v0.9.15 简写 (`claude` / `gemini`). codex 通过 `sys.argv[0]` 路径含 `/.codex/` 识别 — 因为 codex hook payload 没可靠 backend signature 在 stdin, 但 wrapper 文件路径永远是 `~/.codex/hooks/karma_*.py`.
+
+### Internal — checks/read_first.py 去 backend-leak
+
+v0.9.16 引入 `_codex_patch_files` 字段是 canonical-protocol-leak (read_first 知道 codex envelope 结构). v0.10.0 重命名 `multi_file_targets` — 通用名,未来任何 envelope-协议 backend 都能复用. read_first.check 不再含 `apply_patch` 字面; 用 caller 传的 `tool_name` 写 trigger 消息.
+
+### Internal — codex post_install_message + doctor 提醒（v0.9.17 集成进来）
+
+原计划作为 v0.9.17 patch 系列, 现在作为 backend-契约方法集成:
+- `CodexBackend.post_install_message()` — 装机时打印响亮 TUI `/hooks` 审批提醒, 列全 4 个 wrapper 路径让用户复制到 TUI
+- `karma doctor` — codex-specific 段打印审批 reminder. Doctor 不能程序化验证审批状态 (codex 不暴露); 老实说而不是假装能检测.
+- README.md + README.zh.md — codex install 段顶部 alert box (不再埋表格里)
+
+### Codex backend 已知 TODO（交接给 Codex）
+
+详 [`docs/CODEX_BACKEND.zh.md`](docs/CODEX_BACKEND.zh.md). Codex backend owner 应该 pick up:
+
+1. **shell-as-Read 识别** — `exec_command` tail/sed/cat 应该算 Read 给 `record_read` 用. 对 codex 可用性最重要.
+2. **捕获真 hook-level payload** — 当前从 session rollout 推断, 没直接捕获. `/hooks` 审批后通过 `KARMA_DEBUG_DUMP_PAYLOAD` dump 真 hook stdin.
+3. 其他 codex tool_name 没映射 (`exec_command → Bash` 等).
+4. 审批状态程序化检测（如 codex 暴露的话）.
+
+### 验证
+
+- **512/512 通过** 双 `LANG=zh_CN.UTF-8` 和 `LANG=en_US.UTF-8` (原 510) — 2 个新锁定测试
+- 全 6 道本地 gate 通过 (pytest zh + en / ruff / mypy / vulture / wheel build+verify+smoke)
+- Wheel smoke test: 干净 venv 装 + REGISTRY 含 3 个 backend + detect_backend 路由对 + codex.emit_allow 返回 `"{}"` + 6 契约 method 全 callable
+
+### 下游迁移说明
+
+- `protocol_adapter.parse_apply_patch_envelope` 仍可 import (从 codex.py re-export) — 无破坏性
+- v0.9.16 `_codex_patch_files` 字段重命名 `multi_file_targets` — 内部字段从未文档化, 但下游消费 session-state JSON 的话要改名
+- `detect_backend()` 返回 `claude-code` / `codex` / `gemini-cli` 不是 `claude` / `gemini` — 内部 API, 几个测试引用了这些字符串
+
+详 [docs/CODEX_BACKEND.zh.md](docs/CODEX_BACKEND.zh.md)
+
 ## [0.9.16] — 2026-05-16（fix — codex apply_patch envelope 真 parser（捕获的真 payload 锁字面）；config DEFAULTS 缺字段静默丢用户配置；PreCompact / SubagentStop 测试断言收紧）
 
 ### 为什么发这版

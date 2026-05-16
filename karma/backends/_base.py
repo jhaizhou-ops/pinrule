@@ -71,6 +71,43 @@ class Backend(Protocol):
         """
         ...
 
+    def post_install_message(self) -> list[str]:
+        """install-hooks 全部写完后的「**响亮警示 + 操作步骤**」（v0.9.17 引入）。
+
+        Codex 0.130+ 安全模型要求每个 hook 在 TUI `/hooks` 命令里被用户手动 approve
+        才生效 — 第三方包括 karma 无法绕。**之前 karma 把这条埋 README 第 82 行表格，
+        实测用户装完就以为生效了实际 0 hook fire**（rule #4 loud-failure-with-evidence
+        反方向 — 不响亮告诉用户限制就是「让用户以为正常」的隐性失败）。
+
+        返回 [] 表示该 backend 装完就生效不需要额外提醒（Claude Code / Gemini CLI）。
+        Codex 返回完整审批步骤含 4 个 wrapper 完整路径。
+
+        `_install_to_backend` 在装机末尾打印每条 message 为一行 — backend 可加 emoji /
+        分隔线让用户视觉上不漏看。
+        """
+        ...
+
+    # v0.10.0 协议契约（每个 backend 在自己文件 override 这 4 个，默认 JsonHooksBackend
+    # 给 Claude-shape 实现）—— 让 hook 通用主逻辑跟具体 backend 解耦.
+
+    def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
+        """归一化 tool_name 到 karma canonical (Claude 风格)."""
+        ...
+
+    def normalize_tool_input(
+        self, raw_tool_name: str, raw_tool_input: object, payload: dict,
+    ) -> object:
+        """归一化 tool_input 到 karma canonical shape (codex envelope 解析等)."""
+        ...
+
+    def emit_deny(self, reason: str, payload: dict) -> str:
+        """生成 deny output JSON string (backend-specific shape)."""
+        ...
+
+    def emit_allow(self, payload: dict) -> str:
+        """生成 allow output JSON string (backend-specific shape)."""
+        ...
+
     def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
         """返回该 backend 装 skill 的目标 [(dest_path, content_format), ...].
 

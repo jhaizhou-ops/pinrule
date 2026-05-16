@@ -10,6 +10,99 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-05-16 (minor — backend architecture: protocol_adapter delegation layer + 6-method contract + codex ownership boundary handoff)
+
+### Why this release
+
+User triggered architecture rethink after v0.9.16 real-codex testing exposed two new bugs:
+1. **Codex rejects `permissionDecision:"allow"` shape** — v0.9.15 had wrongly assumed Codex accepts Claude's hookSpecificOutput.allow shape. Real testing 2026-05-16 with codex 0.130 CLI produced `unsupported permissionDecision:allow` error. karma had this wrong for 1 release.
+2. **Codex shell-as-Read gap** — codex has no separate `Read` tool; reads files via `exec_command` running `tail` / `sed` / `cat`. karma's `record_read` only matches `tool_name == "Read"` → all codex shell-reads invisible → `read_first` false-positive denials on edits.
+
+User feedback: *"karma 的 hook 和判定的设计可能得针对不同的平台有针对性的开发和维护，你主要负责维护 karma 主程序和 claude 端，codex 端我让 codex 自行开发和测试"*. This is sound — codex protocol details belong to whoever has fastest signal on codex platform changes, which is Codex CLI itself.
+
+### Major — architectural split
+
+karma now treats backend ownership as **separate contributor surfaces**:
+
+| Files | Owner |
+|---|---|
+| `karma/hooks/*.py` main logic + `karma/checks/*.py` engine checks + `karma/backends/_base.py` Protocol + `karma/backends/_json_hooks.py` base + `karma/backends/protocol_adapter.py` dispatch + `karma/backends/claude_code.py` + `karma/backends/gemini_cli.py` | karma maintainer |
+| **`karma/backends/codex.py`** + **`tests/test_codex_backend.py`** (planned) | **Codex CLI itself** (PRs via Codex sessions) |
+| `tests/test_protocol_adapter.py` cross-backend contract | karma maintainer |
+| `README.md` / `CHANGELOG.md` / `HANDOFF.md` / `ARCHITECTURE.md` / `HOWTO.md` | karma maintainer |
+
+New doc [`docs/CODEX_BACKEND.md`](docs/CODEX_BACKEND.md) (and `.zh.md`) defines the ownership boundary, 6-method contract, and known TODO agenda for Codex backend owner.
+
+### Major — 6-method backend contract
+
+`karma/backends/_base.py:Backend` Protocol formalizes the methods every backend must provide. `_json_hooks.py` provides Claude-Code-shape defaults; backends override only what differs:
+
+| Method | Default (Claude) | Codex override | Gemini override |
+|---|---|---|---|
+| `pre_install_setup()` | `[]` | enable `features.hooks` | `[]` |
+| `post_install_message()` | `[]` | loud `/hooks` approval reminder | `[]` |
+| `normalize_tool_name()` | passthrough | `apply_patch → Edit` (via `_CODEX_TOOL_MAP`) | `run_shell_command → Bash` etc (via `_GEMINI_TOOL_MAP`) |
+| `normalize_tool_input()` | passthrough | parse apply_patch envelope → `{file_path, new_string, multi_file_targets}` | passthrough |
+| `emit_deny(reason)` | `{hookSpecificOutput: {permissionDecision: "deny"}}` | inherits Claude shape | `{decision: "deny", reason}` (Gemini official) |
+| `emit_allow()` | `{hookSpecificOutput: {permissionDecision: "allow"}}` | **`{}`** (codex rejects allow shape per official docs) | `{}` |
+
+### Bug A — codex.emit_allow returns `{}` (root cause for v0.9.15 wrong assumption)
+
+Official [codex hooks docs](https://developers.openai.com/codex/hooks):
+
+> "permissionDecision: 'ask', legacy 'decision: 'approve', 'updatedInput', 'continue: false', 'stopReason', and 'suppressOutput' are parsed but not supported yet, so they fail open."
+> "To permit a tool call, either return an empty JSON object (`{}`) or exit with code `0` and no output."
+
+Real testing 2026-05-16 codex 0.130 CLI emitted error `PreToolUse hook returned unsupported permissionDecision:allow`. v0.9.15 had wrongly claimed in CHANGELOG that "Codex accepts new hookSpecificOutput shape". v0.10.0 fixes this with `CodexBackend.emit_allow() → "{}"` + locked regression test `test_codex_emit_allow_returns_empty_dict_not_claude_shape` preventing future PRs from reverting.
+
+### Internal — protocol_adapter.py becomes pure dispatch
+
+Previously `karma/backends/protocol_adapter.py` contained `_GEMINI_TOOL_MAP`, `_CODEX_TOOL_MAP`, `parse_apply_patch_envelope`, `_extract_codex_patch_text`, `normalize_tool_input` — all backend-specific code in a "neutral" file. v0.10.0 moves each to the backend file that owns the protocol:
+
+- Gemini tool name map → `karma/backends/gemini_cli.py:_GEMINI_TOOL_MAP`
+- Codex tool name map + envelope parser → `karma/backends/codex.py:_CODEX_TOOL_MAP` + `parse_apply_patch_envelope()` + `_extract_codex_patch_text()`
+
+`protocol_adapter.py` now only contains:
+- `detect_backend(payload)` — routes to backend by `hook_event_name` for Gemini, by `sys.argv[0]` path (`/.codex/hooks/` literal) for codex, fallback claude-code
+- `normalize_tool_name` / `normalize_tool_input` / `emit_deny` / `emit_allow` — each 1-line delegation to `REGISTRY[detect_backend(payload)].method(...)`
+- `parse_apply_patch_envelope` re-export from `karma.backends.codex` for v0.9.16 test back-compat
+
+`detect_backend` upgrade: returns canonical REGISTRY key (`claude-code` / `codex` / `gemini-cli`) instead of v0.9.15's short forms (`claude` / `gemini`). codex detection via `sys.argv[0]` containing `/.codex/` literal is necessary because codex hook payloads don't have a reliable backend signature in stdin fields, but the wrapper file path is always `~/.codex/hooks/karma_*.py`.
+
+### Internal — checks/read_first.py backend-neutral
+
+v0.9.16 introduced `_codex_patch_files` field as canonical-protocol-leak (read_first knew about codex envelope structure). v0.10.0 renames to `multi_file_targets` — generic name that any future envelope-protocol backend can reuse. read_first.check no longer contains the literal `apply_patch` string; uses caller's `tool_name` for trigger messages.
+
+### Internal — codex post_install_message + doctor reminder (v0.9.17 work integrated)
+
+Originally planned as v0.9.17 patch series, now integrated as backend-contract methods:
+- `CodexBackend.post_install_message()` — loud TUI `/hooks` approval reminder printed at install time, lists all 4 wrapper paths for user to copy into TUI
+- `karma doctor` — codex-specific section printing approval reminder when codex client + hooks.json detected. Doctor cannot programmatically verify approval state (codex doesn't expose it); honestly states this rather than fake-detecting.
+- README.md + README.zh.md — alert box at codex install section (no longer buried in table row)
+
+### Codex backend known TODOs (handoff to Codex)
+
+Listed in `docs/CODEX_BACKEND.md`. Codex backend owner should pick these up:
+
+1. **shell-as-Read recognition** — `exec_command` tail/sed/cat should count as Read for `record_read`. Most important for codex usability.
+2. **Capture real hook-level payload** — currently inferred from session rollout, not directly captured. After `/hooks` approval, dump real hook stdin via `KARMA_DEBUG_DUMP_PAYLOAD`.
+3. Other codex tool names not yet mapped (`exec_command → Bash`, etc).
+4. Approval state programmatic detection (if codex exposes it).
+
+### Verification
+
+- **512/512 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 510) — 2 new lockdown tests
+- All 6 local gates pass (pytest zh + en / ruff / mypy / vulture / wheel build+verify+smoke)
+- Wheel smoke test: clean venv install + REGISTRY has 3 backends + detect_backend routes correctly + codex.emit_allow returns `"{}"` + all 6 contract methods callable
+
+### Migration notes for downstream
+
+- `protocol_adapter.parse_apply_patch_envelope` still importable (re-exported from codex.py) — no breaking change
+- v0.9.16 `_codex_patch_files` field renamed to `multi_file_targets` — internal field never documented, but if any downstream consumer reads session-state JSON they need to rename
+- `detect_backend()` returns `claude-code` / `codex` / `gemini-cli` instead of `claude` / `gemini` — internal API, but a few tests reference these strings
+
+Full details: [docs/CODEX_BACKEND.md](docs/CODEX_BACKEND.md)
+
 ## [0.9.16] — 2026-05-16 (fix — codex apply_patch envelope parser via real captured payload; config DEFAULTS silent-drop; PreCompact/SubagentStop test asserts tightened)
 
 ### Why this release

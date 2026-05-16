@@ -79,8 +79,12 @@ Steps:
 | Client | Install command | Note |
 |---|---|---|
 | Claude Code | `karma install-hooks` (default) | Takes effect immediately |
-| Codex CLI | `karma install-hooks --backend codex` | **codex 0.130+ requires manual approval** of karma's 4 wrappers via TUI `/hooks` command |
+| Codex CLI | `karma install-hooks --backend codex` | ⚠️ **Codex extra step — see alert below** |
 | Gemini CLI | `karma install-hooks --backend gemini-cli` | Takes effect immediately |
+
+> ⚠️ **Codex critical step — `/hooks` TUI approval required (v0.10.0)**
+>
+> codex 0.130+ does NOT auto-enable hooks. After `karma install-hooks --backend codex` writes `~/.codex/hooks.json`, you **must** run `codex` and inside the TUI input `/hooks` then approve all 4 karma wrappers individually. **Without approval, karma is silently inert on codex — all rules will be bypassed without warning.** karma's `install-hooks` and `karma doctor` print loud reminders since v0.10.0; if you missed them, see [docs/CODEX_BACKEND.md](docs/CODEX_BACKEND.md). codex's `/hooks` approval is its security model — third parties including karma can't bypass it.
 
 ### Uninstall
 

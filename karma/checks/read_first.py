@@ -24,12 +24,12 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
         return None  # 没 session 历史就不能判断
     ti = tool_input or {}
 
-    # v0.9.16 Codex apply_patch multi-file: protocol_adapter.normalize_tool_input
-    # 把 envelope 解成 _codex_patch_files = [{"op", "path"}, ...]. 任一 Update
+    # v0.10.0 多文件 patch canonical 字段（backend-neutral）— Codex apply_patch
+    # / 未来某 backend 可能也用 envelope-style 多文件协议都走这个字段。任一 Update
     # path 未 Read 过 → 拦. Add path (新建文件) 跟 Write 全新逻辑一致豁免.
-    codex_patch_files = ti.get("_codex_patch_files")
-    if codex_patch_files:
-        for f in codex_patch_files:
+    multi_file_targets = ti.get("multi_file_targets")
+    if multi_file_targets:
+        for f in multi_file_targets:
             op = f.get("op")
             path = f.get("path", "")
             if not path:
@@ -42,11 +42,13 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
                 continue
             # op == "Update": 修改已有文件必须先 Read
             if not session_state.has_read(path):
+                # 用 tool_name (caller 传入) 不写死 apply_patch 字面 — 让通用层
+                # backend-neutral（未来某 backend 也用多文件 envelope 复用同条 check）
                 return CheckHit(
                     rule_id=_STICKY_ID,
-                    trigger=tr("check.read_first.trigger", tool="apply_patch", file_path=path),
+                    trigger=tr("check.read_first.trigger", tool=tool_name, file_path=path),
                     trigger_key="check.read_first.trigger",
-                    snippet=f"apply_patch Update({path!r})",
+                    snippet=f"{tool_name}({path!r})",
                     suggested_fix=tr("check.read_first.fix", file_path=path),
                 )
         return None
