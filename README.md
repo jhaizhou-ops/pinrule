@@ -9,15 +9,21 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/karma?label=release)](https://github.com/jhaizhou-ops/karma/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/karma)](https://github.com/jhaizhou-ops/karma/commits/main)
 
-> Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
+> **Keeps your AI aligned with your rules across long tasks — pure engineering, zero LLM, < 60ms hook.**
+
+<!-- DEMO PLACEHOLDER — run `bash scripts/record-demo.sh` and replace URL:
+[![asciicast](https://asciinema.org/a/XXXXXX.svg)](https://asciinema.org/a/XXXXXX)
+-->
+
+Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
-> **Two sides of the same loop**:
->
-> 🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
->
-> ✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
->
-> Pure engineering, zero LLM dependency, hook response under 60ms. Chinese + English users covered; adding a new language is one `.txt` per signal directory — no Python code.
+**Two sides of the same loop**:
+
+🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
+
+✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
+
+Chinese + English users covered; adding a new language is one `.txt` per signal directory — no Python code.
 
 ---
 
@@ -272,6 +278,46 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 ---
 
 ## 8 hook positions, all covered
+
+Conversation lifecycle timeline showing where each hook fires:
+
+```
+session 起手 / compact 重起
+        │
+        ▼
+ ┌─ SessionStart ──┐  inject full rule baseline (read snapshot on compact-restart)
+ │                 │
+ ▼                 │
+ 每条 user prompt   │  ┌───────── 子 Agent 路径 ─────────┐
+        │          │  │                                  │
+        ▼          │  ▼                                  ▼
+ ┌─ UserPromptSubmit ─┐  ┌─ SubagentStart ─┐    ┌─ SubagentStop ─┐
+ │ compact anchor +   │  │ 子 Agent 继承规则 │    │ 临时 state 销毁 │
+ │ drift markers      │  └─────────────────┘    └────────────────┘
+ └────────────────────┘
+        │
+        ▼
+ Agent calls Bash / Edit / Write
+        │
+        ▼
+ ┌─ PreToolUse ──┐  scan command + context timing; hit → deny
+ │               │
+ ▼               │
+ tool runs       │
+        │        │
+        ▼        │
+ ┌─ PostToolUse ─┐  track state + mid-conversation reinject at decay threshold
+ │               │
+ ▼               │
+ Agent responds  │
+        │        │
+        ▼        │
+ ┌─ Stop ────────┐  strong reminder + continuation nudge + short-term intent detection
+                              │
+                              ▼
+ ┌─ PreCompact ──┐  dump full rule state → SessionStart(source=compact) reads it back
+                  (fires when client auto-compacts long context)
+```
 
 | Hook position | Function + scenario | Pain point solved |
 |---|---|---|
