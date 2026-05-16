@@ -10,6 +10,67 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.10] — 2026-05-16 (feat — onboarding polish: rule summary shows first paragraph (not half-line) + footer with token-cost reassurance and `/karma` in-chat entry)
+
+### Why this release
+
+v0.9.9 shipped the onboarding summary block. User acceptance review surfaced two refinements:
+
+1. **First-line truncation produced half-sentences** — `preference.strip().split("\n")[0]` cut at YAML visual wrap, e.g. `long-term-fundamental` showed "The user trusts you to dig into root causes. When facing hard problems" with the rest ("they want you to pause and think...") dropped. User picked option (b): show the **first paragraph** (split by blank line) so each rule's summary is a complete meaning unit.
+
+2. **No reassurance on cost / no clear next step for adding rules** — User wanted a footer to address both: "Tested: rule injection accounts for under 3% of per-session token spend; to add or modify rules, just type `/karma <natural-language description>` in your AI client."
+
+### Fix 1 — Show first paragraph instead of first line
+
+```python
+# v0.9.9
+first_line = r.preference.strip().split("\n")[0]
+print(f"    {first_line}")
+
+# v0.9.10
+first_paragraph = r.preference.strip().split("\n\n")[0]
+for line in first_paragraph.split("\n"):
+    print(f"    {line.strip()}")
+```
+
+YAML `|` block paragraphs are separated by blank lines (semantic units), within-paragraph `\n` is visual wrap. Splitting on `\n\n` keeps one complete meaning unit per rule.
+
+Length tradeoff: zh full 7 → ~33 lines summary; en minimal 5 → ~37 lines. Still fits on one screen for Agent relay.
+
+### Fix 2 — Bilingual footer with token reassurance + `/karma` entry
+
+New `init.summary.footer` locale key:
+
+```
+经测试，以上规则注入仅占 karma 每 session 会话 token 消耗总量的 3% 以内，
+请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入
+/karma <自然语言你想增加的规则> 即可。
+```
+
+```
+Tested: this rule injection accounts for under 3% of karma's per-session
+token spend — relax and enjoy the "Agent doesn't drift in long tasks" feel.
+To add or modify rules, just type /karma <natural-language description of
+the rule> in your AI client.
+```
+
+**Why `/karma` doesn't violate v0.9.9's "no command tips" rule**: `/karma` is a slash command typed in the AI client's chat box (Claude Code / Codex / Gemini), not a shell command requiring the user to open a terminal. It's the natural-language rule-input skill — typing `/karma <intent>` is equivalent to "just tell the Agent what rule you want". So it's an in-chat continuation, not a "go run this in your shell" friction.
+
+Footer follows `_resolve_locale()` (KARMA_LOCALE env > config.yaml > `is_chinese_user()` system detect) — Chinese-system users see Chinese footer, English-system users see English footer automatically.
+
+### Test coverage
+
+2 new tests in `tests/test_cli.py`:
+- `test_init_summary_footer_includes_token_cost_and_slash_karma` — verifies footer contains `3%` + `/karma`
+- `test_init_summary_footer_matches_user_locale` — **lockdown**: with `KARMA_LOCALE=zh` only Chinese footer appears (no English leak); with `KARMA_LOCALE=en` only English footer appears (no Chinese leak)
+
+Updated `test_init_summary_does_not_include_command_tips` comment to clarify `/karma <natural-language>` is explicitly allowed (slash command in chat, not shell command).
+
+### Verification
+
+- 479/479 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 477)
+- All 6 local gates pass
+
 ## [0.9.9] — 2026-05-16 (feat — onboarding: `karma init` shows default rules summary so Agent-assisted install can relay it to the user)
 
 ### Why this release

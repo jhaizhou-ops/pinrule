@@ -686,9 +686,65 @@ def test_init_summary_does_not_include_command_tips(fake_home, monkeypatch, caps
     assert summary_start >= 0, "summary header 没出现"
     summary_block = out[summary_start:]
 
-    # summary 段不该包含 next-steps 指令 tip
+    # summary 段不该包含 next-steps shell 指令 tip
+    # 例外：`/karma <natural-language>` 是 in-chat slash command（v0.9.10 footer
+    # 加的），不是 shell 命令，跟「让用户开 terminal 输指令」性质不同，允许
     for tip in ("下一步:", "Next steps:", "karma rule edit", "karma rule list", "karma rule remove"):
         assert tip not in summary_block, (
-            f"summary 段含指令 tip {tip!r} — 违反 v0.9.9 onboarding 原则"
+            f"summary 段含 shell 指令 tip {tip!r} — 违反 v0.9.9 onboarding 原则"
             f"\n summary block:\n{summary_block}"
         )
+
+
+def test_init_summary_footer_includes_token_cost_and_slash_karma(fake_home, monkeypatch, capsys):
+    """v0.9.10: footer 加 token 成本上限 + /karma in-chat 入口提示。
+
+    用户原话「希望加一句用户体验相关补充」— 让 first-time 用户安心使用
+    （3% token 上限）+ 知道想加规则直接对话框输 /karma 就行（不用开 terminal）。
+    """
+    import karma.violations
+    _patch_rules_path(monkeypatch, fake_home)
+    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
+    cli.cmd_init(minimal=True)
+    out = capsys.readouterr().out
+
+    # token 成本数字（双语都含 "3%"）
+    assert "3%" in out, "footer 应含 token 上限 3% 数字让用户安心"
+    # /karma in-chat 入口字面
+    assert "/karma" in out, "footer 应含 /karma 入口提示"
+    # zh 或 en 任一关键 anchor 出现
+    assert "经测试" in out or "Tested:" in out, "footer 双语任一应触发"
+
+
+def test_init_summary_footer_matches_user_locale(fake_home, monkeypatch, capsys):
+    """v0.9.10 lockdown: footer 必须按用户语言展示对应语言内容 — 中文用户出
+    中文 footer，英文用户出英文 footer。
+
+    karma/i18n.py _resolve_locale() 优先级：KARMA_LOCALE env > config.yaml >
+    is_chinese_user() system detect。这条测试 mock 两个极端 case 锁不变量。
+    """
+    import karma.violations
+    from karma import i18n
+    _patch_rules_path(monkeypatch, fake_home)
+    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
+
+    # case 1: 强制 zh locale → footer 必须中文
+    monkeypatch.setenv("KARMA_LOCALE", "zh")
+    i18n._load_locale_dict.cache_clear()
+    cli.cmd_init(minimal=True)
+    out_zh = capsys.readouterr().out
+    assert "经测试" in out_zh, "KARMA_LOCALE=zh 时 footer 应是中文 ‘经测试…’"
+    assert "Tested:" not in out_zh, "KARMA_LOCALE=zh 时 footer 不该是英文"
+
+    # 重置 rules.yaml 让 case 2 走 init 全流程
+    (fake_home / ".claude" / "karma" / "rules.yaml").unlink()
+
+    # case 2: 强制 en locale → footer 必须英文
+    monkeypatch.setenv("KARMA_LOCALE", "en")
+    i18n._load_locale_dict.cache_clear()
+    cli.cmd_init(minimal=True)
+    out_en = capsys.readouterr().out
+    assert "Tested:" in out_en, "KARMA_LOCALE=en 时 footer 应是英文 ‘Tested: …’"
+    assert "经测试" not in out_en, "KARMA_LOCALE=en 时 footer 不该是中文"

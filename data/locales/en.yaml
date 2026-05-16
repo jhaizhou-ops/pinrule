@@ -32,6 +32,7 @@ stop.force_block.reason: "karma forced intervention: cumulative violations of {r
 # to the user. Deliberately no "next steps: run X" tips — that would turn into
 # "user types commands manually" friction, opposite of onboarding's intent.
 init.summary.header: "Default rules now enabled for you ({count}/{soft_max} soft cap):"
+init.summary.footer: "Tested: this rule injection accounts for under 3% of karma's per-session token spend — relax and enjoy the \"Agent doesn't drift in long tasks\" feel. To add or modify rules, just type /karma <natural-language description of the rule> in your AI client."
 
 # ===== SessionStart baseline =====
 session_start.compact.title: "[karma — After context compact, recall the agreement with the user]"

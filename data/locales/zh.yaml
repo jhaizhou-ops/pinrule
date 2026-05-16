@@ -31,6 +31,7 @@ stop.force_block.reason: "karma 强制干预：累积违反 {rules} 共 {count} 
 # Agent 代装场景下这段会被 Agent 转述给用户，让用户一眼看到默认开了什么规则。
 # 刻意不加「下一步：跑 X 命令」类 tip — 那会变「让用户手动输指令」的 friction。
 init.summary.header: "已为你启用以下默认规则 ({count}/{soft_max} 软上限):"
+init.summary.footer: "经测试，以上规则注入仅占 karma 每 session 会话 token 消耗总量的 3% 以内，请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入 /karma <自然语言你想增加的规则> 即可。"
 
 # ===== SessionStart baseline =====
 session_start.compact.title: "[karma — context compact 后回想一下跟用户的默契]"

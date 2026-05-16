@@ -285,10 +285,13 @@ def _print_default_rules_summary() -> None:
     """`karma init` 末尾展示默认启用规则的简要列表 — Agent 代装的场景下，
     这段输出会被 Agent 转述给用户，让用户一眼看到默认开了什么规则。
 
-    格式：每条 1 个 id + preference 首行（不是完整 preference）。规则文本跟随
-    用户安装时的 locale（中文用户装 zh 模板，preference 是中文；英文用户装 en
-    模板，preference 是英文）。i18n locale key 只覆盖 helper 的 header 脚手架
-    文字，不翻译规则内容本身。
+    格式：每条 1 个 id + preference **首段**（split by 空行，到第一个空行为止）。
+    比单纯首行（`split("\\n")[0]`）展示更完整 — 因为原作者把一句话写两行 visual
+    wrap 时，首行会被砍成半句。首段保留一个完整意思单元（一句或一小段）。
+
+    规则文本跟随用户安装时的 locale（中文用户装 zh 模板，preference 是中文；
+    英文用户装 en 模板，preference 是英文）。i18n locale key 只覆盖 helper 的
+    header 脚手架文字，不翻译规则内容本身。
 
     刻意不输出「下一步：跑 karma rule edit ...」这类指令 tip — 那会变成
     「让用户手动输指令」的 friction，跟 onboarding「Agent 代用户操作」目标相反。
@@ -307,9 +310,17 @@ def _print_default_rules_summary() -> None:
     print()
     print(tr("init.summary.header", count=len(rules), soft_max=MAX_RULES))
     for r in rules:
-        first_line = r.preference.strip().split("\n")[0]
+        # 首段 = split 第一个空行（"\n\n"）。yaml `|` block 段间用空行分隔
+        # 一个完整意思单元；段内 visual wrap 多行属于同一段。
+        first_paragraph = r.preference.strip().split("\n\n")[0]
         print(f"  ▸ [{r.id}]")
-        print(f"    {first_line}")
+        for line in first_paragraph.split("\n"):
+            print(f"    {line.strip()}")
+    # footer：告知用户 token 成本上限 + 想增改规则的 in-chat 入口
+    # `/karma <自然语言>` 是 slash command 在客户端对话框输入触发 skill 自然语言
+    # 录入流程 — 不是 shell 命令，符合「不让用户手动开 terminal 输指令」原则
+    print()
+    print(tr("init.summary.footer"))
 
 
 def cmd_rule_list() -> int:

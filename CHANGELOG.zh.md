@@ -6,6 +6,62 @@
 
 ## [Unreleased]
 
+## [0.9.10] — 2026-05-16（feat — onboarding 打磨：summary 改首段不再砍半句 + 加 footer「3% token 上限 + `/karma` 入口」）
+
+### 为什么发这版
+
+v0.9.9 发完 onboarding summary 块，用户验收后提两点打磨：
+
+1. **首行被砍半句体验差** — `preference.strip().split("\n")[0]` 砍在 yaml visual wrap 处，比如 `long-term-fundamental` 展示「The user trusts you to dig into root causes. When facing hard problems」后面「they want you to pause and think...」全没了。用户选方案 (b)：改成展示**首段**（split 空行），每条规则的简介是一个完整意思单元。
+
+2. **少了 token 成本安心 + 加规则的 in-chat 入口提示** — 用户原话「希望加一句用户体验相关的补充：经测试，以上规则注入仅占 karma 每 session 会话 token 消耗总量的 3% 以内，请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入 /karma <自然语言你想增加的规则> 即可。」
+
+### Fix 1 — 首段替代首行
+
+```python
+# v0.9.9
+first_line = r.preference.strip().split("\n")[0]
+print(f"    {first_line}")
+
+# v0.9.10
+first_paragraph = r.preference.strip().split("\n\n")[0]
+for line in first_paragraph.split("\n"):
+    print(f"    {line.strip()}")
+```
+
+yaml `|` block 段间用空行分隔（一个完整意思单元）；段内的 `\n` 是 visual wrap。按 `\n\n` split 保留一段完整意思。
+
+长度 tradeoff：zh full 7 → ~33 行 summary；en minimal 5 → ~37 行（英文 wrap 更碎）。仍在 Agent 转述给用户的合理量级。
+
+### Fix 2 — 双语 footer 加 token 安心 + `/karma` 入口
+
+新 `init.summary.footer` locale key 含用户原话：
+
+```
+经测试，以上规则注入仅占 karma 每 session 会话 token 消耗总量的 3% 以内，
+请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入
+/karma <自然语言你想增加的规则> 即可。
+```
+
+英文版同义翻译。
+
+**为什么 `/karma` 不违反 v0.9.9「不加指令 tip」原则**：`/karma` 是客户端对话框里输的 slash command（Claude Code / Codex / Gemini），不是 shell 命令需要用户开 terminal 跑。它是「自然语言录规则」skill 的 trigger — 输 `/karma <意图>` 等于「跟 Agent 说你想要什么规则」。这是 in-chat 协作的延续，不是「去 shell 跑这个」的 friction。
+
+footer 走 `_resolve_locale()`（KARMA_LOCALE env > config.yaml > `is_chinese_user()` system detect）— 中文系统用户自动看到中文 footer，英文系统用户自动看到英文 footer。
+
+### 测试覆盖
+
+`tests/test_cli.py` 加 2 个 case：
+- `test_init_summary_footer_includes_token_cost_and_slash_karma` — 验证 footer 含 `3%` + `/karma` 字面
+- `test_init_summary_footer_matches_user_locale` — **lockdown**：`KARMA_LOCALE=zh` 时 footer 只出中文不漏英文；`KARMA_LOCALE=en` 时只出英文不漏中文
+
+更新 `test_init_summary_does_not_include_command_tips` 注释明确 `/karma <自然语言>` 是允许的（chat 里的 slash command，非 shell 命令）。
+
+### 验证
+
+- 479/479 双 locale 都过（v0.9.9 是 477）
+- 6 道本机门禁全过
+
 ## [0.9.9] — 2026-05-16（feat — onboarding 改进：`karma init` 末尾展示默认启用规则简要列表，让 Agent 代装时能直接告知用户）
 
 ### 为什么发这版
