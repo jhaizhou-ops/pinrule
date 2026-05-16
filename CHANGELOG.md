@@ -10,6 +10,57 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.10.4] — 2026-05-16 (minor — prefer codex payload model + OpenAI/Codex threshold table for cross-platform attention adaptation)
+
+karma's mid-turn reinject + model-adaptive thresholds were Claude-specific. Codex agents using karma got DEFAULT 40K threshold for `gpt-5.5` (1M-context flagship) — too tight, disrupting expression. v0.10.4 closes this gap with two changes:
+
+### Unified `model_from_payload(payload)` — payload.model first, transcript fallback
+
+Codex official [hooks docs](https://developers.openai.com/codex/hooks) state every command hook stdin contains the `model` field (active model slug) — and explicitly warn that `transcript_path` format **is not a stable hook interface**. Previously karma's user_prompt_submit and post_tool_use hooks went straight to `extract_model_from_transcript()` (v0.4.39 Claude-protocol-limitation workaround), missing the stable codex signal.
+
+New `karma/model_threshold.py:model_from_payload(payload)` unifies the lookup:
+1. `payload.model` first (skip `<synthetic>` per existing convention)
+2. `extract_model_from_transcript(payload.transcript_path)` fallback
+
+**Claude behavior unchanged**: most Claude hook events (except SessionStart) don't have `model` field, so they naturally fall through to transcript path.
+
+**Codex behavior upgraded**: every codex hook payload carries fresh model slug (including post-`/model` switch). karma now detects mid-session model changes the same hook it happens — `gpt-5.5` agents get 120K threshold immediately instead of waiting for transcript-scan fallback.
+
+Wired into all 3 hooks: `session_start.py` / `user_prompt_submit.py` / `post_tool_use.py`.
+
+### OpenAI / Codex model threshold table
+
+`_MODEL_THRESHOLDS` extended with 11 OpenAI/Codex model entries based on official context windows + attention decay heuristics:
+
+| Model | Context window | karma threshold | Rationale |
+|---|---|---|---|
+| gpt-5.5 | 1,050,000 | 120K | ~12% context reinject cadence for 1M flagships |
+| gpt-5.4 | 400K | 120K | same flagship tier |
+| gpt-5.3-codex / gpt-5.2-codex / gpt-5.1-codex-max | 400K | 80K | Codex flagship-class, same tier as Claude Opus |
+| gpt-5.4-mini / gpt-5.1-codex-mini | mid-tier | 40K | mid-tier, Sonnet-class |
+| gpt-5.4-nano / gpt-5.3-codex-spark / codex-mini | small | 30K | small, Haiku-class |
+| gpt-5 | generic fallback | 80K | unspecified gpt-5.x defaults to flagship tier |
+
+Keyword priority preserved: long strings before short (`gpt-5.5` matched before `gpt-5`, `gpt-5.3-codex-spark` before `gpt-5.3-codex`, etc.). `DEFAULT_THRESHOLD` stays 40K for unknown models (don't globally raise — could be local small model).
+
+Claude model entries unchanged: `opus → 60K / sonnet → 40K / haiku → 30K`.
+
+### Honest scope — what v0.10.4 does NOT do
+
+Per Codex hooks API limitations (verified in v0.10.2/v0.10.3 research):
+
+- **`PreCompact` not hookable** — Codex 0.130 hook API has no PreCompact event. Codex platform internally has `enable_request_compression` feature flag but it's not surfaced as a lifecycle event. karma can't snapshot pre-compact rule state on codex like it does on Claude.
+- **`SubagentStart` / `SubagentStop` not hookable** — Codex platform has `enable_fanout` / `child_agents_md` feature flags (under development) but no hook events for them. karma can't isolate sub-agent state on codex like it does on Claude Task tool.
+- **`PermissionRequest` not integrated** (ADR-001 in codex.py, v0.10.3): karma already covers risky-action interception at PreToolUse layer via `bypass_karma` / `testset` / `read_first` checks. PermissionRequest as a second pass adds FP rate without new dimension.
+
+Mid-turn reinject (the v0.10.4 target) is the cross-platform substitute — works on both Claude and Codex.
+
+### Verification
+
+- **595/595 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 580 — +15 new model_threshold tests)
+- All 6 local gates pass
+- 15 new tests covering each new threshold + `model_from_payload` priority + transcript fallback + `<synthetic>` skip + keyword priority for codex variants
+
 ## [0.10.3] — 2026-05-16 (patch — codex simple pipe reads + user_stop_hints "collaborative waiting" category 3 + docs wording fix)
 
 Three small but high-value patches integrated:

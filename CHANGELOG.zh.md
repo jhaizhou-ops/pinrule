@@ -6,6 +6,57 @@
 
 ## [Unreleased]
 
+## [0.10.4] — 2026-05-16（minor — 优先用 codex payload.model + OpenAI/Codex 阈值表 跨平台 attention 自适应）
+
+karma 中段 reinject + 按模型自适应阈值原来是 Claude-specific. Codex agent 用 karma 时 `gpt-5.5` (1M context 旗舰) 落 DEFAULT 40K 阈值太密扰动表达. v0.10.4 关掉这缺口, 两项改动:
+
+### 统一 `model_from_payload(payload)` — payload.model 优先, transcript fallback
+
+Codex 官方 [hooks docs](https://developers.openai.com/codex/hooks) 明确说每个 command hook stdin 含 `model` 字段 (active model slug), 同时**明确警告** `transcript_path` 格式**不是稳定 hook 接口**. karma 之前 user_prompt_submit 和 post_tool_use 直接走 `extract_model_from_transcript()` (v0.4.39 Claude 协议层 limitation 兜底), 错过 codex 稳定信号.
+
+新 `karma/model_threshold.py:model_from_payload(payload)` 统一查找:
+1. `payload.model` 优先 (跳 `<synthetic>` 按现有约定)
+2. `extract_model_from_transcript(payload.transcript_path)` fallback
+
+**Claude 行为不变**: 多数 Claude hook event (除 SessionStart) 没 `model` 字段, 自然走 transcript 路径.
+
+**Codex 行为升级**: 每个 codex hook payload 都含新鲜 model slug (含 `/model` 中途切换后的). karma 现在跟切换同步识别模型变化 — `gpt-5.5` agent 立刻拿 120K 阈值, 不用等 transcript 反扫 fallback.
+
+接入 3 个 hook: `session_start.py` / `user_prompt_submit.py` / `post_tool_use.py`.
+
+### OpenAI / Codex 模型阈值表
+
+`_MODEL_THRESHOLDS` 扩展 11 条 OpenAI/Codex 模型 entry, 基于官方 context window + attention 衰减启发式:
+
+| 模型 | Context window | karma 阈值 | 理由 |
+|---|---|---|---|
+| gpt-5.5 | 1,050,000 | 120K | 1M 旗舰 ~12% 中段补节奏 |
+| gpt-5.4 | 400K | 120K | 同旗舰档 |
+| gpt-5.3-codex / gpt-5.2-codex / gpt-5.1-codex-max | 400K | 80K | Codex 旗舰档, 跟 Claude Opus 同级 |
+| gpt-5.4-mini / gpt-5.1-codex-mini | 中型 | 40K | 中型档, Sonnet 级 |
+| gpt-5.4-nano / gpt-5.3-codex-spark / codex-mini | 小型 | 30K | 小型档, Haiku 级 |
+| gpt-5 | 通用兜底 | 80K | 未指定子版本 gpt-5.x 默认旗舰档 |
+
+关键词顺序保留: 长串在短串前 (`gpt-5.5` 在 `gpt-5` 前, `gpt-5.3-codex-spark` 在 `gpt-5.3-codex` 前, 等). `DEFAULT_THRESHOLD` 仍 40K 不变 (未知模型可能是本地小模型, 不能全局调高).
+
+Claude 模型 entry 不动: `opus → 60K / sonnet → 40K / haiku → 30K`.
+
+### 老实说不做的部分
+
+按 Codex hooks API limitation (v0.10.2/v0.10.3 研究已验证):
+
+- **`PreCompact` 不可 hook** — Codex 0.130 hook API 没 PreCompact event. Codex 平台内部有 `enable_request_compression` feature flag 但不暴露为 lifecycle event. karma 在 codex 下不能像 Claude 那样 compact 前 snapshot 规则状态.
+- **`SubagentStart` / `SubagentStop` 不可 hook** — Codex 平台有 `enable_fanout` / `child_agents_md` feature flag (under development) 但没对应 hook event. karma 在 codex 下不能像 Claude Task tool 那样隔离子 Agent state.
+- **`PermissionRequest` 不接入** (codex.py ADR-001, v0.10.3): karma 已在 PreToolUse 层用 `bypass_karma` / `testset` / `read_first` 覆盖危险操作拦截. PermissionRequest 二次拦增加假阳无新维度.
+
+中段 reinject (v0.10.4 目标) 是跨平台替代方案 — Claude 跟 Codex 都生效.
+
+### 验证
+
+- **595/595 通过** 双 `LANG=zh_CN.UTF-8` 和 `LANG=en_US.UTF-8` (原 580 — +15 个新 model_threshold 测试)
+- 全 6 道本地 gate 通过
+- 15 个新测试覆盖每个新阈值 + `model_from_payload` 优先级 + transcript fallback + `<synthetic>` 跳过 + codex 变体关键词优先级
+
 ## [0.10.3] — 2026-05-16（patch — codex 简单 pipe 读识别 + user_stop_hints「协作等候」类 3 + 文档措辞修正）
 
 三项小但高价值 patch 集成:

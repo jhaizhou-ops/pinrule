@@ -48,12 +48,14 @@ def _advance_turn_state(session_id: str, payload: dict):
         # 旧 v0.4.32 设计每 turn 重置是因为「每 turn 起手已全量注入」假设，
         # v0.9.0 改成 SessionStart 一次全量 + 每 turn 精简 anchor，全量注入
         # 是稀疏事件 — 累积视角必须跨 turn 才能正确按 60K Opus 阈值触发。
-        transcript_path = payload.get("transcript_path")
-        if transcript_path:
-            from karma.model_threshold import extract_model_from_transcript
-            new_model = extract_model_from_transcript(transcript_path)
-            if new_model:
-                state.model = new_model
+        #
+        # v0.10.4: 用统一 model_from_payload — Codex 每个 UserPromptSubmit hook
+        # payload 都含 active model slug (含中途 /model 切换后的新值), 不依赖
+        # transcript 格式稳定性. Claude payload 没 model 时仍走 transcript fallback.
+        from karma.model_threshold import model_from_payload
+        new_model = model_from_payload(payload)
+        if new_model:
+            state.model = new_model
 
     try:
         state, _ = session_state.update_state(session_id, _advance)

@@ -101,15 +101,15 @@ def main() -> int:
     failed = _tool_failed(tool_response)
 
     def _do_post_tool_use(state):
-        # v0.4.39 协议层路径：PostToolUse payload 没 model 字段（manual run 验证），
-        # 但所有 hook payload 有 transcript_path → 读 jsonl 找最后一条 assistant
-        # message 的 model 字面（每个 assistant message 都含 model 字段，跳合成）。
-        transcript_path = payload.get("transcript_path")
-        if transcript_path:
-            from karma.model_threshold import extract_model_from_transcript
-            new_model = extract_model_from_transcript(transcript_path)
-            if new_model:
-                state.model = new_model
+        # v0.10.4 统一 model_from_payload — Codex 每个 PostToolUse payload 都
+        # 含 active model slug (含 /model 中途切换后的新值), 不依赖 transcript
+        # 格式稳定性. Claude payload 没 model 时仍走 transcript fallback.
+        # 历史: v0.4.39 这里只反扫 transcript - Claude 协议层 limitation
+        # (PostToolUse payload 没 model 字段, 只能 transcript jsonl 反扫).
+        from karma.model_threshold import model_from_payload
+        new_model = model_from_payload(payload)
+        if new_model:
+            state.model = new_model
 
         # 先 catchup pending background 任务输出（任务可能在中间完成了）
         # 这样能在后续 record 之前更新 last_test_pass_ts，保证 evidence check 看见

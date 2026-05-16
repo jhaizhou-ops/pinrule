@@ -51,12 +51,12 @@ def main() -> int:
 
     source = payload.get("source", "")  # startup / resume / clear / compact
 
-    # v0.4.36 协议层 fix：SessionStart payload 有 model 字段（PreToolUse /
-    # PostToolUse / SubagentStart / SubagentStop / Stop 都没）— SessionStart 是
-    # Claude Code 本地协议下唯一暴露 model 的事件。拿 model 写主 state 让后续
-    # PostToolUse 中段 sticky 注入按模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。
-    # 子 Agent 模型仍盲区（SubagentStart 没 model 字段），走 DEFAULT 60K fallback。
-    payload_model = payload.get("model")
+    # v0.10.4 统一走 model_from_payload — payload.model 优先 (Codex SessionStart
+    # 含, Claude SessionStart 也含), transcript_path fallback (其他 hook event 用).
+    # 跟 user_prompt_submit / post_tool_use 同一路径让模型识别策略一致.
+    # 历史 v0.4.36 这里只看 payload.model — v0.10.4 升级为统一函数支持 Codex.
+    from karma.model_threshold import model_from_payload
+    payload_model = model_from_payload(payload)
     session_id = payload.get("session_id", "") or "default"
     if payload_model:
         try:
