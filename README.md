@@ -71,6 +71,8 @@ Steps:
 ```
 
 > `karma init` ends with a summary of the default rules it enabled (one line per rule: id + first line of preference). When the Agent runs it for you, the Agent will relay that summary so you can see at a glance which 5-7 rules are now active — no need to type `karma rule list` yourself. To modify any rule afterward, just tell the Agent "remove rule X" / "change rule Y" — it knows to use the `/karma` skill or `karma rule edit`.
+>
+> **Type `/karma` with no arguments anytime** to get a dogfood-data dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions are most-violated in your sessions, so you can decide whether to tune any check or drop a rule. The full `/karma <natural language>` flow remains for adding new rules.
 
 ### Per-client install commands
 

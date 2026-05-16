@@ -15,6 +15,8 @@ description: Natural-language karma rule input — refine user's plain descripti
 - **Codex**: user invokes via `/skills` menu or inline `$karma <description>`; auto-trigger on description match
 - **Gemini CLI**: explicit `/karma <description>` (commands path) or auto-trigger (skills path)
 
+**No-argument trigger** (v0.9.11+): when the user types `/karma` with **no description** (empty `$ARGUMENTS`), don't try to refine — instead, run `karma audit --by-check` and relay the output to the user. This gives them a quick "dogfood data dashboard": which engine checks fire most, real vs false-positive distribution, keyword-only fallback share. The user can then decide whether to tune any check or skip a rule. See "No-argument flow" section below.
+
 ---
 
 ## Your job (Agent)
@@ -311,3 +313,41 @@ After `karma rule add` succeeds, summarize for the user:
 - ❌ Don't silently treat scoped-sounding requests ("during X, do Y") as scoped — karma is always-on. Surface the ambiguity in Step 1.
 - ❌ Don't write English `preference` text when the user is talking to you in Chinese (or vice versa) — match the user's language. Only `violation_checks` function names stay English (stable identifiers).
 - ❌ Don't go straight from Step 1 → Step 4 preview without showing the user a draft inline in Step 3 — they should react to wording before it's written to disk.
+
+---
+
+## No-argument flow (v0.9.11+) — `/karma` with no description
+
+When the user types `/karma` with empty `$ARGUMENTS`, treat it as a request for the dogfood-data dashboard, not as an "add a rule" intent.
+
+**What to do**:
+
+1. Run `karma audit --by-check`. Capture stdout.
+2. Relay the output to the user as-is, then add a one-line interpretation:
+   - **High-firing checks** (top 1-2 rows of "按 check 函数聚合"): "Check X fires N% — this rule is the most-violated direction in your sessions."
+   - **High keyword-only ratio** (`keyword-only 兜底命中` > 70%): "Most violations are caught by the keyword fallback layer, not engine checks — the engine checks may need more sub-variants, or your specific rules don't have `violation_checks` attached."
+   - **High false-positive suspicion** (a sub-variant dominates a check): mention by name, suggest user observe whether it's matching real intent or just literal patterns.
+3. Ask: "Want to tune any check, drop a rule, or add a new one based on this data?"
+
+**Example response** (the user typed just `/karma`):
+
+> 这是你本机最近 187 条违反的分布：
+>
+> ```
+> [paste karma audit --by-check output]
+> ```
+>
+> 几个观察：
+> - `keep_pushing.default` 占 engine 命中的 69%（18/26）— 这是你 session 里最常被拦的方向，说明 keep-pushing 规则在你的工作流里很活跃
+> - 86% 违反走的是 keyword-only 兜底（没 engine check），说明大部分规则没附 `violation_checks` — 这是合理的（不是所有规则都需要 engine 检测）
+>
+> 想根据这些数据调整哪条规则，还是加一条新规则？
+
+**Why this is the no-arg default** (not "show help"):
+- The user has already installed karma and seen the `karma init` summary (which already lists default rules).
+- The next most-useful thing isn't documentation — it's **observation data**: "is karma actually doing useful work for me?"
+- This closes the dogfood feedback loop: violations.jsonl → audit → user sees pattern → decides to tune.
+
+**Don't run `karma audit --by-check` in these cases**:
+- User typed `/karma <some description>` → take it as a rule-add intent, follow Steps 1-7 above
+- User typed `/karma help` or similar literal help-request → show a brief summary of what `/karma` does (refine new rule + show data when no-arg)

@@ -6,6 +6,73 @@
 
 ## [Unreleased]
 
+## [0.9.11] — 2026-05-16（feat — 可观察性：`karma audit --by-check` engine check 命中分布 + `/karma` 无参数默认展示这个视图）
+
+### 为什么发这版
+
+v0.9.10 onboarding 打磨收官后，问用户下一波推哪个方向：check 命中分布可观察性还是周报趋势可视化。用户的设计洞见：
+
+> 「skill 的增加会造成额外的用户使用成本，我想尽可能压缩。第一个方向是不是直接做成 /karma 指令不带内容时候的默认输出就比较好？也就是用户输入 /karma 就直接输出 check 命中分布」
+
+这避免了引入新 entry point（新 CLI 子命令或新 slash command）。`/karma` 是用户已知的（v0.9.10 footer 刚教过）。no-arg `/karma` 给个有用的默认行为复用已有 muscle memory — zero learning curve。
+
+### 实施
+
+**1. CLI 后端 — `karma audit --by-check`**（`karma/cli.py`）：
+
+新 `_cmd_audit_by_check()` 按 violation 的 `trigger_key` 字段（i18n locale key，格式 `check.<name>[.<sub>].trigger`）聚合：
+
+- **top-level 聚合**（8 个 engine check）：每个 check 函数一行，含命中次数 + 占 engine 总命中的比例（`bypass_karma` / `chinese_plain` / `evidence` / `keep_pushing` / ...）
+- **sub-variant 细分**（如适用）：更细的行如 `chinese_plain.ratio` vs `chinese_plain.jargon`、`evidence.commit` vs `evidence.completion` 等 — 让作者看出哪个 sub-check 高命中率 vs 高假阳率
+- **keyword-only 桶**：`trigger_key` 为空的 violation（keyword 兜底层拦的，没 engine check）
+
+**不需要 schema 变更** — 复用 v0.5.7 加的 `Violation.trigger_key` 字段。历史 jsonl 没 trigger_key 的行（keyword-only 命中）归到独立桶。
+
+作者本机真 dogfood 数据（187 条违反、当前 repo state）：
+
+```
+karma engine check 命中分布 (总 187 条违反):
+
+按 check 函数聚合 (26 条 engine 命中):
+    20× ( 77%) keep_pushing
+     3× ( 12%) non_blocking
+     1× (  4%) testset
+     1× (  4%) bypass_karma
+     1× (  4%) evidence
+
+按 sub-variant 细分 (26 条 engine 命中):
+    18× ( 69%) keep_pushing.default
+     3× ( 12%) non_blocking.sleep
+     2× (  8%) keep_pushing.stop_hint
+     1× (  4%) testset.hash_branch
+     1× (  4%) bypass_karma
+     1× (  4%) evidence.completion
+
+keyword-only 兜底命中 (无 engine check): 161× (86%)
+```
+
+**2. Skill — `/karma` no-arg 默认行为**（`skills/karma/SKILL.md`）：
+
+`karma` skill 加 "No-argument flow" 段：用户输 `/karma` 不带 `$ARGUMENTS` 时 Agent 跑 `karma audit --by-check` 转述给用户，附简要解读（高命中 check → 哪条方向违反最多；高 keyword-only 占比 → 多数 violation 走兜底层；高假阳嫌疑 → 哪个 sub-variant 字面 pattern 可能过宽）。然后问：「想根据这数据调哪条规则，还是加一条新规则？」
+
+这闭合 dogfood 反馈闭环：violations.jsonl → audit → 用户看到 pattern → 决定调整。**没发明新 entry point**；`/karma` no-arg 是「告诉我现在啥情况」的自然手势。
+
+**3. 向后兼容**：
+
+`karma audit`（不带 `--by-check`）保持现有行为（按规则聚合 + 假阳嫌疑标记 + fix 时间线 + 当前 session 漂移段）。`--by-check` flag 纯加项。
+
+### 测试覆盖
+
+`tests/test_cli.py` 加 2 个 case：
+- `test_audit_by_check_aggregates_engine_hits` — 构造 6 条违反（3 条 `bypass_karma` engine + 2 条 `keep_pushing` sub-variant + 1 条 keyword-only），验证 top-level + sub-variant + keyword-only 段都出现
+- `test_audit_default_view_backward_compat` — `cmd_audit()` 不带 `by_check=True` 时产生旧的按规则视图，不漏 `--by-check` 才有的字面
+
+### 验证
+
+- 481/481 双 locale 都过（v0.9.10 是 479）
+- 6 道本机门禁全过
+- 真 dogfood 验证：本机 `karma audit --by-check` 直接跑出上面 187 条违反的真实分布
+
 ## [0.9.10] — 2026-05-16（feat — onboarding 打磨：summary 改首段不再砍半句 + 加 footer「3% token 上限 + `/karma` 入口」）
 
 ### 为什么发这版

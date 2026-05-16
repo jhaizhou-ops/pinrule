@@ -281,6 +281,79 @@ def cmd_init(minimal: bool | None = None) -> int:
     return 0
 
 
+def _cmd_audit_by_check(violations: list) -> int:
+    """`karma audit --by-check` — 按 engine check 命中分布聚合 (v0.9.11)。
+
+    设计：dogfood 数据驱动迭代，需要看「8 个 engine check 各自的真阳 / 假阳
+    率」。当前 `karma audit` 视图按 rule_id 聚合（一条规则 多个 check 命中
+    被混在一起）；by-check 视图按 trigger_key 聚合到 check 函数级别甚至
+    sub-variant（如 evidence.commit / evidence.completion 分开）。
+
+    数据源：复用现有 Violation.trigger_key 字段（v0.5.7 加的 i18n key，格式
+    `check.<name>[.<sub>].trigger`）。**不需要 schema 变更** — 历史 jsonl 中
+    没有 trigger_key 的行（keyword-only 命中）归到「keyword-only」桶。
+
+    也是 `/karma` no-arg skill 默认输出 — 用户输 `/karma` 不带描述时 Agent
+    跑 `karma audit --by-check` 把结果转述给用户，让用户看到 dogfood 数据
+    分布。
+    """
+    from collections import Counter
+
+    # 按 sub-variant 完整路径聚合（保留细粒度让作者看清 sub-check 分布）
+    sub_counter: Counter[str] = Counter()
+    # top-level check 名 → 总数（聚合所有 sub-variant）
+    top_counter: Counter[str] = Counter()
+    keyword_only = 0
+
+    for v in violations:
+        if not v.trigger_key:
+            keyword_only += 1
+            continue
+        # trigger_key 格式: check.<name>[.<sub>...].trigger
+        parts = v.trigger_key.split(".")
+        if len(parts) < 3 or parts[0] != "check" or parts[-1] != "trigger":
+            # 不识别格式 → 算 unknown engine
+            sub_counter["unknown"] += 1
+            top_counter["unknown"] += 1
+            continue
+        # check_name = parts[1]; sub-variant 在 parts[2..-1]
+        top_name = parts[1]
+        if len(parts) > 3:
+            sub_name = ".".join(parts[1:-1])  # 含 top + sub
+        else:
+            sub_name = top_name
+        sub_counter[sub_name] += 1
+        top_counter[top_name] += 1
+
+    total = len(violations)
+    engine_total = total - keyword_only
+    print(f"karma engine check 命中分布 (总 {total} 条违反):\n")
+
+    if engine_total == 0:
+        print("  (没有 engine check 命中 — 全部 violation 来自 keyword 兜底层)")
+    else:
+        # top-level 主表（让用户一眼看到 8 个 check 哪个多）
+        print(f"按 check 函数聚合 ({engine_total} 条 engine 命中):")
+        for name, n in top_counter.most_common():
+            ratio = n / engine_total
+            print(f"  {n:>4}× ({ratio*100:>3.0f}%) {name}")
+
+        # sub-variant 细分（如 evidence.commit / evidence.completion 分开）
+        # 仅当存在 sub-variant 时显示，避免跟主表重复
+        has_subvariants = any("." in name for name in sub_counter)
+        if has_subvariants:
+            print(f"\n按 sub-variant 细分 ({engine_total} 条 engine 命中):")
+            for name, n in sub_counter.most_common():
+                ratio = n / engine_total
+                print(f"  {n:>4}× ({ratio*100:>3.0f}%) {name}")
+
+    if keyword_only:
+        ratio = keyword_only / total
+        print(f"\nkeyword-only 兜底命中 (无 engine check): {keyword_only}× ({ratio*100:.0f}%)")
+
+    return 0
+
+
 def _print_default_rules_summary() -> None:
     """`karma init` 末尾展示默认启用规则的简要列表 — Agent 代装的场景下，
     这段输出会被 Agent 转述给用户，让用户一眼看到默认开了什么规则。
@@ -635,7 +708,11 @@ def _check_file_last_commit_ts(sticky_id: str, sticky_list) -> int | None:
         return None
 
 
-def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> int:
+def cmd_audit(
+    with_fix_timeline: bool = False,
+    output_format: str = "text",
+    by_check: bool = False,
+) -> int:
     """审计违反历史：每条 sticky 的 top 触发词 + 假阳嫌疑标记 + 本 session 漂移近况。
 
     假阳嫌疑：同一触发词命中 ≥ 5 次且占该 sticky 触发 ≥ 50% → 可能 pattern 过宽
@@ -646,11 +723,18 @@ def cmd_audit(with_fix_timeline: bool = False, output_format: str = "text") -> i
 
     output_format='md' 时输出 markdown 表格，方便粘贴到 PR / issue 分享
     dogfooding 数据。
+
+    by_check=True 时切换到「engine check 命中分布」视图（v0.9.11+）：
+    按 trigger_key 中的 check 名 + sub-variant 聚合命中次数，dogfood 数据驱动
+    判断 8 个 engine check 各自的真阳 / 假阳率。这个视图也是 `/karma` no-arg
+    skill 的默认输出 —— 用户输 `/karma` 不带描述时 Agent 跑这个给用户看。
     """
     violations = load_all()
     if not violations:
         print("没有违反记录。先用 karma 一阵子再来 audit。")
         return 0
+    if by_check:
+        return _cmd_audit_by_check(violations)
     from collections import Counter
     # 按 sticky_id 分组，每组数 trigger 出现频次
     # v0.5.7: locale-agnostic 分组 — Violation.trigger_key 是 i18n key, 跨 zh/en
@@ -1260,8 +1344,13 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_stats()
     if cmd == "audit":
         with_timeline = "--with-fix-timeline" in args
+        by_check = "--by-check" in args
         output_format = "md" if "--format" in args and args[args.index("--format") + 1] == "md" else "text"
-        return cmd_audit(with_fix_timeline=with_timeline, output_format=output_format)
+        return cmd_audit(
+            with_fix_timeline=with_timeline,
+            output_format=output_format,
+            by_check=by_check,
+        )
     if cmd in ("reset", "reset-session"):
         return cmd_reset_session()
     if cmd == "install-hooks":

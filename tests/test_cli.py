@@ -748,3 +748,79 @@ def test_init_summary_footer_matches_user_locale(fake_home, monkeypatch, capsys)
     out_en = capsys.readouterr().out
     assert "Tested:" in out_en, "KARMA_LOCALE=en 时 footer 应是英文 ‘Tested: …’"
     assert "经测试" not in out_en, "KARMA_LOCALE=en 时 footer 不该是中文"
+
+
+# === v0.9.11: karma audit --by-check engine check 命中分布 ===
+# `/karma` skill no-arg 默认输出走这个视图（让 dogfood 数据驱动迭代）
+
+def test_audit_by_check_aggregates_engine_hits(fake_home, monkeypatch, capsys):
+    """`karma audit --by-check` 按 trigger_key 中的 check 名聚合命中次数。
+
+    构造 5 条违反：3 条 bypass_karma engine 命中、2 条 keep_pushing 命中、
+    1 条 keyword-only (空 trigger_key)。验证输出含正确聚合。
+    """
+    import karma.violations
+    from karma.violations import Violation, append
+    _patch_rules_path(monkeypatch, fake_home)
+    v_path = fake_home / "v.jsonl"
+    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
+
+    # 构造 mixed violations
+    records = [
+        Violation(ts=1, session_id="s1", rule_id="deep-fix-not-bypass",
+                  trigger="x", snippet="x", trigger_key="check.bypass_karma.trigger"),
+        Violation(ts=2, session_id="s1", rule_id="deep-fix-not-bypass",
+                  trigger="y", snippet="y", trigger_key="check.bypass_karma.trigger"),
+        Violation(ts=3, session_id="s1", rule_id="deep-fix-not-bypass",
+                  trigger="z", snippet="z", trigger_key="check.bypass_karma.trigger"),
+        Violation(ts=4, session_id="s1", rule_id="keep-pushing-no-stop",
+                  trigger="kp1", snippet="kp1", trigger_key="check.keep_pushing.default.trigger"),
+        Violation(ts=5, session_id="s1", rule_id="keep-pushing-no-stop",
+                  trigger="kp2", snippet="kp2", trigger_key="check.keep_pushing.stop_hint.trigger"),
+        Violation(ts=6, session_id="s1", rule_id="some-keyword-rule",
+                  trigger="kw", snippet="kw"),  # 空 trigger_key → keyword-only
+    ]
+    append(records, path=v_path)
+
+    rc = cli.cmd_audit(by_check=True)
+    assert rc == 0
+    out = capsys.readouterr().out
+
+    # 总数
+    assert "总 6 条违反" in out
+    # top-level 聚合
+    assert "bypass_karma" in out
+    assert "keep_pushing" in out
+    # sub-variant 细分（keep_pushing.default + keep_pushing.stop_hint）
+    assert "keep_pushing.default" in out
+    assert "keep_pushing.stop_hint" in out
+    # keyword-only fallback 桶
+    assert "keyword-only" in out
+    # 数字：bypass_karma 3 条、keep_pushing 2 条、keyword-only 1 条
+    # 不直接 assert 整行数字（容易因格式微调坏掉），用更宽松匹配
+    assert "3×" in out, "bypass_karma 3 条应出现"
+
+
+def test_audit_default_view_backward_compat(fake_home, monkeypatch, capsys):
+    """`karma audit`（无 --by-check）行为不变 — 仍按 rule_id 聚合。
+
+    v0.9.11 加 by-check 视图是新增功能，默认 audit 保持向后兼容（不破坏
+    现有 dogfood 习惯 + 测试 + 用户 muscle memory）。
+    """
+    import karma.violations
+    from karma.violations import Violation, append
+    _patch_rules_path(monkeypatch, fake_home)
+    v_path = fake_home / "v.jsonl"
+    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
+    append([Violation(ts=1, session_id="s1", rule_id="rule-A",
+                      trigger="x", snippet="x")], path=v_path)
+
+    rc = cli.cmd_audit()  # 默认 by_check=False
+    assert rc == 0
+    out = capsys.readouterr().out
+    # 默认视图按 rule_id 显示
+    assert "[rule-A]" in out
+    # 不应出现 by-check 视图特征字面
+    assert "engine check 命中分布" not in out

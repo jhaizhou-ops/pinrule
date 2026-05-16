@@ -10,6 +10,73 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.11] — 2026-05-16 (feat — observability: `karma audit --by-check` engine-check hit distribution + `/karma` no-arg defaults to this view)
+
+### Why this release
+
+After v0.9.10 onboarding polish, asked user which direction to push next: check-firing-distribution observability or weekly trend visualization. User's design insight:
+
+> "Adding new skills creates extra cognitive load for users — I want to compress that. For the first direction (check-firing observability), wouldn't it be better as the **default output of `/karma` when no description is given**? Just typing `/karma` shows the check-firing distribution."
+
+This avoids inventing a new entry point (new CLI subcommand or new slash command). `/karma` is something the user already knows (v0.9.10 footer just introduced it). No-arg `/karma` getting a useful default reuses existing muscle memory — zero learning curve.
+
+### Implementation
+
+**1. CLI backend — `karma audit --by-check`** (`karma/cli.py`):
+
+New `_cmd_audit_by_check()` aggregates violations by `trigger_key` field (the i18n locale key, format `check.<name>[.<sub>].trigger`):
+
+- **Top-level aggregation** (8 engine checks): one row per check function (`bypass_karma`, `chinese_plain`, `evidence`, `keep_pushing`, ...) with count and ratio of total engine hits
+- **Sub-variant breakdown** (when applicable): finer rows like `chinese_plain.ratio` vs `chinese_plain.jargon`, `evidence.commit` vs `evidence.completion`, etc — helps the author see which sub-check is high-firing vs high-false-positive
+- **Keyword-only bucket**: violations with empty `trigger_key` (caught by keyword fallback layer, no engine check)
+
+No schema change required — reuses the existing `Violation.trigger_key` field added in v0.5.7 for locale-agnostic grouping. Historical jsonl rows without `trigger_key` (keyword-only hits) fall into the dedicated bucket.
+
+Real dogfood data from author's machine (187 violations, repo current state):
+
+```
+karma engine check 命中分布 (总 187 条违反):
+
+按 check 函数聚合 (26 条 engine 命中):
+    20× ( 77%) keep_pushing
+     3× ( 12%) non_blocking
+     1× (  4%) testset
+     1× (  4%) bypass_karma
+     1× (  4%) evidence
+
+按 sub-variant 细分 (26 条 engine 命中):
+    18× ( 69%) keep_pushing.default
+     3× ( 12%) non_blocking.sleep
+     2× (  8%) keep_pushing.stop_hint
+     1× (  4%) testset.hash_branch
+     1× (  4%) bypass_karma
+     1× (  4%) evidence.completion
+
+keyword-only 兜底命中 (无 engine check): 161× (86%)
+```
+
+**2. Skill — `/karma` no-arg default** (`skills/karma/SKILL.md`):
+
+Added "No-argument flow" section to the `karma` skill: when the user types `/karma` with empty `$ARGUMENTS`, the Agent runs `karma audit --by-check` and relays the output to the user with a brief interpretation (high-firing checks → which direction violates most; high keyword-only ratio → most violations caught by fallback layer; high-FP suspicion → sub-variants where literal patterns may overfire). Then asks: "Want to tune any check, drop a rule, or add a new one based on this data?"
+
+This closes the dogfood feedback loop: violations.jsonl → audit → user sees pattern → decides to tune. No new entry point invented; `/karma` no-arg is the natural "show me what's happening" gesture.
+
+**3. Backward compatibility**:
+
+`karma audit` (without `--by-check`) keeps its existing behavior (per-rule aggregation with false-positive suspicion / fix timeline / current-session drift sections). The `--by-check` flag is purely additive.
+
+### Test coverage
+
+2 new tests in `tests/test_cli.py`:
+- `test_audit_by_check_aggregates_engine_hits` — synthesizes 6 violations (3 `bypass_karma` engine + 2 `keep_pushing` sub-variants + 1 keyword-only), verifies top-level + sub-variant + keyword-only sections all appear
+- `test_audit_default_view_backward_compat` — `cmd_audit()` without `by_check=True` produces the old per-rule view, doesn't leak `--by-check`-only literal strings
+
+### Verification
+
+- 481/481 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 479)
+- All 6 local gates pass
+- Real dogfood validation: `karma audit --by-check` on author's machine produced the meaningful 187-violation distribution shown above on first run
+
 ## [0.9.10] — 2026-05-16 (feat — onboarding polish: rule summary shows first paragraph (not half-line) + footer with token-cost reassurance and `/karma` in-chat entry)
 
 ### Why this release
