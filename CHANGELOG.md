@@ -10,6 +10,18 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+### Merged via squash (no version bump)
+
+- **PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source** — 153 new tests covering 6 untested modules (`run_checks` dispatch / `format_rule` injection / `i18n.tr()` fallback / `session_state.update_state` atomicity / `rule.schema` boundaries / `config.DEFAULTS` completeness). Total test count 622 → **775**. Post-merge follow-ups by maintainer in commit `5a677e4`: ruff F401 + E741 cleanup (7 ambiguous `l` → `ln`), mypy `tests/` fix (commit `4d1f1aa` — `list[dict]` → `list` accepting Any|None).
+
+### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point overhaul (no version bump)
+
+- **#1 demo GIF**: Added bilingual animated SVGs `assets/demo-en.svg` (27K English) + `assets/demo-zh.svg` (34K Chinese). 5-scene narrative with banner separators + slow pacing: (1) UserPromptSubmit rule header injection, (2) PreToolUse `sleep 30` block, (3) Stop response-level short-term intent catch (v0.11.0), (4) Stop keep-pushing nudge, (5) PostToolUse mid-conversation reinject at Opus 60K threshold. Generated via non-interactive `asciinema rec --command` + `termtosvg render` (both pure Python tools, no TTY needed). Independent `KARMA_HOME` per locale to ensure English demo shows English rules.
+- **#2 outdated numbers**: tests 460 → 775, source `~5.5K lines` → `~8.6K lines`.
+- **#3 architecture diagram**: Two Mermaid flowcharts — system data flow at "Why it works" section + hook lifecycle timeline at "8 hook positions" section. GitHub web auto-renders.
+- **#4 tagline**: One-line punch above intro: "Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms."
+- **#5 docs section description**: Fixed stale "(Chinese)" labels — docs/PRD.md, ARCHITECTURE.md, CODEX_BACKEND.md, CLAUDE.md are all English. Removed misleading "Most internal docs are Chinese-only — deprioritized" sentence; clarified bilingual coverage + welcomed translation PRs for HANDOFF gap.
+
 ## [0.11.3] — 2026-05-16 (minor — `karma audit --days N` 时间窗口过滤: dogfood-driven 决策不被老数据稀释)
 
 ### 加什么

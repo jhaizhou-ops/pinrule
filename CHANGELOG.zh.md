@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+### Squash-merge (没升 version)
+
+- **PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source** — 153 个新测试覆盖 6 个 untested 模块 (`run_checks` 调度 / `format_rule` 注入 / `i18n.tr()` fallback / `session_state.update_state` 原子性 / `rule.schema` 边界 / `config.DEFAULTS` 完整性). 总测试 622 → **775**. 维护者 commit `5a677e4` 补 ruff F401 + E741 cleanup (7 处 ambiguous `l` → `ln`); commit `4d1f1aa` 补 mypy `tests/` (`list[dict]` → `list` 接受 Any|None).
+
+### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point 大改 (没升 version)
+
+- **#1 demo GIF**: 加双语动画 SVG `assets/demo-en.svg` (27K 英文) + `assets/demo-zh.svg` (34K 中文). 5 场景含 banner 间隔 + 慢节奏: (1) UserPromptSubmit 头部注入规则, (2) PreToolUse `sleep 30` 实时拦, (3) Stop response 层短期话术拦 (v0.11.0), (4) Stop keep-pushing 推动继续, (5) PostToolUse 长 context 累积到 Opus 60K 拐点中段补一次完整规则. 用非交互 `asciinema rec --command` + `termtosvg render` 生成 (都是纯 Python 工具, 不需要 TTY). 独立 `KARMA_HOME` 每个 locale 一份, 英文 demo 真显英文规则.
+- **#2 数字过时**: tests 460 → 775, 源码 `~5.5K 行` → `~8.6K 行`.
+- **#3 架构图**: 双 Mermaid flowchart — 系统数据流图在「为什么有效」段 + hook 生命周期时序图在「8 个 hook 位置全覆盖」段. Github web 自动渲染.
+- **#4 tagline**: 一行 punch 在介绍上方: 「让 AI 在长任务里不忘掉你的规则。纯工程, 零 LLM, < 60ms.」
+- **#5 docs section 描述**: 修 stale "(Chinese)" 标签 — docs/PRD.md / ARCHITECTURE.md / CODEX_BACKEND.md / CLAUDE.md 实际都是英文版. 删 "Most internal docs are Chinese-only — deprioritized" 误导句, 改成明确所有都双语 + 欢迎给 HANDOFF gap 提翻译 PR.
+
 ## [0.11.3] — 2026-05-16（minor — `karma audit --days N` 时间窗口过滤: dogfood 决策不被老数据稀释）
 
 ### 加什么
