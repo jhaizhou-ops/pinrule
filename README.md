@@ -17,15 +17,11 @@
 >
 > ✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
 >
-> Pure engineering, zero LLM dependency, hook response under 60ms. **Chinese + English users covered**; adding a new language is one `.txt` per signal directory — no Python code, no LLM in the loop. **v0.9.0 cuts per-turn token cost by 73%** via SessionStart full baseline + per-turn compact anchor + cumulative full reinject when context decay threshold is hit.
->
-> ---
->
-> **Older versions**: v0.6.0 (2026-05-15) removed the legacy `karma.sticky` module / `.sticky_id` attribute / `karma sticky` CLI after an 18-release deprecation cycle. Migration is mechanical (`s/sticky/rule/` for symbols, `karma rule` for CLI). Your existing `sticky.yaml` and `violations.jsonl` auto-migrate and stay readable — see [CHANGELOG v0.6.0](./CHANGELOG.md) for the cookbook.
+> Pure engineering, zero LLM dependency, hook response under 60ms. Chinese + English users covered; adding a new language is one `.txt` per signal directory — no Python code.
 
 ---
 
-**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [8 hook coverage](#8-hook-positions-all-covered) · [Customize rules](#customize-your-own-rules) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [FAQ](#faq) · [Docs](#documentation)
+**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [8 hook coverage](#8-hook-positions-all-covered) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [Honest boundaries](#honest-tool-boundaries) · [FAQ](#faq) · [Mental model](#mental-model) · [Docs](#documentation)
 
 ---
 
@@ -51,9 +47,7 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-> Restart Claude Code / Codex CLI / Gemini CLI — takes effect immediately.
->
-> `karma init` auto-installs the `/karma` natural-language skill across all three backends (`~/.claude/skills/karma/`, `~/.agents/skills/karma/`, `~/.gemini/skills/karma/` + `~/.gemini/commands/karma.toml`). No extra step.
+Restart Claude Code / Codex CLI / Gemini CLI — takes effect immediately. `karma init` auto-installs the `/karma` natural-language skill across all three backends.
 
 ### Or ask your AI client to install it
 
@@ -70,19 +64,17 @@ Steps:
 5. Run `karma doctor` to verify installation
 ```
 
-> `karma init` ends with a summary of the default rules it enabled (one line per rule: id + first line of preference). When the Agent runs it for you, the Agent will relay that summary so you can see at a glance which 5-7 rules are now active — no need to type `karma rule list` yourself. To modify any rule afterward, just tell the Agent "remove rule X" / "change rule Y" — it knows to use the `/karma` skill or `karma rule edit`.
->
-> **Type `/karma` with no arguments anytime** to get a dogfood-data dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions are most-violated in your sessions, so you can decide whether to tune any check or drop a rule. The full `/karma <natural language>` flow remains for adding new rules.
+`karma init` ends with a summary of the default rules it enabled. When the Agent runs it for you, it relays that summary — you see at a glance which 5-7 rules are now active. To modify any rule afterward, tell the Agent "remove rule X" / "change rule Y" — it knows to use the `/karma` skill.
 
 ### Per-client install commands
 
 | Client | Install command | Note |
 |---|---|---|
 | Claude Code | `karma install-hooks` (default) | Takes effect immediately |
-| Codex CLI | `karma install-hooks --backend codex` | Takes effect immediately (v0.10.2 auto-trust) |
+| Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. See note below. |
 | Gemini CLI | `karma install-hooks --backend gemini-cli` | Takes effect immediately |
 
-> 💡 **Codex auto-trust (v0.10.2)** — `karma install-hooks --backend codex` automatically writes Codex 0.130+ `trusted_hash` entries in `~/.codex/config.toml` for the 5 karma-owned wrappers. **No manual `/hooks` TUI approval required**. karma's hash derivation only trusts its own wrappers (`karma_*.py` paths verified by `is_karma_entry`), never third-party hooks. If Codex changes the hash algorithm in a future version, your hooks will fall back to "modified" in `/hooks` rather than silent-trusting — verify and re-approve at that point. See [docs/CODEX_BACKEND.md](docs/CODEX_BACKEND.md) for details. Contributed by Codex CLI itself in PR [#4](https://github.com/jhaizhou-ops/karma/pull/4).
+> 💡 **Codex auto-trust**: karma writes Codex 0.130+ `trusted_hash` entries in `~/.codex/config.toml` only for its own wrappers (`karma_*.py` paths verified by `is_karma_entry`), never third-party hooks. If Codex changes the hash algorithm in a future version, your hooks fall back to "modified" in TUI `/hooks` rather than silent-trusting. See [docs/CODEX_BACKEND.md](docs/CODEX_BACKEND.md). Contributed by Codex CLI itself in PR [#4](https://github.com/jhaizhou-ops/karma/pull/4).
 
 ### Uninstall
 
@@ -207,6 +199,8 @@ Agent (karma skill walks 7 steps automatically):
 → 30 seconds end-to-end, rule live on next UserPromptSubmit.
 ```
 
+> **Type `/karma` with no arguments** anytime to get a dogfood-data dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions are most-violated in your sessions, so you can decide whether to tune any check or drop a rule.
+
 ### What the skill handles for you
 
 | Hard part of writing a rule | What the skill does |
@@ -226,18 +220,16 @@ Agent (karma skill walks 7 steps automatically):
 | Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` shared with Anthropic) | `/skills` menu, `$karma <description>` inline, or auto-trigger |
 | Gemini CLI | `~/.gemini/skills/karma/SKILL.md` (auto) + `~/.gemini/commands/karma.toml` (explicit) | `/karma <natural language>` (explicit) or auto-trigger (skill path) |
 
-The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); the `karma install-skill` command handles the Markdown → TOML conversion for the Gemini commands path automatically (`$ARGUMENTS` ↔ `{{args}}` syntax translation included).
+The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); `karma install-skill` handles Markdown → TOML conversion for the Gemini commands path automatically.
 
 ### Updating the skill after a karma upgrade
 
 ```bash
-karma install-skill --force          # overwrite all backends' skills with current version
+karma install-skill --force          # overwrite all backends with current version
 karma install-skill --backend codex  # update one backend only
 ```
 
-Without `--force`, the new version is written to a `.new` sibling file so you can `diff` your local edits against upstream before deciding.
-
-`karma doctor` reports per-backend skill status so you can see at a glance which is up-to-date.
+Without `--force`, the new version is written to a `.new` sibling file so you can `diff` your local edits against upstream before deciding. `karma doctor` reports per-backend skill status.
 
 ---
 
@@ -271,9 +263,9 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~5.5K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / 460 unit tests, all green | Plus continuous real-world dogfooding |
+| **Quality gates** | lint / type-check / dead-code / 620+ unit tests, all green | Plus continuous real-world dogfooding |
 | **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
-| **Token cost per turn** (v0.9.0) | ~490 tokens compact anchor at UserPromptSubmit; full rules baseline (~1817 tokens) injected once at SessionStart + auto-refreshed at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session (was 18% pre-v0.9.0) |
+| **Token cost per turn** | ~490 tokens compact anchor at UserPromptSubmit; full baseline (~1.8K tokens) injected once at SessionStart + auto-refreshed when context accumulates past the current model's decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
 | **Supported clients** | Claude Code / Codex CLI / Gemini CLI | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
@@ -288,68 +280,13 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Every user prompt** (UserPromptSubmit) | Header injects full rules + drift markers | Agent forgets your preferences after long session |
 | **Before every tool call** (PreToolUse) | Keyword + engine-layer double-check; hit → deny | Agent wants to run sleep / commit --no-verify / bypass rules |
 | **After every tool call** (PostToolUse) | Track file read/edit/bash state + auto mid-conversation refresh when accumulation hits threshold | Long context accumulation → attention decay → Agent drifts |
-| **Agent stops generating** (Stop) | Terminal stderr ⚠️ + desktop notify + silent-stop reflective intervention | Agent finishes one wave and stops to ask, user gets interrupted repeatedly |
+| **Agent stops generating** (Stop) | Terminal stderr ⚠️ + desktop notify + silent-stop reflective intervention + short-term intent talk detection | Agent finishes one wave and stops to ask, user gets interrupted repeatedly |
 | **Every session start** (SessionStart) | Inject rule baseline at session start; on compact-restart, read snapshot for strong-inject | Rules don't get lost across sessions / across compacts |
 | **Before AI client compresses history** (PreCompact) | Dump full rule state to disk for SessionStart to re-read | After compact, Agent compresses rules into vague words |
 | **Subagent starts** (SubagentStart) | Subagent auto-inherits full rule set + writes independent monitoring state | Subagents running independent tasks leave monitoring gaps |
 | **Subagent ends** (SubagentStop) | Subagent temporary state auto-destroys, doesn't pollute main session | Multiple subagent spawns cause state accumulation, main session data gets confused |
 
 All hook outputs strictly comply with the AI client's official protocol schema — no UI error messages.
-
----
-
-## Customize your own rules
-
-> 👉 **For most users, use `/karma <natural language>`** ([see above](#karma-natural-language--agent-writes-the-rule-for-you)) — the skill handles tone / overlap / locale / schema validation for you. This section is for **advanced users** who want direct yaml control or are running karma in an environment without the skill loaded.
-
-### Manual `rules.yaml` editing
-
-`~/.claude/karma/rules.yaml` (`karma init` copies the default template):
-
-```yaml
-- id: long-term-fundamental
-  preference: |
-    The user trusts you to dig into root causes. When facing hard problems
-    they want you to pause and think "what's the cleanest solution?"
-    rather than "what's the fastest patch?"
-  violation_keywords:
-    - "I'll patch this quickly"   # "Intent prefix + action" format
-    - "let me workaround"          # distinguishes discussion from real action
-    - "I'll hardcode"
-  violation_checks:
-    - long_term_fundamental    # 8 built-in engine-layer checks selectable
-
-- id: non-blocking-parallel
-  preference: |
-    During sleep / wait / long tasks, the user waits for your output.
-    Staring at a progress bar isn't collaboration — it's "stuck."
-    After kicking off a background task, immediately push the next thing
-    that can be done — you'll be notified when the task completes.
-  violation_keywords:
-    - "let me wait for tests"
-    - "let me wait for the subagent"
-  violation_checks:
-    - non_blocking_parallel
-  force_block_exempt: true  # "Non-blocking" conflicts with cumulative-penalty semantics, exempt
-```
-
-**Key design points**:
-- **`violation_keywords` use "intent-prefix + action" format** ("I'll hardcode" instead of "hardcode") — distinguishes discussion concepts vs. real action statements, avoiding false positives like "don't hardcode" type natural-language discussions
-- **Soft cap 10, hard cap 12** — past ~12 rules, LLMs pattern-match "a list exists" instead of reading it, and compliance drops. Keeping count under 10 is the safe zone
-- **`force_block_exempt`** for "should keep pushing" type rules — otherwise cumulative penalties contradict the rule semantics itself
-
-### 8 built-in engine-layer check functions
-
-| Function | What it detects |
-|---|---|
-| `long_term_fundamental` | git `--no-verify` / long-hash if branches / TODO comments |
-| `non_blocking_parallel` | `sleep N` / long tasks without `run_in_background` |
-| `loud_failure_with_evidence` | Code task claimed done but no test-pass evidence in session |
-| `no_testset_no_future_leakage` | Eval data backfeeding training / cross-split copying |
-| `read_before_write` | Edit / Write without prior Read of the file_path |
-| `bypass_karma_detection` | Bash command containing karma internal state strings + write operations |
-| `keep_pushing_no_stop` | Agent silent-stop → reflective continuation prompt |
-| `chinese_plain_no_jargon` | Chinese ratio < 40% / English jargon without Chinese explanation (Chinese-user rule, see customization for other languages) |
 
 ---
 
@@ -392,8 +329,6 @@ Run `karma doctor` to check:
 - Are all hook events ✓? (Claude Code 8 / Codex 4 / Gemini 4)
 - Did rules load successfully?
 - Did session state directory generate new files?
-
-Codex CLI 0.130+ wrappers are auto-trusted by `karma install-hooks --backend codex` (v0.10.2 — writes `trusted_hash` to `~/.codex/config.toml` automatically). If you see "modified" in TUI `/hooks` instead of "trusted", Codex has changed its hash algorithm — re-approve manually and file an issue.
 </details>
 
 <details>
@@ -415,7 +350,7 @@ Codex CLI 0.130+ wrappers are auto-trusted by `karma install-hooks --backend cod
 <details>
 <summary><b>Custom rule sets for non-development scenarios (writing / research / legal)?</b></summary>
 
-`karma init` defaults to "software development" scenario. For other scenarios, write `~/.claude/karma/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in violation_checks are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
+`karma init` defaults to "software development" scenario. For other scenarios, write `~/.claude/karma/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in `violation_checks` are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
 </details>
 
 <details>
@@ -437,7 +372,7 @@ linux:  karma doctor    # validate schema + rules count + violation_checks exist
 - `~/.claude/karma/violations.jsonl` — append-only per-device violation log
 - `~/.claude/karma/session-state/*.json` — runtime hook state
 
-karma's `fcntl.flock` cross-process atomicity (v0.9.8) protects same-machine concurrency, but **doesn't extend to cloud-synced folders** (iCloud / Dropbox / OneDrive). Putting `~/.claude/karma/` in a sync folder can corrupt runtime state across devices. If you use dotfiles repos / chezmoi / ansible, scope them to `rules.yaml` + `config.yaml` only.
+karma's cross-process atomicity protects same-machine concurrency, but **doesn't extend to cloud-synced folders** (iCloud / Dropbox / OneDrive). Putting `~/.claude/karma/` in a sync folder can corrupt runtime state across devices. If you use dotfiles repos / chezmoi / ansible, scope them to `rules.yaml` + `config.yaml` only.
 </details>
 
 ---
@@ -448,7 +383,7 @@ karma's `fcntl.flock` cross-process atomicity (v0.9.8) protects same-machine con
 
 karma works the same way. **6 rules targeting failures you've actually hit beats 12 rules where 6 are aspirational.**
 
-The 7 default rules in `data/rules.dev.example.yaml` are real pain points accumulated from self-use — they aren't a template to copy verbatim. After install, run `karma rule list`, keep what matches your own failure scenes, and replace the rest with your own.
+The 7 default rules in `data/rules.dev.example.yaml` are real pain points accumulated from self-use — they aren't a template to copy verbatim. After install, run `karma rule list`, keep what matches your own failure scenes, and replace the rest with your own (via `/karma <natural language>`).
 
 ---
 
@@ -458,9 +393,8 @@ The 7 default rules in `data/rules.dev.example.yaml` are real pain points accumu
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Technical architecture, hook protocol, 8 check implementations (Chinese)
 - [CHANGELOG.md](./CHANGELOG.md) — Version change history (bilingual from v0.5.1 onward; pre-v0.5.1 is Chinese-only)
 - [docs/HANDOFF.md](./docs/HANDOFF.md) — Internal development handoff doc (Chinese)
-- [docs/RULES_REDESIGN_PROPOSAL.md](./docs/RULES_REDESIGN_PROPOSAL.md) — "Collaborative agreement" tone design proposal — the core philosophy shift (Chinese)
-- [docs/REFACTOR_PLAN_RULE_AND_I18N.md](./docs/REFACTOR_PLAN_RULE_AND_I18N.md) — sticky → rule rename + i18n implementation plan (Chinese)
-- [CLAUDE.md](./CLAUDE.md) — Project charter for Claude Code collaboration (Chinese)
+- [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary and contract (bilingual)
+- [CLAUDE.md](./CLAUDE.md) — Project charter for Claude Code collaboration
 
 Most internal docs are Chinese-only — translating them was deprioritized in favor of shipping. README + CHANGELOG are bilingual.
 
