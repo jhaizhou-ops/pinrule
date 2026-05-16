@@ -136,6 +136,8 @@ check.long_term.commit_hack.trigger: "git commit subject contains quick fix / ha
 check.long_term.git_skip_verify.trigger: "git destructive action with skip-verification flag"
 check.long_term.todo_marker.trigger: "Code contains TODO/FIXME/HACK/XXX marker comment"
 check.long_term.patch_intent.trigger: "Code contains 'patch / bypass / workaround' intent comment"
+check.long_term.response_patch_intent.trigger: "Your wording shows short-term intent ('I'll patch this / hardcode temporarily / quick workaround') — user expects long-term root cause"
+check.long_term.response_acknowledge_but_proceed.trigger: "You acknowledged 'not long-term' but still declared 'going ahead anyway' — contradicts user's long-term root-cause expectation"
 
 # testset (7 entries)
 check.testset.reverse_feed.trigger: "Reverse-feeding eval pool (writing back to gold_cases / eval_cases)"

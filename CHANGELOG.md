@@ -10,6 +10,67 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-05-16 (minor — long_term-fundamental engine 重新设计, 加 response-level 话术 pattern 让 engine 真触发)
+
+v0.10.x dogfood data audit (2026-05-16 真证据驱动): `long-term-fundamental` rule 217 条总违反, **0% engine 触发率** (12 条全 keyword fallback). 根因 = engine 维度选了**工程层证据** (`--no-verify` / TODO 注释 / hardcoded hash 都很罕见), 而 Agent 真违反场景是**话术**（"先打个补丁" / "短期方案" / "硬编码先这样"）.
+
+v0.11.0 给 `long_term.py` 加 **response-level engine check** 跟现有 tool_input 层并行, 让 engine 真有机会捕话术意图:
+
+### 新增 2 类 response-level pattern
+
+1. **第一人称 + 短期动作 (`response_patch_intent`)**: 必须含「我/咱/这次/临时/目前/当前/让我」类**意图前缀** + ≤ 12 字内含「先打个补丁/打个补丁/先硬编码/临时硬编码/凑数/短期绕/临时方案/绕过验证/先 workaround/patch 一下/先 hardcode」类**短期动作动词**. 组合 pattern 防止假阳:
+   - ✅ "这次先打个补丁让 CI 过" 拦 (意图 + 动作组合)
+   - ✅ "我先硬编码这个 case 先" 拦
+   - ❌ "短期补丁不行, 应该挖根因" 不拦 (反思不是宣告)
+   - ❌ "补丁是给老代码用的" 不拦 (讨论字面不是意图)
+
+2. **承认但仍 ship (`response_acknowledge_but_proceed`)**: 显式承认「不是长期方案」+ 紧跟「但 / 先这样」转折:
+   - ✅ "我知道不是长期方案 但先这样 ship 出去" 拦
+   - 同 rule #1 例外的反方向: 承认债务但选择主动还
+
+### 跟 keyword 维度协同
+
+v0.10.x keyword (rules.yaml `violation_keywords`) 仍兜底单字面 (「打补丁 / 短期方案」等). v0.11.0 engine 加的是**组合 pattern** — keyword 字面+ 意图前缀同时命中才精确拦, 给 audit 维度 (engine vs keyword) 暴露真违反 vs 假阳的区分.
+
+### check 函数签名扩展
+
+`long_term.check()` 加 `response: str = ""` 参数, Stop hook 跑 check 时传 response (Stop hook 是 karma 看 Agent 整 turn 输出的唯一 hook). 老 tool_input 路径 (Bash/Write/Edit) 不变.
+
+### Test coverage
+
+`tests/test_false_negative_regression.py` 加 5 个 lockdown 测试:
+- `test_long_term_response_patch_intent_first_person`
+- `test_long_term_response_patch_intent_hardcode`
+- `test_long_term_response_acknowledge_but_proceed`
+- `test_long_term_response_reflection_no_false_positive` ⭐ 假阳防御 (反思场景不拦)
+- `test_long_term_response_no_response_no_check` (空 response 走老路径)
+
+i18n: `data/locales/{zh,en}.yaml` 加 `response_patch_intent.trigger` + `response_acknowledge_but_proceed.trigger` 双语. fix 复用现有 `patch_intent.fix`.
+
+### Verification
+
+- **611/611 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 606)
+- 全 5 道 gate 通过 (pytest zh + en / ruff / mypy / vulture --min-confidence 60)
+- `chinese-plain` engine 0% 问题留 v0.11.1 — `chinese-plain` 跟 keyword 维度重叠 (字面 jargon 检测), 修法是 rules.yaml 字面应该从 violation_keywords 挪到 engine `_JARGON_RE`. 这跟 long-term 反方向 (long-term 是维度互补, chinese-plain 是维度重叠需要解开).
+
+### Meta-pattern: 真证据驱动 rule 维度审计
+
+v0.11.0 的方向不是凭空猜的, 是 v0.10.5 audit 后真 dogfood 数据 (217 条违反 / 13 session / 2 天) 跑 engine vs keyword 比例分析后浮现的:
+
+| Rule | engine 比例 | 含义 |
+|---|---|---|
+| read-before-write | 67% | 设计最对齐 (file_path-based 精度高) |
+| keep-pushing-no-stop | 34% | RLHF default 全 turn 触发 |
+| loud-failure-with-evidence | 31% | engine + keyword 平衡 |
+| no-testset-no-future-leakage | 20% | engine 设计严 |
+| non-blocking-parallel | 18% | engine 严 |
+| deep-fix-not-bypass | 14% | engine 设计窄 |
+| long-term-fundamental | **0%** ← v0.11.0 修这条 | engine 维度错: 工程层 vs 话术 |
+| chinese-plain-no-jargon | 0% ← v0.11.1 候选 | engine 维度重叠 keyword |
+| lighthearted-vibe | 0% | 设计就靠 keyword (无 engine 必要) |
+
+未来加新 rule 应该按这套维度自检: engine 命中率 < 20% 就该回头审 check 设计.
+
 ## [0.10.6] — 2026-05-16 (minor — close v0.10.5 deferred 3: emit_context_injection / emit_stop_block backend contracts + model_from_payload hook integration tests)
 
 v0.10.5 audit sweep deferred 3 structural findings; v0.10.6 closes them.

@@ -78,6 +78,54 @@ def test_long_term_intent_comment_workaround():
     assert hit is not None, "「workaround」注释应被识别"
 
 
+# ============================================================
+# v0.11.0: long-term-fundamental response-level engine (Agent 真证据驱动)
+# v0.10.x dogfooding 显示 long-term engine 触发率 0% — 12 条违反全 keyword fallback.
+# 加 response-level 话术 engine pattern 让 engine 跟 keyword 维度互补.
+# ============================================================
+
+def test_long_term_response_patch_intent_first_person():
+    """v0.11.0: Agent response 含「我先打个补丁」类第一人称短期意图 → engine 拦."""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(response="这次先打个补丁让 CI 过，下次再做长期方案。")
+    assert hit is not None, "「这次先打个补丁」第一人称短期意图应 engine 拦"
+    assert hit.trigger_key == "check.long_term.response_patch_intent.trigger"
+
+
+def test_long_term_response_patch_intent_hardcode():
+    """v0.11.0: 「我先硬编码」/「临时硬编码」短期动作 → engine 拦."""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(response="我先硬编码这个 case，跑通先。")
+    assert hit is not None
+    assert hit.trigger_key == "check.long_term.response_patch_intent.trigger"
+
+
+def test_long_term_response_acknowledge_but_proceed():
+    """v0.11.0: 承认「不是长期」但仍宣告「先这样」转折 → engine 拦."""
+    fn = REGISTRY["long_term_fundamental"]
+    hit = fn(response="我知道不是长期方案 但先这样 ship 出去。")
+    assert hit is not None
+    assert hit.trigger_key == "check.long_term.response_acknowledge_but_proceed.trigger"
+
+
+def test_long_term_response_reflection_no_false_positive():
+    """v0.11.0: 反思场景 (字面含「补丁」但不是宣告短期意图) 不该假阳."""
+    fn = REGISTRY["long_term_fundamental"]
+    # 「短期补丁不行」是反思 (前缀是评价不是意图)
+    hit = fn(response="短期补丁不行，应该挖根因。")
+    assert hit is None, "反思「短期补丁不行」不应被算成短期意图宣告"
+    # 单纯讨论字面也不拦
+    hit2 = fn(response="补丁是给老代码用的，新代码应该用根因方案。")
+    assert hit2 is None, "讨论「补丁」字面不应假阳"
+
+
+def test_long_term_response_no_response_no_check():
+    """v0.11.0: 空 response → 不跑 response-level engine, 走老 tool_input 路径."""
+    fn = REGISTRY["long_term_fundamental"]
+    assert fn(response="") is None
+    assert fn() is None  # 完全没参数
+
+
 def test_long_term_intent_comment_临时方案():
     """中文「临时方案」注释 → 违反。"""
     fn = REGISTRY["long_term_fundamental"]

@@ -133,6 +133,8 @@ check.long_term.commit_hack.trigger: "git commit 标题行含 quick fix / hack /
 check.long_term.git_skip_verify.trigger: "git 危险动作跳过验证 flag"
 check.long_term.todo_marker.trigger: "代码含 TODO/FIXME/HACK/临时 标记注释"
 check.long_term.patch_intent.trigger: "代码含「打补丁 / 绕过 / 凑数 / workaround」意图注释"
+check.long_term.response_patch_intent.trigger: "你的话术里含「我先打补丁 / 临时硬编码 / 短期方案」类短期意图 — 用户期望长期根因"
+check.long_term.response_acknowledge_but_proceed.trigger: "你承认「不是长期方案」但仍宣告「先这样」继续短期路径 — 跟用户长期根因期望矛盾"
 
 # testset (7 处)
 check.testset.reverse_feed.trigger: "反喂测试集（写回 gold_cases / eval_cases）"

@@ -95,16 +95,71 @@ _PATTERNS_WRITE_EDIT_ONLY = [
     ),
 ]
 
+# v0.11.0: response-level 话术 pattern — 跟 tool_input 工程层 engine 并行.
+# 真证据驱动: v0.10.x dogfooding 显示 long-term-fundamental engine 触发率 0%
+# (12 条违反全 keyword fallback). 根因 = engine 维度选了工程层证据 (--no-verify
+# / TODO / hardcoded hash 都很罕见), 而 Agent 真违反场景是**话术**「先打补丁 /
+# 短期方案 / 硬编码先这样」. 这个新增 pattern 跟 violation_keywords 维度一致
+# 但用结构化组合 pattern 比单字面更精: 必须含**意图前缀**(我/咱/先) + **短期动词**
+# (打补丁/硬编码/凑数/临时...) 才命中, 避免 Agent 在讨论长期方案时引用「补丁」
+# 字面被假阳 (e.g., "短期补丁不行" 不该命中 — 这是反思).
+_RESPONSE_PATCH_INTENT_PATTERNS = [
+    # 类 1: 第一人称 + 短期动作宣告 ("我先打个补丁 / 咱先硬编码 / 我临时这样改")
+    # 必须**意图前缀** + **短期动作动词** 同短距离 (≤ 12 字),避免反思场景假阳
+    (
+        re.compile(
+            r"(?:我|咱|让我|这次|目前|当前|临时)"  # 意图前缀
+            r"[^。\n]{0,12}"                       # 短距离
+            r"(?:先打个?补丁|打个?补丁\b|先硬编码|临时硬编码|先\s*hack|"
+            r"凑数|短期\s*绕|临时\s*绕|短期方案|临时方案|绕过验证|"
+            r"先\s*workaround|patch\s+一下|先\s*hardcode)",
+            re.IGNORECASE,
+        ),
+        "check.long_term.response_patch_intent.trigger",
+        "check.long_term.patch_intent.fix",
+    ),
+    # 类 2: 显式承认「不长期」+ 紧跟「但 / 先这样」 转折 (承认但仍执行短期路径)
+    # e.g., "知道不是长期方案 但先这样"
+    (
+        re.compile(
+            r"(?:知道|明白)[^。\n]{0,20}"
+            r"(?:不是长期|不够根本|不优雅|是个补丁|不彻底)"
+            r"[^。\n]{0,15}"
+            r"(?:但|可是|不过|先这样|先用|先\s*ship)",
+        ),
+        "check.long_term.response_acknowledge_but_proceed.trigger",
+        "check.long_term.patch_intent.fix",
+    ),
+]
+
 _STICKY_ID = "long-term-fundamental"
 
 
-def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
-    """按 tool 类型选不同 pattern 集合扫。
+def check(*, tool_name: str = "", tool_input: dict | None = None, response: str = "", **_):
+    """按 tool 类型选不同 pattern 集合扫 (tool_input 层),
+    + v0.11.0 加 response-level 话术 pattern (response 层) 跟 keyword 维度互补.
 
     Bash 要执行 → 严查 `--no-verify` 类执行行为
     Write/Edit 写代码内容 → 严查 TODO/HACK 注释
     通用 → 长 ID if 分支 / 字面量黑名单
+    Stop hook 给 response → 严查「我先打补丁 / 临时绕」类意图话术
     """
+    # v0.11.0 response-level engine check — Stop hook 给 response 时跑.
+    # 跟 tool_input 层并行 (response 是 Agent 自己说的, tool_input 是 Agent 执行的).
+    # 必须先于 tool_name early return, 因为 Stop hook response check 没 tool_name.
+    if response:
+        for pat, trigger_key, fix_key in _RESPONSE_PATCH_INTENT_PATTERNS:
+            m = pat.search(response)
+            if m:
+                snippet = response[max(0, m.start() - 30): m.end() + 30].strip()
+                return CheckHit(
+                    rule_id=_STICKY_ID,
+                    trigger=tr(trigger_key),
+                    trigger_key=trigger_key,
+                    snippet=snippet[:200],
+                    suggested_fix=tr(fix_key),
+                )
+
     if tool_name not in ("Bash", "Write", "Edit", "NotebookEdit"):
         return None
     # 描述上下文（文档/测试代码/探针文件）整段豁免 — 那里出现 pattern 是描述不是执行
