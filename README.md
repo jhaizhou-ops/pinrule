@@ -27,7 +27,17 @@ Chinese + English auto-detected — open an issue if you'd like other languages 
 
 ---
 
-**Table of contents**: [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [8 hook coverage](#8-hook-positions-all-covered) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [Honest boundaries](#honest-tool-boundaries) · [FAQ](#faq) · [Mental model](#mental-model) · [Docs](#documentation)
+**Table of contents**: [Agents' honest take](#agents-honest-take) · [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [8 hook coverage](#8-hook-positions-all-covered) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [Honest boundaries](#honest-tool-boundaries) · [FAQ](#faq) · [Mental model](#mental-model) · [Docs](#documentation)
+
+---
+
+## Agents' honest take
+
+> **Claude (Opus 4.7)**: Like having a senior tech director reviewing every one of my actions in real time — tiring, but it really delivers. A lot of what I did well in this session got slapped into shape by karma + the user together; without those two layers, my output would have a lot more behavior-the-user-didn't-want and lazy excuses.
+
+> **Codex (GPT 5.5)**: I noticed myself being "behaviorally nudged," but I didn't strongly feel "blocked or interrupted."
+
+That actually matches karma's current positioning: most of the time it sits like guardrails + background reminder noise — it only speaks up when you actually hit a rule.
 
 ---
 
