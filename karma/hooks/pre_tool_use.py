@@ -101,11 +101,22 @@ def main() -> int:
     # v0.9.8 加的 update_state 高阶 API 让 load → catchup → save 跨进程原子 +
     # 持久化（跟 post_tool_use.py 的 update_state 一致）。后续决策仍用拿到的
     # state 内存对象。
-    state, _ = session_state.update_state(
-        session_id,
-        lambda s: s.catchup_pending_bg(),
-        agent_id=agent_id,
-    )
+    #
+    # v0.9.14 fail-open 兜底：v0.9.13 这条改动我漏了 try/except — update_state
+    # 内部 fcntl.flock acquire / fn 抛 / save OSError 任一异常 bubble 出去会让
+    # PreToolUse return 非 0 → Claude Code 看到 hook 失败卡用户（fail-closed
+    # 违反 karma 设计原则）。多 Agent audit 视角 3 抓到这条 v0.9.13 引入的
+    # 回归。fallback：异常时降级用裸 load() 拿 state 不持久化（catchup 真改动
+    # 这一 turn 丢失但下次 PostToolUse 会重新 catchup —— 跟 v0.9.13 前同等行为）。
+    try:
+        state, _ = session_state.update_state(
+            session_id,
+            lambda s: s.catchup_pending_bg(),
+            agent_id=agent_id,
+        )
+    except Exception as e:
+        print(f"karma PreToolUse: update_state 失败 fallback 裸 load ({e})", file=sys.stderr)
+        state = session_state.load(session_id, agent_id=agent_id)
 
     # 工程层 violation_checks
     check_hits = []

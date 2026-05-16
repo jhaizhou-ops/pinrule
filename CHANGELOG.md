@@ -10,6 +10,69 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.14] — 2026-05-16 (fix — multi-agent cross-audit catches v0.9.13's own regression: `pre_tool_use` `update_state` not wrapped in try/except)
+
+### Why this release (loud failure callout)
+
+User: "每次多 Agent 交叉互审就能挖出很深的 bug 也是很有趣的一件事。再来一轮。"
+
+Launched 3 parallel audit agents with **different viewpoints** (to avoid v0.9.13's audit surface):
+1. 8 engine-check logic correctness (FP / FN / logic / preference-alignment)
+2. config defaults drift across imports
+3. fail-open / fail-closed error-handling contract consistency
+
+Per rule #4, each finding was hand-verified — most of viewpoint 1's findings turned out to be design choices misjudged by sub-agent (e.g. chinese_plain table-jargon counting **is intentional** per v0.4.22 comment; `_LONG_TASK_RE` skipping `npm run` **is intentional** since user-defined scripts have unpredictable runtime). Viewpoint 2 returned clean — all config field fallbacks consistent with `DEFAULTS`.
+
+**Viewpoint 3 caught the real one**: v0.9.13's own regression. When I migrated `pre_tool_use.py:98-100` from `load + catchup_pending_bg + no save` to `update_state(sid, lambda s: s.catchup_pending_bg(), agent_id=...)` to fix the C1 instrumentation bug, I **forgot to wrap it in try/except**. The original `load + catchup` was implicitly fail-safe (load catches OSError, catchup_pending_bg internally catches OSError per-task), but `update_state` introduces a new failure path: `fcntl.flock` acquire failures (extremely rare but possible — file system errors, broken NFS mount, etc), `save()` OSError when writing back. If any of those raises, the exception bubbles, `pre_tool_use.main()` returns non-zero, and Claude Code sees the hook fail — **user is blocked from making the tool call**.
+
+This is **fail-closed**, the exact opposite of karma's design principle (all hooks must fail-open: karma's own internal failure must never block the user).
+
+### Fix 1 (critical) — `pre_tool_use.py:104-108` wrapped in try/except with fallback
+
+```python
+try:
+    state, _ = session_state.update_state(
+        session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id,
+    )
+except Exception as e:
+    print(f"karma PreToolUse: update_state 失败 fallback 裸 load ({e})", file=sys.stderr)
+    state = session_state.load(session_id, agent_id=agent_id)
+```
+
+Fallback: degrade to bare `load()` (no catchup persistence for this turn — same behavior as pre-v0.9.13 — but at least PreToolUse can still make decisions on stale state instead of crashing the entire hook).
+
+### Fix 2 (minor) — `_LONG_TASK_RE` adds `pip install` pattern
+
+Sub-agent's viewpoint 1 caught this as a real FN: `pip install` always takes ≥30s (dependency resolution + downloads), but it wasn't in the long-task regex. Added `pip\s+install` to the alternation. `npm run` / `yarn build` (user-defined scripts) remain excluded by design — runtime is unpredictable.
+
+### Regression tests
+
+2 new tests:
+- `test_pre_tool_use_update_state_exception_falls_back_to_load` (in `tests/test_hooks.py`) — mocks `session_state.update_state` to raise, verifies hook still returns 0 + outputs `_allow` (fail-open contract lockdown). If a future PR introduces another fail-closed path in PreToolUse, this test catches it.
+- `test_non_blocking_pip_install_detected_v0914` (in `tests/test_checks.py`) — verifies `pip install pandas` / `pip install -e .` both trigger; `pip install + run_in_background=True` is exempt.
+
+### Verification
+
+- 487/487 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 485)
+- All 6 local gates pass
+- Static-scan regression `test_all_hook_violation_writes_pass_trigger_key` (v0.9.12) still green, indicating the fail-open fix doesn't introduce new field-omission bugs
+
+### Audit signal-to-noise comparison
+
+| Audit | Findings reported | True bugs | Notes |
+|---|---|---|---|
+| v0.9.13 (single agent, 4 categories) | 5 | 4 | high SNR — accumulated drift from years |
+| v0.9.14 (3 parallel agents, viewpoint diversity) | ~9 | 2 (1 critical + 1 minor) | lower SNR — repo already clean post-v0.9.13 |
+
+**Diminishing returns confirmed**: v0.9.13 cleared the high-density instrumentation drift; the marginal value of further audits is mostly catching **regressions introduced by the previous round** (which is exactly what viewpoint 3 caught). This is still meaningful — multi-agent audit specifically catches *the auditor's own blind spots* — but expecting another v0.9.13-class haul would be misjudgment.
+
+### Meta-pattern
+
+[rule #4 loud-failure-with-evidence] applies in three directions now:
+1. **Forward**: claim a result, attach evidence (data / test pass)
+2. **Backward**: claim a result, verify it isn't instrument artifact (v0.9.12 lesson)
+3. **Self-verify post-fix**: claim a fix, verify the fix itself didn't introduce a regression (v0.9.14 lesson — multi-agent cross-audit is one way to catch your own regressions)
+
 ## [0.9.13] — 2026-05-16 (fix — comprehensive instrumentation audit catches 4 correctness bugs: agent_id round-trip / turn-window off-by-one / pre_tool_use catchup-no-save / zh weak_claims coverage gap)
 
 ### Why this release

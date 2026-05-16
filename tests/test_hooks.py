@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from karma.hooks import post_tool_use, stop, user_prompt_submit
+from karma.hooks import post_tool_use, pre_tool_use, stop, user_prompt_submit
 from karma import session_state
 
 
@@ -800,3 +800,37 @@ def test_stop_hook_respects_block_max(monkeypatch, tmp_path, capsys):
     assert out.get("decision") != "block", "已达 max 应放 Agent 停"
     # 走 passthrough — output 是空对象 {} 或不含 decision/reason
     assert out == {} or "decision" not in out
+
+
+# === v0.9.14 fail-open lockdown: pre_tool_use update_state 异常 → 仍 _allow ===
+# v0.9.13 我把 pre_tool_use 段 2 catchup 改用 update_state 但漏套 try/except，
+# 异常 bubble 让 Claude Code 看到 hook 失败 return 非 0 → 卡用户（fail-closed
+# 违反 karma 设计原则）。多 Agent audit 视角 3 抓到。v0.9.14 修 + 加这条
+# lockdown 防未来 PR 再漏。
+
+def test_pre_tool_use_update_state_exception_falls_back_to_load(monkeypatch, tmp_path, capsys):
+    """pre_tool_use 段 2 update_state 异常时降级裸 load 不卡用户（fail-open）。"""
+    _patch_paths(monkeypatch, tmp_path, sticky_items=[
+        {"id": "any", "preference": "x", "violation_keywords": []},
+    ])
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+
+    # mock update_state 抛异常模拟 fcntl.flock acquire 失败 / save OSError
+    def _raise(*args, **kwargs):
+        raise RuntimeError("simulated update_state failure")
+    monkeypatch.setattr(session_state, "update_state", _raise)
+
+    payload = json.dumps({
+        "session_id": "test",
+        "tool_name": "Read",
+        "tool_input": {"file_path": "/tmp/x.py"},
+    })
+    monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+    rc = pre_tool_use.main()
+
+    # fail-open 契约：异常不该让 hook return 非 0 卡用户
+    assert rc == 0, f"update_state 异常应 fail-open return 0，实际 {rc}"
+    out = json.loads(capsys.readouterr().out)
+    # 应输出 allow 决策（无违反就 _allow）
+    decision = out.get("hookSpecificOutput", {}).get("permissionDecision")
+    assert decision == "allow", f"update_state 异常下应仍 _allow，实际 {decision}"

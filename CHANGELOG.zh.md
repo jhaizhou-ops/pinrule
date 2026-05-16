@@ -6,6 +6,69 @@
 
 ## [Unreleased]
 
+## [0.9.14] — 2026-05-16（fix — 多 Agent 交叉互审抓到 v0.9.13 我自己引入的回归：`pre_tool_use` `update_state` 漏套 try/except）
+
+### 响亮失败声明
+
+用户：「每次多 Agent 交叉互审就能挖出很深的 bug 也是很有趣的一件事。再来一轮。」
+
+起 3 个并行 audit Agent **不同视角**（避开 v0.9.13 已扫的 surface）：
+1. 8 个 engine check 函数自身的逻辑准确性（FP / FN / 逻辑 / preference 一致性）
+2. config 默认值多处定义漂移
+3. fail-open / fail-closed 错误处理契约一致性
+
+按规则 4 逐个 hand-verify — 视角 1 大部分发现是子 Agent 误判（如 chinese_plain 表格 jargon 计数是 v0.4.22 注释明确写的 by-design；`_LONG_TASK_RE` 漏 `npm run` 也是 by-design 因为 user-defined script 时长不可预测）。视角 2 干净 — 全仓 config 字段 fallback 跟 DEFAULTS 都一致。
+
+**视角 3 抓到真 bug — v0.9.13 我自己引入的回归**：把 `pre_tool_use.py:98-100` 从 `load + catchup_pending_bg + no save` 迁到 `update_state(sid, lambda s: s.catchup_pending_bg(), agent_id=...)` 修 C1 instrumentation bug 时，**漏套 try/except**。原 `load + catchup` 隐式 fail-safe（load 内部 catch OSError、catchup_pending_bg 内部 per-task catch OSError），但 `update_state` 新引入了失败路径：`fcntl.flock` acquire 失败（极少但可能 — 文件系统错 / NFS 挂载坏）、`save()` 写回 OSError。任一抛异常 bubble，`pre_tool_use.main()` return 非 0，Claude Code 看到 hook 失败 → **用户被卡不能调用 tool**。
+
+**fail-closed 是 karma 设计原则的反面** — 所有 hook 必须 fail-open（karma 自身内部失败永远不该卡用户）。
+
+### Fix 1（critical）— `pre_tool_use.py:104-108` 套 try/except + 降级裸 load
+
+```python
+try:
+    state, _ = session_state.update_state(
+        session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id,
+    )
+except Exception as e:
+    print(f"karma PreToolUse: update_state 失败 fallback 裸 load ({e})", file=sys.stderr)
+    state = session_state.load(session_id, agent_id=agent_id)
+```
+
+fallback：降级用裸 `load()`（这一 turn 不持久化 catchup 真改动 — 跟 v0.9.13 前行为同等 — 但至少 PreToolUse 能用 stale state 做决策不会让整个 hook 挂）。
+
+### Fix 2（minor）— `_LONG_TASK_RE` 加 `pip install` pattern
+
+子 Agent 视角 1 抓到的真 FN：`pip install` 总 ≥30s（解析依赖 + 下载），但之前 long-task regex 漏。加 `pip\s+install` 到 alternation。`npm run` / `yarn build`（user script）仍排除 by design 因为时长不可预测。
+
+### Regression tests
+
+2 个新测试：
+- `test_pre_tool_use_update_state_exception_falls_back_to_load`（`tests/test_hooks.py`）— mock `session_state.update_state` 抛异常，验证 hook 仍 return 0 + 输出 `_allow`（fail-open 契约 lockdown）。未来 PR 再加 PreToolUse fail-closed 路径 → CI 直接红
+- `test_non_blocking_pip_install_detected_v0914`（`tests/test_checks.py`）— 验证 `pip install pandas` / `pip install -e .` 都触发；`pip install + run_in_background=True` 豁免
+
+### 验证
+
+- 487/487 双 locale 都过（v0.9.13 是 485）
+- 6 道本机门禁全过
+- 静态扫 regression `test_all_hook_violation_writes_pass_trigger_key`（v0.9.12 加的）仍绿，表明 fail-open fix 没引入新字段缺失 bug
+
+### Audit 信噪比对比
+
+| Audit | 报告发现 | 真 bug | 备注 |
+|---|---|---|---|
+| v0.9.13（单 Agent，4 类） | 5 | 4 | 高信噪 — 多年沉淀的 drift |
+| v0.9.14（3 Agent 并行不同视角） | ~9 | 2（1 critical + 1 minor） | 低信噪 — v0.9.13 后仓库已干净 |
+
+**边际价值递减确认**：v0.9.13 清完高密度 instrumentation drift；后续 audit 的边际价值主要在**抓上轮 fix 引入的回归**（这就是视角 3 抓到的）。这仍有意义 — 多 Agent 交叉互审专门 catch *单 Agent 自己的盲区* — 但期待再来一波 v0.9.13 级别收获就是误判。
+
+### 元 pattern
+
+[规则 4 loud-failure-with-evidence] 现在三方向适用：
+1. **forward**：声称结果时附 evidence（数据 / 测试通过）
+2. **backward**：声称结果后验证不是 instrument artifact（v0.9.12 教训）
+3. **self-verify post-fix**：声称 fix 后验证 fix 本身没引入回归（v0.9.14 教训 — 多 Agent 交叉互审是 catch 自己回归的一种方式）
+
 ## [0.9.13] — 2026-05-16（fix — 全面 instrumentation audit 抓出 4 个准确性 bug：agent_id 字段往返 / turn 窗口 off-by-one / pre_tool_use catchup 无 save / zh weak_claims 覆盖缺口）
 
 ### 为什么发这版

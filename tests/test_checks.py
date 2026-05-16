@@ -336,6 +336,20 @@ def test_non_blocking_long_task_with_background_passes():
     assert hit is None
 
 
+def test_non_blocking_pip_install_detected_v0914():
+    """v0.9.14 (audit 视角 1 FN fix): pip install 总是慢 ≥ 30s（解析依赖 + 下载），
+    不带 background 应命中。之前 _LONG_TASK_RE 漏 pip。
+    """
+    fn = REGISTRY["non_blocking_parallel"]
+    hit = fn(tool_name="Bash", tool_input={"command": "pip install pandas"})
+    assert hit is not None
+    hit = fn(tool_name="Bash", tool_input={"command": "pip install -e ."})
+    assert hit is not None
+    # 带 background 仍豁免
+    hit = fn(tool_name="Bash", tool_input={"command": "pip install pandas", "run_in_background": True})
+    assert hit is None
+
+
 def test_non_blocking_test_commands_not_long_task():
     """pytest / jest 等测试命令默认不算长任务（多数项目跑得快 < 5s），
     避免 audit 指出的高频假阳。长测试用户自加 background。"""

@@ -78,11 +78,15 @@ _LONG_TASK_RE = re.compile(
         docker\s+run|docker\s+compose\s+(?:up|run|build)|docker\s+build|
         cargo\s+build|cargo\s+install|
         npm\s+(?:install|ci)|yarn\s+install|pnpm\s+install|
+        pip\s+install|
         make\s+(?:install|build|all|release|deploy)|
         gradlew?\s+build|mvn\s+(?:install|package|deploy)
     )\b""",
     re.IGNORECASE | re.VERBOSE,
 )
+# v0.9.14: 加 pip install — audit 视角 1 抓到的真 FN（pip install 总是慢 ≥ 30s
+# 解析依赖图 + 下载，不带 background 会卡用户）。`npm run` / `yarn build` 等
+# user-defined script 仍不加（跑时长不可预测，design 留给用户自由）。
 
 # 复用 common.strip_shell_quoted_literals — 跟关键词层统一剥引号逻辑
 
