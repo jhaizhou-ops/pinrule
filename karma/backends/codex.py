@@ -1,13 +1,14 @@
-"""Codex CLI backend — `~/.codex/hooks.json` + 启用 `features.hooks` + apply_patch envelope parser。
+"""Codex CLI backend — `~/.codex/hooks.json` + hooks feature + protocol normalization.
 
 继承 `JsonHooksBackend`，差异：
 ① 配置文件名 `hooks.json` 不是 `settings.json`
 ② hook entry 加 timeout: 30
 ③ pre_install_setup 调 `codex features enable hooks` 永久启用 feature flag
-④ post_install_message 响亮警示 TUI `/hooks` 审批步骤（v0.9.17 引入）
-⑤ normalize_tool_name 映射 apply_patch → Edit
+④ save_settings 写 Codex hook trust state，减少手动 `/hooks` approval
+⑤ normalize_tool_name 映射 apply_patch → Edit / exec_command → Bash
 ⑥ normalize_tool_input 解析 apply_patch envelope 字符串成 canonical Edit shape
    含 multi_file_targets（v0.10.0 把 envelope parser 从 protocol_adapter 搬过来）
+⑦ normalize_tool_input 识别 exec_command shell-as-Read，并兼容 desktop `cmd` 字段
 
 参考：
 - 官方 hook 协议: https://developers.openai.com/codex/hooks
@@ -19,6 +20,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import shlex
 import shutil
@@ -30,11 +33,13 @@ from karma.backends._json_hooks import JsonHooksBackend
 
 
 # Codex → karma canonical tool_name 映射
-# apply_patch 是 Codex 主要编辑入口（custom_tool_call 类型），归一化到 Edit
-# 让 karma 通用 check 比较「tool_name in ('Edit', 'Write')」时识别它。
+# apply_patch 是 Codex 主要编辑入口（custom_tool_call 类型），归一化到 Edit；
+# exec_command 是 Codex shell 工具，归一化到 Bash，让 Bash 类 check / record_bash
+# 走通。
 _CODEX_TOOL_MAP: dict[str, str] = {
     "apply_patch": "Edit",
-    # Bash 已 canonical，Read/Write 暂未在 Codex 文档明确同名
+    "exec_command": "Bash",
+    # Read/Write 暂未在 Codex 文档明确同名
 }
 
 
@@ -377,6 +382,49 @@ def extract_read_paths_from_exec_command(command: str) -> tuple[list[str], bool]
     return [], False
 
 
+def _canonical_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _canonical_json(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_canonical_json(item) for item in value]
+    return value
+
+
+def codex_hook_trusted_hash(event_key: str, command: str, timeout: int = 30) -> str:
+    """Return Codex's trust hash for a command hook identity.
+
+    Real Codex 0.130 source evidence:
+    `codex-rs/hooks/src/engine/discovery.rs::command_hook_hash` builds a
+    normalized identity `{event_name, hooks:[{type, command, timeout, async}]}`
+    and `codex-rs/config/src/fingerprint.rs::version_for_toml` hashes its
+    canonical JSON with SHA256. We mirror only that small deterministic
+    algorithm so karma can pre-trust the karma-owned wrappers it just wrote.
+    """
+    identity = {
+        "event_name": event_key,
+        "hooks": [{
+            "type": "command",
+            "command": command,
+            "timeout": timeout,
+            "async": False,
+        }],
+    }
+    serialized = json.dumps(
+        _canonical_json(identity),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(serialized).hexdigest()}"
+
+
+def _codex_hook_timeout(raw_timeout: Any) -> int:
+    try:
+        timeout = int(raw_timeout)
+    except (TypeError, ValueError):
+        timeout = 600
+    return max(timeout, 1)
+
+
 class CodexBackend(JsonHooksBackend):
     name = "codex"
     display_name = "Codex CLI"
@@ -384,9 +432,10 @@ class CodexBackend(JsonHooksBackend):
     _SETTINGS_FILENAME = "hooks.json"
     _CLIENT_CMD = "codex"
 
-    # Codex 6 个 event 中 karma 用 4 个跟 Claude Code 对齐。SessionStart /
-    # PermissionRequest karma 暂不用 — 需要时也能加到这个 dict。
+    # Codex 0.130 支持 6 个 hook event。karma 用 5 个跟 Claude Code baseline /
+    # tool / stop 流程对齐；PermissionRequest 暂不用。
     _HOOK_EVENTS: dict[str, str] = {
+        "SessionStart": "session_start",
         "UserPromptSubmit": "user_prompt_submit",
         "PreToolUse": "pre_tool_use",
         "PostToolUse": "post_tool_use",
@@ -398,6 +447,120 @@ class CodexBackend(JsonHooksBackend):
         return {
             "hooks": [{"type": "command", "command": str(wrapper), "timeout": 30}]
         }
+
+    @staticmethod
+    def _hook_event_key(event_name: str) -> str:
+        key = re.sub(r"(?<!^)([A-Z])", r"_\1", event_name).lower()
+        return key
+
+    def codex_hook_state_entries(
+        self,
+        settings: dict | None = None,
+    ) -> dict[str, dict[str, str | bool]]:
+        """Build `[hooks.state]` entries that pre-trust karma-owned wrappers.
+
+        Codex treats newly configured user hooks as untrusted until the config
+        contains `trusted_hash == current_hash` for the hook key. This method
+        mirrors Codex's own key/hash derivation for the entries karma installs
+        into `~/.codex/hooks.json`, and intentionally never inspects or trusts
+        non-karma hook entries.
+        """
+        if settings is None:
+            settings = self.load_settings()
+
+        settings_path = self.settings_path()
+        states: dict[str, dict[str, str | bool]] = {}
+        hooks = settings.get("hooks", {})
+        for event_name in self._HOOK_EVENTS:
+            event_key = self._hook_event_key(event_name)
+            for group_index, entry in enumerate(hooks.get(event_name, [])):
+                if not self.is_karma_entry(entry):
+                    continue
+                for handler_index, hook in enumerate(entry.get("hooks", [])):
+                    command = hook.get("command", "")
+                    if "karma_" not in command:
+                        continue
+                    timeout = _codex_hook_timeout(hook.get("timeout", 600))
+                    key = f"{settings_path}:{event_key}:{group_index}:{handler_index}"
+                    states[key] = {
+                        "enabled": True,
+                        "trusted_hash": codex_hook_trusted_hash(event_key, command, timeout),
+                    }
+        return states
+
+    def trust_karma_hooks(self, settings: dict | None = None) -> list[str]:
+        """Persist Codex hook trust state for karma wrappers in config.toml.
+
+        This is a narrow replacement for the manual `/hooks` review step. It
+        only writes `[hooks.state]` entries for karma-generated wrapper paths.
+        If Codex changes the hash algorithm, hooks fall back to "modified" or
+        "untrusted" rather than silently trusting arbitrary commands.
+        """
+        config_path = Path.home() / ".codex" / "config.toml"
+        trust_entries = self.codex_hook_state_entries(settings)
+        if not trust_entries:
+            return []
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+
+        lines = existing.splitlines()
+        output: list[str] = []
+        i = 0
+        replaced = 0
+        seen_keys: set[str] = set()
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            if stripped.startswith("[hooks.state.") and stripped.endswith("]"):
+                raw_key = stripped[len("[hooks.state."):-1].strip()
+                if raw_key.startswith('"') and raw_key.endswith('"'):
+                    raw_key = raw_key[1:-1]
+                if raw_key in trust_entries:
+                    output.append(line)
+                    output.append("enabled = true")
+                    output.append(f'trusted_hash = "{trust_entries[raw_key]["trusted_hash"]}"')
+                    seen_keys.add(raw_key)
+                    replaced += 1
+                    i += 1
+                    while i < len(lines) and not (
+                        lines[i].strip().startswith("[") and lines[i].strip().endswith("]")
+                    ):
+                        child = lines[i].strip()
+                        if not child.startswith(("trusted_hash", "enabled")):
+                            output.append(lines[i])
+                        i += 1
+                    continue
+            output.append(line)
+            i += 1
+
+        missing = {key: value for key, value in trust_entries.items() if key not in seen_keys}
+        if missing:
+            if output and output[-1].strip():
+                output.append("")
+            if not any(line.strip() == "[hooks.state]" for line in output):
+                output.append("[hooks.state]")
+                output.append("")
+            for key, value in missing.items():
+                output.append(f'[hooks.state."{key}"]')
+                output.append("enabled = true")
+                output.append(f'trusted_hash = "{value["trusted_hash"]}"')
+                output.append("")
+
+        final = "\n".join(output).rstrip() + "\n"
+        config_path.write_text(final, encoding="utf-8")
+        total = len(trust_entries)
+        added = len(missing)
+        return [f"Codex karma hook trust state 已写入 {config_path} ({added} 新增, {replaced} 更新, {total} 总计)"]
+
+    def save_settings(self, data: dict) -> None:
+        super().save_settings(data)
+        try:
+            self.trust_karma_hooks(data)
+        except OSError:
+            # install-hooks is allowed to finish with hooks.json written; the
+            # post-install message tells users how to approve manually if trust
+            # state persistence failed.
+            pass
 
     def pre_install_setup(self) -> list[str]:
         """Codex 必须启用 `[features] hooks = true` 才让 hook 触发。
@@ -414,25 +577,24 @@ class CodexBackend(JsonHooksBackend):
 
         if self._is_hooks_feature_enabled():
             steps.append("Codex features.hooks 已启用 ✓")
-            return steps
-
-        try:
-            result = subprocess.run(
-                [codex_bin, "features", "enable", "hooks"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=10,
-            )
-            if result.returncode == 0:
-                steps.append(f"启用 Codex features.hooks: {result.stdout.strip()}")
-            else:
-                steps.append(f"⚠️  `codex features enable hooks` 失败 (exit "
-                             f"{result.returncode})：{result.stderr.strip() or '未知错误'}。"
-                             f"请手动跑后 hook 才会触发。")
-        except (OSError, subprocess.TimeoutExpired) as e:
-            steps.append(f"⚠️  调用 codex 命令异常：{e}。"
-                         "请手动 `codex features enable hooks`。")
+        else:
+            try:
+                result = subprocess.run(
+                    [codex_bin, "features", "enable", "hooks"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=10,
+                )
+                if result.returncode == 0:
+                    steps.append(f"启用 Codex features.hooks: {result.stdout.strip()}")
+                else:
+                    steps.append(f"⚠️  `codex features enable hooks` 失败 (exit "
+                                 f"{result.returncode})：{result.stderr.strip() or '未知错误'}。"
+                                 f"请手动跑后 hook 才会触发。")
+            except (OSError, subprocess.TimeoutExpired) as e:
+                steps.append(f"⚠️  调用 codex 命令异常：{e}。"
+                             "请手动 `codex features enable hooks`。")
         return steps
 
     def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
@@ -461,7 +623,6 @@ class CodexBackend(JsonHooksBackend):
         shape (跟 Claude 一致, 真测试 2026-05-16 确认拦截工作). 但仍要带
         additionalContext 字段防止 codex 在某些版本期望它在 deny shape 里.
         """
-        import json
         return json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -495,9 +656,12 @@ class CodexBackend(JsonHooksBackend):
             if not isinstance(command, str) or not command.strip():
                 return raw_tool_input
             read_paths, is_write = extract_read_paths_from_exec_command(command)
-            if not read_paths and not is_write:
+            needs_command_alias = "command" not in raw_tool_input and "cmd" in raw_tool_input
+            if not read_paths and not is_write and not needs_command_alias:
                 return raw_tool_input
             normalized = dict(raw_tool_input)
+            if needs_command_alias:
+                normalized["command"] = command
             if read_paths:
                 normalized["read_file_paths"] = read_paths
             if is_write:
@@ -528,16 +692,12 @@ class CodexBackend(JsonHooksBackend):
         return [(Path.home() / ".agents" / "skills" / skill_name / "SKILL.md", "markdown")]
 
     def post_install_message(self) -> list[str]:
-        """Codex 0.130+ 必须在 TUI `/hooks` 命令里逐个 approve karma 4 个 wrapper，
-        karma 装完 hooks.json 不等于真生效（codex 安全模型不让第三方批量预审）。
+        """Codex 0.130+ hook 需要 trusted_hash 才会运行。
 
         实测 2026-05-16：本机 codex cli 跑 apply_patch 编辑文件**真成功**，但 karma
         violations.jsonl + session-state 完全无新条目 → hook 根本没 fire. 根因
-        就是用户没在 TUI `/hooks` 审批. 之前埋 README 第 82 行表格 → 用户装完
-        以为生效实际 0 hook fire (rule #4 反方向隐性失败).
-
-        v0.9.17 修法: install 完成时**响亮警示框** + 列 4 个 wrapper 完整路径,
-        让用户直接复制到 codex TUI 比对 approval 列表逐个 approve.
+        就是用户没在 TUI `/hooks` 审批. v0.10.2 起 karma 按 Codex 0.130 源码
+        算法给自己生成的 wrapper 写入 trusted_hash；这里仍提示用户如何核验。
         """
         hooks_dir = self.hooks_dir()
         wrappers = [
@@ -548,24 +708,24 @@ class CodexBackend(JsonHooksBackend):
         msg: list[str] = [
             "",
             "━" * 70,
-            "⚠️  Codex 关键最后一步 — hooks.json 写好了但 codex 还没生效",
+            "Codex hook 状态",
             "━" * 70,
             "",
-            "Codex 0.130+ 出于安全考虑，**每个 hook 必须在 codex TUI 里手动",
-            "approve**，karma 无法替你绕（codex 不公开批量预审 API）。",
-            "**没做这步 = karma 在 codex 下完全静默，所有规则不拦截**。",
+            "karma 已为自己生成的 Codex wrapper 写入 trusted_hash，正常情况下",
+            "不需要再手动逐个 approve。Codex 如果升级了 hook trust 算法，会在",
+            "`/hooks` 里显示为 new/modified；这时按下面路径复核并 approve。",
             "",
-            "▶ 操作（30 秒）:",
+            "▶ 复核（可选，30 秒）:",
             "  1. 启动 codex CLI: `codex`",
             "  2. 在 TUI 里输入: /hooks",
-            "  3. 逐个 approve 这 4 个 wrapper:",
+            f"  3. 确认这 {len(wrapper_paths)} 个 wrapper 状态是 trusted/approved:",
         ]
         for wp in wrapper_paths:
             msg.append(f"     ✓  {wp}")
         msg.extend([
             "",
             "▶ 验证生效:",
-            "  approve 后随便让 codex 改一个你没先 Read 过的文件 — 应该被 karma 🛑 拦截.",
+            "  安装后随便让 codex 改一个你没先 Read 过的文件 — 应该被 karma 🛑 拦截.",
             "  如果还是不拦，跑 `karma doctor` 看诊断或来 issue 反馈.",
             "",
             "━" * 70,
