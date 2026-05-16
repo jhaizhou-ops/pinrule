@@ -71,10 +71,8 @@ Steps:
 | Client | Install command | Note |
 |---|---|---|
 | Claude Code | `karma install-hooks` (default) | Takes effect immediately |
-| Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. See note below. |
+| Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
 | Gemini CLI | `karma install-hooks --backend gemini-cli` | Takes effect immediately |
-
-> 💡 **Codex auto-trust**: karma writes Codex 0.130+ `trusted_hash` entries in `~/.codex/config.toml` only for its own wrappers (`karma_*.py` paths verified by `is_karma_entry`), never third-party hooks. If Codex changes the hash algorithm in a future version, your hooks fall back to "modified" in TUI `/hooks` rather than silent-trusting. See [docs/CODEX_BACKEND.md](docs/CODEX_BACKEND.md). Contributed by Codex CLI itself in PR [#4](https://github.com/jhaizhou-ops/karma/pull/4).
 
 ### Uninstall
 

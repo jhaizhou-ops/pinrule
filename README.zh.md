@@ -77,10 +77,8 @@ Claude Code / Codex CLI / Gemini CLI 重启后立即生效。`karma init` 自动
 | 客户端 | 装机命令 | 备注 |
 |---|---|---|
 | Claude Code | `karma install-hooks`（默认） | 立即生效 |
-| Codex CLI | `karma install-hooks --backend codex` | 通过 Codex `trusted_hash` 自动信任 karma wrapper — 不再需要手动 `/hooks` 审批。详情见下方说明 |
+| Codex CLI | `karma install-hooks --backend codex` | 通过 Codex `trusted_hash` 自动信任 karma wrapper — 不再需要手动 `/hooks` 审批。详情看 [docs/CODEX_BACKEND.zh.md](./docs/CODEX_BACKEND.zh.md)。 |
 | Gemini CLI | `karma install-hooks --backend gemini-cli` | 立即生效 |
-
-> 💡 **Codex 自动信任**：karma 装机时自动把 Codex 0.130+ 期望的 `trusted_hash` 写入 `~/.codex/config.toml`，**只信任自家 wrapper**（`karma_*.py` 路径走 `is_karma_entry` 验证），永远不碰第三方 hook。如果 Codex 后续升级 hash 算法，你的 hook 会在 `/hooks` TUI 显示 "modified" 而不是被静默信任 — 那时再手动 approve. 详情看 [docs/CODEX_BACKEND.zh.md](docs/CODEX_BACKEND.zh.md)。这条由 Codex CLI 自己在 PR [#4](https://github.com/jhaizhou-ops/karma/pull/4) 贡献。
 
 ### 卸载
 
