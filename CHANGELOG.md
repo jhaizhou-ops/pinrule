@@ -10,17 +10,70 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
-### Merged via squash (no version bump)
+## [0.11.4] — 2026-05-17 (minor — i18n hook output + `long-term-fundamental` English response-level pattern + first loyal user PR #7 + 5-scene bilingual demo)
 
-- **PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source** — 153 new tests covering 6 untested modules (`run_checks` dispatch / `format_rule` injection / `i18n.tr()` fallback / `session_state.update_state` atomicity / `rule.schema` boundaries / `config.DEFAULTS` completeness). Total test count 622 → **775**. Post-merge follow-ups by maintainer in commit `5a677e4`: ruff F401 + E741 cleanup (7 ambiguous `l` → `ln`), mypy `tests/` fix (commit `4d1f1aa` — `list[dict]` → `list` accepting Any|None).
+User-visible improvements coming from a single session of intensive iteration with the first-loyal-user feedback loop:
 
-### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point overhaul (no version bump)
+### English users finally get English hook output
+
+`pre_tool_use.py` + `stop.py` were hardcoding Chinese-only message templates (`"karma 拦截：违反"` / `"Agent 违反"` / `"建议："` etc.) — `KARMA_LOCALE=en` had no effect on them, so English users saw mixed-language deny reasons. Now all hook output templates route through `tr()` + 6 new locale keys in both zh/en:
+- `hook.pre_tool_use.deny_engine_reason` / `deny_keyword_reason`
+- `hook.stop.violation_line` / `suggestion_line` / `keyword_line`
+
+Lockdown tests `test_pre_tool_use_deny_reason_uses_tr_not_hardcoded_chinese` + `test_stop_violation_line_uses_tr_not_hardcoded_chinese` grep the source for the old hardcoded patterns and fail CI if they ever come back.
+
+### `long-term-fundamental` response-level adds English patterns (categories 3 + 4)
+
+v0.11.0 only added Chinese phrasing patterns. English-speaking Agents (including codex CLI) were never caught for "let me hardcode this" / "I'll patch this" / "I know this is a hack but for now". v0.11.4 adds English counterparts mirroring Chinese categories 1 + 2:
+- **Category 3** (first-person + short-term action): `(?:let me|I'?ll|let's just|for now|temporarily|just)` + within 50 chars `(?:hardcode|patch|hack around|workaround|quick fix|skip the test|ship it|kludge|band-aid)`
+- **Category 4** (acknowledge but proceed): `(?:I know|aware|understand)` + `(?:not the right|long-term|clean|proper|ideal|is a hack)` + `(?:but|however|for now|temporarily)`
+
+4 new lockdown tests including a false-positive defense ("short-term patches won't work, dig the root cause" must pass through).
+
+### PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source — 153 new tests covering 6 untested modules
+
+First loyal user's third contribution (after #1 and #2). Coverage audit identified 6 modules with no direct unit tests:
+
+| File | Tests | Gap filled |
+|---|---|---|
+| `test_run_checks.py` | 12 | `run_checks()` dispatch: unknown names silently skipped, exceptions fail-open, `KARMA_DEBUG` stderr, multiple hits ordered, kwargs forwarding |
+| `test_rule_format.py` | 20 | `format_for_injection` / `format_anchor_only`: empty rules, numbered lists, drift markers, multi-line indentation, zh locale header |
+| `test_i18n.py` | 30 | `tr()` fallback chain, `{placeholder}` interpolation, missing kwarg survives, 18 core keys verified in both zh and en |
+| `test_session_state_atomic.py` | 37 | `update_state` atomicity + rollback on fn exception, `_normalize_path`, redirect target parsing, bg task pending/catchup |
+| `test_rule_schema.py` | 35 | Schema boundaries: 10/11/12 rules pass, 13 raises; duplicate IDs, invalid slugs, all field validations |
+| `test_config_defaults.py` | 19 | `DEFAULTS` completeness: all 12 keys present + types, bool False / None override, `load()` returns copy not reference |
+
+Total test count 622 → **781** (153 PR-added + 6 v0.11.4 lockdowns). Post-merge maintainer follow-ups: ruff F401 (2 unused imports) + E741 (7 ambiguous `l` → `ln`) cleanup, mypy `tests/` fix (`list[dict]` → `list` accepting `Any|None`).
+
+### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point overhaul
 
 - **#1 demo GIF**: Added bilingual animated SVGs `assets/demo-en.svg` (27K English) + `assets/demo-zh.svg` (34K Chinese). 5-scene narrative with banner separators + slow pacing: (1) UserPromptSubmit rule header injection, (2) PreToolUse `sleep 30` block, (3) Stop response-level short-term intent catch (v0.11.0), (4) Stop keep-pushing nudge, (5) PostToolUse mid-conversation reinject at Opus 60K threshold. Generated via non-interactive `asciinema rec --command` + `termtosvg render` (both pure Python tools, no TTY needed). Independent `KARMA_HOME` per locale to ensure English demo shows English rules.
 - **#2 outdated numbers**: tests 460 → 775, source `~5.5K lines` → `~8.6K lines`.
 - **#3 architecture diagram**: Two Mermaid flowcharts — system data flow at "Why it works" section + hook lifecycle timeline at "8 hook positions" section. GitHub web auto-renders.
 - **#4 tagline**: One-line punch above intro: "Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms."
 - **#5 docs section description**: Fixed stale "(Chinese)" labels — docs/PRD.md, ARCHITECTURE.md, CODEX_BACKEND.md, CLAUDE.md are all English. Removed misleading "Most internal docs are Chinese-only — deprioritized" sentence; clarified bilingual coverage + welcomed translation PRs for HANDOFF gap.
+
+### "Agents' honest take" section in README
+
+New top-level section (above "Real problems") with Claude (Opus 4.7) + Codex (GPT 5.5) self-evaluations of working with karma. First-person social proof from the very Agents karma is built to guide. Bilingual.
+
+### Branch protection on `main`
+
+Configured via GitHub API: PR merges require all 4 CI matrix jobs to pass (`ubuntu+macos × py3.11+3.12`), force-pushes to main are blocked, deletion of main is blocked. `enforce_admins=false` keeps maintainer admin-override for emergency hotfixes.
+
+### CHANGELOG translation (batch 1)
+
+v0.11.x narrative prose (78 lines across v0.11.3 / v0.11.2 / v0.11.1 / v0.11.0 + audit ratio table) translated from Chinese to English. Reference quotes (engine regex literals, user-quoted-feedback, CLI output verbatim, signal phrase literals) intentionally preserved as Chinese source material — translating them would lose source fidelity.
+
+### Gate
+
+- **781/781 tests** passing under both `KARMA_LOCALE=zh` and `KARMA_LOCALE=en` (was 622)
+- All 5 gates: pytest / ruff / mypy `karma/` + `tests/` / wheel build / CI 4 matrix
+- Memory accumulated this session: `feedback-dont-defer-doable-now` (5 borrow-excuse incidents → "Verify before defer"), `feedback-loud-failure-pre-push-ci-check` (local gates must equal CI gates), `feedback-review-pr-then-switch-back` (5th race + command-chain branch verification), `feedback-language-preference-no-engine` (style preferences only need preference injection)
+
+### Meta-pattern: first loyal user feedback loop
+
+Issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) had 5 valid points; maintainer initial response punted 3 of them ("TTY needed for GIF" / "wait for PR merge" / "ASCII timeline is enough"). User pushed back three times until each excuse was Verified-Before-Deferred. Outcome: every excuse turned out to be solvable in 5 minutes (`pip install asciinema termtosvg` + `--command` non-interactive mode + KARMA_HOME isolation). Memory `feedback-dont-defer-doable-now` is the lesson distilled.
 
 ## [0.11.3] — 2026-05-16 (minor — `karma audit --days N` time-window filter: dogfood-driven decisions stop being diluted by stale data)
 

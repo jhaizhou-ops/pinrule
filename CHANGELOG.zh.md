@@ -6,17 +6,70 @@
 
 ## [Unreleased]
 
-### Squash-merge (没升 version)
+## [0.11.4] — 2026-05-17（minor — hook 输出 i18n + `long-term-fundamental` 英文 response-level pattern + 第一忠实用户 PR #7 + 5 场景双语 demo）
 
-- **PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source** — 153 个新测试覆盖 6 个 untested 模块 (`run_checks` 调度 / `format_rule` 注入 / `i18n.tr()` fallback / `session_state.update_state` 原子性 / `rule.schema` 边界 / `config.DEFAULTS` 完整性). 总测试 622 → **775**. 维护者 commit `5a677e4` 补 ruff F401 + E741 cleanup (7 处 ambiguous `l` → `ln`); commit `4d1f1aa` 补 mypy `tests/` (`list[dict]` → `list` 接受 Any|None).
+一个 session 跟「第一忠实用户」反馈循环驱动的密集迭代:
 
-### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point 大改 (没升 version)
+### 英文用户终于看到英文 hook 输出
+
+`pre_tool_use.py` + `stop.py` 硬编码中文模板 (「karma 拦截：违反」/「Agent 违反」/「建议：」等) — `KARMA_LOCALE=en` 对这些模板无效, 英文用户看到中英混杂 deny reason. v0.11.4 全部走 `tr()` + 加 6 个 locale key 双语:
+- `hook.pre_tool_use.deny_engine_reason` / `deny_keyword_reason`
+- `hook.stop.violation_line` / `suggestion_line` / `keyword_line`
+
+Lockdown 测试 `test_pre_tool_use_deny_reason_uses_tr_not_hardcoded_chinese` + `test_stop_violation_line_uses_tr_not_hardcoded_chinese` grep 源码字面, 任何 PR 回退硬编码模板都被 CI 拦.
+
+### `long-term-fundamental` response-level 加英文 pattern (类 3+4)
+
+v0.11.0 只加中文 pattern. 英文 Agent (含 codex CLI) 说「let me hardcode this」/「I'll patch this」/「I know this is a hack but for now」永远抓不到. v0.11.4 加英文对偶 pattern 镜像中文类 1+2:
+- **类 3** (第一人称 + 短期动作): `(?:let me|I'?ll|let's just|for now|temporarily|just)` + 50 字内 `(?:hardcode|patch|hack around|workaround|quick fix|skip the test|ship it|kludge|band-aid)`
+- **类 4** (承认但仍 ship): `(?:I know|aware|understand)` + `(?:not the right|long-term|clean|proper|ideal|is a hack)` + `(?:but|however|for now|temporarily)`
+
+4 个新 lockdown 含假阳防御 (「short-term patches won't work, dig the root cause」必须穿透).
+
+### PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source — 153 个新测试覆盖 6 个 untested 模块
+
+第一忠实用户第三次贡献 (#1 #2 之后). Coverage audit 找出 6 个模块没单元测试:
+
+| 文件 | 测试 | 覆盖 |
+|---|---|---|
+| `test_run_checks.py` | 12 | `run_checks()` 调度: unknown name 静默跳过, exceptions fail-open, `KARMA_DEBUG` stderr, 多 hit 排序, kwargs 转发 |
+| `test_rule_format.py` | 20 | `format_for_injection` / `format_anchor_only`: 空 rules / 数字列表 / 偏离标记 / 多行缩进 / zh locale header |
+| `test_i18n.py` | 30 | `tr()` fallback / `{placeholder}` 插值 / missing kwarg 不崩 / 18 个核心 key zh+en 双语验证 |
+| `test_session_state_atomic.py` | 37 | `update_state` 原子性 + fn 抛异常 rollback / `_normalize_path` / redirect target 解析 / bg task pending/catchup |
+| `test_rule_schema.py` | 35 | Schema 边界: 10/11/12 rules pass, 13 raises / 重复 ID / 7 种 invalid slug / 全字段类型校验 |
+| `test_config_defaults.py` | 19 | `DEFAULTS` 完整性: 12 个 key 全存在 + 类型 / bool False / None override / `load()` 返 copy 不是 reference |
+
+总测试 622 → **781** (153 PR 加 + 6 v0.11.4 lockdown). 维护者 follow-up: ruff F401 (2 处 unused import) + E741 (7 处 ambiguous `l` → `ln`) cleanup, mypy `tests/` fix (`list[dict]` → `list` 接 `Any|None`).
+
+### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point 大改
 
 - **#1 demo GIF**: 加双语动画 SVG `assets/demo-en.svg` (27K 英文) + `assets/demo-zh.svg` (34K 中文). 5 场景含 banner 间隔 + 慢节奏: (1) UserPromptSubmit 头部注入规则, (2) PreToolUse `sleep 30` 实时拦, (3) Stop response 层短期话术拦 (v0.11.0), (4) Stop keep-pushing 推动继续, (5) PostToolUse 长 context 累积到 Opus 60K 拐点中段补一次完整规则. 用非交互 `asciinema rec --command` + `termtosvg render` 生成 (都是纯 Python 工具, 不需要 TTY). 独立 `KARMA_HOME` 每个 locale 一份, 英文 demo 真显英文规则.
 - **#2 数字过时**: tests 460 → 775, 源码 `~5.5K 行` → `~8.6K 行`.
 - **#3 架构图**: 双 Mermaid flowchart — 系统数据流图在「为什么有效」段 + hook 生命周期时序图在「8 个 hook 位置全覆盖」段. Github web 自动渲染.
 - **#4 tagline**: 一行 punch 在介绍上方: 「让 AI 在长任务里不忘掉你的规则。纯工程, 零 LLM, < 60ms.」
 - **#5 docs section 描述**: 修 stale "(Chinese)" 标签 — docs/PRD.md / ARCHITECTURE.md / CODEX_BACKEND.md / CLAUDE.md 实际都是英文版. 删 "Most internal docs are Chinese-only — deprioritized" 误导句, 改成明确所有都双语 + 欢迎给 HANDOFF gap 提翻译 PR.
+
+### README 加「Agent 现身说法」段
+
+新顶级 section (在「你遇到的问题」之前), 含 Claude (Opus 4.7) + Codex (GPT 5.5) 跟 karma 协作的自评. 第一人称 social proof 来自 karma 实际服务的 Agent 自己. 双语.
+
+### main 分支保护
+
+通过 GitHub API 设: PR merge 必须 4 个 CI matrix job (`ubuntu+macos × py3.11+3.12`) 全过, 禁 force push 到 main, 禁删 main 分支. `enforce_admins=false` 保留维护者 admin override 应急能力.
+
+### CHANGELOG 翻译 (batch 1)
+
+v0.11.x 叙述段 (78 行 跨 v0.11.3 / v0.11.2 / v0.11.1 / v0.11.0 + audit 数字表) 从中文翻成英文. Reference quote (engine regex 字面 / 用户原话 / CLI output 字面 / signal phrase 字面) 刻意保留中文 source 字面 — 翻译会失真.
+
+### Gate
+
+- **781/781 测试** 双 locale 都过 (原 622)
+- 5 道 gate: pytest / ruff / mypy `karma/` + `tests/` / wheel build / CI 4 matrix
+- 本 session 记 memory 累积: `feedback-dont-defer-doable-now` (5 次借口推迟 → 「Verify before defer」), `feedback-loud-failure-pre-push-ci-check` (本机 gate 必须 = CI gate), `feedback-review-pr-then-switch-back` (第 5 次撞 race + 命令链 branch verify), `feedback-language-preference-no-engine` (风格类偏好只 preference 注入)
+
+### 元教训: 第一忠实用户反馈循环
+
+Issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 提了 5 个有效 point; 维护者初次回应推迟了 3 个 (「demo GIF 需要 TTY」/「等 PR merge」/「ASCII timeline 够了」). 用户推了 3 次, 每个借口被「先 verify」逐个打回. 结果: 每个借口实际 5 分钟就能解决 (`pip install asciinema termtosvg` + `--command` 非交互 + KARMA_HOME 隔离). memory `feedback-dont-defer-doable-now` 锁这个教训.
 
 ## [0.11.3] — 2026-05-16（minor — `karma audit --days N` 时间窗口过滤: dogfood 决策不被老数据稀释）
 
