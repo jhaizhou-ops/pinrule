@@ -186,6 +186,19 @@ def main() -> int:
         except Exception:
             pass
 
+    # 每 turn 给 session_state.turn_count + 1 — 给后续按 turn 距离的违反统计
+    # 同时重置 stop_block_count（新 user prompt = 新 turn，干预计数清 0）
+    # 顺便 catchup pending background 任务（task #8：catchup 之前只在 PostToolUse
+    # 跑，bg 完成后第一个触发的 hook 可能是这里 / pre_tool_use，要多 hook 都跑）
+    #
+    # v0.11.2 fix: turn / model telemetry 早于 rules.yaml 加载. karma 系统级
+    # 状态 (turn_count / model / pending_bg_tasks) 跟用户有没有装 rules 无关 —
+    # 即使 rules 为空也要推进, 否则空 rules 用户的所有 model-aware reinject 阈值 +
+    # turn-based 违反窗口都失效. 上一版顺序错: 没 rules 就早 return, model 永远
+    # 没写进 state. CI clean home 永远捕不到 model.
+    session_id = payload.get("session_id", "") or "default"
+    current_turn, state = _advance_turn_state(session_id, payload)
+
     try:
         sticky_list = load()
     except RuleConfigError as e:
@@ -196,13 +209,6 @@ def main() -> int:
     if not sticky_list:
         _output_passthrough()
         return 0
-
-    # 每 turn 给 session_state.turn_count + 1 — 给后续按 turn 距离的违反统计
-    # 同时重置 stop_block_count（新 user prompt = 新 turn，干预计数清 0）
-    # 顺便 catchup pending background 任务（task #8：catchup 之前只在 PostToolUse
-    # 跑，bg 完成后第一个触发的 hook 可能是这里 / pre_tool_use，要多 hook 都跑）
-    session_id = payload.get("session_id", "") or "default"
-    current_turn, state = _advance_turn_state(session_id, payload)
 
     # 偏离回顾标记 — 按 turn 距离查最近违反（不是人类时钟）
     # 默认 5 turn 内违反过的规则标偏离回顾。窗口可配。
