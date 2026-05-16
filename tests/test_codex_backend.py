@@ -59,11 +59,31 @@ def test_exec_command_cat_extracts_read_file_path():
     assert out["read_file_paths"] == ["relative/path.py"]
 
 
-def test_exec_command_sed_i_marks_write_and_does_not_extract_path():
-    out = _normalize({"command": "sed -i '' 's/old/new/' /path/to/file.py"})
+def test_exec_command_sed_i_marks_write_and_emits_write_file_paths():
+    out = _normalize({"command": "sed -i 's/foo/bar/' /workspace/x.py"})
     assert out == {
-        "command": "sed -i '' 's/old/new/' /path/to/file.py",
+        "command": "sed -i 's/foo/bar/' /workspace/x.py",
         "is_write": True,
+        "write_file_paths": ["/workspace/x.py"],
+    }
+
+
+def test_exec_command_tee_emits_write_file_paths():
+    out = _normalize({"command": "tee -a /workspace/x.py"})
+    assert out == {
+        "command": "tee -a /workspace/x.py",
+        "is_write": True,
+        "write_file_paths": ["/workspace/x.py"],
+    }
+
+
+def test_exec_command_single_pipe_tee_emits_write_file_paths():
+    command = "uv run python tests/distillation/run_eval_harness.py | tee /tmp/delivery4_eval_before.md"
+    out = _normalize({"command": command})
+    assert out == {
+        "command": command,
+        "is_write": True,
+        "write_file_paths": ["/tmp/delivery4_eval_before.md"],
     }
 
 
@@ -117,6 +137,21 @@ def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
     out = CodexBackend().emit_allow({})
     assert out == "{}"
     assert json.loads(out) == {}
+
+
+def test_codex_emit_context_injection_shape_inherits_default():
+    out = CodexBackend().emit_context_injection("SessionStart", "karma context", {})
+    assert json.loads(out) == {
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": "karma context",
+        }
+    }
+
+
+def test_codex_emit_stop_block_shape_inherits_default():
+    out = CodexBackend().emit_stop_block("keep going", {})
+    assert json.loads(out) == {"decision": "block", "reason": "keep going"}
 
 
 def test_module_docstring_contains_adr_001():
@@ -281,3 +316,30 @@ def test_codex_exec_command_pytest_records_bash_test_pass(tmp_path, monkeypatch)
     assert reloaded.has_recent_test_pass()
     assert reloaded.recent_bash[-1].command_summary == "pytest tests/"
     assert reloaded.recent_bash[-1].is_test_cmd
+
+
+def test_codex_exec_command_sed_i_records_canonical_write_path(tmp_path, monkeypatch):
+    import io
+    import sys
+
+    from karma import session_state
+    from karma.hooks import post_tool_use
+
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    state = session_state.SessionState(session_id="codex-sed-write")
+    session_state.save(state, base_dir=tmp_path)
+
+    payload = {
+        "session_id": "codex-sed-write",
+        "tool_name": "exec_command",
+        "tool_input": {"cmd": "sed -i 's/foo/bar/' /workspace/x.py"},
+        "tool_response": "",
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    assert post_tool_use.main() == 0
+
+    reloaded = session_state.load("codex-sed-write", base_dir=tmp_path)
+    assert "/workspace/x.py" in reloaded.edit_files
+    assert reloaded.last_edit_ts > 0
