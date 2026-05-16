@@ -12,7 +12,7 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [0.10.2] — 2026-05-16 (minor — codex closes the gap to Claude Code parity: SessionStart + exec_command→Bash + auto-trust onboarding)
 
-**Second codex-owned PR merged**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) by Codex CLI itself. Codex backend gains 3 capabilities (SessionStart event, exec_command→Bash normalization, auto-trust hooks) closing the major v0.10.1 gaps. Concrete coverage table at the bottom of this section — only PreCompact + SubagentStart/Stop remain not covered, and these aren't blockers because codex doesn't have compact / sub-agent dispatch concepts.
+**Second codex-owned PR merged**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) by Codex CLI itself. Codex backend gains 3 capabilities (SessionStart event, exec_command→Bash normalization, auto-trust hooks) closing the major v0.10.1 gaps. Concrete coverage table at the bottom of this section — only PreCompact + SubagentStart/Stop remain not covered because Codex's 6 hook events don't expose those lifecycle moments to third-party hooks (Codex platform internally has the concepts via `enable_request_compression` and `enable_fanout` feature flags, but they're not hookable). Doc clarification post-v0.10.2 (the earlier "codex has no equivalent concepts" wording was incorrect — Codex has the concepts, the hook API just doesn't surface them).
 
 ### Codex SessionStart event integration (Task A)
 
@@ -54,7 +54,7 @@ Codex CLI runs all shell via `exec_command` tool name. v0.10.1 only mapped `appl
 | apply_patch / Edit detection | ✅ | ✅ (envelope parser) | parity |
 | shell-as-Read detection | N/A (has Read tool) | ✅ (v0.10.1) | codex-specific advantage |
 | Auto-trust hooks | N/A | ✅ (v0.10.2 trusted_hash writer) | codex-specific |
-| PreCompact / SubagentStart/Stop | ✅ | ❌ (no codex equivalent) | not blocked — codex has no compact / sub-agent dispatch concept |
+| PreCompact / SubagentStart/Stop | ✅ | ❌ (codex hook API doesn't expose these events) | not blocked at karma layer — Codex platform internally has `enable_request_compression` (stable=true, internal context compaction) and `enable_fanout` / `child_agents_md` (under development, sub-agent features), but Codex's 6 hook events (SessionStart/PreToolUse/PermissionRequest/PostToolUse/UserPromptSubmit/Stop) don't surface compaction or sub-agent dispatch as hookable lifecycle events. Will revisit when Codex exposes them. |
 | PermissionRequest | N/A | not used | karma has no use case |
 
 ### karma maintainer-side counterpart (this commit)

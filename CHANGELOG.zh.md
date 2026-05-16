@@ -8,7 +8,7 @@
 
 ## [0.10.2] — 2026-05-16（minor — codex 关掉对 Claude Code 平价的主要缺口: SessionStart + exec_command→Bash + 自动信任 onboarding）
 
-**第二个 codex 自提 PR 合并**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) Codex CLI 自己提的. Codex backend 拿下 3 项能力 (SessionStart event / exec_command→Bash 归一化 / 自动信任 hook), 关掉 v0.10.1 主要差距. 完整覆盖表见本段末尾 — 只剩 PreCompact + SubagentStart/Stop 没覆盖, 但这俩不是阻塞(codex 没 compact / sub-agent dispatch 概念).
+**第二个 codex 自提 PR 合并**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) Codex CLI 自己提的. Codex backend 拿下 3 项能力 (SessionStart event / exec_command→Bash 归一化 / 自动信任 hook), 关掉 v0.10.1 主要差距. 完整覆盖表见本段末尾 — 只剩 PreCompact + SubagentStart/Stop 没覆盖, 因为 Codex 6 个 hook event 没暴露这俩 lifecycle moment 给第三方 hook (Codex 平台内部**有**这些概念, 通过 `enable_request_compression` 和 `enable_fanout` 等 feature flag, 但不 hookable). v0.10.2 之后修正措辞 (之前 "codex 无等价概念" 表述错误 — codex 平台内部有, 只是 hook API 没暴露).
 
 ### Codex SessionStart event 接入 (任务 A)
 
@@ -50,7 +50,7 @@ Codex CLI 跑 shell 全走 `exec_command` tool 名. v0.10.1 只映射 `apply_pat
 | apply_patch / Edit 识别 | ✅ | ✅ (envelope parser) | 平价 |
 | shell-as-Read 识别 | N/A (有 Read tool) | ✅ (v0.10.1) | codex 专属优势 |
 | 自动信任 hook | N/A | ✅ (v0.10.2 trusted_hash writer) | codex 专属 |
-| PreCompact / SubagentStart/Stop | ✅ | ❌ (codex 无等价) | 不阻塞 — codex 无 compact / sub-agent dispatch 概念 |
+| PreCompact / SubagentStart/Stop | ✅ | ❌ (codex hook API 没暴露对应 event) | karma 层不阻塞 — Codex 平台内部**有这些概念** (`enable_request_compression` stable=true 内部上下文压缩, `enable_fanout` / `child_agents_md` 是 sub-agent feature flag under development), 但 Codex 6 个 hook event (SessionStart/PreToolUse/PermissionRequest/PostToolUse/UserPromptSubmit/Stop) **没暴露** compact 或 sub-agent dispatch 作为 hookable lifecycle event. Codex 暴露后再接入. |
 | PermissionRequest | N/A | 不用 | karma 无用例 |
 
 ### karma 维护者端配套 (本 commit)
