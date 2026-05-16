@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/karma?label=release)](https://github.com/jhaizhou-ops/karma/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/karma)](https://github.com/jhaizhou-ops/karma/commits/main)
 
-> **Keeps your AI aligned with your rules across long tasks — pure engineering, zero LLM, < 60ms hook.**
+> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms.**
 
 <details>
 <summary><b>📺 Live demo: karma denies <code>sleep 30</code> in real time (click to expand)</b></summary>
@@ -259,6 +259,24 @@ Without `--force`, the new version is written to a `.new` sibling file so you ca
 
 ## Why it works
 
+System architecture at a glance:
+
+```mermaid
+flowchart LR
+    R[(rules.yaml<br/>5-10 core directions)]
+    K[karma engine<br/>regex + counting<br/>zero LLM, < 60ms]
+    A[🤖 Agent<br/>Claude / Codex / Gemini]
+    V[(violations.jsonl<br/>audit history)]
+
+    R ==>|inject every turn| K
+    K ==>|prompt header| A
+    A ==>|tool call / response| K
+    K -.->|hit → deny + log| V
+    V -.->|next-turn drift marker| K
+```
+
+`rules.yaml` is the only thing you maintain. karma reads it, injects it into every prompt header, scans tool calls and responses for violations, and feeds detected drift back into the next turn's marker. No retrieval, no scoring, no LLM in the loop.
+
 karma isn't a linter, a scorer, or a retrieval system. It addresses four real but commonly-overlooked LLM collaboration problems:
 
 ### 1. Long-context attention decay is real
@@ -286,7 +304,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | Dimension | Number | Note |
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
-| **Source code** | ~5.5K lines Python | Readable, modifiable, no magic |
+| **Source code** | ~8.6K lines Python | Readable, modifiable, no magic |
 | **Quality gates** | lint / type-check / dead-code / 622 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
 | **Token cost per turn** | ~490 tokens compact anchor at UserPromptSubmit; full baseline (~1.8K tokens) injected once at SessionStart + auto-refreshed when context accumulates past the current model's decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session |
@@ -430,14 +448,16 @@ The 7 default rules in `data/rules.dev.example.yaml` are real pain points accumu
 
 ## Documentation
 
-- [docs/PRD.md](./docs/PRD.md) — Product requirements, validation criteria, scenario positioning (Chinese)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Technical architecture, hook protocol, 8 check implementations (Chinese)
-- [CHANGELOG.md](./CHANGELOG.md) — Version change history (bilingual from v0.5.1 onward; pre-v0.5.1 is Chinese-only)
-- [docs/HANDOFF.md](./docs/HANDOFF.md) — Internal development handoff doc (Chinese)
-- [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary and contract (bilingual)
+All listed docs are bilingual (`.md` English + `.zh.md` Chinese):
+
+- [docs/PRD.md](./docs/PRD.md) — Product requirements, validation criteria, scenario positioning
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Technical architecture, hook protocol, 8 check implementations
+- [CHANGELOG.md](./CHANGELOG.md) — Version change history (bilingual from v0.5.1 onward; pre-v0.5.1 release notes are Chinese-only)
+- [docs/HANDOFF.md](./docs/HANDOFF.md) — Internal development handoff entry (English summary; full timeline in `.zh.md`)
+- [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary and 8-method contract
 - [CLAUDE.md](./CLAUDE.md) — Project charter for Claude Code collaboration
 
-Most internal docs are Chinese-only — translating them was deprioritized in favor of shipping. README + CHANGELOG are bilingual.
+Translation PRs welcome for any bilingual gap (HANDOFF.md still summary-only).
 
 ## Acknowledgments
 
