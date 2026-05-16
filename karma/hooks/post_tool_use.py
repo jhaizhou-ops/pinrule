@@ -22,10 +22,11 @@ chinese-plain）。
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 from karma import session_state
-from karma.backends.protocol_adapter import normalize_tool_name
+from karma.backends.protocol_adapter import normalize_tool_input, normalize_tool_name
 from karma.checks.description_context import is_description_context
 
 
@@ -62,6 +63,18 @@ def main() -> int:
         print(json.dumps({}))
         return 0
 
+    # v0.9.16 debug instrumentation: KARMA_DEBUG_DUMP_PAYLOAD env 设到 path 时
+    # append payload (jsonl) — cross-backend audit / 真 schema sampling 用。
+    # 默认关，不影响正常运行。
+    _dump = os.environ.get("KARMA_DEBUG_DUMP_PAYLOAD")
+    if _dump:
+        try:
+            import json as _json
+            with open(_dump, "a", encoding="utf-8") as _f:
+                _f.write(_json.dumps(payload, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
 
     session_id = payload.get("session_id", "") or "default"
     # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state 文件
@@ -71,8 +84,15 @@ def main() -> int:
     # record_read / record_edit / record_bash 全部按 canonical 比较，让 Gemini
     # / Codex 真触发 state 推进（之前 apply_patch 漏推 last_edit_ts 让 evidence
     # check 旧测试通过状态被错保留 → git commit 绕过 evidence 门）。
-    tool_name = normalize_tool_name(payload.get("tool_name", ""), payload)
-    tool_input = payload.get("tool_input", {}) or {}
+    raw_tool_name = payload.get("tool_name", "")
+    tool_name = normalize_tool_name(raw_tool_name, payload)
+    # v0.9.16 cross-backend phase 2: tool_input 也归一化 — Codex apply_patch
+    # envelope → karma canonical Edit-shape dict 含 _codex_patch_files 让
+    # record_edit 遍历所有 Update/Add 路径推 last_edit_ts.
+    raw_tool_input = payload.get("tool_input", {})
+    tool_input = normalize_tool_input(raw_tool_name, raw_tool_input, payload)
+    if not isinstance(tool_input, dict):
+        tool_input = {}
     tool_response = payload.get("tool_response", "") or ""
 
     # v0.9.8: 整段 modify + smart_reinject 进 update_state fn，让跨进程原子。
@@ -123,12 +143,34 @@ def main() -> int:
                     state.record_edit(fp)
                 state.record_read(fp)
             elif tool_name == "Edit":
-                # Edit 只改部分 — 仍要求事先 Read 全文
-                # 描述上下文文件 Edit 不推 last_edit_ts（同 Write/NotebookEdit 逻辑）
-                fp = tool_input.get("file_path", "")
-                is_desc, _ = is_description_context(tool_name, tool_input)
-                if not is_desc:
-                    state.record_edit(fp)
+                # v0.9.16 Codex apply_patch multi-file: protocol_adapter 把
+                # envelope 解出 _codex_patch_files = [{"op", "path"}, ...].
+                # 遍历每条 Update / Add 各 record_edit + record_read（Update 视为
+                # 已读因为 apply_patch 自身带 context；Add 是 Write 等价新建）.
+                # Delete 不算代码 edit，跳过.
+                codex_patch_files = tool_input.get("_codex_patch_files")
+                if codex_patch_files:
+                    for f in codex_patch_files:
+                        op = f.get("op")
+                        path = f.get("path", "")
+                        if not path:
+                            continue
+                        if op == "Delete":
+                            continue
+                        # Update/Add 都视为编辑 — record_edit 内部自己判 docs 不
+                        # 推 last_edit_ts（_is_non_code_edit_path）.
+                        synth_input = {"file_path": path, "new_string": ""}
+                        is_desc, _ = is_description_context("Edit", synth_input)
+                        if not is_desc:
+                            state.record_edit(path)
+                        state.record_read(path)
+                else:
+                    # Edit 只改部分 — 仍要求事先 Read 全文
+                    # 描述上下文文件 Edit 不推 last_edit_ts（同 Write/NotebookEdit 逻辑）
+                    fp = tool_input.get("file_path", "")
+                    is_desc, _ = is_description_context(tool_name, tool_input)
+                    if not is_desc:
+                        state.record_edit(fp)
 
         # v0.4.24+v0.4.32：智能 sticky reinject — 按 token 累积阈值决定。
         # 在 lock 内跑保证 last_reinject_byte_seq 节流跨进程一致（fn 返回该值

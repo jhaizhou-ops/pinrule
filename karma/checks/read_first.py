@@ -22,7 +22,36 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
         return None
     if session_state is None:
         return None  # 没 session 历史就不能判断
-    file_path = (tool_input or {}).get("file_path", "")
+    ti = tool_input or {}
+
+    # v0.9.16 Codex apply_patch multi-file: protocol_adapter.normalize_tool_input
+    # 把 envelope 解成 _codex_patch_files = [{"op", "path"}, ...]. 任一 Update
+    # path 未 Read 过 → 拦. Add path (新建文件) 跟 Write 全新逻辑一致豁免.
+    codex_patch_files = ti.get("_codex_patch_files")
+    if codex_patch_files:
+        for f in codex_patch_files:
+            op = f.get("op")
+            path = f.get("path", "")
+            if not path:
+                continue
+            if op == "Add":
+                # 新建文件不需要先 Read（跟 Write 新文件豁免对齐）
+                continue
+            if op == "Delete":
+                # 删除不算 edit-without-read（karma 暂不拦 Delete）
+                continue
+            # op == "Update": 修改已有文件必须先 Read
+            if not session_state.has_read(path):
+                return CheckHit(
+                    rule_id=_STICKY_ID,
+                    trigger=tr("check.read_first.trigger", tool="apply_patch", file_path=path),
+                    trigger_key="check.read_first.trigger",
+                    snippet=f"apply_patch Update({path!r})",
+                    suggested_fix=tr("check.read_first.fix", file_path=path),
+                )
+        return None
+
+    file_path = ti.get("file_path", "")
     if not file_path:
         return None
 

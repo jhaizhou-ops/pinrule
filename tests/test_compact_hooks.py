@@ -38,16 +38,18 @@ def test_pre_compact_hook_auto_allows():
         cwd=PROJECT_ROOT
     )
 
-    if result.returncode == 0:
-        output = json.loads(result.stdout)
-        # 新 API：输出 additionalContext（passthrough 时输出 {}）
-        # sticky 存在时应注入 PreCompact additionalContext
-        if "hookSpecificOutput" in output:
-            assert output["hookSpecificOutput"]["hookEventName"] == "PreCompact"
-            assert "additionalContext" in output["hookSpecificOutput"]
-    else:
-        print("STDERR:", result.stderr)
-        pytest.skip(f"Hook execution failed: {result.stderr}")
+    assert result.returncode == 0, f"PreCompact hook 失败: {result.stderr}"
+    output = json.loads(result.stdout)
+    # v0.9.16 (codex Minor #5 fix): 2026-05-15 PreCompact 协议不支持
+    # hookSpecificOutput → 永远 passthrough {}. 严格 assert {} 不让条件分支
+    # 静默允许回归（之前 `if "hookSpecificOutput" in output` 让 hook 万一
+    # 退回老的 hookSpecificOutput 输出测试也通过 — Claude Code 会忽略它，用户
+    # 看不到 snapshot 注入. snapshot 落盘 side effect 验证靠 PreCompact 真实
+    # 文件 mtime check, 跟 hook 输出 shape 解耦）.
+    assert output == {}, (
+        f"PreCompact 必须严格 passthrough {{}} (Claude Code 协议不支持其他输出), "
+        f"实际: {output!r}"
+    )
 
 
 def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
@@ -144,9 +146,11 @@ def test_pre_compact_hook_manual_allows():
 
     assert result.returncode == 0
     output = json.loads(result.stdout)
-    # 新 API：sticky 存在时输出 additionalContext，没 sticky 时 passthrough {}
-    if "hookSpecificOutput" in output:
-        assert output["hookSpecificOutput"]["hookEventName"] == "PreCompact"
+    # v0.9.16 (codex Minor #5 fix): PreCompact 协议不支持 hookSpecificOutput
+    # — 永远严格 {}, 跟 _auto_allows 测一致.
+    assert output == {}, (
+        f"PreCompact manual 也必须严格 passthrough {{}}, 实际: {output!r}"
+    )
 
 
 def test_hooks_graceful_fallback_on_sticky_error():
@@ -244,9 +248,11 @@ def test_subagent_stop_hook_emits_reminder():
 
     assert result.returncode == 0
     output = json.loads(result.stdout)
-    # 有 sticky 时输出 additionalContext，注入「子 Agent 已完成」+ sticky id 回声
-    if "hookSpecificOutput" in output:
-        assert output["hookSpecificOutput"]["hookEventName"] == "SubagentStop"
-        ctx = output["hookSpecificOutput"]["additionalContext"]
-        assert "explore-1" in ctx  # agent_id 实际注入
-        assert "sticky" in ctx.lower() or "方向" in ctx  # sticky 关键方向回声
+    # v0.9.16 (codex Minor #5 fix): 2026-05-15 SubagentStop 协议不支持
+    # hookSpecificOutput → karma 改 passthrough {}. 严格 assert {} 不让条件分支
+    # 静默允许回归. 子 Agent state 销毁仍走 side effect (subagent_stop.main 内部),
+    # 主 Agent 透明度提醒由 Claude Code UI 自己显示, karma 不再 echo.
+    assert output == {}, (
+        f"SubagentStop 必须严格 passthrough {{}} (Claude Code 协议不支持 "
+        f"additionalContext on SubagentStop), 实际: {output!r}"
+    )

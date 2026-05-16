@@ -26,3 +26,9 @@ session_state_max_age_days: 30
 
 # SessionState 保留最近 Bash 摘要条数
 max_recent_bash: 15
+
+# 中段规则重新注入累积 token 阈值 (v0.9.16+)
+# 取消注释并填数字 → 强制覆盖按模型自适应阈值.
+# 默认 (注释保留) → 按当前模型自适应 (Opus / Sonnet / Haiku 等阈值表).
+# 例: 长 turn 严重 attention 漂移想更频繁注入 → reinject_every_n_tokens: 4000
+# reinject_every_n_tokens: null

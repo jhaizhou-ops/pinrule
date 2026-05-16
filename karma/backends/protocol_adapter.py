@@ -17,8 +17,10 @@ cross-backend bug：
    - 影响：Gemini 下 0 check 触发；Codex 用户 apply_patch 漏所有编辑型 check（绕 evidence/read_first/long_term）
 
 这个模块是 v0.9.15 phase 1 修复 — 统一 input normalize + output shape adapter。
-phase 2 留 apply_patch diff parsing（multi-file path 提取）+ 本机 Codex/Gemini
-真集成测试。
+v0.9.16 phase 2 完成：`normalize_tool_input` + `parse_apply_patch_envelope` 真
+解 codex apply_patch envelope（基于本机捕获的 codex 0.130.0 + GPT-5.5 真 session
+rollout 真 tool_call 字面），支持 multi-file 让 read_first / record_edit 真覆盖
+所有路径。
 
 Sources:
 - Gemini hooks reference: https://geminicli.com/docs/hooks/reference/
@@ -46,7 +48,8 @@ Gemini BeforeTool 用顶层 decision），所以 protocol_adapter 主要服务 P
 from __future__ import annotations
 
 import json
-from typing import Literal
+import re
+from typing import Any, Literal
 
 # karma 内部 canonical tool_name — 跟 Claude Code 原生命名对齐（历史原因 +
 # karma checks 已用这套名比较，归一化 target 是「不改 check 逻辑」最稳）
@@ -151,3 +154,89 @@ def emit_allow(payload: dict) -> str:
             "permissionDecision": "allow",
         }
     })
+
+
+# v0.9.16 Codex apply_patch envelope parser
+# Real captured shape (codex 0.130.0 + GPT-5.5, 2026-05-16 session rollout):
+#     "*** Begin Patch\n*** Update File: <path>\n@@\n+...\n*** End Patch\n"
+# Multi-file supported via repeated "*** Update File:" / "*** Add File:" /
+# "*** Delete File:" blocks within one envelope. Paths may have leading
+# whitespace; strip them.
+_APPLY_PATCH_OP_RE = re.compile(
+    r"^\*\*\*\s+(Update|Add|Delete)\s+File:\s*(.+?)\s*$",
+    re.MULTILINE,
+)
+_APPLY_PATCH_BEGIN = "*** Begin Patch"
+
+
+def parse_apply_patch_envelope(envelope: str) -> list[dict[str, str]]:
+    """Parse codex apply_patch envelope → list of {"op", "path"}.
+
+    op ∈ {"Update", "Add", "Delete"}.
+
+    Returns [] for non-envelope input (malformed / empty / unrelated string).
+    Honest scope: handles standard codex envelope grammar; doesn't validate
+    @@ hunks or +/- line content (karma only needs file paths for state
+    tracking).
+    """
+    if not envelope or _APPLY_PATCH_BEGIN not in envelope:
+        return []
+    return [
+        {"op": m.group(1), "path": m.group(2).strip()}
+        for m in _APPLY_PATCH_OP_RE.finditer(envelope)
+    ]
+
+
+def _extract_codex_patch_text(raw_tool_input: Any) -> str:
+    """codex hook payload 里 apply_patch 的 tool_input 可能是裸字符串或 wrap dict.
+
+    Real codex session rollout (custom_tool_call) 显示 `input` 字段是字符串.
+    Hook payload 里 codex 可能 wrap 成 `{"input": "..."}` 或 `{"command": "..."}` —
+    暂未捕获真 hook payload（codex exec mode 没 fire hook），这是文档+rollout
+    推断的兜底.
+    """
+    if isinstance(raw_tool_input, str):
+        return raw_tool_input
+    if isinstance(raw_tool_input, dict):
+        for key in ("input", "patch", "command", "diff"):
+            v = raw_tool_input.get(key)
+            if isinstance(v, str) and v.strip():
+                return v
+    return ""
+
+
+def normalize_tool_input(raw_tool_name: str, raw_tool_input: Any, payload: dict) -> Any:
+    """Codex apply_patch → karma canonical Edit-shape dict.
+
+    For non-codex / non-apply_patch tool calls: returns raw_tool_input unchanged.
+
+    Returns dict shape:
+        {
+            "file_path": <primary Update/Add path>,    # read_first single-path check
+            "new_string": <full envelope>,             # keyword scan visibility
+            "_codex_patch_files": [{"op", "path"}...], # post-hook record_edit per file
+        }
+
+    Multi-file patches: file_path is the first Update/Add. _codex_patch_files
+    carries the full list so post_tool_use can record_edit each. read_first
+    check internally iterates this list when present.
+    """
+    if raw_tool_name != "apply_patch":
+        return raw_tool_input
+    # Only codex uses apply_patch in karma's known backends.
+    backend = detect_backend(payload)
+    if backend == "gemini":
+        return raw_tool_input  # not a Gemini tool — passthrough
+    envelope = _extract_codex_patch_text(raw_tool_input)
+    files = parse_apply_patch_envelope(envelope)
+    if not files:
+        return raw_tool_input  # not a parseable envelope — passthrough
+    primary = next(
+        (f["path"] for f in files if f["op"] in ("Update", "Add")),
+        files[0]["path"],
+    )
+    return {
+        "file_path": primary,
+        "new_string": envelope,
+        "_codex_patch_files": files,
+    }

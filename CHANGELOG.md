@@ -10,6 +10,83 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.9.16] — 2026-05-16 (fix — codex apply_patch envelope parser via real captured payload; config DEFAULTS silent-drop; PreCompact/SubagentStop test asserts tightened)
+
+### Why this release
+
+Follow-up to v0.9.15 cross-backend phase 1. v0.9.15 normalized `tool_name` only and explicitly deferred `tool_input` normalization to phase 2 — the real codex `apply_patch` envelope shape wasn't yet captured. v0.9.16 closes phase 2 with **evidence-backed implementation**: parser locked against a real `custom_tool_call.input` literal captured from a fresh codex 0.130.0 + GPT-5.5 session rollout (2026-05-16 13:51:47 CST).
+
+### Codex apply_patch envelope true parser (Major #2 — phase 2 of cross-backend)
+
+**Real captured envelope** (codex 0.130.0 + GPT-5.5, session rollout `/Users/jhz/.codex/sessions/2026/05/16/rollout-2026-05-16T13-51-47-019e2f57-3d6b-76a3-9bc6-642d23262631.jsonl`):
+
+```
+*** Begin Patch
+*** Update File: /tmp/karma-codex-toy.py
+@@
++# v0.9.16 test
+*** End Patch
+```
+
+Codex `custom_tool_call.input` passes the **entire envelope as a single string** (not a structured dict). Multi-file patches concatenate multiple `*** Update File:` / `*** Add File:` / `*** Delete File:` blocks within one envelope.
+
+**Two new functions in `karma/backends/protocol_adapter.py`**:
+
+```python
+def parse_apply_patch_envelope(envelope: str) -> list[dict[str, str]]:
+    """Returns [{"op": "Update"|"Add"|"Delete", "path": str}, ...]"""
+
+def normalize_tool_input(raw_tool_name: str, raw_tool_input: Any, payload: dict) -> Any:
+    """For codex apply_patch: synth canonical Edit dict {file_path, new_string,
+    _codex_patch_files}. Other tool calls: passthrough unchanged."""
+```
+
+**Wired into both hooks**:
+- `pre_tool_use.py`: `tool_input = normalize_tool_input(...)` at entry. Multi-file patches expose `_codex_patch_files` list to downstream checks.
+- `post_tool_use.py`: When `tool_name == "Edit"` and `_codex_patch_files` is present, iterate each Update/Add path → `record_edit` + `record_read` per file (Delete skipped). `last_edit_ts` truly advances for codex multi-file commits — fixes the v0.9.15-era gap where evidence/commit gate was silently waved through on Codex.
+- `karma/checks/read_first.py`: Iterates `_codex_patch_files` when present — any Update path not yet Read triggers denial. Add paths exempted (new files, no prior Read required), Delete paths skipped. **Catches multi-file patches where only the primary file was Read.**
+
+### Defensive input shape handling
+
+`_extract_codex_patch_text()` handles both the bare-string form (verified from rollout) and possible dict-wrapped forms (`{"input": ...}`, `{"command": ...}`, etc.) — because the **hook-level** payload shape couldn't be directly captured: `codex exec` non-interactive mode does not fire user hooks even with `--enable hooks` (verified via `KARMA_DEBUG_DUMP_PAYLOAD` instrumentation + `codex features list`). Interactive codex (production path) is expected to fire hooks normally; defensive wrap-detection means karma works regardless of which exact shape the codex hook passes.
+
+### Config DEFAULTS silent-drop bug (Minor #4)
+
+`karma/config.py:load()` iterates `for key in DEFAULTS` to merge user config — so any user-settable knob **not** in `DEFAULTS` is silently dropped from `~/.claude/karma/config.yaml`. `reinject_every_n_tokens` was a documented user-tunable in `post_tool_use._build_smart_reinject` but missing from `DEFAULTS` → users writing `reinject_every_n_tokens: 4000` in their config were silently falling back to the model-adaptive default.
+
+**Fix**: Added `"reinject_every_n_tokens": None` to `DEFAULTS` (None preserves the "auto by model" semantics) + documented sample in `data/config.example.yaml` + new test `tests/test_config.py:test_reinject_every_n_tokens_in_defaults_and_user_override` locks the round-trip.
+
+### Compact/SubagentStop hook test asserts tightened (Minor #5)
+
+`tests/test_compact_hooks.py` had three sites with `if "hookSpecificOutput" in output:` conditional branches that silently passed if the hook regressed to emitting the (Claude-Code-unsupported) `hookSpecificOutput` shape on PreCompact/SubagentStop. Per 2026-05-15 official-docs verification, those events only support `decision`/`reason` mode — karma emits bare `{}` now. Tests now strict-assert `output == {}` so future regressions fail loud instead of green-silently.
+
+### Test coverage delta
+
+**+12 tests** in `tests/test_protocol_adapter.py` (22 total in file, was 11):
+- `test_parse_apply_patch_real_codex_envelope_single_file` — locks the real captured envelope literal
+- `test_parse_apply_patch_multi_file_with_add_and_delete` — covers all 3 ops (Update / Add / Delete)
+- `test_parse_apply_patch_empty_input_returns_empty_list` — empty / malformed safe
+- `test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape` — file_path + new_string + _codex_patch_files all populated
+- `test_normalize_tool_input_codex_apply_patch_dict_form_input_field` — dict-wrap fallback works
+- `test_normalize_tool_input_non_apply_patch_passthrough` — Claude/Gemini paths preserved
+- `test_normalize_tool_input_multi_file_primary_is_first_update` — primary file selection rule
+- `test_normalize_tool_input_malformed_envelope_passthrough` — garbage input safe
+- `test_read_first_multi_file_blocks_when_any_update_unread` — integration: multi-file read_first denial works
+- `test_read_first_multi_file_allows_when_all_updates_read` — integration: passes when fully Read
+- `test_post_tool_use_records_all_update_paths_in_multi_file_patch` — integration: record_edit + last_edit_ts truly advance for all paths
+
+Plus the config DEFAULTS test + tightened compact_hooks asserts.
+
+**Total**: 510/510 passing both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 498).
+
+### Verification
+
+- **510/510** passing both locales (was 498) — 12 new tests
+- All 6 local gates pass (pytest zh + en / ruff / mypy / vulture / wheel build+verify+smoke)
+- Wheel smoke test: clean venv `pip install karma-0.9.16-py3-none-any.whl` → parser correctly extracts file paths from real codex envelope, `normalize_tool_name("apply_patch", ...)` returns `"Edit"`, all `data/signals/` files shipped (force-include from v0.9.15 carried forward)
+
+Full details: [CHANGELOG.md](https://github.com/jhaizhou-ops/karma/blob/v0.9.16/CHANGELOG.md)
+
 ## [0.9.15] — 2026-05-16 (fix — cross-model audit (GPT-5.5) catches 3 critical cross-backend protocol bugs; karma had Claude-only assumptions hiding for entire repo lifetime)
 
 ### Why this release

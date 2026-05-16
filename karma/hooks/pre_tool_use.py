@@ -21,7 +21,12 @@ import sys
 import time
 
 from karma import session_state
-from karma.backends.protocol_adapter import emit_allow, emit_deny, normalize_tool_name
+from karma.backends.protocol_adapter import (
+    emit_allow,
+    emit_deny,
+    normalize_tool_input,
+    normalize_tool_name,
+)
 from karma.checks import run_checks
 from karma.checks.common import (
     extract_natural_language,
@@ -60,7 +65,14 @@ def main() -> int:
     # 也保留（rare cases 需要原值时仍可读 payload）。
     raw_tool_name = payload.get("tool_name", "")
     tool_name = normalize_tool_name(raw_tool_name, payload)
-    tool_input = payload.get("tool_input", {}) or {}
+    raw_tool_input = payload.get("tool_input", {})
+    # v0.9.16 cross-backend phase 2: tool_input 也归一化 — Codex apply_patch 的
+    # 字符串 envelope (*** Begin Patch ...) 解成 karma canonical {file_path,
+    # new_string, _codex_patch_files} 让 read_first / keyword scan / record_edit
+    # 真覆盖（之前只 normalize tool_name，Codex 编辑全部漏过这些 check）.
+    tool_input = normalize_tool_input(raw_tool_name, raw_tool_input, payload)
+    if not isinstance(tool_input, dict):
+        tool_input = {}
     session_id = payload.get("session_id", "") or "default"
     # v0.4.34 子 Agent 独立架构：agent_id 区分主/子 Agent
     # 主 Agent payload 没 agent_id 字段；子 Agent (Task tool 启动) payload 含 uuid

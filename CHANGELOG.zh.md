@@ -6,6 +6,83 @@
 
 ## [Unreleased]
 
+## [0.9.16] — 2026-05-16（fix — codex apply_patch envelope 真 parser（捕获的真 payload 锁字面）；config DEFAULTS 缺字段静默丢用户配置；PreCompact / SubagentStop 测试断言收紧）
+
+### 为什么发这版
+
+延续 v0.9.15 cross-backend phase 1。v0.9.15 只 normalize 了 `tool_name`，明确把 `tool_input` normalize 推到 phase 2 — 因为当时没捕获真 codex `apply_patch` envelope 长什么样。v0.9.16 用**有证据的实现**关掉 phase 2：parser 锁的是从一次新鲜 codex 0.130.0 + GPT-5.5 session rollout（2026-05-16 13:51:47 CST）真捕获的 `custom_tool_call.input` 字面。
+
+### Codex apply_patch envelope 真 parser（Major #2 — cross-backend phase 2）
+
+**真捕获的 envelope**（codex 0.130.0 + GPT-5.5，rollout 文件 `/Users/jhz/.codex/sessions/2026/05/16/rollout-2026-05-16T13-51-47-019e2f57-3d6b-76a3-9bc6-642d23262631.jsonl`）：
+
+```
+*** Begin Patch
+*** Update File: /tmp/karma-codex-toy.py
+@@
++# v0.9.16 test
+*** End Patch
+```
+
+Codex `custom_tool_call.input` 把**整个 envelope 当一个字符串**传，不是结构化 dict。多文件 patch 是同一个 envelope 里串多个 `*** Update File:` / `*** Add File:` / `*** Delete File:` 块。
+
+**`karma/backends/protocol_adapter.py` 加 2 个函数**：
+
+```python
+def parse_apply_patch_envelope(envelope: str) -> list[dict[str, str]]:
+    """返回 [{"op": "Update"|"Add"|"Delete", "path": str}, ...]"""
+
+def normalize_tool_input(raw_tool_name: str, raw_tool_input: Any, payload: dict) -> Any:
+    """codex apply_patch → 合成 canonical Edit dict {file_path, new_string,
+    _codex_patch_files}. 其他 tool_call passthrough."""
+```
+
+**两个 hook 都接上了**：
+- `pre_tool_use.py`: 入口 `tool_input = normalize_tool_input(...)`。多文件 patch 暴露 `_codex_patch_files` 给下游 check。
+- `post_tool_use.py`: `tool_name == "Edit"` + `_codex_patch_files` 存在时，遍历每条 Update/Add 路径 → 每条 `record_edit` + `record_read`（Delete 跳过）。`last_edit_ts` 在 codex 多文件 commit 时真推进 — 修 v0.9.15 期 evidence/commit 门在 Codex 下被静默放过的 gap。
+- `karma/checks/read_first.py`: 存在 `_codex_patch_files` 时遍历 — 任一 Update 路径没 Read 过都拦。Add 路径豁免（新建文件不需要 Read），Delete 跳过。**捕获多文件 patch 里只 Read 了主文件的情况。**
+
+### 输入 shape 防御式处理
+
+`_extract_codex_patch_text()` 同时处理裸字符串（rollout 真捕获验证）和可能的 dict-wrap 形式（`{"input": ...}` / `{"command": ...}` 等）— 因为 **hook 层** payload shape 没直接捕获到：`codex exec` non-interactive 模式即便加 `--enable hooks` 也不 fire 用户 hook（通过 `KARMA_DEBUG_DUMP_PAYLOAD` 注入工具 + `codex features list` 双向验证）。交互式 codex（生产路径）正常 fire hook 是预期；防御式 wrap detection 让 karma 不管 codex hook 传哪种 shape 都能工作。
+
+### Config DEFAULTS 静默丢字段 bug（Minor #4）
+
+`karma/config.py:load()` 用 `for key in DEFAULTS` 合并用户配置 — 所以任何**不在** `DEFAULTS` 里的用户可调字段在 `~/.claude/karma/config.yaml` 里写了也被静默丢弃。`reinject_every_n_tokens` 在 `post_tool_use._build_smart_reinject` 里是文档化的可调字段，但漏在 `DEFAULTS` → 用户 `config.yaml` 写 `reinject_every_n_tokens: 4000` 实际被静默回退到「按模型自适应」默认。
+
+**修法**：往 `DEFAULTS` 加 `"reinject_every_n_tokens": None`（None 保留「按模型自适应」语义） + `data/config.example.yaml` 里加文档化示例 + `tests/test_config.py:test_reinject_every_n_tokens_in_defaults_and_user_override` 锁往返。
+
+### Compact / SubagentStop hook 测试断言收紧（Minor #5）
+
+`tests/test_compact_hooks.py` 3 处 `if "hookSpecificOutput" in output:` 条件分支 — 这些分支让 hook 万一退回老的 `hookSpecificOutput` 输出（PreCompact / SubagentStop 协议 2026-05-15 官方文档确认不支持）测试也静默通过。hook 现在永远输出 `{}`；测试改成严格 `assert output == {}` 让未来回归响亮失败而不是绿色静默。
+
+### 测试覆盖
+
+`tests/test_protocol_adapter.py` **+12 个测试**（文件总数 22，原 11）：
+- `test_parse_apply_patch_real_codex_envelope_single_file` — 锁真捕获 envelope 字面
+- `test_parse_apply_patch_multi_file_with_add_and_delete` — 覆盖全 3 op（Update / Add / Delete）
+- `test_parse_apply_patch_empty_input_returns_empty_list` — 空 / 残缺 envelope 安全
+- `test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape` — file_path + new_string + _codex_patch_files 全填
+- `test_normalize_tool_input_codex_apply_patch_dict_form_input_field` — dict-wrap 兜底
+- `test_normalize_tool_input_non_apply_patch_passthrough` — Claude / Gemini 路径不受影响
+- `test_normalize_tool_input_multi_file_primary_is_first_update` — primary 选择规则
+- `test_normalize_tool_input_malformed_envelope_passthrough` — 垃圾输入安全
+- `test_read_first_multi_file_blocks_when_any_update_unread` — 集成：多文件 read_first 拦得住
+- `test_read_first_multi_file_allows_when_all_updates_read` — 集成：全 Read 过就放
+- `test_post_tool_use_records_all_update_paths_in_multi_file_patch` — 集成：record_edit + last_edit_ts 真推全部路径
+
+加上 config DEFAULTS 测试 + 收紧的 compact_hooks 断言。
+
+**总数**: 510/510 通过 `LANG=zh_CN.UTF-8` 和 `LANG=en_US.UTF-8` 双 locale（原 498）。
+
+### 验证
+
+- **510/510** 双 locale 通过（原 498）— +12 新测试
+- 全 6 道本地 gate 通过（pytest zh + en / ruff / mypy / vulture / wheel build+verify+smoke）
+- Wheel smoke test：clean venv `pip install karma-0.9.16-py3-none-any.whl` → parser 正确从真 codex envelope 提取文件路径，`normalize_tool_name("apply_patch", ...)` 返回 `"Edit"`，全部 `data/signals/` 文件出货（v0.9.15 的 force-include 顺延）
+
+完整 details: [CHANGELOG.md](https://github.com/jhaizhou-ops/karma/blob/v0.9.16/CHANGELOG.md)
+
 ## [0.9.15] — 2026-05-16（fix — cross-model audit (GPT-5.5) 抓到 3 个 cross-backend 协议 critical bug；karma 整个生命周期都假设 Claude-only 协议没被验证过）
 
 ### 为什么发这版

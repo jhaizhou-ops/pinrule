@@ -14,6 +14,9 @@
     max_recent_bash                 SessionState 保留最近 Bash 数量
     stop_block_max_per_turn         Stop hook 单 turn 干预上限（防死循环）
     force_block_threshold           累积强制 block 阈值（同 sticky ≥ N 次）
+    reinject_every_n_tokens         中段 sticky reinject 累积 token 阈值
+                                    None / 缺省 → 按 state.model 自适应
+                                    （详 post_tool_use._build_smart_reinject）
 """
 
 from __future__ import annotations
@@ -47,6 +50,10 @@ DEFAULTS: dict[str, Any] = {
     # 累积强制 block 阈值 — 同 sticky 违反 ≥ N 次（窗口内） → Stop hook 输出 decision=block
     # 强制 Agent fix 原因，不允许继续绕（机制 2）。0 = 关闭。
     "force_block_threshold": 5,
+    # v0.9.16: 中段 sticky reinject 累积 token 阈值. None → 按 state.model 自适应
+    # （threshold_for_model 表）. 用户设数字 → 强制覆盖. 之前漏 DEFAULTS 让用户
+    # config.yaml 里写的值被 load() 的「只认 DEFAULTS keys」逻辑无声丢弃.
+    "reinject_every_n_tokens": None,
 }
 
 

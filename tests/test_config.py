@@ -60,3 +60,20 @@ def test_get_returns_single_field(tmp_path):
     p.write_text("escalate_threshold: 7\n")
     assert get("escalate_threshold", p) == 7
     assert get("notify_enabled", p) == DEFAULTS["notify_enabled"]
+
+
+def test_reinject_every_n_tokens_in_defaults_and_user_override(tmp_path):
+    """v0.9.16: reinject_every_n_tokens 必须在 DEFAULTS — load() 只认 DEFAULTS keys.
+
+    之前漏 DEFAULTS 让用户 config.yaml 写 reinject_every_n_tokens: 4000 也被
+    load() 的「for key in DEFAULTS」循环静默丢弃 → 用户调阈值不生效.
+    """
+    # DEFAULTS 有这个 key
+    assert "reinject_every_n_tokens" in DEFAULTS
+    assert DEFAULTS["reinject_every_n_tokens"] is None  # 默认 None → 按模型自适应
+
+    # 用户写数字必须被读到
+    p = tmp_path / "config.yaml"
+    p.write_text("reinject_every_n_tokens: 4000\n")
+    cfg = load(p)
+    assert cfg["reinject_every_n_tokens"] == 4000
