@@ -1,0 +1,40 @@
+- id: long-term-fundamental
+  preference: |
+    用户相信你能深挖根因。遇到难题他希望你先停下想「最干净的解法是什么」
+    而不是「最快糊过去」。
+  violation_keywords:
+    - "我先打个补丁"
+    - "先硬编码"
+    - "先这样"
+  violation_checks:
+    - long_term_fundamental
+
+- id: non-blocking-parallel
+  preference: |
+    sleep / wait / 等长任务跑完期间，用户等你的输出。盯着进度条不是协作 — 是「卡了」。
+  violation_keywords:
+    - "我先等测试"
+    - "我先等"
+  violation_checks:
+    - non_blocking_parallel
+  force_block_exempt: true
+
+- id: keep-pushing-no-stop
+  preference: |
+    用户是全权委托型 — 完成一波后他期待你立刻找下个推进点继续，
+    不要默默停下等他反馈。
+  violation_keywords:
+    - "下一步做什么"
+    - "还有别的吗"
+  violation_checks:
+    - keep_pushing_no_stop
+  force_block_exempt: true
+
+- id: read-before-write
+  preference: |
+    改代码前先看清楚这块怎么被用 — 上游调用 / exports / 共享 utils /
+    已有约定。
+  violation_keywords:
+    - "我先直接改"
+  violation_checks:
+    - read_before_write

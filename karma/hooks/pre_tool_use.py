@@ -34,6 +34,7 @@ from karma.checks.common import (
     strip_shell_quoted_literals,
 )
 from karma.checks.description_context import is_description_context
+from karma.i18n import tr
 from karma.rule import RuleConfigError, load
 from karma.violations import Violation, append, detect
 
@@ -196,11 +197,12 @@ def _emit_engine_denial(
         trigger_key=top.trigger_key,  # v0.5.7: locale-agnostic 分组 key
     )])
     sticky_pref = next((s.preference for s in sticky_list if s.id == top.rule_id), "")
-    reason = (
-        f"karma 拦截：违反 {top.rule_id!r}。\n"
-        f"检测到：{top.trigger}\n"
-        f"方向：{sticky_pref.strip()}\n"
-        f"建议：{top.suggested_fix}"
+    reason = tr(
+        "hook.pre_tool_use.deny_engine_reason",
+        rule_id=top.rule_id,
+        trigger=top.trigger,
+        preference=sticky_pref.strip(),
+        fix=top.suggested_fix,
     )
     _deny(reason, payload)
     print(
@@ -215,10 +217,11 @@ def _emit_keyword_denial(
     """关键词层 (Violation) 命中 → append (已含完整字段) + _deny + stderr 🛑。"""
     append([top_kw])
     sticky_pref = next((s.preference for s in sticky_list if s.id == top_kw.rule_id), "")
-    reason = (
-        f"karma 拦截：违反 {top_kw.rule_id!r}（触发词 {top_kw.trigger!r}）。\n"
-        f"方向：{sticky_pref.strip()}\n"
-        f"请改写，不要用 {top_kw.trigger!r} 这种方式。"
+    reason = tr(
+        "hook.pre_tool_use.deny_keyword_reason",
+        rule_id=top_kw.rule_id,
+        trigger=top_kw.trigger,
+        preference=sticky_pref.strip(),
     )
     _deny(reason, payload)
     print(

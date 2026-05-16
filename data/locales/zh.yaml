@@ -125,6 +125,13 @@ check.read_first.trigger: "未 Read 就 {tool} {file_path}"
 # bypass_karma (1 处)
 check.bypass_karma.trigger: "绕开检测 — 手动写 karma 内部状态 ({target!r})"
 
+# hook 输出模板 (v0.11.4 i18n)
+hook.pre_tool_use.deny_engine_reason: "karma 拦截：违反 {rule_id!r}。\n检测到：{trigger}\n方向：{preference}\n建议：{fix}"
+hook.pre_tool_use.deny_keyword_reason: "karma 拦截：违反 {rule_id!r}（触发词 {trigger!r}）。\n方向：{preference}\n请改写，不要用 {trigger!r} 这种方式。"
+hook.stop.violation_line: "⚠️ karma: Agent 违反 {rule_id!r} — {trigger}"
+hook.stop.suggestion_line: "   建议：{fix}"
+hook.stop.keyword_line: "⚠️ karma: Agent 触发关键词 {rule_id!r} (词 {trigger!r})"
+
 # long_term (7 处)
 check.long_term.long_id_branch.trigger: "长 ID 字面写在 if 分支（特例分支硬编码）"
 check.long_term.blacklist_literal.trigger: "黑/白名单字面量列表（变量名匹配黑白名单语义）"

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from karma import session_state
 from karma.checks import run_checks
+from karma.i18n import tr
 from karma.notify import notify
 from karma.rule import RuleConfigError, load
 from karma.violations import Violation, append, count_recent, count_recent_turns, detect
@@ -93,15 +94,15 @@ def _emit_notifications(
     """
     notify_msgs: list[str] = []
     for h in check_hits:
-        line = f"⚠️ karma: Agent 违反 {h.rule_id!r} — {h.trigger}"
+        line = tr("hook.stop.violation_line", rule_id=h.rule_id, trigger=h.trigger)
         print(line, file=sys.stderr)
         notify_msgs.append(f"{h.rule_id} — {h.trigger}")
         if h.suggested_fix:
-            print(f"   建议：{h.suggested_fix}", file=sys.stderr)
+            print(tr("hook.stop.suggestion_line", fix=h.suggested_fix), file=sys.stderr)
     for v in keyword_violations:
         if v.rule_id in seen_ids:
             continue
-        line = f"⚠️ karma: Agent 触发关键词 {v.rule_id!r} (词 {v.trigger!r})"
+        line = tr("hook.stop.keyword_line", rule_id=v.rule_id, trigger=v.trigger)
         print(line, file=sys.stderr)
         notify_msgs.append(f"{v.rule_id} — {v.trigger}")
 

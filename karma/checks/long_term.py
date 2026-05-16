@@ -130,6 +130,39 @@ _RESPONSE_PATCH_INTENT_PATTERNS = [
         "check.long_term.response_acknowledge_but_proceed.trigger",
         "check.long_term.patch_intent.fix",
     ),
+    # 类 3 (v0.11.4 英文对偶): 第一人称意图前缀 (let me / I'll / let's just / for now)
+    # + 短距离 (≤ 50 chars) + 短期动作动词 (hardcode / patch / hack / workaround / quick fix).
+    # 跟类 1 中文 pattern 镜像对偶, 让英文用户的 demo / 真 dogfood 也能 catch
+    # short-term intent 话术.
+    # 用 \b 词边界避免「hardcoded」类合法名词被假阳 (例如「the hardcoded list」是
+    # 描述讨论, 但「let me hardcode」是意图宣告).
+    (
+        re.compile(
+            r"(?:let\s+me|i'?ll|let'?s\s+just|i\s+will|for\s+now|temporarily|"
+            r"i\s+can\s+just|we'?ll\s+just|just)"  # intent prefix
+            r"[^.\n]{0,50}?"                          # short distance
+            r"\b(?:hardcode|patch\s+(?:it|this|that)|hack\s+around|"
+            r"workaround|quick\s*fix|skip\s+(?:the\s+)?(?:test|check|verif)|"
+            r"ship\s+it|kludge|band-?aid)\b",
+            re.IGNORECASE,
+        ),
+        "check.long_term.response_patch_intent.trigger",
+        "check.long_term.patch_intent.fix",
+    ),
+    # 类 4 (v0.11.4 英文对偶): 显式承认「not the right fix / not long-term」+
+    # 紧跟「but / for now」转折 (承认但仍执行短期路径). 跟类 2 镜像.
+    (
+        re.compile(
+            r"(?:i\s+know|aware|understand)[^.\n]{0,30}"
+            r"(?:not\s+(?:the\s+)?(?:right|long-?term|clean|proper|ideal)|"
+            r"is\s+a\s+(?:patch|hack|kludge|band-?aid))"
+            r"[^.\n]{0,25}"
+            r"(?:but|however|though|for\s+now|just\s+for\s+now|temporarily)",
+            re.IGNORECASE,
+        ),
+        "check.long_term.response_acknowledge_but_proceed.trigger",
+        "check.long_term.patch_intent.fix",
+    ),
 ]
 
 _STICKY_ID = "long-term-fundamental"

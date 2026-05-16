@@ -128,6 +128,13 @@ check.read_first.trigger: "{tool} {file_path} without prior Read"
 # bypass_karma (1 entry)
 check.bypass_karma.trigger: "Bypass attempt — manual write to karma internal state ({target!r})"
 
+# hook output templates (v0.11.4 i18n)
+hook.pre_tool_use.deny_engine_reason: "karma blocked: violation of {rule_id!r}.\nDetected: {trigger}\nDirection: {preference}\nSuggestion: {fix}"
+hook.pre_tool_use.deny_keyword_reason: "karma blocked: violation of {rule_id!r} (keyword {trigger!r}).\nDirection: {preference}\nRephrase — don't use {trigger!r} like this."
+hook.stop.violation_line: "⚠️ karma: Agent violated {rule_id!r} — {trigger}"
+hook.stop.suggestion_line: "   suggestion: {fix}"
+hook.stop.keyword_line: "⚠️ karma: Agent hit keyword {rule_id!r} (word {trigger!r})"
+
 # long_term (7 entries)
 check.long_term.long_id_branch.trigger: "Long ID literal in if branch (special-case hard-code)"
 check.long_term.blacklist_literal.trigger: "Black/white list inline literal (variable name matches blacklist semantics)"
