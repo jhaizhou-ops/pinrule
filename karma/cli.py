@@ -725,6 +725,7 @@ def cmd_audit(
     with_fix_timeline: bool = False,
     output_format: str = "text",
     by_check: bool = False,
+    days: int | None = None,
 ) -> int:
     """审计违反历史：每条 sticky 的 top 触发词 + 假阳嫌疑标记 + 本 session 漂移近况。
 
@@ -741,8 +742,18 @@ def cmd_audit(
     按 trigger_key 中的 check 名 + sub-variant 聚合命中次数，dogfood 数据驱动
     判断 8 个 engine check 各自的真阳 / 假阳率。这个视图也是 `/karma` no-arg
     skill 的默认输出 —— 用户输 `/karma` 不带描述时 Agent 跑这个给用户看。
+
+    days=N 时仅统计最近 N 天 (v0.11.3+)：dogfood-driven 决策不被老数据稀释，
+    特别是新 rule / engine 重设计 ship 后的 fresh 窗口效果评估。
     """
     violations = load_all()
+    if days is not None:
+        import time
+        cutoff = time.time() - days * 86400
+        violations = [v for v in violations if v.ts >= cutoff]
+        if not violations:
+            print(f"最近 {days} 天没违反记录。可以试更长窗口或不带 --days 看全量。")
+            return 0
     if not violations:
         print("没有违反记录。先用 karma 一阵子再来 audit。")
         return 0
@@ -1404,10 +1415,22 @@ def main(argv: list[str] | None = None) -> int:
         with_timeline = "--with-fix-timeline" in args
         by_check = "--by-check" in args
         output_format = "md" if "--format" in args and args[args.index("--format") + 1] == "md" else "text"
+        # v0.11.3: --days N 过滤窗口 — dogfood 决策不被老数据稀释
+        days = None
+        if "--days" in args:
+            try:
+                days = int(args[args.index("--days") + 1])
+                if days <= 0:
+                    print(f"--days 必须 > 0, 收到 {days}", file=sys.stderr)
+                    return 2
+            except (IndexError, ValueError):
+                print("--days 后必须跟正整数 (例: --days 7)", file=sys.stderr)
+                return 2
         return cmd_audit(
             with_fix_timeline=with_timeline,
             output_format=output_format,
             by_check=by_check,
+            days=days,
         )
     if cmd in ("reset", "reset-session"):
         return cmd_reset_session()

@@ -247,7 +247,7 @@ KARMA_LOCALE env > config.yaml `locale` 字段 > 自动检测（中文比例）>
 | Stop hook 强提醒 | 违反 + suggested_fix | ~135 / 条 | 违反时 |
 | SubagentStart | 子 Agent 精简规则 | ~383 | 起子 Agent 时 |
 
-UserPromptSubmit 每 turn 73% 节省是 v0.9.0 把 1M Opus session token 使用从 18.4% 降到 8.2% 的主因。
+分层注入让 UserPromptSubmit 每 turn 只 ~490 token, 100 turn 跨 1M Opus context 累积约 8.2%; SessionStart 跟 PostToolUse 中段 reinject 各承担一次全量, 把规则信号集中在 Agent 注意力高点 + 衰减拐点.
 
 ### 听话端：`karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}`（v0.8.0 → v0.8.2）
 

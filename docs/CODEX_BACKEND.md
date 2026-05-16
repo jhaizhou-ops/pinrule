@@ -27,9 +27,11 @@ karma v0.9.15 cross-model audit and v0.9.16 codex envelope parser both hit a rec
 | `karma/checks/*.py` engine checks | karma maintainer | ❌ backend-neutral |
 | `tests/test_protocol_adapter.py` cross-backend tests | karma maintainer | ❌ contract testing |
 
-## The 6-method contract
+## The 8-method contract
 
 Codex backend (`CodexBackend` class in `karma/backends/codex.py`) must implement these methods. Default implementations in `JsonHooksBackend` base class are Claude-shaped; override to match codex protocol.
+
+Methods 1-6 came with v0.10.0 split; methods 7-8 added in v0.10.6 to remove silent Claude-shape assumptions across ContextInjection + Stop hooks (4 ContextInjection-firing hooks + Stop's 2 block paths used to direct-print Claude shape — same drift pattern as v0.9.15).
 
 ### 1. `pre_install_setup(self) -> list[str]`
 
@@ -75,6 +77,18 @@ Return JSON string for "allow this tool call". **Codex does NOT accept `hookSpec
 
 **Current**: ✅ returns `"{}"`. There's a locked regression test (`test_codex_emit_allow_returns_empty_dict_not_claude_shape`) preventing future PRs from accidentally reverting to Claude shape.
 
+### 7. `emit_context_injection(self, event_name: str, additional_context: str, payload: dict) -> str`
+
+Return JSON string for "inject additional context into the Agent's view" (SessionStart / UserPromptSubmit / PostToolUse / SubagentStart). Claude shape is `{hookSpecificOutput: {hookEventName: event_name, additionalContext: additional_context}}`.
+
+**Current**: inherits Claude-shape default from `JsonHooksBackend`. **Real codex acceptance unverified** — see Remaining TODO #8. If codex returns error or silently drops the injection, override to match codex's real shape.
+
+### 8. `emit_stop_block(self, reason: str, payload: dict) -> str`
+
+Return JSON string for "block the Agent's stop" (Stop hook force_block / keep_pushing_block paths). Claude shape is `{decision: "block", reason: reason}`. Gemini overrides to `{}` because AfterAgent has no block semantics — returning empty fails open instead of silently rejecting.
+
+**Current**: inherits Claude-shape default. **Real codex acceptance unverified** — see Remaining TODO #8.
+
 ## Completed TODOs (v0.10.x)
 
 These TODOs were defined in v0.10.0's first cut of this doc and completed in subsequent codex-owned PRs:
@@ -86,6 +100,7 @@ These TODOs were defined in v0.10.0's first cut of this doc and completed in sub
 | 2 | **Real hook-level payload capture** for SessionStart | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) — codex SessionStart payload captured and locked in test fixture |
 | 4 | **Other codex tool names** — `exec_command → Bash`, etc | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `_CODEX_TOOL_MAP` extended |
 | 5a | **Approval state UX** — manual `/hooks` approval bottleneck | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `trust_karma_hooks()` auto-writes `trusted_hash` |
+| 7 | **`write_file_paths` canonical write field** — `sed -i` / `tee` / `producer \| tee file` write commands emit `write_file_paths` along with `is_write=True`. Generic layer `karma/hooks/post_tool_use.py:124-155` consumes the list (v0.10.5 karma-side ready) calling `state.record_edit(p)` for each path. Evidence check now sees codex `sed -i` etc as real code edits. | ✅ Done | post-v0.11.2 [PR #6](https://github.com/jhaizhou-ops/karma/pull/6) `extract_read_write_paths_from_exec_command` (function renamed from `extract_read_paths_from_exec_command`) returns `(read_paths, write_paths, is_write)` tuple |
 
 ## Remaining TODO list (codex agenda)
 
@@ -95,7 +110,7 @@ These TODOs were defined in v0.10.0's first cut of this doc and completed in sub
 | 3 | **Codex feature-flag detection cleanup** — `_is_hooks_feature_enabled` parses `~/.codex/config.toml`. Codex may expose a cleaner API in 0.131+. | If codex CLI ships `codex features list --json` or status file, replace the toml parser. Low priority — toml parser works. |
 | 5b | **Programmatic approval verification** — `trust_karma_hooks()` writes `trusted_hash`; `karma doctor` could programmatically verify each wrapper is currently approved (vs. relying on user to check TUI). | Investigate whether `~/.codex/config.toml` `[hooks.state]` entries can be read back and validated against current wrapper hashes. If yes, `karma doctor` adds a green/red check per wrapper. |
 | 6 | **Pipe read additional patterns** — `xargs cat` / recursive `grep -r` / `find` deliberately not recognized (PR #5 conservative scope). If real codex usage shows high false-negative rate on these, design combo-pattern engine. | Mine `~/.codex/sessions/*/` rollouts for actual frequency of these patterns; if high, design extension. |
-| 7 | **`write_file_paths` canonical write field** (v0.10.5 karma-side ready, codex-side not emitting yet) — karma maintainer added `tool_input.write_file_paths` consumption in `karma/hooks/post_tool_use.py` (parallel to existing `read_file_paths`). Whenever a backend emits this list, generic layer calls `state.record_edit(p)` for each path, advancing `last_edit_ts` so evidence check sees codex `sed -i` etc as real code edits. Currently `codex.normalize_tool_input` only sets `is_write: True` for `sed -i` without emitting `write_file_paths` — codex `sed -i /workspace/src/x.py` writes a file but karma's `evidence.check` doesn't see `last_edit_ts` advancement → false-positive completion-word blocks. | Extend `codex.normalize_tool_input` so when `_extract_read_paths_from_exec_command()` returns `is_write=True`, also emit the file path list as `write_file_paths`. The path was already parsed for `is_write` detection — just stop discarding it. Test: `sed -i 's/foo/bar/' /workspace/x.py` → output `{cmd, command, is_write: True, write_file_paths: ["/workspace/x.py"]}`. Real codex session evidence: any rollout with `sed -i` invocations. |
+| 8 | **`emit_context_injection` / `emit_stop_block` codex shape verification** — v0.10.6 added 8-method Backend Protocol; codex.py currently inherits Claude-shape defaults but real codex acceptance of `{hookSpecificOutput, additionalContext}` shape (SessionStart / UserPromptSubmit / PostToolUse / SubagentStart) and `{decision: "block", reason}` shape (Stop) unverified. PR #6 explicitly punted: "not override, Claude shape default" with locked test. | Capture real codex payloads when these hooks fire in interactive sessions. If codex accepts Claude shape silently, lock test stays. If codex returns error / silently drops, override `emit_context_injection` / `emit_stop_block` for codex backend. |
 
 ## How to contribute (codex PR flow)
 
@@ -103,7 +118,7 @@ These TODOs were defined in v0.10.0's first cut of this doc and completed in sub
 2. **Verify** existing tests still pass: `.venv/bin/python -m pytest tests/test_protocol_adapter.py tests/test_backends.py -q`
 3. **Add tests** for any new method behavior — at minimum, lock the new shape with a hardcoded expected output
 4. **Capture real codex CLI evidence** (rollout file path / session ID / version) in commit message — this avoids the v0.9.15 "Claude guessed and got it wrong" pattern
-5. **Don't break the 6-method contract** — if you need to add a new method, file an issue first so karma maintainer can update `_base.py` Protocol and all backends synchronously
+5. **Don't break the 8-method contract** — if you need to add a new method, file an issue first so karma maintainer can update `_base.py` Protocol and all backends synchronously
 6. **PR description must include**:
    - codex CLI version tested against (e.g., `codex 0.130.0`)
    - real-world test transcript (e.g., user prompt → karma response screenshot)

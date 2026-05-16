@@ -235,7 +235,7 @@ KARMA_LOCALE env > config.yaml `locale` field > auto-detect (chinese ratio) > en
 | Stop hook strong reminder | violation hits + suggested_fix | ~135 / hit | on violation |
 | SubagentStart | compact rule list | ~383 | per subagent spawn |
 
-The 73% per-turn saving at UserPromptSubmit is the main reason v0.9.0 cuts 1M Opus session token use from 18.4% to 8.2%.
+Layered injection keeps UserPromptSubmit at ~490 tokens per turn, accumulating to ~8.2% across a 100-turn 1M Opus session; SessionStart and PostToolUse mid-reinject each carry one full inject, concentrating the rule signal at the Agent's attention peak and decay threshold.
 
 ### Listening side: `karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}` (v0.8.0 → v0.8.2)
 

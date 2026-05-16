@@ -97,7 +97,7 @@ karma does only **"core direction persistence + violation detection"** — one t
 | Stop strong reminder | violation hits + suggested_fix | when violations detected |
 | SubagentStart | compact rule list | per subagent spawn |
 
-Per-turn token cost reduced by 73% vs v0.8.x (1817 → 490). 1M Opus session cumulative: ~18% → ~8% of context.
+Per-turn injection ~490 tokens (compact anchor); 100-turn session across 1M Opus context cumulatively about 8%.
 - Performance: < 60ms
 
 ### F3. Violation detection / feedback loop ✅
@@ -150,7 +150,6 @@ Three hook feedback points:
 - Gemini CLI: `~/.gemini/skills/karma/SKILL.md` (auto-trigger) **plus** `~/.gemini/commands/karma.toml` (explicit `/karma` slash, generated via `karma/skill_packaging.py` Markdown → TOML conversion with `$ARGUMENTS` ↔ `{{args}}` syntax translation)
 - `karma init` auto-installs to all three; `karma install-skill [--force] [--backend <name>]` for upgrades; `karma doctor` reports per-backend skill status
 
-**Honest history**: v0.5.1 shipped the skill template but at the wrong location (`<name>.md` flat file instead of required `<name>/SKILL.md` directory structure). The skill never actually triggered for v0.5.1 through v0.5.15 — manual CLI testing worked but the natural-language → auto-refine path was vapor. v0.5.16 rebuilt installation per Claude Code's documented protocol; the SessionStart hook of the session that shipped v0.5.16 was the first to see karma skill in its available-skills list. See [CHANGELOG.md v0.5.16](../CHANGELOG.md) for the full disclosure.
 
 ### F6. Internationalization (v0.5.2+ injection text; v0.8.0+ detection signals) ✅
 
@@ -236,10 +235,9 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 - ❌ retrieval / cosine / scene routing
 - ❌ Multi-user collaboration / sync
 - ❌ Web UI / graphical config (CLI yaml editing is enough)
-- ~~❌ Cross-IDE / cross-AI platform support (Claude Code only)~~ — **Supported in v0.4+**:
-  Claude Code / Codex CLI / Gemini CLI all three universal, base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See
-  [`karma/backends/HOWTO.md`](../karma/backends/HOWTO.md).
 - ❌ Evaluation system / accuracy metrics (self-use observation is enough)
+
+Cross-IDE / cross-AI client support already shipped: Claude Code / Codex CLI / Gemini CLI all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`karma/backends/HOWTO.md`](../karma/backends/HOWTO.md).
 
 ## Future possibilities (v1+)
 

@@ -63,7 +63,7 @@ class CursorBackend(JsonHooksBackend):
 
 ### Claude Code-specific optional extensions (v0.4.28+)
 
-karma's v3 evolution added 2 Claude Code protocol-specific hook events for "rule mid-injection + compact amnesia two-pronged defense":
+karma v0.4.28+ added 2 Claude Code protocol-specific hook events for "rule mid-injection + compact amnesia two-pronged defense":
 
 ```python
 # Claude Code backend additional 2 events (other backends without these don't require)
@@ -76,7 +76,7 @@ karma's v3 evolution added 2 Claude Code protocol-specific hook events for "rule
 New backend implementer assessment:
 
 - If backend protocol **has** similar session lifecycle / context compact events →
-  add mapping in `_HOOK_EVENTS` + write corresponding wrapper to enable karma v3 evolution
+  add mapping in `_HOOK_EVENTS` + write corresponding wrapper to enable karma's mid-conversation injection + compact-time dump double-bracket coverage
 - If **no** corresponding events (like Codex / Gemini's current situation) →
   skip; 4 universal wrappers already cover karma core functionality (violation detection + rule injection into user prompt)
 

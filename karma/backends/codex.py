@@ -112,6 +112,15 @@ _GREP_RECURSIVE_FLAGS = frozenset({
     "--recursive",
     "--dereference-recursive",
 })
+_TEE_FLAGS_WITH_OPTIONAL_VALUES = frozenset({
+    "--output-error",
+})
+_TEE_OUTPUT_ERROR_MODES = frozenset({
+    "warn",
+    "warn-nopipe",
+    "exit",
+    "exit-nopipe",
+})
 
 _SED_ADDR = r"(?:\d+|\$|/[^\n/]*/)(?:\s*,\s*(?:\d+|\$|/[^\n/]*/))?"
 _SED_PRINT_ONLY_RE = re.compile(rf"^\s*(?:{_SED_ADDR})?\s*p\s*$")
@@ -268,6 +277,17 @@ def _single_path(operands: list[str]) -> list[str]:
     return [path]
 
 
+def _recordable_paths(operands: list[str]) -> list[str]:
+    if not operands:
+        return []
+    paths: list[str] = []
+    for path in operands:
+        if not _is_recordable_path(path):
+            return []
+        paths.append(path)
+    return paths
+
+
 def _sed_write_in_place(tokens: list[str]) -> bool:
     for token in tokens[1:]:
         if token == "--in-place" or token.startswith("--in-place="):
@@ -275,6 +295,55 @@ def _sed_write_in_place(tokens: list[str]) -> bool:
         if token == "-i" or token.startswith("-i"):
             return True
     return False
+
+
+def _extract_sed_write_paths(tokens: list[str]) -> list[str]:
+    """Extract exact file operands from `sed -i` without treating scripts as files."""
+    has_script_from_option = False
+    operands: list[str] = []
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "--":
+            operands.extend(tokens[i + 1:])
+            break
+        if token in ("-i", "--in-place"):
+            if token == "-i" and i + 1 < len(tokens) and tokens[i + 1] == "":
+                i += 2  # BSD/macOS suffix argument: sed -i '' ...
+            else:
+                i += 1
+            continue
+        if token.startswith("-i") or token.startswith("--in-place="):
+            i += 1
+            continue
+        if token in ("-e", "--expression", "-f", "--file"):
+            if i + 1 >= len(tokens):
+                return []
+            has_script_from_option = True
+            i += 2
+            continue
+        if (
+            token.startswith("-e")
+            or token.startswith("--expression=")
+            or token.startswith("-f")
+            or token.startswith("--file=")
+        ):
+            has_script_from_option = True
+            i += 1
+            continue
+        if token.startswith("-") and token != "-":
+            i += 1
+            continue
+        operands.append(token)
+        i += 1
+
+    if has_script_from_option:
+        file_operands = operands
+    else:
+        if len(operands) < 2:
+            return []
+        file_operands = operands[1:]
+    return _recordable_paths(file_operands)
 
 
 def _extract_sed_read_paths(tokens: list[str]) -> list[str]:
@@ -396,6 +465,62 @@ def _extract_awk_read_paths(tokens: list[str]) -> list[str]:
     return [path]
 
 
+def _extract_tee_write_paths(tokens: list[str]) -> list[str]:
+    """Extract direct `tee` output files; skip pipes/redirection and unknown globs."""
+    if _has_complex_shell_shape(tokens):
+        return []
+    return _extract_tee_write_paths_from_segment(tokens)
+
+
+def _extract_tee_write_paths_from_segment(tokens: list[str]) -> list[str]:
+    """Extract direct `tee` output files from a single command segment."""
+    if not tokens or _command_basename(tokens[0]) != "tee":
+        return []
+    operands: list[str] = []
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "--":
+            operands.extend(tokens[i + 1:])
+            break
+        if token in ("-a", "--append", "-i", "--ignore-interrupts", "-p"):
+            i += 1
+            continue
+        if token in _TEE_FLAGS_WITH_OPTIONAL_VALUES:
+            if i + 1 < len(tokens) and tokens[i + 1] in _TEE_OUTPUT_ERROR_MODES:
+                i += 2
+            else:
+                i += 1
+            continue
+        if token.startswith("--output-error="):
+            i += 1
+            continue
+        if token.startswith("-") and token != "-":
+            i += 1
+            continue
+        operands.append(token)
+        i += 1
+    return _recordable_paths(operands)
+
+
+def _extract_pipe_tee_write_paths(tokens: list[str]) -> list[str]:
+    """Recognize `producer | tee [-a] file` where tee's file targets are explicit."""
+    if not tokens or tokens.count("|") != 1:
+        return []
+    pipe_index = tokens.index("|")
+    right = tokens[pipe_index + 1:]
+    if not right:
+        return []
+    if _command_basename(right[0]) != "tee":
+        return []
+    for token in right:
+        if token in _SHELL_COMPLEX_TOKENS:
+            return []
+        if _command_basename(token) in _SHELL_COMPLEX_COMMANDS:
+            return []
+    return _extract_tee_write_paths_from_segment(right)
+
+
 def _extract_head_tail_pipe_read_paths(tokens: list[str]) -> list[str]:
     """Recognize single-file read-only `cat/head/tail file | head/tail` chains.
 
@@ -437,20 +562,26 @@ def _extract_head_tail_pipe_read_paths(tokens: list[str]) -> list[str]:
     ))
 
 
-def extract_read_paths_from_exec_command(command: str) -> tuple[list[str], bool]:
-    """Return (read_file_paths, is_write) for conservative Codex shell reads."""
+def extract_read_write_paths_from_exec_command(command: str) -> tuple[list[str], list[str], bool]:
+    """Return (read_file_paths, write_file_paths, is_write) for Codex shell commands."""
     tokens = _shell_tokens(command)
     if not tokens:
-        return [], False
+        return [], [], False
 
     command_name = _command_basename(tokens[0])
     if command_name == "sed" and _sed_write_in_place(tokens):
-        return [], True
+        return [], _extract_sed_write_paths(tokens), True
+    if command_name == "tee":
+        write_paths = _extract_tee_write_paths(tokens)
+        return [], write_paths, bool(write_paths)
+    pipe_tee_write_paths = _extract_pipe_tee_write_paths(tokens)
+    if pipe_tee_write_paths:
+        return [], pipe_tee_write_paths, True
     pipe_read_paths = _extract_head_tail_pipe_read_paths(tokens)
     if pipe_read_paths:
-        return pipe_read_paths, False
+        return pipe_read_paths, [], False
     if _has_complex_shell_shape(tokens):
-        return [], False
+        return [], [], False
 
     if command_name in _SIMPLE_SHELL_READ_COMMANDS:
         options_with_values = (
@@ -460,14 +591,14 @@ def extract_read_paths_from_exec_command(command: str) -> tuple[list[str], bool]
             tokens,
             options_with_values=options_with_values,
             plus_is_option=command_name in ("tail", "head", "less", "more"),
-        )), False
+        )), [], False
     if command_name == "sed":
-        return _extract_sed_read_paths(tokens), False
+        return _extract_sed_read_paths(tokens), [], False
     if command_name == "grep":
-        return _extract_grep_read_paths(tokens), False
+        return _extract_grep_read_paths(tokens), [], False
     if command_name == "awk":
-        return _extract_awk_read_paths(tokens), False
-    return [], False
+        return _extract_awk_read_paths(tokens), [], False
+    return [], [], False
 
 
 def _canonical_json(value: Any) -> Any:
@@ -743,9 +874,9 @@ class CodexBackend(JsonHooksBackend):
                 command = raw_tool_input.get("cmd")
             if not isinstance(command, str) or not command.strip():
                 return raw_tool_input
-            read_paths, is_write = extract_read_paths_from_exec_command(command)
+            read_paths, write_paths, is_write = extract_read_write_paths_from_exec_command(command)
             needs_command_alias = "command" not in raw_tool_input and "cmd" in raw_tool_input
-            if not read_paths and not is_write and not needs_command_alias:
+            if not read_paths and not write_paths and not is_write and not needs_command_alias:
                 return raw_tool_input
             normalized = dict(raw_tool_input)
             if needs_command_alias:
@@ -754,6 +885,8 @@ class CodexBackend(JsonHooksBackend):
                 normalized["read_file_paths"] = read_paths
             if is_write:
                 normalized["is_write"] = True
+            if write_paths:
+                normalized["write_file_paths"] = write_paths
             return normalized
         if raw_tool_name != "apply_patch":
             return raw_tool_input

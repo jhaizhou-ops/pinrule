@@ -69,7 +69,7 @@ class CursorBackend(JsonHooksBackend):
 
 ### Claude Code 特有可选扩展 (v0.4.28+)
 
-karma v3 演化加了 2 个 Claude Code 协议特有 hook event 给「sticky 中段
+karma v0.4.28+ 加了 2 个 Claude Code 协议特有 hook event 给「中段
 注入 + compact 失忆两端夹击」用：
 
 ```python
@@ -83,7 +83,7 @@ karma v3 演化加了 2 个 Claude Code 协议特有 hook event 给「sticky 中
 新 backend 实现者评估：
 
 - 如果 backend 协议**有**类似 session lifecycle / context compact 事件 →
-  在 `_HOOK_EVENTS` 加映射 + 写对应 wrapper 升级 karma v3 演化能力
+  在 `_HOOK_EVENTS` 加映射 + 写对应 wrapper 升级到 karma 中段注入 + compact 落盘双端夹击能力
 - 如果**没**对应事件（如 Codex / Gemini 当前情况）→ 跳过即可，4 个通用
   wrapper 已经够 karma 核心功能（违反检测 + sticky 注入到 user prompt）
 

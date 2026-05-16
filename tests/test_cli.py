@@ -802,6 +802,65 @@ def test_audit_by_check_aggregates_engine_hits(fake_home, monkeypatch, capsys):
     assert "3×" in out, "bypass_karma 3 条应出现"
 
 
+def test_audit_days_filter_excludes_old_violations(fake_home, monkeypatch, capsys):
+    """v0.11.3: `karma audit --days N` 只看最近 N 天违反 — dogfood-driven 决策
+    不被老数据稀释 (新 rule / engine 重设计 ship 后 fresh 窗口效果评估).
+
+    构造 2 老 + 2 新 violations, --days 1 应只显示 2 条.
+    """
+    import time
+    import karma.violations
+    from karma.violations import Violation, append
+    _patch_rules_path(monkeypatch, fake_home)
+    v_path = fake_home / "v.jsonl"
+    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
+
+    now = time.time()
+    old_ts = now - 30 * 86400  # 30 天前
+    fresh_ts = now - 3600       # 1 小时前
+    records = [
+        Violation(ts=int(old_ts), session_id="s1", rule_id="r-old",
+                  trigger="x", snippet="x", trigger_key="check.a.trigger"),
+        Violation(ts=int(old_ts) + 1, session_id="s1", rule_id="r-old",
+                  trigger="y", snippet="y", trigger_key="check.a.trigger"),
+        Violation(ts=int(fresh_ts), session_id="s1", rule_id="r-fresh",
+                  trigger="z", snippet="z", trigger_key="check.b.trigger"),
+        Violation(ts=int(fresh_ts) + 1, session_id="s1", rule_id="r-fresh",
+                  trigger="w", snippet="w", trigger_key="check.b.trigger"),
+    ]
+    append(records, path=v_path)
+
+    rc = cli.cmd_audit(by_check=True, days=1)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "总 2 条违反" in out, "--days 1 应过滤掉 30 天前的老数据"
+    # by_check 输出聚合 check 名 (strip "check." 前缀), trigger_key "check.b.trigger" → "b"
+    assert " b\n" in out or "× ( " in out, "fresh 违反聚合到 check b 应该显示"
+    # 反向断言: 老数据的 check.a 不该出现
+    assert " a\n" not in out, "30 天前的 check.a 违反不该出现在 --days 1 窗口"
+
+
+def test_audit_days_filter_empty_window_message(fake_home, monkeypatch, capsys):
+    """v0.11.3: --days N 窗口内 0 条违反, 提示用户而非误导显示 '没违反记录'."""
+    import time
+    import karma.violations
+    from karma.violations import Violation, append
+    _patch_rules_path(monkeypatch, fake_home)
+    v_path = fake_home / "v.jsonl"
+    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
+
+    old_ts = time.time() - 60 * 86400
+    append([Violation(ts=int(old_ts), session_id="s1", rule_id="r-old",
+                       trigger="x", snippet="x")], path=v_path)
+
+    rc = cli.cmd_audit(days=7)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "最近 7 天" in out, "空窗口提示要含天数, 让用户知道是窗口空不是 audit 失败"
+
+
 def test_all_hook_violation_writes_pass_trigger_key():
     """v0.9.12 regression lockdown: 所有 hook 路径写 Violation 时若 rule_id
     来自 CheckHit 必须同时传 trigger_key。

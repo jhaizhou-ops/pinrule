@@ -103,7 +103,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 | Stop 强提醒 | 违反命中 + suggested_fix | 检测到违反时 |
 | SubagentStart | 子 Agent 精简规则 | 起子 Agent 时 |
 
-每 turn token 成本相比 v0.8.x 降 73%（1817 → 490）。1M Opus session 累积：~18% → ~8%。
+每 turn 注入约 490 token (精简 anchor); 100 turn 跨 1M Opus context 累积约 8%。
 
 ### F3. 违反检测 / 反馈闭环 ✅
 
@@ -155,7 +155,6 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - Gemini CLI: `~/.gemini/skills/karma/SKILL.md`（auto-trigger）**加** `~/.gemini/commands/karma.toml`（显式 `/karma` slash，通过 `karma/skill_packaging.py` Markdown → TOML 转换生成，含 `$ARGUMENTS` ↔ `{{args}}` 语法翻译）
 - `karma init` 自动装到所有三家；`karma install-skill [--force] [--backend <name>]` 给升级用；`karma doctor` 报每个 backend skill 状态
 
-**诚实历史**：v0.5.1 ship 了 skill 模板但路径错（`<name>.md` 裸文件而不是 Claude Code 协议要求的 `<name>/SKILL.md` 目录结构）。v0.5.1 ~ v0.5.15 skill 从未触发 — 手工 CLI 测试能用，但自然语言 → 自动 refine 路径是空气。v0.5.16 按 Claude Code 协议重建装机；ship v0.5.16 那个 session 的 SessionStart hook 是 karma skill 第一次出现在 available skills 列表里。完整披露见 [CHANGELOG.md v0.5.16](../CHANGELOG.md)。
 
 ### F6. 国际化（v0.5.2+ 注入文本；v0.8.0+ 检测信号）✅
 
@@ -241,11 +240,9 @@ karma = **通用 hook 框架** + **场景规则集**。
 - ❌ retrieval / cosine / scene 路由
 - ❌ 多用户协作 / 同步
 - ❌ Web UI / 图形配置（CLI 编辑 yaml 够了）
-- ~~❌ 跨 IDE / 跨 AI 平台支持（先 Claude Code only）~~ — **v0.4+ 已支持**：
-  Claude Code / Codex CLI / Gemini CLI 三家通用，基类抽象让加 Cursor /
-  Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作。详
-  [`karma/backends/HOWTO.zh.md`](../karma/backends/HOWTO.zh.md)。
 - ❌ 评测体系 / accuracy 指标（自用观察够了）
+
+跨 IDE / 跨 AI 客户端支持已经 ship: Claude Code / Codex CLI / Gemini CLI 三家通用, 基类抽象让加 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作. 详 [`karma/backends/HOWTO.zh.md`](../karma/backends/HOWTO.zh.md).
 
 ## 后续可能（v1+）
 
