@@ -11,29 +11,9 @@
 
 > **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms.**
 
-<details>
-<summary><b>📺 Live demo: karma denies <code>sleep 30</code> in real time (click to expand)</b></summary>
+![karma denies sleep 30 in real time — animated SVG demo](./assets/demo.svg)
 
-```console
-$ echo '{"session_id":"demo","tool_name":"Bash","tool_input":{"command":"sleep 30"}}' \
-    | python ~/.claude/hooks/karma_pre_tool_use.py
-
-🛑 karma: non-blocking-parallel (tool=Bash) — Bash sleep 命令: 'sleep 30'
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "karma 拦截：违反 'non-blocking-parallel'.
-    检测到：Bash sleep 命令: 'sleep 30'.
-    建议：改成 run_in_background=True 启动任务, 立刻推进下一件能做的
-    (读相关文件 / 起另一个子 Agent / 设计下一步) — 任务完成会通知你."
-  }
-}
-```
-
-Real output from `karma/hooks/pre_tool_use.py` against a fresh `rules.yaml`. To record your own asciinema GIF: `bash scripts/record-demo.sh` then upload to asciinema.org and paste the SVG URL above this `<details>` block.
-
-</details>
+> Animated SVG: real `karma --version` → `karma rule list` → real `pre_tool_use.py` denying a `sleep 30` violation. 30-second loop, rendered from a real asciinema cast. Regenerate via `bash scripts/record-demo.sh`.
 
 Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >

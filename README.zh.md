@@ -11,29 +11,9 @@
 
 > **让 AI 在长任务里不忘掉你的规则。纯工程, 零 LLM, < 60ms.**
 
-<details>
-<summary><b>📺 Live demo: karma 实时拦截 <code>sleep 30</code> (点开看)</b></summary>
+![karma 实时拦 sleep 30 — 动态 SVG demo](./assets/demo.svg)
 
-```console
-$ echo '{"session_id":"demo","tool_name":"Bash","tool_input":{"command":"sleep 30"}}' \
-    | python ~/.claude/hooks/karma_pre_tool_use.py
-
-🛑 karma: non-blocking-parallel (tool=Bash) — Bash sleep 命令: 'sleep 30'
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "karma 拦截：违反 'non-blocking-parallel'.
-    检测到：Bash sleep 命令: 'sleep 30'.
-    建议：改成 run_in_background=True 启动任务, 立刻推进下一件能做的
-    (读相关文件 / 起另一个子 Agent / 设计下一步) — 任务完成会通知你."
-  }
-}
-```
-
-`karma/hooks/pre_tool_use.py` 跟 fresh `rules.yaml` 的真实输出. 想录 asciinema GIF 自己看: `bash scripts/record-demo.sh` 然后传 asciinema.org 拿到 SVG URL 贴在这个 `<details>` 块上方.
-
-</details>
+> 动画 SVG: 真 `karma --version` → `karma rule list` → 真 `pre_tool_use.py` 拦 `sleep 30` 违反. 30 秒循环, 从真 asciinema cast 渲染. 重录: `bash scripts/record-demo.sh`.
 
 Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) 教 AI 怎么写好代码。karma 解决另一半 — 怎么让 AI 在长任务里不漂移掉你的方向，以及违反真的发生时怎么被及时发现和纠正。
 >
