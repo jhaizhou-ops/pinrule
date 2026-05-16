@@ -121,6 +121,21 @@ def main() -> int:
         # context 不算主 Agent 衰减）
         state.tool_byte_seq += _estimate_tokens(tool_input, tool_response)
 
+        # v0.10.1 backend-neutral canonical read paths — backend normalize_tool_input
+        # 可以补 read_file_paths 列表标识「这次 tool call 实际读到了这些文件」.
+        # 第一个用例: codex shell-as-Read (exec_command 跑 tail/sed/cat 等只读命令
+        # 由 codex.py 识别后补此字段). 通用层遍历 record_read 每条 — 任何 backend
+        # 都能复用,字段名 canonical 不含 backend 字面 (跟 multi_file_targets 同思路).
+        # 在 Bash/Edit 等具体 record 之前跑, 因为同一次 exec_command 可能既读
+        # 又触发 record_bash 路径 (Codex 把 shell 命令同时当成 Bash 等价),
+        # 两条记录互补不冲突.
+        if not failed:
+            read_paths = tool_input.get("read_file_paths")
+            if isinstance(read_paths, list):
+                for p in read_paths:
+                    if isinstance(p, str) and p:
+                        state.record_read(p)
+
         if tool_name == "Bash":
             # Bash 失败仍 record — has_recent_test_pass 由 _FAIL_RE 在 record_bash 内部判
             cmd = tool_input.get("command", "") or ""

@@ -10,6 +10,48 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-05-16 (patch — codex shell-as-Read full integration + cross-backend contract tests)
+
+**First codex-owned PR merged**: [#3](https://github.com/jhaizhou-ops/karma/pull/3) by Codex CLI itself (`feat(codex-backend): detect shell reads from exec_command`). v0.10.0's ownership split worked as intended — codex submitted PR only touching its owned files (`karma/backends/codex.py` + `tests/test_codex_backend.py`), karma maintainer reviewed + handled the karma-side counterpart (the generic `post_tool_use.py` layer consumes the canonical `read_file_paths` field). End-to-end shell-as-Read recognition now works: codex agent runs `tail -n 20 file.py` → karma records it as Read → subsequent `apply_patch` on same file no longer false-positive denied by `read_first`. **Closes the last v0.9.16-era codex usability gap**.
+
+### Codex backend contribution (PR #3)
+
+`CodexBackend.normalize_tool_input()` now recognizes conservative `exec_command` shell reads (real captured evidence from 2 session rollouts, codex 0.130 + GPT-5.5):
+- `tail` / `head` / `cat` / `less` / `more` / `wc` / `file` — single-file
+- `sed -n '...p' <file>` / `sed '...p;d' <file>` — print-only patterns
+- `grep <pattern> <file>` / `grep -l <pattern> <file>` — non-recursive
+- `awk '...' <file>` — default single-file
+- Supports both `cmd` (Codex Desktop / rollout) and `command` (CLI/hook docs) input keys
+- `sed -i` / `sed --in-place` → marked `is_write: true`, no `read_file_paths`
+
+**Conservative skips** (high-false-positive shapes deliberately not recognized): pipe `|`, redirect `>` / `>>`, command chains `&&` / `;` / `(...)`, `find` / `xargs`, wildcards `*` / `?`, stdin `-`, recursive grep, `sed -f` / `grep -e` / `grep -f` / `awk -f` / `awk -v`.
+
+15 codex-private tests in new `tests/test_codex_backend.py` cover all recognition + skip cases.
+
+### karma-side wiring (this PR)
+
+`karma/hooks/post_tool_use.py` consumes the canonical `tool_input["read_file_paths"]` list — for **any** backend (not codex-specific). Iterates each path and calls `state.record_read()` before the per-tool-name branches. Backend-neutral by design: any future backend (Cursor / Copilot / Cline / etc.) whose `normalize_tool_input` populates `read_file_paths` automatically benefits.
+
+New integration test `test_post_tool_use_records_codex_shell_read_paths` locks the full chain: codex `exec_command` + `cmd: "tail -n 20 ..."` payload → backend normalize → post_tool_use generic handler → state.read_files actually populated.
+
+### Cross-backend contract auto-validation (new `tests/contract/`)
+
+Adds `tests/contract/test_backend_contract.py` running 14 abstract contract tests against every backend in `REGISTRY` via pytest parametrize. Any new Agent platform backend (Cursor / Copilot / Cline / etc.) registered to REGISTRY is automatically validated by these 14 tests × N backends — no per-backend boilerplate.
+
+Coverage per backend:
+- `pre_install_setup` / `post_install_message` return `list[str]`
+- `normalize_tool_name` returns str + passthrough unknowns + idempotent on canonical names
+- `normalize_tool_input` passthrough unknown tool_name
+- `emit_deny` / `emit_allow` return valid JSON string
+- `hook_events()` returns non-empty dict with snake_case basenames
+- `settings_path()` under dotted config dir
+- `build_event_entry()` returns dict with `hooks` key + list
+- `is_karma_entry()` recognizes own generated entry + rejects foreign entry
+- `name` / `display_name` non-empty
+- `skill_install_targets()` returns list with valid format strings
+
+42 new tests (14 × 3 backends). 554/554 passing both locales (was 512).
+
 ## [0.10.0] — 2026-05-16 (minor — backend architecture: protocol_adapter delegation layer + 6-method contract + codex ownership boundary handoff)
 
 ### Why this release

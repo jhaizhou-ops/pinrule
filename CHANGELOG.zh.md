@@ -6,6 +6,52 @@
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-05-16（patch — codex shell-as-Read 全链路打通 + 跨 backend 契约测试）
+
+**首个 codex-owned PR 合并**: [#3](https://github.com/jhaizhou-ops/karma/pull/3) Codex CLI 自己提的 (`feat(codex-backend): detect shell reads from exec_command`). v0.10.0 所有权分工真起作用了 — codex 提的 PR 只动它能改的文件 (`karma/backends/codex.py` + `tests/test_codex_backend.py`), karma 维护者 review + 做 karma 端配套 (通用 `post_tool_use.py` 层消费 canonical `read_file_paths` 字段). 端到端 shell-as-Read 识别真工作: codex agent 跑 `tail -n 20 file.py` → karma 记成 Read → 后续 `apply_patch` 同文件不再被 `read_first` 假阳拦. **关掉 v0.9.16 期 codex 用户体验最后一个缺口**.
+
+### Codex backend 贡献 (PR #3)
+
+`CodexBackend.normalize_tool_input()` 识别保守的 `exec_command` shell 读取 (真证据来自 codex 0.130 + GPT-5.5 的 2 个 session rollout):
+- `tail` / `head` / `cat` / `less` / `more` / `wc` / `file` — 单文件
+- `sed -n '...p' <file>` / `sed '...p;d' <file>` — print-only 模式
+- `grep <pattern> <file>` / `grep -l <pattern> <file>` — 非递归
+- `awk '...' <file>` — 默认单文件读
+- 同时兼容 `cmd` (Codex Desktop / rollout) 和 `command` (CLI/hook docs) 输入键
+- `sed -i` / `sed --in-place` → 标记 `is_write: true`, 不产 `read_file_paths`
+
+**保守跳过** (高假阳风险形式不识别): pipe `|`, 重定向 `>` / `>>`, 命令串 `&&` / `;` / `(...)`, `find` / `xargs`, wildcard `*` / `?`, stdin `-`, recursive grep, `sed -f` / `grep -e` / `grep -f` / `awk -f` / `awk -v`.
+
+15 个 codex 私有测试在新 `tests/test_codex_backend.py` 覆盖所有识别 + 跳过 case.
+
+### karma 端接入 (本次维护者职责)
+
+`karma/hooks/post_tool_use.py` 消费 canonical `tool_input["read_file_paths"]` 列表 — 对**任何** backend 都生效 (不是 codex 专用). 遍历每条 path 调 `state.record_read()`, 在 per-tool-name 分支之前跑. 设计 backend-neutral: 未来任何 backend (Cursor / Copilot / Cline 等) 的 `normalize_tool_input` 输出 `read_file_paths` 字段也自动生效.
+
+新集成测试 `test_post_tool_use_records_codex_shell_read_paths` 锁全链路: codex `exec_command` + `cmd: "tail -n 20 ..."` payload → backend normalize → post_tool_use 通用 handler → state.read_files 真增加.
+
+### 跨 backend 契约自动验证 (新 `tests/contract/`)
+
+加 `tests/contract/test_backend_contract.py` 用 pytest parametrize 对 `REGISTRY` 里每个 backend 跑 14 个抽象契约测试. 任何新 Agent 平台 backend (Cursor / Copilot / Cline 等) 注册到 REGISTRY 自动被这 14 × N 测试验证 — 不用为每 backend 重写一遍契约测试.
+
+每 backend 覆盖:
+- `pre_install_setup` / `post_install_message` 返回 `list[str]`
+- `normalize_tool_name` 返回 str + 透传未知名 + canonical 名幂等
+- `normalize_tool_input` 透传未知 tool_name
+- `emit_deny` / `emit_allow` 返回有效 JSON string
+- `hook_events()` 返回非空 dict 含 snake_case basename
+- `settings_path()` 在 dotted 配置目录下
+- `build_event_entry()` 返回 dict 含 `hooks` key + list
+- `is_karma_entry()` 识别自家 entry + 拒陌生 entry
+- `name` / `display_name` 非空
+- `skill_install_targets()` 返回 list 含合法 format string
+
+42 新测试 (14 × 3 backend). 568/568 双 locale 通过 (原 512).
+
+### CI vulture --min-confidence 60 fix
+
+PR #3 在 CI 跑 vulture --min-confidence 60 时报 `karma/backends/codex.py:144 unused attribute 'whitespace_split'` (本地 80 不报). 这是 stdlib `shlex.shlex.whitespace_split` attribute 被 vulture 误判. `whitelist.py` 加 `_shlex.shlex.whitespace_split` 引用让 CI 干净 (跟现有 `_signals.reset_cache` 同 pattern).
+
 ## [0.10.0] — 2026-05-16（minor — backend 架构：protocol_adapter 调度层 + 6 契约 method + codex 所有权分工接手）
 
 ### 为什么发这版
