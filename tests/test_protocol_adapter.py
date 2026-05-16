@@ -26,8 +26,10 @@ from karma.backends.protocol_adapter import (
     emit_deny,
     normalize_tool_input,
     normalize_tool_name,
-    parse_apply_patch_envelope,
 )
+# v0.10.5: parse_apply_patch_envelope 从 codex.py 直接 import (codex 私货归位)
+# 不再从 protocol_adapter re-export (v0.9.16 back-compat 已不需要)
+from karma.backends.codex import parse_apply_patch_envelope
 
 
 # v0.9.16 Codex apply_patch envelope — 真捕获自本机 codex 0.130.0 + GPT-5.5
@@ -145,10 +147,15 @@ def test_normalize_tool_name_gemini_to_claude_canonical():
     assert normalize_tool_name("mcp_some_other_tool", gemini_payload) == "mcp_some_other_tool"
 
 
-def test_normalize_tool_name_codex_apply_patch_to_edit():
+def test_normalize_tool_name_codex_apply_patch_to_edit(monkeypatch):
     """v0.9.15 critical fix: Codex apply_patch（编辑入口）归一化成 Edit 让
     long_term / testset / bypass_karma 扫 tool_input.command 时真触发。
-    之前 apply_patch 漏所有编辑型 check → evidence check 被绕过。"""
+    之前 apply_patch 漏所有编辑型 check → evidence check 被绕过。
+
+    v0.10.5 (Agent 2 F1 fix): mock sys.argv 让 detect_backend 路由到 codex,
+    不再依赖删掉的「apply_patch 字面兜底」.
+    """
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
     codex_payload = {"hook_event_name": "PreToolUse"}
     assert normalize_tool_name("apply_patch", codex_payload) == "Edit"
     # Codex Bash 已是 canonical
@@ -326,8 +333,14 @@ def test_parse_apply_patch_empty_input_returns_empty_list():
     )
 
 
-def test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape():
-    """Codex apply_patch (string envelope) → karma canonical Edit dict."""
+def test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape(monkeypatch):
+    """Codex apply_patch (string envelope) → karma canonical Edit dict.
+
+    v0.10.5 (Agent 2 F1 fix): mock sys.argv 让 detect_backend 真路由 codex
+    (sys.argv[0] 含 /.codex/ → backend = codex), 而不是依赖 protocol_adapter
+    的 `apply_patch` 字面兜底 (那条已删让 protocol_adapter 真无 backend 字面).
+    """
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
     codex_payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     out = normalize_tool_input("apply_patch", REAL_CODEX_SINGLE_FILE_ENVELOPE, codex_payload)
     assert isinstance(out, dict)
@@ -340,8 +353,9 @@ def test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape():
     assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
 
 
-def test_normalize_tool_input_codex_apply_patch_dict_form_input_field():
+def test_normalize_tool_input_codex_apply_patch_dict_form_input_field(monkeypatch):
     """Codex hook payload 可能 wrap tool_input 成 dict 含 input 字段 — 兜底."""
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
     codex_payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     wrapped = {"input": REAL_CODEX_SINGLE_FILE_ENVELOPE}
     out = normalize_tool_input("apply_patch", wrapped, codex_payload)
@@ -357,8 +371,9 @@ def test_normalize_tool_input_non_apply_patch_passthrough():
     assert normalize_tool_input("Edit", claude_input, claude_payload) is claude_input
 
 
-def test_normalize_tool_input_multi_file_primary_is_first_update():
+def test_normalize_tool_input_multi_file_primary_is_first_update(monkeypatch):
     """多文件 envelope: primary file_path = 第一条 Update path（不是 Add/Delete）."""
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
     payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     out = normalize_tool_input("apply_patch", SYNTHETIC_MULTI_FILE_ENVELOPE, payload)
     assert out["file_path"] == "/tmp/a.py"
@@ -425,6 +440,53 @@ def test_read_first_multi_file_allows_when_all_updates_read(tmp_path):
     assert read_first_check(tool_name="Edit", tool_input=tool_input, session_state=state) is None
 
 
+def test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts(tmp_path, monkeypatch):
+    """v0.10.5 Agent 2 F4 functional bug lockdown — canonical `write_file_paths` 字段消费.
+
+    跟 `read_file_paths` (v0.10.1) 对称设计. 任何 backend 的 normalize_tool_input
+    把 sed -i / shell redirect / 其他 in-place 写路径打到 write_file_paths, 通用
+    post_tool_use 遍历调 record_edit 推 last_edit_ts.
+
+    本测试用 synth payload (直接给 write_file_paths) 验证通用层 wiring; codex
+    backend 是否真输出这字段是 codex 侧 TODO (docs/CODEX_BACKEND.md "剩余 TODO 7").
+    """
+    import io
+    import json
+    import sys
+    from karma.hooks import post_tool_use
+    from karma import session_state
+
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    state = session_state.SessionState(session_id="canonical-write-paths-test")
+    session_state.save(state, base_dir=tmp_path)
+
+    # synth payload — 任何 backend 都该能写出这种 canonical shape
+    synth_payload = {
+        "session_id": "canonical-write-paths-test",
+        "tool_name": "exec_command",
+        "tool_input": {
+            "cmd": "sed -i 's/foo/bar/' /workspace/src/x.py",
+            "command": "sed -i 's/foo/bar/' /workspace/src/x.py",
+            "write_file_paths": ["/workspace/src/x.py"],  # canonical write 字段
+        },
+        "tool_response": "",
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(synth_payload)))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    rc = post_tool_use.main()
+    assert rc == 0
+
+    reloaded = session_state.load("canonical-write-paths-test", base_dir=tmp_path)
+    # 关键: last_edit_ts 必须真推 (代码路径 .py, 不是 docs)
+    assert reloaded.last_edit_ts > 0, (
+        "canonical write_file_paths 字段没让通用层调 record_edit → last_edit_ts 没推 → "
+        "evidence check 假阴. v0.10.5 F4 fix wiring 失败."
+    )
+    edits = [str(p) for p in reloaded.edit_files]
+    assert "/workspace/src/x.py" in edits
+
+
 def test_post_tool_use_records_codex_shell_read_paths(tmp_path, monkeypatch):
     """v0.10.1 集成 lockdown — codex exec_command + tail/sed 全链路:
     backend.normalize_tool_input → tool_input.read_file_paths → post_tool_use
@@ -488,6 +550,7 @@ def test_post_tool_use_records_all_update_paths_in_multi_file_patch(tmp_path, mo
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(codex_payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
     rc = post_tool_use.main()
     assert rc == 0
 

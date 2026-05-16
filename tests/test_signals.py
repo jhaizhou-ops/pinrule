@@ -237,3 +237,44 @@ def test_completion_words_used_by_evidence_check():
     # 完成词 + 代码 action context + 无证据 → 拦
     hit = fn(response="Fixed the bug in evidence.py", session_state=state)
     assert hit is not None, "英文「Fixed the bug」+ 无测试证据 应拦"
+
+
+def test_signals_zh_en_parity_within_30pct():
+    """v0.10.5 (Agent 3 F3.6 lockdown): data/signals/* 所有词表 zh.txt 跟 en.txt
+    条目数差距 ≤ 30%, 否则单语用户召回率严重不对称.
+
+    历史: v0.9.13 D1 weak_claims zh 8 / en 23 → 中文 evidence check 召回率 ~35%.
+    v0.10.5 F3.5 抓 agent_saturation 反向 drift (zh 40 / en 28 = 30%). 加这条
+    contract test 让任何方向 drift 超 30% 自动 CI fail, 不靠人 audit.
+    """
+    from pathlib import Path
+    signals_dir = Path(__file__).resolve().parent.parent / "data" / "signals"
+    drifts: list[str] = []
+    for subdir in sorted(signals_dir.iterdir()):
+        if not subdir.is_dir():
+            continue
+        zh = subdir / "zh.txt"
+        en = subdir / "en.txt"
+        if not (zh.exists() and en.exists()):
+            continue
+        zh_lines = [
+            line.strip() for line in zh.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        en_lines = [
+            line.strip() for line in en.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        zh_n, en_n = len(zh_lines), len(en_lines)
+        if zh_n == 0 or en_n == 0:
+            continue
+        drift = abs(zh_n - en_n) / max(zh_n, en_n)
+        if drift > 0.30:
+            drifts.append(
+                f"  {subdir.name}: zh={zh_n} en={en_n} drift={drift:.0%} (> 30%)"
+            )
+    assert not drifts, (
+        "data/signals/ 词表 zh/en 不对称超 30% (v0.9.13 D1 教训):\n"
+        + "\n".join(drifts)
+        + "\n\n修法: 给少的那边补对偶 (native 表达不要机翻)."
+    )

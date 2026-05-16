@@ -75,17 +75,27 @@ karma 写完 hooks.json 后调用. 返回响亮警示行打印到 stdout. 用于
 
 **当前状态**: ✅ 返回 `"{}"`. 有锁定回归测试（`test_codex_emit_allow_returns_empty_dict_not_claude_shape`）防止未来 PR 误退回 Claude shape.
 
-## 已知 TODO 列表（codex 议程）
+## 已完成 TODO (v0.10.x)
 
-这些是 karma 维护者识别但**推迟给 codex backend owner** 的 gap,因为需要 codex 端协议知识：
+v0.10.0 定义的 TODO 在后续 codex-owned PR 里完成:
+
+| # | 问题 | 状态 | 落地版本 |
+|---|---|---|---|
+| 1 | **shell-as-Read** — `exec_command` 跑 `tail`/`sed`/`cat` 算 Read | ✅ Done | v0.10.1 [PR #3](https://github.com/jhaizhou-ops/karma/pull/3) `extract_read_paths_from_exec_command()` |
+| 1.5 | **简单 pipe 读** — `head N \| tail M` / `cat \| head/tail` chain | ✅ Done | v0.10.3 [PR #5](https://github.com/jhaizhou-ops/karma/pull/5) shell-as-Read 扩展 |
+| 2 | **真 hook-level payload 捕获** for SessionStart | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) — codex SessionStart payload 捕获 + 锁定到测试 fixture |
+| 4 | **其他 codex tool_name** — `exec_command → Bash` 等 | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `_CODEX_TOOL_MAP` 扩展 |
+| 5a | **审批状态 UX** — 手动 `/hooks` 审批瓶颈 | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `trust_karma_hooks()` 自动写 `trusted_hash` |
+
+## 剩余 TODO 列表（codex 议程）
 
 | # | 问题 | 建议方法 |
 |---|---|---|
-| 1 | **shell-as-Read** — `exec_command` 跑 `tail`/`sed`/`cat` 应该算 Read 给 `record_read` 用,让 `read_first` 不假阳拦 | 新 `karma/utils/shell_read.py` 含 `extract_read_paths_from_shell(command) -> list[str]`. `codex.normalize_tool_input` 写 `read_file_paths` 字段. `post_tool_use` 通用 handler record 每条. codex 应该对真 codex CLI session 测试避免复杂 pipeline 上假阳（xargs, find, ls -la）. |
-| 2 | **真 hook-level payload 捕获** — 当前推断自 session rollout (`response_item.payload.input` 字段) 但实际 hook stdin shape（codex 包装后）没直接捕获. `_extract_codex_patch_text` 防御式 unwrap 几种候选 shape; 知道真 payload 后可以收紧. | 真交互式 codex session（`/hooks` 审批后）加 `KARMA_DEBUG_DUMP_PAYLOAD` env，dump payload 锁字面到测试 fixture. |
-| 3 | **Codex feature-flag 检测** — `_is_hooks_feature_enabled` 手解 `~/.codex/config.toml`. codex 可能有更干净 API. | 如果 codex CLI 有 `codex features list --json` 或 status 文件，换掉 toml parser. |
-| 4 | **其他 codex tool_name 没映射** — `exec_command` 应该映射到 `Bash`（codex 等价）. `update_plan` 大概应该透传. | Audit codex tool 注册表，更新 `_CODEX_TOOL_MAP`. |
-| 5 | **审批状态检测** — `karma doctor` 当前打印手工 reminder. 如果 codex 暴露 approved-hook 列表（sqlite? 文件? API?），`doctor` 可以程序化验证每个 wrapper. | 调研 codex 内部; 如果没 API 给 OpenAI codex 团队提 issue. |
+| 2-follow-up | **真 hook-level payload 捕获 for PreToolUse / PostToolUse / Stop / UserPromptSubmit** — 只 SessionStart shape 捕获了. `_extract_codex_patch_text` 仍防御式 unwrap 多个候选 shape — 真 PreToolUse hook payload 捕获后可以收紧. | 真交互式 codex session（`/hooks` 审批后）加 `KARMA_DEBUG_DUMP_PAYLOAD` env, dump payload, 锁字面到 fixture, 把 `_extract_codex_patch_text` 收紧到验证过的 key. |
+| 3 | **Codex feature-flag 检测清理** — `_is_hooks_feature_enabled` 手解 `~/.codex/config.toml`. codex 0.131+ 可能有更干净 API. | 如果 codex CLI 出 `codex features list --json` 或 status 文件, 换掉 toml parser. 低优先级 — toml parser 工作. |
+| 5b | **程序化审批验证** — `trust_karma_hooks()` 写 `trusted_hash`; `karma doctor` 可以程序化验证每个 wrapper 当前是否仍 approved (vs. 让用户去 TUI 看). | 调研 `~/.codex/config.toml` `[hooks.state]` entry 是否能读回并 validate against 当前 wrapper hash. 如果可以, `karma doctor` 加 per-wrapper 绿红 check. |
+| 6 | **更多 pipe 读 pattern** — `xargs cat` / recursive `grep -r` / `find` 故意不识别 (PR #5 保守 scope). 如果真 codex 使用显示这些 pattern 高假阴率, 设计组合-pattern 引擎. | 挖 `~/.codex/sessions/*/` rollout 看这些 pattern 真频率; 高就设计扩展. |
+| 7 | **`write_file_paths` canonical 写字段** (v0.10.5 karma 端已 ready, codex 端尚未输出) — karma 维护者在 `karma/hooks/post_tool_use.py` 加了 `tool_input.write_file_paths` 消费 (跟现有 `read_file_paths` 对称). 任何 backend 输出这字段, 通用层就遍历调 `state.record_edit(p)`, 推 `last_edit_ts` 让 evidence check 看到 codex `sed -i` 等真代码改动. 当前 `codex.normalize_tool_input` 只为 `sed -i` 设 `is_write: True` 不输出 `write_file_paths` → codex `sed -i /workspace/src/x.py` 真改文件但 karma `evidence.check` 看不到 `last_edit_ts` 推进 → 完成词假阳拦截. | 扩展 `codex.normalize_tool_input` 让 `_extract_read_paths_from_exec_command()` 返回 `is_write=True` 时同时把 path 列表输出为 `write_file_paths`. path 在 `is_write` 检测时已经解析过, 不要丢. 测试: `sed -i 's/foo/bar/' /workspace/x.py` → 输出 `{cmd, command, is_write: True, write_file_paths: ["/workspace/x.py"]}`. 真证据来源: 任何含 `sed -i` 的 codex session rollout. |
 
 ## 如何贡献（codex PR 流程）
 
@@ -99,13 +109,20 @@ karma 写完 hooks.json 后调用. 返回响亮警示行打印到 stdout. 用于
    - 真实测试 transcript (e.g., 用户 prompt → karma 响应截图)
    - 任何新捕获的 tool_name / payload shape（session rollout 文件路径）
 
-## 契约测试（计划中，未实现）
+## 契约测试 (v0.10.1 已实现)
 
-karma 维护者会加 `tests/test_backend_contract.py` 跑同一套抽象契约测试对 `REGISTRY` 里每个 backend — codex 的 PR 不应破这套. 预期覆盖:
-- 6 个方法 在最小 payload 上能 callable 不崩
-- `emit_allow` 和 `emit_deny` 返回有效 JSON
-- `normalize_tool_name` 保留 canonical 名（幂等）
-- `pre_install_setup` 和 `post_install_message` 返回 list
+`tests/contract/test_backend_contract.py` 用 `pytest.parametrize` 跑 14 个抽象契约测试对 `REGISTRY` 里每个 backend. 覆盖:
+- 6 个方法在最小 payload 上能 callable 不崩
+- `emit_allow` / `emit_deny` 返回有效 JSON string
+- `normalize_tool_name` 返回 str + 透传未知 + canonical 幂等
+- `hook_events()` 非空 dict + snake_case basename
+- `settings_path()` 在 dotted config 目录下
+- `build_event_entry()` 返回 dict 含 `hooks` key
+- `is_karma_entry()` 识别自家 entry + 拒陌生 entry
+- `name` / `display_name` 非空
+- `skill_install_targets()` 返回 list 含合法 format string
+
+任何 codex PR 破这些自动 CI fail. 加新 backend 自动通过 REGISTRY 注册拿到 14 个契约测试覆盖 — 无 per-backend boilerplate.
 
 ## 沟通渠道
 

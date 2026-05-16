@@ -36,6 +36,22 @@ need your decision on
 will pick this up tomorrow
 picking this up tomorrow
 continue this tomorrow
+will continue next session
+next session continues this
+resuming tomorrow
+resuming next session
+will resume tomorrow
+will resume next session
+will hand off tomorrow
 hand off to next session
 resume in the next session
 parking this here
+
+# Series wrap-up (v0.10.5 D drift fix — 对偶中文「系列收官」family)
+series wrap-up
+series wrap up
+wrap-up at clean state
+wrap up at clean state
+wrapping up in clean state
+call it a wrap
+calling it a wrap

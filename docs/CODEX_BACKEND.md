@@ -75,17 +75,27 @@ Return JSON string for "allow this tool call". **Codex does NOT accept `hookSpec
 
 **Current**: ✅ returns `"{}"`. There's a locked regression test (`test_codex_emit_allow_returns_empty_dict_not_claude_shape`) preventing future PRs from accidentally reverting to Claude shape.
 
-## Known TODO list (codex agenda)
+## Completed TODOs (v0.10.x)
 
-These are gaps karma maintainer identified but **deferred to codex backend owner** because they require codex-side protocol knowledge:
+These TODOs were defined in v0.10.0's first cut of this doc and completed in subsequent codex-owned PRs:
+
+| # | Issue | Status | Shipped in |
+|---|---|---|---|
+| 1 | **shell-as-Read** — `exec_command` running `tail`/`sed`/`cat` should count as Read | ✅ Done | v0.10.1 [PR #3](https://github.com/jhaizhou-ops/karma/pull/3) `extract_read_paths_from_exec_command()` |
+| 1.5 | **Simple pipe reads** — `head N | tail M` / `cat | head/tail` chains | ✅ Done | v0.10.3 [PR #5](https://github.com/jhaizhou-ops/karma/pull/5) extending shell-as-Read |
+| 2 | **Real hook-level payload capture** for SessionStart | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) — codex SessionStart payload captured and locked in test fixture |
+| 4 | **Other codex tool names** — `exec_command → Bash`, etc | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `_CODEX_TOOL_MAP` extended |
+| 5a | **Approval state UX** — manual `/hooks` approval bottleneck | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `trust_karma_hooks()` auto-writes `trusted_hash` |
+
+## Remaining TODO list (codex agenda)
 
 | # | Issue | Suggested approach |
 |---|---|---|
-| 1 | **shell-as-Read** — `exec_command` running `tail`/`sed`/`cat` should count as Read for `record_read` and lift `read_first` denials | New `karma/utils/shell_read.py` with `extract_read_paths_from_shell(command) -> list[str]`. `codex.normalize_tool_input` writes `read_file_paths` field. `post_tool_use` general handler records each. Codex should test against real codex CLI sessions to avoid false-positives on complex pipelines (xargs, find, ls -la). |
-| 2 | **Real hook-level payload capture** — currently inferred from session rollout (`response_item.payload.input` field) but actual hook stdin shape (after codex wrapping) not directly captured. `_extract_codex_patch_text` defensively unwraps several candidate shapes; can be tightened once real payload schema is known. | Add `KARMA_DEBUG_DUMP_PAYLOAD` env to a real interactive codex session (after `/hooks` approval), dump payloads, lock real shape in test fixtures. |
-| 3 | **Codex feature-flag detection** — `_is_hooks_feature_enabled` parses `~/.codex/config.toml`. Codex may expose a cleaner API. | If codex CLI has e.g. `codex features list --json` or status file, replace the toml parser. |
-| 4 | **Other codex tool names not mapped** — `exec_command` should map to `Bash` (it's the codex equivalent). `update_plan` probably should pass through. | Audit codex tool registry, update `_CODEX_TOOL_MAP`. |
-| 5 | **Approval state detection** — `karma doctor` currently prints a manual reminder. If codex exposes approved-hook list (sqlite? file? API?), `doctor` could programmatically verify each wrapper is approved. | Investigate codex internals; if no API exists, file an issue with OpenAI codex team. |
+| 2-followup | **Real hook-level payload capture for PreToolUse / PostToolUse / Stop / UserPromptSubmit** — only SessionStart shape captured so far. `_extract_codex_patch_text` still defensively unwraps multiple candidate shapes for apply_patch hook payloads — can be tightened once real PreToolUse hook payload captured. | Add `KARMA_DEBUG_DUMP_PAYLOAD` env to real interactive codex session (post-`/hooks` approval), dump payloads, lock real shape in fixture, tighten `_extract_codex_patch_text` to verified key only. |
+| 3 | **Codex feature-flag detection cleanup** — `_is_hooks_feature_enabled` parses `~/.codex/config.toml`. Codex may expose a cleaner API in 0.131+. | If codex CLI ships `codex features list --json` or status file, replace the toml parser. Low priority — toml parser works. |
+| 5b | **Programmatic approval verification** — `trust_karma_hooks()` writes `trusted_hash`; `karma doctor` could programmatically verify each wrapper is currently approved (vs. relying on user to check TUI). | Investigate whether `~/.codex/config.toml` `[hooks.state]` entries can be read back and validated against current wrapper hashes. If yes, `karma doctor` adds a green/red check per wrapper. |
+| 6 | **Pipe read additional patterns** — `xargs cat` / recursive `grep -r` / `find` deliberately not recognized (PR #5 conservative scope). If real codex usage shows high false-negative rate on these, design combo-pattern engine. | Mine `~/.codex/sessions/*/` rollouts for actual frequency of these patterns; if high, design extension. |
+| 7 | **`write_file_paths` canonical write field** (v0.10.5 karma-side ready, codex-side not emitting yet) — karma maintainer added `tool_input.write_file_paths` consumption in `karma/hooks/post_tool_use.py` (parallel to existing `read_file_paths`). Whenever a backend emits this list, generic layer calls `state.record_edit(p)` for each path, advancing `last_edit_ts` so evidence check sees codex `sed -i` etc as real code edits. Currently `codex.normalize_tool_input` only sets `is_write: True` for `sed -i` without emitting `write_file_paths` — codex `sed -i /workspace/src/x.py` writes a file but karma's `evidence.check` doesn't see `last_edit_ts` advancement → false-positive completion-word blocks. | Extend `codex.normalize_tool_input` so when `_extract_read_paths_from_exec_command()` returns `is_write=True`, also emit the file path list as `write_file_paths`. The path was already parsed for `is_write` detection — just stop discarding it. Test: `sed -i 's/foo/bar/' /workspace/x.py` → output `{cmd, command, is_write: True, write_file_paths: ["/workspace/x.py"]}`. Real codex session evidence: any rollout with `sed -i` invocations. |
 
 ## How to contribute (codex PR flow)
 
@@ -99,13 +109,20 @@ These are gaps karma maintainer identified but **deferred to codex backend owner
    - real-world test transcript (e.g., user prompt → karma response screenshot)
    - any new tool names / payload shapes captured (file path to session rollout)
 
-## Contract testing (planned, not yet implemented)
+## Contract testing (implemented v0.10.1)
 
-karma maintainer will add `tests/test_backend_contract.py` running the same abstract contract test suite against every backend in `REGISTRY` — codex's PR should not break these. Expected coverage:
+`tests/contract/test_backend_contract.py` runs 14 abstract contract tests via `pytest.parametrize` against every backend in `REGISTRY`. Coverage:
 - All 6 methods callable without crash on minimal payload
-- `emit_allow` and `emit_deny` return valid JSON
-- `normalize_tool_name` preserves canonical names (idempotent)
-- `pre_install_setup` and `post_install_message` return lists
+- `emit_allow` and `emit_deny` return valid JSON string
+- `normalize_tool_name` returns str + passthrough unknowns + idempotent on canonical names
+- `hook_events()` non-empty dict + snake_case basenames
+- `settings_path()` under dotted config dir
+- `build_event_entry()` returns dict with `hooks` key
+- `is_karma_entry()` recognizes own entry + rejects foreign entry
+- `name` / `display_name` non-empty
+- `skill_install_targets()` returns list with valid format strings
+
+Any codex PR breaking these auto-fails CI. Adding a new backend automatically picks up all 14 contract tests via REGISTRY registration — no per-backend boilerplate.
 
 ## Communication channels
 

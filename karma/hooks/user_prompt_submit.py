@@ -131,10 +131,16 @@ def _build_strong_reminder(
             # bug — 86% violation 被错归 keyword-only，实际大部分是 engine
             # check 真触发只是字段缺失）。trigger_key 来自 CheckHit，跟
             # pre_tool_use.py / stop.py 写 Violation 一致传递。
+            # v0.10.5 (Agent 1 F1.3 fix): _advance_turn_state 已经把 turn_count
+            # 推 N → N+1, 但 strong_reminder 扫的是**上一 turn** (N) 的 assistant
+            # response. Violation 应该归属于产生它的 turn (N) 不是 user 新输入
+            # 创建的 turn (N+1). 用 max(0, current_turn - 1) 修正 turn 归属让
+            # recent_turns / force_block 窗口数学正确. 同 v0.9.13 B1 off-by-one 族.
+            prev_turn = max(0, current_turn - 1)
             recs = [_V(
                 ts=int(_time.time()), session_id=session_id,
                 rule_id=h.rule_id, trigger=h.trigger,
-                snippet=h.snippet, turn=current_turn,
+                snippet=h.snippet, turn=prev_turn,
                 trigger_key=h.trigger_key,  # v0.5.7: locale-agnostic 分组 key
             ) for h in all_hits]
             _v_append(recs)

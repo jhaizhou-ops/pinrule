@@ -10,6 +10,58 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.10.5] — 2026-05-16 (minor — 4-perspective cross-audit sweep: 10 findings fixed across docs / functional / state / boundary)
+
+User triggered 4-perspective cross-audit (3 Claude parallel agents + dogfooding evidence) after 5 consecutive v0.10.x releases. Recovered v0.9.13-pattern truth: rapid iteration accumulates new drift. 18 findings surfaced — 17 hand-verified true (0 false positives). v0.10.5 batch-fixes 10 (functional + critical + minor); v0.10.6 will tackle the 4 structural ones (context-injection / stop-block backend contract methods + 3-hook integration tests).
+
+### Fixed in v0.10.5
+
+**Critical docs corrections** (Agent 3 F3.1 + F3.2):
+- README FAQ "Codex needs manual /hooks approval" contradicted main table's "auto-trust takes effect immediately" (v0.10.2). Both languages corrected to: "wrappers are auto-trusted by `karma install-hooks --backend codex`; if `/hooks` shows 'modified', Codex changed hash algorithm — re-approve + file issue."
+- `docs/CODEX_BACKEND.md` TODO list 4/5 items were already shipped (v0.10.1 PR #3 / v0.10.2 PR #4 / v0.10.3 PR #5) but still listed as "planned" — misled future contributors. Split into "Completed (v0.10.x)" + "Remaining" sections both languages.
+
+**Functional bug** (Agent 2 F4):
+- `karma/hooks/post_tool_use.py` now consumes canonical `tool_input.write_file_paths` (backend-neutral, parallel to existing `read_file_paths`). Any backend's `normalize_tool_input` emitting this list triggers `state.record_edit(path)` per path → `last_edit_ts` advances. Fixes codex `sed -i /workspace/src/x.py` not being seen by `evidence.check` (false-pass on completion words). Integration test `test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts` locks it. **codex backend follow-up needed (TODO 7 in CODEX_BACKEND.md)**: codex.normalize_tool_input currently sets `is_write: True` for `sed -i` but doesn't emit `write_file_paths` — karma-side wiring is forward-compatible; codex CLI maintainer should add the field next PR.
+
+**Boundary leak fix** (Agent 2 F1):
+- `karma/backends/protocol_adapter.py` removed two `codex` literal fallbacks (`from karma.backends.codex import _CODEX_TOOL_MAP` + `REGISTRY["codex"].normalize_tool_input(...)` force-route on `raw_tool_name == "apply_patch"`). `detect_backend()` now routes correctly via `sys.argv[0]` `/.codex/` literal detection — fallbacks were vestigial and violated v0.10.0 "dispatch layer has no backend literals" design self-statement. Tests updated to mock `sys.argv` instead of relying on fallback.
+- Removed v0.9.16 back-compat re-export `parse_apply_patch_envelope` from protocol_adapter — tests now import from codex.py directly.
+
+**State / off-by-one** (Agent 1 F1.1 + F1.2 + F1.3):
+- `karma/hooks/pre_compact.py` fallback math fix: `current_turn=999999` + `window=5` produced cutoff `999995` matching only turns 999995-999999 (never real session turns 1-100) → `recent_violation_turns` was always empty when `state.turn_count=0`, breaking the compact-resilience "most recent 5 turn violations" section in pre_compact_snapshot.md. Fallback path now reads ts-dimension `recent(window_sec=24h)` directly.
+- `karma/hooks/stop.py` now calls `catchup_pending_bg()` via `update_state(try/except + fail-open fallback)`, matching Pre/PostToolUse and UserPromptSubmit pattern. Fixes window-edge case where a bg pytest finishing after the last PostToolUse but before Stop hook fires wasn't recorded → `evidence.check` saw stale `has_recent_test_pass=False` → false-positive loud-failure block on completion words.
+- `karma/hooks/user_prompt_submit.py` strong_reminder now writes Violation `turn=current_turn - 1` not `current_turn` — strong_reminder scans the **previous** turn's assistant response; turn_count was already advanced N → N+1 before strong_reminder runs.
+
+**Minor regex / docstring corrections** (Agent 1 F1.4 + F1.5 + Agent 3 F3.4 + Agent 2 F5 + F6):
+- `karma/checks/chinese_plain.py:_PATH_LITERAL_RE` changed `\w` (Unicode-aware by default in Python re) to explicit `[a-zA-Z0-9./\-_]` ASCII char class. Original ate Chinese path segments (`/桌面/某目录/文件.py` whole-path stripped) reducing the Chinese-ratio denominator → false-positive `chinese-plain` blocks for Chinese users with Chinese paths.
+- `karma/hooks/post_tool_use.py` comment said `DEFAULT 60K` but `DEFAULT_THRESHOLD = 40_000` since v0.9.0 — corrected.
+- `karma/model_threshold.py` module docstring listed v0.4.35 thresholds (Opus 80K / Sonnet 60K / Haiku 30K) but actual `_MODEL_THRESHOLDS` is v0.9.0 + v0.10.4 (Opus 60K / Sonnet 40K / Haiku 30K + 11 OpenAI/Codex entries). Docstring updated to current truth.
+- `karma/backends/codex.py:_extract_codex_patch_text` now docstring-flags which wrap keys are real-captured (`input` only) vs speculative (`patch` / `command` / `diff`) and prints stderr warning when a speculative key is actually hit — rule #4 loud-failure-with-evidence + invites users to file issue + real payload capture so the function can be tightened.
+- `karma/model_threshold.py:extract_model_from_transcript` docstring clarifies it's Claude-Code-specific (regex assumes Claude transcript jsonl shape); other backends should use `payload.model` via `model_from_payload`, not fall through to this.
+
+**Signal wordlist drift fix + lockdown** (Agent 3 F3.5 + F3.6):
+- `data/signals/agent_saturation/en.txt` added 12 entries for dual coverage with zh.txt's `系列收官` / `明天接力` / `下次接力` families — was 40 zh / 28 en = 30% drift (matched v0.9.13 D1 threshold). Now 40 zh / 42 en = 5% drift.
+- New `tests/test_signals.py:test_signals_zh_en_parity_within_30pct` walks all `data/signals/<name>/zh.txt`+`en.txt` pairs and fails CI if any drift > 30%. Future drifts in any direction get caught automatically — no more human audits required for this class.
+
+### Cross-perspective audit pattern
+
+3 Claude parallel agents (logic / boundary / docs+tests) + dogfooding-evidence perspective 4. Real auditing math this run:
+- v0.9.13 single-agent: 5 findings / 4 real bugs (high SNR — multi-year drift)
+- v0.9.14 3-agent: 9 findings / 2 real bugs (low SNR — repo clean after v0.9.13)
+- **v0.10.5 4-perspective: 18 findings / 17 real (94% SNR)** — rapid iteration accumulates drift faster than diminishing-returns predicts. Audit value reappears when iteration velocity is high.
+
+### Deferred to v0.10.6
+
+3 structural findings (require backend contract method additions, larger PR than v0.10.5 scope):
+- F2.2 `emit_context_injection(event, additional_context, payload)` contract — 4 ContextInjection hooks currently print Claude `hookSpecificOutput` shape directly, never going through `protocol_adapter.emit_*` routing. Codex SessionStart/UserPromptSubmit shape acceptance untested (v0.9.15 same pattern bit us).
+- F2.3 `emit_stop_block(reason, payload)` contract — `stop.py` direct-prints `{decision: "block", reason}` without backend dispatch. Codex Stop hook acceptance unverified. karma's strongest intervention (force_block) potentially silent-failing on codex.
+- F3.3 3-hook integration tests for `model_from_payload` wiring.
+
+### Verification
+
+- **597/597 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 595 — +2 new locks: write_file_paths + zh/en parity)
+- All 6 local gates pass
+
 ## [0.10.4] — 2026-05-16 (minor — prefer codex payload model + OpenAI/Codex threshold table for cross-platform attention adaptation)
 
 karma's mid-turn reinject + model-adaptive thresholds were Claude-specific. Codex agents using karma got DEFAULT 40K threshold for `gpt-5.5` (1M-context flagship) — too tight, disrupting expression. v0.10.4 closes this gap with two changes:

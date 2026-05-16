@@ -139,17 +139,36 @@ def parse_apply_patch_envelope(envelope: str) -> list[dict[str, str]]:
 def _extract_codex_patch_text(raw_tool_input: Any) -> str:
     """Codex hook payload 里 apply_patch tool_input 可能是裸字符串或 wrap dict.
 
-    Real codex session rollout (custom_tool_call) 显示 `input` 字段是字符串。
-    Hook 层 codex 可能 wrap 成 `{"input": ...}` 或 `{"command": ...}` —
-    防御式处理两种 shape（hook-level 真 payload schema 待交互式 codex 真用例
+    **Capture status (v0.10.5 honest scope, Agent 2 F5 fix)**:
+    - ✅ Bare string (raw_tool_input is str): **真捕获** from codex 0.130 + GPT-5.5
+      session rollout 2026-05-16 (rollout-2026-05-16T13-51-47-...jsonl)
+    - ⚠️ dict `input` key: 推测自 codex 文档 (Codex docs custom_tool_call.input
+      field) + session rollout 字段名 — **hook-level wrap 后真 shape 未捕获**
+    - ⚠️ dict `command` / `patch` / `diff` key: **纯推测**, 没文档没真捕获,
+      防御式留着以防 codex 0.131+ 改用这些字段名
+
+    如果未捕获 key 真 fire, 函数会 print stderr warning 让用户响亮发现
+    (rule #4 loud-failure-with-evidence) 并提 issue 反馈 + 真 hook-level
+    payload 捕获 → 收紧此函数到 verified key only.
     + TUI /hooks 审批后捕获）。
     """
     if isinstance(raw_tool_input, str):
         return raw_tool_input
     if isinstance(raw_tool_input, dict):
+        # v0.10.5 (Agent 2 F5 fix): 未捕获 key (patch / command / diff) 真 fire 时
+        # stderr warning 让 codex 用户响亮发现 + 提 issue 反馈真 hook-level shape.
+        # `input` key 是真捕获过的不 warn.
+        import sys as _sys
         for key in ("input", "patch", "command", "diff"):
             v = raw_tool_input.get(key)
             if isinstance(v, str) and v.strip():
+                if key != "input":
+                    print(
+                        f"karma codex backend: warning — apply_patch 用了未捕获的 wrap "
+                        f"key {key!r}, 防御式继续解析. 请把这种 case 报到 GitHub issue "
+                        f"让 karma 维护者收紧 _extract_codex_patch_text 到真捕获过的 key.",
+                        file=_sys.stderr,
+                    )
                 return v
     return ""
 

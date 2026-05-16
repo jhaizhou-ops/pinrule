@@ -135,6 +135,28 @@ def main() -> int:
                 for p in read_paths:
                     if isinstance(p, str) and p:
                         state.record_read(p)
+            # v0.10.5 (Agent 2 F4 functional fix): backend-neutral canonical
+            # `write_file_paths` 字段表示「这次 tool call 实际写了这些文件」.
+            # 跟 `read_file_paths` 对称设计 — 任何 backend (codex / 未来) 的
+            # normalize_tool_input 把 sed -i / shell redirect / 其他 in-place 写
+            # 路径打到这个字段, 通用层遍历调 record_edit 推 last_edit_ts.
+            #
+            # 修 codex 用户跑 `sed -i /workspace/x.py` 后 last_edit_ts 不推 →
+            # evidence check 假阴 (「自最近代码改动以来未测试」误判通过, 跟
+            # sticky #4 「完成要有证据」直接撞).
+            #
+            # 内部 record_edit 自带 docs/probe 路径不推 last_edit_ts 的过滤
+            # (is_non_code_edit_path), 不会污染 evidence 信号.
+            #
+            # Codex backend TODO (etcd CODEX_BACKEND.md 移): codex.normalize_tool_input
+            # 当前 sed -i 只设 is_write=True 没出 write_file_paths — 需要 codex
+            # 侧 PR 补输出. 通用层这里 forward-compat 准备好 (字段没人输出时
+            # 自然 no-op).
+            write_paths = tool_input.get("write_file_paths")
+            if isinstance(write_paths, list):
+                for p in write_paths:
+                    if isinstance(p, str) and p:
+                        state.record_edit(p)
 
         if tool_name == "Bash":
             # Bash 失败仍 record — has_recent_test_pass 由 _FAIL_RE 在 record_bash 内部判
@@ -252,7 +274,8 @@ def _build_smart_reinject(session_id: str, state) -> str:
     try:
         cfg = _load_config()
         window_turns = int(cfg.get("recent_violation_turns", 5))
-        # v0.4.35 阈值来源优先级：sticky.yaml 显式配置 > 按模型自适应 > DEFAULT 60K
+        # v0.4.35 阈值来源优先级：sticky.yaml 显式配置 > 按模型自适应 > DEFAULT 40K
+        # (v0.9.0 把 DEFAULT 从 60K 收紧到 40K 时这条注释忘改, v0.10.5 修)
         # 用户 sticky.yaml 给 reinject_every_n_tokens 数字 → 强制覆盖
         # 没给 → 按 state.model 模型阈值（model_threshold 表）
         configured = cfg.get("reinject_every_n_tokens")

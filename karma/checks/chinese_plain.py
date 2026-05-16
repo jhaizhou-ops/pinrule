@@ -68,8 +68,11 @@ _DOTTED_IDENT_RE = re.compile(
 )
 
 # v0.4.40 路径字面 — `/path/to/file` `~/.claude/...` 等绝对路径不算自然语言
+# v0.10.5 (Agent 1 F1.5 fix): 显式 ASCII 字符集. 原来 `\w` 默认 Unicode-aware
+# 会吃中文路径段 (例 `/桌面/某目录/文件.py` 整段被剥), 让 chinese-plain ratio
+# 计算少算汉字 → 假阳更易触发. 改成 [a-zA-Z0-9./\-_] 显式只匹配 ASCII 路径字符.
 _PATH_LITERAL_RE = re.compile(
-    r"(?:~|/)[\w./\-_]{4,}"
+    r"(?:~|/)[a-zA-Z0-9./\-_]{4,}"
 )
 
 # v0.4.40 commit message 引号块剥 — Agent 写「我写的 commit message 是

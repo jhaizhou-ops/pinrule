@@ -392,7 +392,7 @@ karma 是 **regex 匹配 + 计数**，不是 LLM 语义理解。这意味着：
 - 规则是否加载成功
 - session 状态目录是否产生新文件
 
-Codex CLI 0.130+ 须 TUI 内输 `/hooks` 手动审批 karma 4 个 wrapper。
+Codex CLI 0.130+ wrapper 由 `karma install-hooks --backend codex` 自动信任（v0.10.2 — 自动写 `trusted_hash` 到 `~/.codex/config.toml`）. 如果 TUI `/hooks` 里看到 "modified" 不是 "trusted"，说明 Codex 升级了 hash 算法 — 手动 approve 一次 + 提 issue 反馈.
 </details>
 
 <details>

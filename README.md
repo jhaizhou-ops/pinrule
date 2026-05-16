@@ -370,7 +370,7 @@ Run `karma doctor` to check:
 - Did rules load successfully?
 - Did session state directory generate new files?
 
-Codex CLI 0.130+ requires manual `/hooks` approval of karma's 4 wrappers in TUI.
+Codex CLI 0.130+ wrappers are auto-trusted by `karma install-hooks --backend codex` (v0.10.2 — writes `trusted_hash` to `~/.codex/config.toml` automatically). If you see "modified" in TUI `/hooks` instead of "trusted", Codex has changed its hash algorithm — re-approve manually and file an issue.
 </details>
 
 <details>

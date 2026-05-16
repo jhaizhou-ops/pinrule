@@ -6,14 +6,18 @@
 衰减区入口差几倍 — 用一刀切阈值（v0.4.32 的 8K）要么对大模型太密扰动表达，
 要么对小模型太稀已衰减才提醒。
 
-当代 Claude 衰减区入口（基于 Anthropic 公开 + RULER/MRCR/NIAH benchmark
-2026 数据）：
+当代模型衰减区入口（v0.9.0 收紧 + v0.10.4 加 OpenAI/Codex 族）：
 
-- Opus 4.x：~70K-100K → 阈值 80K
-- Sonnet 4.x：~50K-70K  → 阈值 60K
+- Opus 4.x：~70K-100K → 阈值 60K (v0.9.0 从 80K 收紧)
+- Sonnet 4.x：~50K-70K  → 阈值 40K (v0.9.0 从 60K 收紧)
 - Haiku 4.x：~20K-40K   → 阈值 30K
+- gpt-5.5 / gpt-5.4 (1M context flagship) → 阈值 120K (v0.10.4)
+- gpt-5.3-codex / gpt-5.2-codex / gpt-5.1-codex-max → 阈值 80K (v0.10.4)
+- gpt-5.4-mini / gpt-5.1-codex-mini → 阈值 40K
+- gpt-5.4-nano / gpt-5.3-codex-spark / codex-mini → 阈值 30K
 - 老模型 (GPT-3.5 / Claude-1.3 时代)：8K → 阈值 8K（Liu 2023 数据）
-- 未知模型 fallback：60K（按用户「至少 60K」要求保守 — 不至于太密）
+- 未知模型 fallback：40K (v0.9.0 跟 sonnet 一致;
+  v0.10.5 修 docstring stale — 之前写 60K)
 
 特别场景：子 Agent 经常用 Sonnet/Haiku 跑长任务而主 Agent 用 Opus，karma
 v0.4.34 子 Agent 独立 state 架构 + 本模块按当前模型阈值合一 — 各自按真
@@ -69,7 +73,7 @@ def threshold_for_model(model: str | None) -> int:
     """按 model 字符串识别返回中段注入 token 阈值。
 
     model 例：'claude-opus-4-7' / 'claude-sonnet-4-6' / 'claude-haiku-4-5'。
-    None / 空 / 不识别 → DEFAULT_THRESHOLD（60K）。
+    None / 空 / 不识别 → DEFAULT_THRESHOLD（40K，v0.9.0 收紧时这条 docstring 没改, v0.10.5 修）。
     """
     if not model:
         return DEFAULT_THRESHOLD
@@ -106,18 +110,22 @@ def model_from_payload(payload: dict) -> str | None:
 
 
 def extract_model_from_transcript(transcript_path: str | None) -> str | None:
-    """v0.4.39 根本本路径：从 hook payload.transcript_path 读 jsonl 找当前 model。
+    """v0.4.39 路径：从 Claude Code transcript jsonl 反扫找当前 model.
 
-    Hook payload 协议层 limitation：SessionStart 才直接含 model 字段，
-    PreToolUse / PostToolUse / user_prompt_submit / SubagentStart / SubagentStop
-    都没 model 字段（manual run 验证）。但**所有 hook payload 有
-    transcript_path 字段** — Claude Code 把对话历史完整存 jsonl，每条
-    assistant message 含 model 字段。
+    **Scope (v0.10.5 Agent 2 F6 clarification)**: 此函数**仅对 Claude Code
+    transcript jsonl 工作** — regex `"model":"xxx"` 假设 Claude transcript shape.
+    其他 backend (Codex / Gemini) 不该走此 fallback:
 
-    karma 路径：reverse scan transcript jsonl 找最后一条非合成 model 字面。
-    跳过 `<synthetic>`（Claude Code 内部生成的注入 message，不是真 model）。
+    - **Codex**: payload.model 每个 hook event 都有, 走 model_from_payload
+      首选不到这里. 若强 fallback 到此, codex transcript jsonl 字段名不同
+      (官方文档警告 transcript_path 不是稳定 hook 接口), regex 可能误命中
+      非真 model slug.
+    - **Gemini**: 同上, 应该用 payload.model 不走 transcript.
 
-    返回 None 时 fallback DEFAULT_THRESHOLD 60K（保守，向前兼容）。
+    karma 路径: reverse scan transcript jsonl 找最后一条非合成 model 字面.
+    跳过 `<synthetic>` (Claude Code 内部生成的注入 message, 不是真 model).
+
+    返回 None 时调用方 fallback DEFAULT_THRESHOLD (40K, v0.9.0 收紧).
     """
     if not transcript_path:
         return None

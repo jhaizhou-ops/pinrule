@@ -37,8 +37,10 @@ import sys
 from typing import Any, Literal
 
 from karma.backends import REGISTRY
-# v0.9.16 back-compat re-export — 老测试 / 老 import 路径继续工作
-from karma.backends.codex import parse_apply_patch_envelope  # noqa: F401
+
+# v0.10.5 (Agent 2 F1 fix): protocol_adapter 真"纯调度无 backend 字面" — 删
+# 老 re-export `from karma.backends.codex import parse_apply_patch_envelope`
+# (v0.9.16 back-compat). 测试改成直接 from codex.py import.
 
 Backend = Literal["claude-code", "codex", "gemini-cli"]
 
@@ -93,12 +95,7 @@ def normalize_tool_name(raw_tool_name: str, payload: dict) -> str:
     """
     backend = _backend_for(payload)
     # 先走 backend 自己的 normalize（Gemini run_shell_command → Bash 等）
-    normalized = backend.normalize_tool_name(raw_tool_name, payload)
-    # 再走 codex 映射作为兜底（apply_patch 是 codex 私有，不冲突任何 backend）
-    if normalized == raw_tool_name and backend.name != "codex":
-        from karma.backends.codex import _CODEX_TOOL_MAP
-        normalized = _CODEX_TOOL_MAP.get(raw_tool_name, raw_tool_name)
-    return normalized
+    return backend.normalize_tool_name(raw_tool_name, payload)
 
 
 def normalize_tool_input(
@@ -106,19 +103,14 @@ def normalize_tool_input(
 ) -> Any:
     """归一化 tool_input 到 karma canonical shape.
 
-    路由到对应 backend 自己的 `normalize_tool_input`. Codex `apply_patch` envelope
-    解析在 `karma/backends/codex.py:CodexBackend.normalize_tool_input` 里.
-
-    同 normalize_tool_name 的兜底逻辑：raw_tool_name == 'apply_patch' 时
-    强制走 codex backend 解析（不依赖 detect_backend 准确性，因为 codex hook
-    payload 可能没 hook_event_name 让 detect_backend 误判 claude-code）.
+    路由到对应 backend 自己的 `normalize_tool_input`. v0.10.5 (Agent 2 F1 fix):
+    之前这层有「raw_tool_name == 'apply_patch' 时强制走 codex 解析」的 codex
+    字面兜底, 违反 v0.10.0 设计自述 (本模块不该含 backend 字面). detect_backend
+    现在通过 sys.argv `/.codex/` 路径真识别 codex backend, 这条兜底无意义.
+    删除让 protocol_adapter 真守住「纯调度无 backend 字面」边界.
     """
     backend = _backend_for(payload)
-    normalized = backend.normalize_tool_input(raw_tool_name, raw_tool_input, payload)
-    # apply_patch 是 codex 私有 — 任何 backend 看到这名字都走 codex 解析
-    if normalized is raw_tool_input and raw_tool_name == "apply_patch" and backend.name != "codex":
-        return REGISTRY["codex"].normalize_tool_input(raw_tool_name, raw_tool_input, payload)
-    return normalized
+    return backend.normalize_tool_input(raw_tool_name, raw_tool_input, payload)
 
 
 def emit_deny(reason: str, payload: dict) -> str:

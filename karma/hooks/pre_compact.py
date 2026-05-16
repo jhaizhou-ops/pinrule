@@ -80,11 +80,18 @@ def main() -> int:
 
     # 最近 5 turn 违反清单 — 让 compact 后 Agent 知道之前撞过哪些 sticky
     try:
-        # 取本 session 当前 turn — 估算从 session_state 拿不到时用大数让 recent_turns 看全部
+        # v0.10.5 (Agent 1 F1.1 fix): 之前 fallback 用 current_turn=999999 想让
+        # recent_turns 「看全部」, 但 v0.9.13 把 cutoff 改成 cur-(window-1) 后这条
+        # fallback 数学错 — cutoff=999995 让窗口 [999995, 999999] 不命中真实
+        # turn 1-100 的 violations, recent_v 永远空, compact 失忆兜底关键路径失效.
+        # 修法: turn_count=0 的 fallback 路径改读 ts 维度最近 24h, 不依赖 turn 窗口.
         from karma import session_state as _ss
         state = _ss.load(session_id)
-        current_turn = state.turn_count if state.turn_count > 0 else 999999
-        recent_v = recent_turns(session_id, current_turn, window_turns=5)
+        if state.turn_count > 0:
+            recent_v = recent_turns(session_id, state.turn_count, window_turns=5)
+        else:
+            from karma.violations import recent as _recent_ts
+            recent_v = _recent_ts(window_sec=24 * 3600)
     except Exception:
         recent_v = {}
     if recent_v:

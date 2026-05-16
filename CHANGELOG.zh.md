@@ -6,6 +6,58 @@
 
 ## [Unreleased]
 
+## [0.10.5] — 2026-05-16（minor — 4 视角 cross-audit sweep: 10 finding 修在 docs / functional / state / boundary 四类）
+
+用户在 5 个连续 v0.10.x release 后触发 4 视角 cross-audit (3 个 Claude 并行 agent + dogfooding 证据视角). 印证 v0.9.13 pattern: 快速迭代累积新 drift. 18 个 finding 浮现 — 17 个 hand-verified 真 (0 假阳). v0.10.5 批量修 10 个 (functional + critical + minor); v0.10.6 处理 4 个结构性的 (context-injection / stop-block backend 契约方法 + 3-hook 集成测试).
+
+### v0.10.5 修了
+
+**Critical 文档修正** (Agent 3 F3.1 + F3.2):
+- README FAQ "Codex 须手动 /hooks 审批" 跟主表格 "立即生效 (v0.10.2 自动信任)" 自相矛盾. 双语改成 "wrapper 由 `karma install-hooks --backend codex` 自动信任; 如果 `/hooks` 显示 'modified', Codex 改了 hash 算法 — 手动 approve + 提 issue."
+- `docs/CODEX_BACKEND.md` TODO 列表 5 项里 4 项已 ship (v0.10.1 PR #3 / v0.10.2 PR #4 / v0.10.3 PR #5) 但仍写 "计划中" — 误导后续贡献者. 双语拆成 "已完成 (v0.10.x)" + "剩余" 两段.
+
+**Functional bug** (Agent 2 F4):
+- `karma/hooks/post_tool_use.py` 现在消费 canonical `tool_input.write_file_paths` (backend-neutral, 跟现有 `read_file_paths` 对称). 任何 backend 的 `normalize_tool_input` 输出这列表会触发 `state.record_edit(path)` 每条 → `last_edit_ts` 推进. 修 codex `sed -i /workspace/src/x.py` 不被 `evidence.check` 看见 (完成词假阳通过). 集成测试 `test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts` 锁. **codex backend 后续 (CODEX_BACKEND.md TODO 7)**: codex.normalize_tool_input 当前 `sed -i` 只设 `is_write: True` 没输出 `write_file_paths` — karma 端 wiring forward-compat; codex CLI 维护者下个 PR 补字段.
+
+**边界 leak 修** (Agent 2 F1):
+- `karma/backends/protocol_adapter.py` 删 2 处 `codex` 字面兜底 (`from karma.backends.codex import _CODEX_TOOL_MAP` + `REGISTRY["codex"].normalize_tool_input(...)` force-route on `raw_tool_name == "apply_patch"`). `detect_backend()` 通过 `sys.argv[0]` `/.codex/` 字面检测真识别 codex 路由 — 兜底是 vestigial 违反 v0.10.0 "调度层无 backend 字面" 设计自述. 测试改成 mock `sys.argv` 不再依赖兜底.
+- 删 v0.9.16 back-compat re-export `parse_apply_patch_envelope` from protocol_adapter — 测试改成从 codex.py 直接 import.
+
+**State / off-by-one** (Agent 1 F1.1 + F1.2 + F1.3):
+- `karma/hooks/pre_compact.py` fallback 数学 fix: `current_turn=999999` + `window=5` 产生 cutoff `999995` 只匹配 turn 999995-999999 (永远不命中真实 session turn 1-100) → `state.turn_count=0` 时 `recent_violation_turns` 永远空, compact-resilience 关键路径 (pre_compact_snapshot.md 「最近 5 turn 违反」段) 失效. fallback 路径改读 ts 维度 `recent(window_sec=24h)`.
+- `karma/hooks/stop.py` 现在调 `catchup_pending_bg()` via `update_state(try/except + fail-open fallback)`, 跟 Pre/PostToolUse 跟 UserPromptSubmit 一致. 修窗口边缘 case: bg pytest 在最后一个 PostToolUse 之后 Stop hook 之前完成时没 record → `evidence.check` 看 stale `has_recent_test_pass=False` → 完成词被错算 loud-failure 拦.
+- `karma/hooks/user_prompt_submit.py` strong_reminder 现在写 Violation `turn=current_turn - 1` 不是 `current_turn` — strong_reminder 扫的是**上一**turn 的 assistant response; turn_count 已经在 strong_reminder 之前从 N 推到 N+1.
+
+**Minor regex / docstring 修正** (Agent 1 F1.4 + F1.5 + Agent 3 F3.4 + Agent 2 F5 + F6):
+- `karma/checks/chinese_plain.py:_PATH_LITERAL_RE` `\w` (Python re 默认 Unicode-aware) 改成显式 `[a-zA-Z0-9./\-_]` ASCII 字符集. 原来吃中文路径段 (`/桌面/某目录/文件.py` 整段被剥), 让中文 ratio 分母变低 → 假阳 `chinese-plain` 拦中文用户用中文路径.
+- `karma/hooks/post_tool_use.py` 注释写 `DEFAULT 60K` 但 `DEFAULT_THRESHOLD = 40_000` 自 v0.9.0 起 — 改正.
+- `karma/model_threshold.py` 模块 docstring 列 v0.4.35 阈值 (Opus 80K / Sonnet 60K / Haiku 30K) 但实际 `_MODEL_THRESHOLDS` 是 v0.9.0 + v0.10.4 (Opus 60K / Sonnet 40K / Haiku 30K + 11 个 OpenAI/Codex entry). docstring 更新到现实.
+- `karma/backends/codex.py:_extract_codex_patch_text` docstring 标 wrap key 哪些真捕获 (只 `input`) 哪些推测 (`patch` / `command` / `diff`), 真 hit 推测 key 时 stderr warning — rule #4 loud-failure-with-evidence + 邀请用户提 issue + 捕获真 payload 让函数收紧.
+- `karma/model_threshold.py:extract_model_from_transcript` docstring 说明这是 Claude-Code-specific (regex 假设 Claude transcript jsonl shape); 其他 backend 应该 `payload.model` via `model_from_payload`, 不该 fall through 到这.
+
+**信号词表 drift 修 + lockdown** (Agent 3 F3.5 + F3.6):
+- `data/signals/agent_saturation/en.txt` 加 12 条对偶 zh.txt 的 `系列收官` / `明天接力` / `下次接力` family — 原 40 zh / 28 en = 30% drift (踩 v0.9.13 D1 阈值). 现在 40 zh / 42 en = 5% drift.
+- 新 `tests/test_signals.py:test_signals_zh_en_parity_within_30pct` 走所有 `data/signals/<name>/zh.txt`+`en.txt` 对偶, 任一 drift > 30% CI fail. 未来任何方向 drift 自动 catch — 这一类不再靠人 audit.
+
+### Cross-perspective audit pattern
+
+3 个 Claude 并行 agent (逻辑 / 边界 / docs+测试) + dogfooding-证据 视角 4. 真审计算术:
+- v0.9.13 单 agent: 5 finding / 4 真 bug (高 SNR — 多年 drift)
+- v0.9.14 3 agent: 9 finding / 2 真 bug (低 SNR — v0.9.13 后干净)
+- **v0.10.5 4 视角: 18 finding / 17 真 (94% SNR)** — 快速迭代累积 drift 比边际递减预测快. iteration 速度高时 audit value 复现.
+
+### v0.10.6 推迟项
+
+3 个结构性 finding (需加 backend 契约方法, PR 比 v0.10.5 scope 大):
+- F2.2 `emit_context_injection(event, additional_context, payload)` 契约 — 4 个 ContextInjection hook 当前直 print Claude `hookSpecificOutput` shape, 不走 `protocol_adapter.emit_*` 路由. Codex SessionStart/UserPromptSubmit shape 是否真接受未测试 (v0.9.15 同 pattern 已咬过).
+- F2.3 `emit_stop_block(reason, payload)` 契约 — `stop.py` 直 print `{decision: "block", reason}` 不走 backend dispatch. Codex Stop hook 是否接受未验证. karma 最强干预 (force_block) 在 codex 下可能静默失效.
+- F3.3 `model_from_payload` 3 hook wiring 集成测试.
+
+### 验证
+
+- **597/597 通过** 双 `LANG=zh_CN.UTF-8` 和 `LANG=en_US.UTF-8` (原 595 — +2 个新 lock: write_file_paths + zh/en parity)
+- 全 6 道本地 gate 通过
+
 ## [0.10.4] — 2026-05-16（minor — 优先用 codex payload.model + OpenAI/Codex 阈值表 跨平台 attention 自适应）
 
 karma 中段 reinject + 按模型自适应阈值原来是 Claude-specific. Codex agent 用 karma 时 `gpt-5.5` (1M context 旗舰) 落 DEFAULT 40K 阈值太密扰动表达. v0.10.4 关掉这缺口, 两项改动:

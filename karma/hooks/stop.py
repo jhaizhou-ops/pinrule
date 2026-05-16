@@ -290,7 +290,21 @@ def main() -> int:
 
     # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state（Stop hook 也支持 agent_id）
     agent_id = payload.get("agent_id") or None
-    state = session_state.load(session_id, agent_id=agent_id)
+    # v0.10.5 (Agent 1 F1.2 fix): Stop hook 跟 Pre/PostToolUse / UserPromptSubmit
+    # 一样要 catchup_pending_bg — 之前 stop.py 漏这一步, 让最后一个 PostToolUse
+    # 之后才完成的 bg pytest (启动: `pytest tests/ > /tmp/log &`) last_test_pass_ts
+    # 不推 → evidence check 看 has_recent_test_pass()=False → 完成词被错算
+    # loud-failure 拦. 同 v0.9.13 C1 family (load+modify+save 路径).
+    # 套 try/except 跟 pre_tool_use 一致, 失败 fallback 裸 load 不阻塞 Stop hook.
+    try:
+        state, _ = session_state.update_state(
+            session_id,
+            lambda s: s.catchup_pending_bg(),
+            agent_id=agent_id,
+        )
+    except Exception as e:
+        print(f"karma Stop: catchup_pending_bg 失败 fallback 裸 load ({e})", file=sys.stderr)
+        state = session_state.load(session_id, agent_id=agent_id)
 
     check_hits = []
     for s in sticky_list:
