@@ -37,7 +37,7 @@ deep_fix 真违反空间分 4 层:
 
 ### 测试覆盖
 
-`tests/test_false_negative_regression.py` 加 4 个 case, 总测试 615 → 619.
+`tests/test_false_negative_regression.py` 加 4 个 case, 总测试 611 → 615.
 
 ## [0.11.0] — 2026-05-16（minor — long-term-fundamental engine 重新设计, 加 response-level 话术 pattern 让 engine 真触发）
 

@@ -129,13 +129,24 @@ to avoid future drift):
 
 ### 3. Real-time check before tool calls
 
-Before the Agent runs Bash / Edit / Write, karma scans command content and keywords. A hit denies the tool call with a targeted suggestion:
+Before the Agent runs Bash / Edit / Write, karma scans command content, keywords, **and behavioral timing across the session**. A hit denies the tool call with a targeted suggestion:
 
 ```
 $ Bash sleep 30
 karma ⚠️: 'non-blocking-parallel' violation — sleep periods make the user
         feel "stuck." Use run_in_background=True; the task completion
         will notify you, freeing you to do the next thing.
+[permission deny]
+```
+
+karma also catches **behavioral timing**, not just single commands. Example: tests failed → Agent immediately edits a file it never read this session. Classic "shallow patch" pattern (no looking at source before changing):
+
+```
+$ Edit /workspace/src/foo.py
+karma ⚠️: 'deep-fix-not-bypass' violation — editing foo.py right after
+        test failure but you haven't Read it this session. Read the
+        source first to find the real root cause; the issue may be
+        upstream rather than at the patch site.
 [permission deny]
 ```
 
@@ -147,7 +158,7 @@ When the main Agent spawns a subagent via the Task tool, karma injects the full 
 
 When the client auto-compacts a long session, karma dumps the full rule state to disk first. After the post-compact restart, it reads the snapshot back and re-injects — rules don't get summarized into vague paraphrases.
 
-### 6. Silent-stop nudge
+### 6. Silent-stop nudge + short-term intent detection
 
 When the Agent finishes a wave and tries to stop with "what's next?", karma catches it and injects a continuation nudge:
 
@@ -161,6 +172,18 @@ silently wait.
 ```
 
 Up to 2 nudges in a row. If the Agent is genuinely saturated and says where it's stuck, karma backs off — it won't force-push past real saturation.
+
+karma also reads the Agent's **whole turn output** at Stop time and catches short-term intent declarations — the patch-instead-of-root-cause language pattern:
+
+```
+Agent: "Let me just hardcode this case for now and ship it."
+karma ⚠️: 'long-term-fundamental' violation — declaring a short-term
+        intent contradicts the user's expectation of root-cause work.
+        Pause and ask: is the cleanest solution the user would want
+        worth a few more minutes of thought?
+```
+
+The check is combo-pattern based (intent prefix + short-term action verb within 12 chars), not raw keyword matching — so reflective phrases like "short-term patches won't work, dig the root cause" pass through cleanly.
 
 ---
 

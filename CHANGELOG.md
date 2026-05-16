@@ -41,7 +41,7 @@ User-flagged #1 priority: 用户最重视的规则是 `deep-fix-not-bypass` (反
 
 ### Test coverage
 
-`tests/test_false_negative_regression.py` 加 4 个 case, 总测试 615 → 619.
+`tests/test_false_negative_regression.py` 加 4 个 case, 总测试 611 → 615.
 
 ## [0.11.0] — 2026-05-16 (minor — long_term-fundamental engine 重新设计, 加 response-level 话术 pattern 让 engine 真触发)
 
