@@ -22,159 +22,159 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 - **#4 tagline**: One-line punch above intro: "Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms."
 - **#5 docs section description**: Fixed stale "(Chinese)" labels — docs/PRD.md, ARCHITECTURE.md, CODEX_BACKEND.md, CLAUDE.md are all English. Removed misleading "Most internal docs are Chinese-only — deprioritized" sentence; clarified bilingual coverage + welcomed translation PRs for HANDOFF gap.
 
-## [0.11.3] — 2026-05-16 (minor — `karma audit --days N` 时间窗口过滤: dogfood-driven 决策不被老数据稀释)
+## [0.11.3] — 2026-05-16 (minor — `karma audit --days N` time-window filter: dogfood-driven decisions stop being diluted by stale data)
 
-### 加什么
+### What was added
 
-`karma audit` (含 `--by-check`) 加 `--days N` 选项. 只统计最近 N 天的违反, 让 dogfood-driven 决策聚焦 fresh 窗口效果, 不被老数据稀释.
+`karma audit` (including `--by-check`) gains a `--days N` option. Only counts violations from the last N days so dogfood-driven decisions can focus on a fresh window effect rather than getting drowned in old data.
 
-**为啥要**: v0.11.0 long_term response-level + v0.11.1 deep_fix L3 ship 后, 想看 engine 真效果 — 但 `karma audit --by-check` 默认全量统计 (含 v0.5.x 期老数据), 新增 pattern 真触发被淹. v0.11.3 给个干净的 fresh-window 视角.
+**Why**: After shipping v0.11.0 long_term response-level + v0.11.1 deep_fix L3, the goal was to see real engine effectiveness — but `karma audit --by-check` defaults to full-history aggregation (including v0.5.x-era data), so new patterns' real hits get swamped. v0.11.3 gives a clean fresh-window view.
 
-### 用法
+### Usage
 
 ```bash
-karma audit --by-check --days 1        # 最近 24 小时
-karma audit --by-check --days 7        # 最近 1 周
-karma audit --days 30 --format md      # 最近 1 月, markdown 表
+karma audit --by-check --days 1        # last 24 hours
+karma audit --by-check --days 7        # last 1 week
+karma audit --days 30 --format md      # last 1 month, markdown table
 ```
 
-无 `--days` 时行为不变 (全量 violations.jsonl).
+Behavior without `--days` is unchanged (full `violations.jsonl` aggregation).
 
-### 边界 case
+### Edge cases
 
-- `--days N` 必须 > 0 (非整数 / ≤ 0 → 友好错误 + exit 2)
-- 窗口内 0 条违反 → 显示「最近 N 天没违反记录. 可以试更长窗口或不带 --days 看全量」(区别于真没违反)
+- `--days N` must be > 0 (non-integer / ≤ 0 → friendly error + exit 2)
+- 0 violations in window → shows "No violations in last N days. Try a longer window or drop `--days` for full view." (distinct from "no violations recorded ever")
 
 ### Test coverage
 
-2 个 lockdown:
-- `test_audit_days_filter_excludes_old_violations` — 老 + 新 mixed 数据, `--days 1` 只显示 fresh
-- `test_audit_days_filter_empty_window_message` — 空窗口提示要含天数
+2 lockdowns:
+- `test_audit_days_filter_excludes_old_violations` — old + new mixed data, `--days 1` shows only fresh
+- `test_audit_days_filter_empty_window_message` — empty-window message must include the day count
 
 ### Gate
 
-- 622/622 tests / ruff / mypy / wheel build 全绿
-- push 后 30 秒内 `gh run list --branch main` verify CI
+- 622/622 tests / ruff / mypy / wheel build all green
+- Within 30s of push: `gh run list --branch main` verifies CI
 
-## [0.11.2] — 2026-05-16 (patch — fix v0.10.6 引入的 CI regression: turn/model 推进早于 rules 加载)
+## [0.11.2] — 2026-05-16 (patch — fix CI regression introduced in v0.10.6: turn/model advancement now happens before rules loading)
 
-诚实承认: v0.10.6 + v0.11.0 + v0.11.1 + README + ARCH 总共 5 个 commit 我没看 CI 状态就 push (严重违反 sticky #4 loud-failure). 跟 codex PR #6 准备 merge 时才发现 CI 4 个 job 全挂在 `test_user_prompt_submit_writes_payload_model_to_state`.
+Honest disclosure: v0.10.6 + v0.11.0 + v0.11.1 + README + ARCH — 5 consecutive commits — were pushed without checking CI status (a serious violation of sticky #4 loud-failure). The breakage was only noticed when preparing to merge codex PR #6: all 4 CI jobs were failing on `test_user_prompt_submit_writes_payload_model_to_state`.
 
-### 真根因
+### True root cause
 
-`user_prompt_submit.main()` 在 sticky_list 为空时直接 `_output_passthrough; return 0` — 完全跳过 `_advance_turn_state`. 但 model 跟踪 + turn_count 是 **karma 系统级 telemetry**, 跟用户有没有装 rules 无关. 本机过因为我 home 有老 `sticky.yaml`; CI 干净 runner 永远空 rules → 永远不写 model.
+`user_prompt_submit.main()` was hitting `_output_passthrough; return 0` early when `sticky_list` was empty — completely skipping `_advance_turn_state`. But model tracking + `turn_count` is **karma system-level telemetry**, independent of whether the user has any rules installed. The local machine passed because the developer's home has a legacy `sticky.yaml`; CI on a clean runner always has empty rules → model never gets recorded.
 
-不是 codex PR #6 引入, 不是 v0.10.6 protocol_adapter 改的. 是更上游的设计错位 — `_advance_turn_state` 顺序错放在 sticky_list 检查之后.
+Not introduced by codex PR #6, not introduced by v0.10.6 `protocol_adapter`. The deeper design mistake was ordering — `_advance_turn_state` was placed after the `sticky_list` check instead of before.
 
 ### Fix
 
-把 `_advance_turn_state` 提到 sticky_list 加载之前. 不管 rules 是否存在, 每个 user prompt 都推进 turn_count + 更新 model. sticky_list 空时仍走原 `_output_passthrough` 提前 return, 但 telemetry 已经在 state 里了.
+Move `_advance_turn_state` ahead of `sticky_list` loading. Regardless of whether rules exist, every user prompt advances `turn_count` + updates `model`. When `sticky_list` is empty the original `_output_passthrough` early return still happens, but telemetry is already persisted in state.
 
 ### Regression lockdown
 
-`test_user_prompt_submit_writes_payload_model_to_state` 加强:
-- `monkeypatch.setattr("karma.hooks.user_prompt_submit.load", lambda: [])` — 显式模拟空 rules
-- 加 `assert state.turn_count == 1` — 锁住 turn 也要推进, 不只是 model
+`test_user_prompt_submit_writes_payload_model_to_state` strengthened:
+- `monkeypatch.setattr("karma.hooks.user_prompt_submit.load", lambda: [])` — explicitly simulates empty rules
+- Added `assert state.turn_count == 1` — locks "turn must advance too, not just model"
 
 ### Gate
 
-- 620/620 测试过
-- ruff / mypy / wheel build 全绿
-- CI 4 个 matrix job 这次必须先看再 push (上一波违反 sticky #4 已记忆 [feedback-loud-failure-pre-push-ci-check])
+- 620/620 tests passing
+- ruff / mypy / wheel build all green
+- CI 4 matrix jobs must be checked before next push (last wave's sticky #4 violation captured in memory [feedback-loud-failure-pre-push-ci-check])
 
-## [0.11.1] — 2026-05-16 (patch — `deep-fix-not-bypass` L3 时序 pattern: 测试失败紧跟 Edit 没读源拦)
+## [0.11.1] — 2026-05-16 (patch — `deep-fix-not-bypass` L3 timing pattern: editing an unread file right after a test failure now gets blocked)
 
-User-flagged #1 priority: 用户最重视的规则是 `deep-fix-not-bypass` (反对 Agent 草草了事不深挖). v0.11.1 给这条 rule 加 L3 时序层 engine pattern, 跟现有 L1 (Bash 字面绕 karma 状态) 并存.
+User-flagged #1 priority: the rule the user values most is `deep-fix-not-bypass` (no-shortcut, dig deep). v0.11.1 adds an L3 timing engine pattern to this rule, alongside the existing L1 (Bash literals bypassing karma state).
 
-### 加什么
+### What was added
 
-**新增检测路径** (在 `karma/checks/bypass_karma.py` 复用 rule_id `deep-fix-not-bypass`):
-- pre_tool_use Edit 时, 看 `session_state.recent_bash[-1]`
-- 如果上一 Bash 是测试命令 (`is_test_cmd=True`) 且**失败** (`output_failed=True`)
-- 而且当前 Edit 的 file 在本 session **从没 Read 过** (`not session_state.has_read(fp)`)
-- → 直接拦, trigger 文案 = 「测试失败后立刻 Edit X 但本 session 没 Read 过 — 没看源代码就改是『草草了事』典型」
+**New detection path** (in `karma/checks/bypass_karma.py`, reusing rule_id `deep-fix-not-bypass`):
+- On pre_tool_use Edit, inspect `session_state.recent_bash[-1]`
+- If the previous Bash was a test command (`is_test_cmd=True`) and **failed** (`output_failed=True`)
+- And the file currently being Edited has **never been Read this session** (`not session_state.has_read(fp)`)
+- → Block, with trigger message: "Editing X right after a test failure without having Read it this session — classic 'shallow patch' pattern (changing source without reading it first)"
 
-### 工程化天花板 (老实写, 不藏)
+### Engineering ceiling (honest, no hiding)
 
-这是 deep_fix 4 层证据分类的 **L3 时序层**:
-- L1 字面 (`--no-verify` / TODO 注释 / hardcoded hash): v0.10.x 已覆盖
-- L2 话术 (「先打补丁」/「先这样 ship」): v0.11.0 response-level 覆盖
-- **L3 时序 (报错紧跟改, 没读源): v0.11.1 本次加**
-- L4 认知 (Agent 内心是不是真挖了根因): **工程拦不到**, 只能靠 preference 注入 + 用户后置抽查
+This is the **L3 timing layer** of the deep_fix 4-tier evidence taxonomy:
+- L1 literal (`--no-verify` / TODO comments / hardcoded hashes): covered in v0.10.x
+- L2 phrasing ("let me patch this" / "let me just ship it"): covered by v0.11.0 response-level
+- **L3 timing (rapid post-error edit without reading source): added in v0.11.1**
+- L4 cognitive (whether the Agent actually dug for the root cause internally): **engineering can't catch this**, only `preference` injection + user spot-checks can.
 
-**预期上限**: 综合 L1+L2+L3 engine 触发率从 v0.11.0 的 ~20% (response 层) 上行到 ~30-35%, **不会到 100%**. L4 占了 deep_fix 真违反空间的大头, 那部分必须靠 preference 提示 + 用户自己用经验抓.
+**Expected ceiling**: combined L1+L2+L3 engine hit rate rises from v0.11.0's ~20% (response layer) to ~30-35%, **not 100%**. L4 covers the bulk of real deep_fix violations, which can only be addressed via preference hints + the user's own intuition.
 
-### 假阳防御 (4 个 lockdown test)
+### False positive defense (4 lockdown tests)
 
-- ✅ Edit + test_fail + 没 Read → 拦
-- ✅ Edit + test_fail + 已 Read → 不拦 (合法 debug)
-- ✅ Edit + test_pass → 不拦 (不是报错救火)
-- ✅ Edit + 非测试 Bash fail → 不拦 (network/build 失败不算 test 触发)
-
-### Test coverage
-
-`tests/test_false_negative_regression.py` 加 4 个 case, 总测试 611 → 615.
-
-## [0.11.0] — 2026-05-16 (minor — long_term-fundamental engine 重新设计, 加 response-level 话术 pattern 让 engine 真触发)
-
-v0.10.x dogfood data audit (2026-05-16 真证据驱动): `long-term-fundamental` rule 217 条总违反, **0% engine 触发率** (12 条全 keyword fallback). 根因 = engine 维度选了**工程层证据** (`--no-verify` / TODO 注释 / hardcoded hash 都很罕见), 而 Agent 真违反场景是**话术**（"先打个补丁" / "短期方案" / "硬编码先这样"）.
-
-v0.11.0 给 `long_term.py` 加 **response-level engine check** 跟现有 tool_input 层并行, 让 engine 真有机会捕话术意图:
-
-### 新增 2 类 response-level pattern
-
-1. **第一人称 + 短期动作 (`response_patch_intent`)**: 必须含「我/咱/这次/临时/目前/当前/让我」类**意图前缀** + ≤ 12 字内含「先打个补丁/打个补丁/先硬编码/临时硬编码/凑数/短期绕/临时方案/绕过验证/先 workaround/patch 一下/先 hardcode」类**短期动作动词**. 组合 pattern 防止假阳:
-   - ✅ "这次先打个补丁让 CI 过" 拦 (意图 + 动作组合)
-   - ✅ "我先硬编码这个 case 先" 拦
-   - ❌ "短期补丁不行, 应该挖根因" 不拦 (反思不是宣告)
-   - ❌ "补丁是给老代码用的" 不拦 (讨论字面不是意图)
-
-2. **承认但仍 ship (`response_acknowledge_but_proceed`)**: 显式承认「不是长期方案」+ 紧跟「但 / 先这样」转折:
-   - ✅ "我知道不是长期方案 但先这样 ship 出去" 拦
-   - 同 rule #1 例外的反方向: 承认债务但选择主动还
-
-### 跟 keyword 维度协同
-
-v0.10.x keyword (rules.yaml `violation_keywords`) 仍兜底单字面 (「打补丁 / 短期方案」等). v0.11.0 engine 加的是**组合 pattern** — keyword 字面+ 意图前缀同时命中才精确拦, 给 audit 维度 (engine vs keyword) 暴露真违反 vs 假阳的区分.
-
-### check 函数签名扩展
-
-`long_term.check()` 加 `response: str = ""` 参数, Stop hook 跑 check 时传 response (Stop hook 是 karma 看 Agent 整 turn 输出的唯一 hook). 老 tool_input 路径 (Bash/Write/Edit) 不变.
+- ✅ Edit + test_fail + not Read → block
+- ✅ Edit + test_fail + already Read → don't block (legitimate debug)
+- ✅ Edit + test_pass → don't block (not a post-error patch)
+- ✅ Edit + non-test Bash fail → don't block (network/build failures aren't test triggers)
 
 ### Test coverage
 
-`tests/test_false_negative_regression.py` 加 5 个 lockdown 测试:
+`tests/test_false_negative_regression.py` adds 4 cases, total tests 611 → 615.
+
+## [0.11.0] — 2026-05-16 (minor — `long-term-fundamental` engine redesign: response-level phrasing patterns make the engine actually fire)
+
+v0.10.x dogfood data audit (2026-05-16, real-evidence driven): `long-term-fundamental` rule had 217 total violations with **0% engine hit rate** (all 12 caught fell back to keyword). Root cause = the engine dimension chose **engineering-layer evidence** (`--no-verify` / TODO comments / hardcoded hashes — all rare), while the real Agent violation scenarios are **phrasing** ("let me patch this", "short-term plan", "hardcode for now").
+
+v0.11.0 adds a **response-level engine check** to `long_term.py` alongside the existing tool_input layer, giving the engine a real chance to catch phrasing intent:
+
+### Two new response-level patterns
+
+1. **First-person + short-term action (`response_patch_intent`)**: must contain an **intent prefix** like 我 / 咱 / 这次 / 临时 / 目前 / 当前 / 让我 + within ≤ 12 chars a **short-term action verb** like 先打个补丁 / 打个补丁 / 先硬编码 / 临时硬编码 / 凑数 / 短期绕 / 临时方案 / 绕过验证 / 先 workaround / patch 一下 / 先 hardcode. Combo-pattern prevents false positives:
+   - ✅ "这次先打个补丁让 CI 过" — blocked (intent + action combo)
+   - ✅ "我先硬编码这个 case 先" — blocked
+   - ❌ "短期补丁不行, 应该挖根因" — not blocked (reflection, not declaration)
+   - ❌ "补丁是给老代码用的" — not blocked (discussion of the literal, not intent)
+
+2. **Acknowledge but still ship (`response_acknowledge_but_proceed`)**: explicitly acknowledging "this isn't a long-term solution" followed by a "but / let's just" pivot:
+   - ✅ "我知道不是长期方案 但先这样 ship 出去" — blocked
+   - The inverse of rule #1's exception: acknowledging debt but choosing to incur it anyway.
+
+### Coordination with the keyword dimension
+
+v0.10.x keyword (rules.yaml `violation_keywords`) still backstops single literals ("打补丁" / "短期方案" etc.). v0.11.0 engine adds **combo patterns** — only fires when a keyword literal coincides with an intent prefix, so the audit dimensions (engine vs keyword) surface the true-violation vs false-positive distinction.
+
+### `check()` signature extension
+
+`long_term.check()` gains a `response: str = ""` parameter. The Stop hook passes the response when invoking the check (Stop hook is karma's only window onto Agent's full-turn output). The old tool_input path (Bash/Write/Edit) is unchanged.
+
+### Test coverage
+
+`tests/test_false_negative_regression.py` adds 5 lockdown tests:
 - `test_long_term_response_patch_intent_first_person`
 - `test_long_term_response_patch_intent_hardcode`
 - `test_long_term_response_acknowledge_but_proceed`
-- `test_long_term_response_reflection_no_false_positive` ⭐ 假阳防御 (反思场景不拦)
-- `test_long_term_response_no_response_no_check` (空 response 走老路径)
+- `test_long_term_response_reflection_no_false_positive` ⭐ false-positive defense (reflection scenario passes through)
+- `test_long_term_response_no_response_no_check` (empty response routes to the old path)
 
-i18n: `data/locales/{zh,en}.yaml` 加 `response_patch_intent.trigger` + `response_acknowledge_but_proceed.trigger` 双语. fix 复用现有 `patch_intent.fix`.
+i18n: `data/locales/{zh,en}.yaml` add `response_patch_intent.trigger` + `response_acknowledge_but_proceed.trigger` in both languages. `patch_intent.fix` is reused.
 
 ### Verification
 
 - **611/611 passing** under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 606)
-- 全 5 道 gate 通过 (pytest zh + en / ruff / mypy / vulture --min-confidence 60)
-- `chinese-plain` engine 0% 问题留 v0.11.1 — `chinese-plain` 跟 keyword 维度重叠 (字面 jargon 检测), 修法是 rules.yaml 字面应该从 violation_keywords 挪到 engine `_JARGON_RE`. 这跟 long-term 反方向 (long-term 是维度互补, chinese-plain 是维度重叠需要解开).
+- All 5 gates pass (pytest zh + en / ruff / mypy / vulture --min-confidence 60)
+- `chinese-plain` engine-0% issue deferred to v0.11.1 — `chinese-plain` overlaps with the keyword dimension (literal jargon detection); the fix is to move rules.yaml literals from `violation_keywords` into the engine's `_JARGON_RE`. The opposite shape of long-term (which was dimension-complement; chinese-plain is dimension-overlap that needs splitting).
 
-### Meta-pattern: 真证据驱动 rule 维度审计
+### Meta-pattern: real-evidence-driven rule dimension audit
 
-v0.11.0 的方向不是凭空猜的, 是 v0.10.5 audit 后真 dogfood 数据 (217 条违反 / 13 session / 2 天) 跑 engine vs keyword 比例分析后浮现的:
+The v0.11.0 direction wasn't speculative; it emerged from running an engine-vs-keyword ratio analysis on real dogfood data after v0.10.5 audit (217 violations / 13 sessions / 2 days):
 
-| Rule | engine 比例 | 含义 |
+| Rule | engine share | Interpretation |
 |---|---|---|
-| read-before-write | 67% | 设计最对齐 (file_path-based 精度高) |
-| keep-pushing-no-stop | 34% | RLHF default 全 turn 触发 |
-| loud-failure-with-evidence | 31% | engine + keyword 平衡 |
-| no-testset-no-future-leakage | 20% | engine 设计严 |
-| non-blocking-parallel | 18% | engine 严 |
-| deep-fix-not-bypass | 14% | engine 设计窄 |
-| long-term-fundamental | **0%** ← v0.11.0 修这条 | engine 维度错: 工程层 vs 话术 |
-| chinese-plain-no-jargon | 0% ← v0.11.1 候选 | engine 维度重叠 keyword |
-| lighthearted-vibe | 0% | 设计就靠 keyword (无 engine 必要) |
+| read-before-write | 67% | Best-aligned design (file_path-based, high precision) |
+| keep-pushing-no-stop | 34% | RLHF-default-stop fires every turn |
+| loud-failure-with-evidence | 31% | engine + keyword balanced |
+| no-testset-no-future-leakage | 20% | engine designed strict |
+| non-blocking-parallel | 18% | engine strict |
+| deep-fix-not-bypass | 14% | engine designed narrow |
+| long-term-fundamental | **0%** ← v0.11.0 fixes this | engine dimension wrong: engineering-layer vs phrasing |
+| chinese-plain-no-jargon | 0% ← v0.11.1 candidate | engine dimension overlaps keyword |
+| lighthearted-vibe | 0% | designed to rely on keyword (no engine needed) |
 
-未来加新 rule 应该按这套维度自检: engine 命中率 < 20% 就该回头审 check 设计.
+For future rules, self-audit using this taxonomy: any rule whose engine hit rate is < 20% deserves a check-design review.
 
 ## [0.10.6] — 2026-05-16 (minor — close v0.10.5 deferred 3: emit_context_injection / emit_stop_block backend contracts + model_from_payload hook integration tests)
 
