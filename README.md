@@ -285,7 +285,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~8.6K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / 622 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
+| **Quality gates** | lint / type-check / dead-code / 775 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
 | **Token cost per turn** | ~490 tokens compact anchor at UserPromptSubmit; full baseline (~1.8K tokens) injected once at SessionStart + auto-refreshed when context accumulates past the current model's decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session |
 | **Disk usage** | < 10MB | Config + violation history + session state |

@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from karma.rule import Rule, format_anchor_only, format_for_injection
 
@@ -96,8 +95,8 @@ def test_format_injection_drift_marker_on_violated_rule():
     out = format_for_injection(rules, recent_violations=recent)
     # r1 对应行应含偏离 marker，r2 不含
     lines = out.splitlines()
-    r1_line = next(l for l in lines if "保持 A" in l)
-    r2_line = next(l for l in lines if "保持 B" in l)
+    r1_line = next(ln for ln in lines if "保持 A" in ln)
+    r2_line = next(ln for ln in lines if "保持 B" in ln)
     # marker 在 zh locale 下含「偏离」字眼
     assert "偏离" in r1_line or "〔" in r1_line, "违反规则行应含偏离 marker"
     assert "偏离" not in r2_line and "〔" not in r2_line, "未违反规则行不含 marker"
@@ -107,8 +106,8 @@ def test_format_anchor_drift_marker_on_violated_rule():
     rules = [_r("r1", "保持 A"), _r("r2", "保持 B")]
     out = format_anchor_only(rules, recent_violations={"r1": 1})
     lines = out.splitlines()
-    r1_line = next(l for l in lines if "[r1]" in l)
-    r2_line = next(l for l in lines if "[r2]" in l)
+    r1_line = next(ln for ln in lines if "[r1]" in ln)
+    r2_line = next(ln for ln in lines if "[r2]" in ln)
     assert "〔" in r1_line or "偏离" in r1_line
     assert "〔" not in r2_line and "偏离" not in r2_line
 
@@ -140,12 +139,12 @@ def test_format_injection_multiline_preference_indented():
     out = format_for_injection(rules)
     lines = out.splitlines()
     # 首行：1. 第一行核心方向
-    first = next(l for l in lines if "第一行核心方向" in l)
+    first = next(ln for ln in lines if "第一行核心方向" in ln)
     assert first.startswith("1. ")
     # 续行：以 3 空格开头
-    second = next(l for l in lines if "第二行详细说明" in l)
+    second = next(ln for ln in lines if "第二行详细说明" in ln)
     assert second.startswith("   ")
-    third = next(l for l in lines if "第三行补充" in l)
+    third = next(ln for ln in lines if "第三行补充" in ln)
     assert third.startswith("   ")
 
 

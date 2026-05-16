@@ -6,11 +6,12 @@ banner() {
     echo "  $1"
     echo "  $2"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    sleep 2
+    sleep 4
 }
 
 if [ "$LANG_MODE" = "en" ]; then
     export KARMA_LOCALE=en
+    export KARMA_HOME="${KARMA_HOME:-/tmp/karma-demo-en-home}"
     T1="Scene 1/5 — Inject rules at every prompt header"
     T1S="(UserPromptSubmit hook → ~490 token anchor)"
     T2="Scene 2/5 — Real-time block of sleep 30"
@@ -27,6 +28,7 @@ if [ "$LANG_MODE" = "en" ]; then
     FIX_SILENT=/tmp/karma-demo-fixtures/silent-stop-en.jsonl
 else
     export KARMA_LOCALE=zh
+    export KARMA_HOME="${KARMA_HOME:-/tmp/karma-demo-zh-home}"
     T1="场景 1/5 — 每条 prompt 头部注入规则"
     T1S="(UserPromptSubmit hook → ~490 token 精简 anchor)"
     T2="场景 2/5 — sleep 30 实时拦截"
@@ -51,7 +53,7 @@ echo
 echo '{"session_id":"demo","prompt":"hi","transcript_path":"/dev/null","cwd":"/Users/jhz/karma"}' \
   | .venv/bin/python karma/hooks/user_prompt_submit.py 2>/dev/null \
   | .venv/bin/python -c "import json,sys; d=json.load(sys.stdin); print(d.get('hookSpecificOutput',{}).get('additionalContext','')[:600])"
-sleep 4
+sleep 6
 
 # Scene 2
 banner "$T2" "$T2S"
@@ -60,7 +62,7 @@ sleep 1
 echo
 echo '{"session_id":"demo","tool_name":"Bash","tool_input":{"command":"sleep 30"}}' \
   | .venv/bin/python karma/hooks/pre_tool_use.py 2>/dev/null
-sleep 4
+sleep 6
 
 # Scene 3
 banner "$T3" "$T3S"
@@ -75,7 +77,7 @@ sleep 1
 echo
 echo "{\"session_id\":\"demo\",\"transcript_path\":\"$FIX_LONGTERM\",\"cwd\":\"/Users/jhz/karma\"}" \
   | .venv/bin/python karma/hooks/stop.py 2>&1 | grep -v "使用旧配置" | head -6
-sleep 4
+sleep 6
 
 # Scene 4
 banner "$T4" "$T4S"
@@ -90,7 +92,7 @@ sleep 1
 echo
 echo "{\"session_id\":\"demo\",\"transcript_path\":\"$FIX_SILENT\",\"cwd\":\"/Users/jhz/karma\"}" \
   | .venv/bin/python karma/hooks/stop.py 2>&1 | grep -v "使用旧配置" | head -4
-sleep 4
+sleep 6
 
 # Scene 5: PostToolUse 中段 reinject
 banner "$T5" "$T5S"
@@ -101,7 +103,7 @@ else
 fi
 sleep 1
 # 预填 state file 让 reinject fire
-SESSDIR="$HOME/.claude/karma/session-state"
+SESSDIR="$KARMA_HOME/session-state"
 mkdir -p "$SESSDIR"
 echo '{"session_id":"demo-reinject","read_files":[],"edit_files":[],"recent_bash":[],"last_test_pass_ts":0.0,"last_edit_ts":0.0,"pending_bg_tasks":[],"turn_count":50,"stop_block_count":0,"tool_byte_seq":62000,"last_reinject_byte_seq":0,"model":"claude-opus-4","pending_subagent_models":[]}' > "$SESSDIR/demo-reinject.json"
 echo '$ echo {tool=Read} | karma_post_tool_use.py | jq additionalContext (head)'
@@ -112,7 +114,7 @@ echo '{"session_id":"demo-reinject","tool_name":"Read","tool_input":{"file_path"
   | .venv/bin/python -c "import json,sys; d=json.load(sys.stdin); ac=d.get('hookSpecificOutput',{}).get('additionalContext',''); print(ac[:500] + ('...' if len(ac) > 500 else ''))"
 # cleanup state file
 rm -f "$SESSDIR/demo-reinject.json" "$SESSDIR/demo-reinject.json.lock"
-sleep 4
+sleep 6
 
 banner "$TE" "$TES"
 sleep 2

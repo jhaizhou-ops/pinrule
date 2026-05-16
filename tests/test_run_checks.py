@@ -12,12 +12,9 @@
 from __future__ import annotations
 
 import os
-import sys
 
-import pytest
 
 from karma.checks import REGISTRY, CheckHit, run_checks
-from karma.checks._types import CheckFn
 
 
 # ---------------------------------------------------------------------------
