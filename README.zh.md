@@ -13,7 +13,7 @@
 
 ![karma 5 场景 demo — 动画 SVG](./assets/demo-zh.svg)
 
-> 5 场景动画 SVG (约 80 秒循环): **(1)** 每条 UserPromptSubmit 头部注入规则, **(2)** sleep 30 实时拦截, **(3)** Agent 短期话术识别 (「我先硬编码这个 case」) 走 v0.11.0 response-level engine, **(4)** 静默停止推动, **(5)** 长 context 累积 `tool_byte_seq` 到 Opus 60K 衰减拐点时中段补一次完整规则 — 全部真 hook 输出, 不是手工 mock. 英文版: [`assets/demo-en.svg`](./assets/demo-en.svg). 重新生成: `bash scripts/regenerate-demo-svg.sh`.
+> 5 场景动画 SVG (约 80 秒循环): **(1)** 每条用户输入头部注入简版规则, **(2)**前端阻塞实时拦截, **(3)** Agent试图走捷径识别 (「我先硬编码这个 case」) , **(4)** Agent 试图静默停止启发继续推进, **(5)** 长上下文累积到衰减拐点时中段补一次完整规则（自动识别大模型衰退点） — 全部真实截图，非手工生成。
 
 Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) 教 AI 怎么写好代码。karma 解决另一半 — 怎么让 AI 在长任务里不漂移掉你的方向，以及违反真的发生时怎么被及时发现和纠正。
 >
@@ -23,7 +23,7 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 
 ✨ **大白话告诉 karma → karma 替你写规则。** 在 Claude Code / Codex / Gemini CLI 输 `/karma <自然语言>`，karma skill 把你的意图改写成校验过的「协作默契」语气，预览注入效果，跟你确认后写入 `rules.yaml`。`karma init` 自动装到三家 backend。
 
-中文 + 英文用户都覆盖；加新语言只需给每个 signal 目录提交一个 `.txt`，零 Python 代码。
+中英语言自动适配，如需更多语言支持请随时提交issue。。
 
 ---
 
@@ -53,15 +53,16 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-Claude Code / Codex CLI / Gemini CLI 重启后立即生效。`karma init` 自动把 `/karma` 自然语言 skill 装到三家 backend。
+Claude Code / Codex CLI / Gemini CLI 重启后立即生效所有监控点和默认规则。
+如需添加自定义规则只需“/karma 自然语言规则”。
 
 ### 让 AI 客户端帮你装（推荐）
 
-把这段话发给 Claude Code / Codex / Gemini CLI 任一家：
+把这段话发给 Claude Code / Codex / Gemini 任一家（desktop 或 CLI 均支持）：
 
 ```
-帮我装 karma（github.com/jhaizhou-ops/karma）— 让长任务中我的核心方向偏好
-不被淹没的轻量 hook 系统。完成步骤：
+帮我装 karma（github.com/jhaizhou-ops/karma）— 让长任务中我的核心方向偏好不被淹没的轻量 hook 系统。
+步骤：
 1. git clone 到 ~/karma
 2. 创建 .venv 装 pip install -e .
 3. 跑 karma init 初始化默认规则模板
@@ -69,7 +70,7 @@ Claude Code / Codex CLI / Gemini CLI 重启后立即生效。`karma init` 自动
 5. 跑 karma doctor 确认装机成功
 ```
 
-`karma init` 末尾会展示装好的默认规则简要列表。Agent 帮你跑的时候会把这段转述给你 — 你一眼能看到现在启用的 5-7 条规则是什么。之后想改哪条规则，直接跟 Agent 说「帮我去掉规则 X」/「改下规则 Y」就行 — Agent 知道用 `/karma` skill。
+安装成功后Agent会展示默认规则简要列表 — 你一眼能看到现在启用的 5-7 条规则是什么。之后想改哪条规则，直接跟 Agent 说「帮我去掉Karma规则 X」/「改下Karma规则 Y」就行 — Agent 知道用 `/karma` skill。
 
 ### 装机后验证
 
@@ -78,7 +79,7 @@ Claude Code / Codex CLI / Gemini CLI 重启后立即生效。`karma init` 自动
 .venv/bin/karma --version           # 看当前版本
 ```
 
-### 各 AI 客户端装机命令
+### 各 AI 客户端手工装机命令
 
 | 客户端 | 装机命令 | 备注 |
 |---|---|---|
@@ -205,10 +206,10 @@ Agent（karma skill 自动走 7 步）：
 → 30 秒端到端，下个 UserPromptSubmit 起规则生效
 ```
 
-> **任何时候输 `/karma` 不带任何内容**就能看 dogfood 数据 dashboard — 哪些 engine check 命中最多 / 真阳假阳分布 / keyword-only 兜底占比。Agent 读完数据告诉你你 session 里哪条方向违反最多，你可以决定调哪个 check 或砍掉哪条规则。
+> **任何时候输 `/karma` 不带任何内容**就能看拦截数据面板 — 哪些 engine check 命中最多 / 真阳假阳分布 / keyword-only 兜底占比。Agent 读完数据告诉你Agent哪条方向违反最多，你可以决定增加或砍掉哪条规则。
 
 ### skill 替你做的事
-
+karma skill指令会帮助你生成最合适的规则描述方式：
 | 写规则的难点 | skill 怎么处理 |
 |---|---|
 | **语气 — 「你必须 X」对 LLM 反向激发防御** | 重写成 karma「协作默契」语气。长期实测 LLM 对此回应是「我来对齐」不是「我来争辩」 |
@@ -257,7 +258,8 @@ flowchart LR
     V -.->|下 turn 偏离标记| K
 ```
 
-`rules.yaml` 是你唯一维护的东西. karma 读它, 注入到每个 prompt 头部, 扫工具调用 + Agent 回应找违反, 把检测到的漂移反馈到下 turn 的偏离标记. 没 retrieval, 没 scoring, 整个循环没 LLM.
+`rules.yaml` 是karma唯一核心的规则列表. karma将其自动注入到每个 prompt 头部。
+Karma 自动工程化0联网扫Agent工具调用 + Agent 回应的文字找违反规则的迹象并提示/警告/拦截，还将把检测到的漂移反馈到下 turn 的偏离标记. 没 retrieval, 没 scoring, 整个循环没 LLM.
 
 karma 不是 lint、不是评分、不是搜索召回。它解决的是 4 个实际但常被忽视的 LLM 协作问题：
 
