@@ -11,9 +11,9 @@
 
 > **让 AI 在长任务里不忘掉你的规则。纯工程, 零 LLM, < 60ms.**
 
-![karma 4 场景 demo — 动画 SVG](./assets/demo-zh.svg)
+![karma 5 场景 demo — 动画 SVG](./assets/demo-zh.svg)
 
-> 4 场景动画 SVG (约 60 秒循环): **(1)** 每条 UserPromptSubmit 头部注入规则, **(2)** sleep 30 实时拦截, **(3)** Agent 短期话术识别 (「我先硬编码这个 case」) 走 v0.11.0 response-level engine, **(4)** 静默停止推动 — 全部真 hook 输出, 不是手工 mock. 英文版: [`assets/demo-en.svg`](./assets/demo-en.svg). 重新生成: `bash scripts/record-demo.sh`.
+> 5 场景动画 SVG (约 80 秒循环): **(1)** 每条 UserPromptSubmit 头部注入规则, **(2)** sleep 30 实时拦截, **(3)** Agent 短期话术识别 (「我先硬编码这个 case」) 走 v0.11.0 response-level engine, **(4)** 静默停止推动, **(5)** 长 context 累积 `tool_byte_seq` 到 Opus 60K 衰减拐点时中段补一次完整规则 — 全部真 hook 输出, 不是手工 mock. 英文版: [`assets/demo-en.svg`](./assets/demo-en.svg). 重新生成: `bash scripts/regenerate-demo-svg.sh`.
 
 Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) 教 AI 怎么写好代码。karma 解决另一半 — 怎么让 AI 在长任务里不漂移掉你的方向，以及违反真的发生时怎么被及时发现和纠正。
 >

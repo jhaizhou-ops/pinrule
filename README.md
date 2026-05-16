@@ -11,9 +11,9 @@
 
 > **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms.**
 
-![karma demo — 4 scenes, animated SVG](./assets/demo-en.svg)
+![karma demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
-> 4-scene animated SVG (~60s loop): **(1)** rule header injection at every UserPromptSubmit, **(2)** real-time `sleep 30` block, **(3)** short-term intent detection ("Let me just hardcode this case") via v0.11.0 response-level engine, **(4)** silent-stop nudge — all real hook output, no mocks. Chinese version: [`assets/demo-zh.svg`](./assets/demo-zh.svg). Regenerate: `bash scripts/record-demo.sh`.
+> 5-scene animated SVG (~80s loop): **(1)** rule header injection at every UserPromptSubmit, **(2)** real-time `sleep 30` block, **(3)** short-term intent detection ("Let me just hardcode this case") via v0.11.0 response-level engine, **(4)** silent-stop nudge, **(5)** mid-conversation full reinject when `tool_byte_seq` hits Opus 60K decay threshold — all real hook output, no mocks. Chinese version: [`assets/demo-zh.svg`](./assets/demo-zh.svg). Regenerate: `bash scripts/regenerate-demo-svg.sh`.
 
 Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
