@@ -126,7 +126,7 @@ def test_run_checks_mixed_hit_and_miss(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_run_checks_none_tool_input_defaults_to_dict(monkeypatch):
-    received: list[dict] = []
+    received: list = []  # mypy: tool_input can be Any/None at this layer
 
     def _capture(**kwargs) -> CheckHit | None:
         received.append(kwargs.get("tool_input"))
