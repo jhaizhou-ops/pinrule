@@ -11,9 +11,29 @@
 
 > **Keeps your AI aligned with your rules across long tasks — pure engineering, zero LLM, < 60ms hook.**
 
-<!-- DEMO PLACEHOLDER — run `bash scripts/record-demo.sh` and replace URL:
-[![asciicast](https://asciinema.org/a/XXXXXX.svg)](https://asciinema.org/a/XXXXXX)
--->
+<details>
+<summary><b>📺 Live demo: karma denies <code>sleep 30</code> in real time (click to expand)</b></summary>
+
+```console
+$ echo '{"session_id":"demo","tool_name":"Bash","tool_input":{"command":"sleep 30"}}' \
+    | python ~/.claude/hooks/karma_pre_tool_use.py
+
+🛑 karma: non-blocking-parallel (tool=Bash) — Bash sleep 命令: 'sleep 30'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "karma 拦截：违反 'non-blocking-parallel'.
+    检测到：Bash sleep 命令: 'sleep 30'.
+    建议：改成 run_in_background=True 启动任务, 立刻推进下一件能做的
+    (读相关文件 / 起另一个子 Agent / 设计下一步) — 任务完成会通知你."
+  }
+}
+```
+
+Real output from `karma/hooks/pre_tool_use.py` against a fresh `rules.yaml`. To record your own asciinema GIF: `bash scripts/record-demo.sh` then upload to asciinema.org and paste the SVG URL above this `<details>` block.
+
+</details>
 
 Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
@@ -267,7 +287,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~5.5K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / 620+ unit tests, all green | Plus continuous real-world dogfooding |
+| **Quality gates** | lint / type-check / dead-code / 622 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
 | **Token cost per turn** | ~490 tokens compact anchor at UserPromptSubmit; full baseline (~1.8K tokens) injected once at SessionStart + auto-refreshed when context accumulates past the current model's decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session |
 | **Disk usage** | < 10MB | Config + violation history + session state |
@@ -279,44 +299,21 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 
 ## 8 hook positions, all covered
 
-Conversation lifecycle timeline showing where each hook fires:
+Conversation lifecycle showing where each hook fires (GitHub renders the diagram below):
 
-```
-session 起手 / compact 重起
-        │
-        ▼
- ┌─ SessionStart ──┐  inject full rule baseline (read snapshot on compact-restart)
- │                 │
- ▼                 │
- 每条 user prompt   │  ┌───────── 子 Agent 路径 ─────────┐
-        │          │  │                                  │
-        ▼          │  ▼                                  ▼
- ┌─ UserPromptSubmit ─┐  ┌─ SubagentStart ─┐    ┌─ SubagentStop ─┐
- │ compact anchor +   │  │ 子 Agent 继承规则 │    │ 临时 state 销毁 │
- │ drift markers      │  └─────────────────┘    └────────────────┘
- └────────────────────┘
-        │
-        ▼
- Agent calls Bash / Edit / Write
-        │
-        ▼
- ┌─ PreToolUse ──┐  scan command + context timing; hit → deny
- │               │
- ▼               │
- tool runs       │
-        │        │
-        ▼        │
- ┌─ PostToolUse ─┐  track state + mid-conversation reinject at decay threshold
- │               │
- ▼               │
- Agent responds  │
-        │        │
-        ▼        │
- ┌─ Stop ────────┐  strong reminder + continuation nudge + short-term intent detection
-                              │
-                              ▼
- ┌─ PreCompact ──┐  dump full rule state → SessionStart(source=compact) reads it back
-                  (fires when client auto-compacts long context)
+```mermaid
+flowchart TB
+    Start([session start / compact restart]) --> SS[SessionStart<br/>inject full rule baseline]
+    SS --> UPS[UserPromptSubmit<br/>compact anchor + drift markers]
+    UPS --> Tool{Agent calls<br/>Bash / Edit / Write?}
+    Tool -- yes --> PreT[PreToolUse<br/>scan command + timing;<br/>hit → deny]
+    PreT --> PostT[PostToolUse<br/>track state +<br/>mid-conversation reinject<br/>at decay threshold]
+    PostT --> Stop[Stop<br/>strong reminder +<br/>continuation nudge +<br/>short-term intent detection]
+    Tool -- no --> Stop
+    UPS -. spawn subagent .-> SubS[SubagentStart<br/>subagent inherits rules]
+    SubS --> SubE[SubagentStop<br/>temp state destroyed]
+    Stop -. long context .-> PreC[PreCompact<br/>dump full rule state]
+    PreC -.-> Start
 ```
 
 | Hook position | Function + scenario | Pain point solved |
