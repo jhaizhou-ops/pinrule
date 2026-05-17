@@ -33,7 +33,11 @@ def fake_home(tmp_path, monkeypatch):
     v0.16.7 只 mock 了 sys.prefix, v0.16.10 把 repo_root 也通过 module 常量 mock,
     pytest 真不会动用户机器任何文件.
     """
+    # 跨平台兜底: Unix Path.home() 读 HOME, Windows 读 USERPROFILE.
+    # PINRULE_HOME 是 install_root sandbox 真根因方案 (v0.16.11+), 设了优先级最高.
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("PINRULE_HOME", str(tmp_path))
     monkeypatch.setattr(cli, "PINRULE_DIR", tmp_path / ".claude" / "pinrule")
     fake_venv = tmp_path / "venv"
     (fake_venv / "bin").mkdir(parents=True, exist_ok=True)

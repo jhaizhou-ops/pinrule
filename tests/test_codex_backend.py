@@ -13,7 +13,11 @@ from pinrule.backends.codex import CodexBackend, codex_hook_trusted_hash
 
 
 def _fake_home(tmp_path, monkeypatch):
+    # 跨平台兜底: Unix Path.home() 读 HOME, Windows 读 USERPROFILE.
+    # PINRULE_HOME 是 install_root sandbox 真根因, 设了优先级最高跨平台一致.
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("PINRULE_HOME", str(tmp_path))
     return tmp_path
 
 
