@@ -16,7 +16,6 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
 
 from karma import session_state
 from karma.checks import run_checks
