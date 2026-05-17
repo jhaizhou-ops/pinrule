@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.16.14] — 2026-05-17（patch — README 精修 + 外部 review 修 + sandbox 测试守护）
+
+这版是两份朋友 review (8.8/10) + 社区 issue #8 关闭 + 一波 repo-wide 文档审查的合并产物. 运行时行为无变化 — 但 PyPI 用户拿到的会是更利落的 slogan、装机边界写清楚的文档, 加 `PINRULE_HOME` sandbox 承诺真有回归测试守住.
+
+- **README 减肥 wave 2/3** (双语): "Tried and rejected" 表 10 → 5 行 (留 LLM 蒸馏 / 检索 / >12 / memory / MCP — 这 5 个是初次访客真长见识的 framing-level 拒绝; 砍 5 条内部权衡细节: 硬编码阈值 / RL 奖励 / 阻塞 compact / 警示词 / LLM 依赖 — 属 ARCHITECTURE/CHANGELOG 内容). "8 hook 原生支持" 段: backend capability matrix (7 行 native event 触达面表) 挪到 `docs/ARCHITECTURE.md` / `.zh.md`, README 只留 mermaid 时序图 + 每 hook 行为表 + 一句 link 指向 ARCHITECTURE. README 482 → 464 行 (EN), 501 → 483 (zh).
+- **ToC 死链修** (双语): `#8-hook-positions-all-covered` 是 stale (section 早就改名 "Claude / Codex / Cursor native hook support" 后没同步 ToC). 双语 README 都同病, 都改成对应当前 heading 的锚点.
+- **第二份朋友 review — 3 点修**:
+  - `data/config.example.yaml` L3 还把用户引到 `~/.claude/pinrule/config.yaml` (v0.16.0 rename 前的老路径); 改成 `~/.pinrule/config.yaml`.
+  - `skills/pinrule/SKILL.md` 装机/trigger 描述还有 Gemini 残留, v0.13.2 砍 Gemini backend 后死指. 改成 Cursor (project-scoped) 描述.
+  - `pinrule/cli.py` 两条 docstring (L126 / L159) 把 backend filter 合法值列 `gemini-cli`; 改成 `cursor` (跟 REGISTRY 真状态对齐). L69 + L328 加 "v0.13.2 砍 Gemini" 历史脚注让 reader 懂为啥 TOML 转换路径 dead.
+  - **README `pinrule init` 副作用明说** (双语): 一行装机段后面加 "每个命令做啥" 速查块, 明说 `init` 不只是建数据目录 — 还顺带自动跑 `install-skill` 把 `/pinrule <NL>` 装到检测到的客户端. Hook 还是单独 `install-hooks` 一步. 谨慎用户看到 `~/.claude/skills/pinrule/` 后不再困惑.
 - **朋友外部 review 6 点全修 (8.8/10)**:
   - **Slogan 改硬** (双语): EN "Keeps your AI from forgetting your rules in long tasks" → "Pin the 5-10 rules your AI must not drift from during long tasks"; 中 "让 AI 在长任务里不忘掉你的规则" → "把 5-10 条最重要的协作规则钉住，让 AI 长任务里别漂". "Pin / 钉住 / 别漂" 锁住 pinrule 独特定位, 不再读起来像 generic memory 系统.
   - **支持范围说稳** (双语): "Claude / Codex / Cursor — 三家 desktop 跟 CLI 两种形态都适配" 太满 — 容易被抓 (Claude Desktop / Codex Desktop / Cursor Agent 边界细节). 改成 "Claude / Codex / Cursor agent runtimes, CLI 跟 desktop 覆盖跟该客户端 hook runtime 本身有关 — 看下面 backend capability matrix". 不替每家平台 desktop/CLI 承诺细节, 把判断权交给 matrix.

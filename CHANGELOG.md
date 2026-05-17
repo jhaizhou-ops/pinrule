@@ -10,6 +10,17 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.14] — 2026-05-17 (patch — README polish + external review fixes + sandbox test lockdown)
+
+This release is the consolidated outcome of two friend reviews (8.8/10), a community issue #8 close, and a wave of repo-wide doc + audit cleanup. No runtime behavior change — but PyPI users now get a sharper slogan, accurate install boundary docs, and the `PINRULE_HOME` sandbox promise locked behind regression tests.
+
+- **README slim wave 2/3** (bilingual): "Tried and rejected" table 10 → 5 rows (kept LLM-distill / retrieval / >12-rules / memory-systems / MCP — these 5 are the framing-level rejections newcomers learn from; dropped 5 internal-tradeoff details: hardcoded thresholds, RL reward, blocking-compact, warning wording, LLM dependency — those belong in CHANGELOG / ARCHITECTURE). "8 hook coverage" section: relocated the Backend capability matrix (7-row Native event surface table) to `docs/ARCHITECTURE.md` / `.zh.md` — README now keeps just the mermaid lifecycle + per-hook behavior table + an inline link to ARCHITECTURE for the matrix. README 482 → 464 lines (EN), 501 → 483 (zh).
+- **ToC anchor fix** (bilingual): `#8-hook-positions-all-covered` was stale (section was renamed to "Claude / Codex / Cursor native hook support" earlier; anchor wasn't updated). Same dead link in both `README.md` and `README.zh.md`. Both fixed to point at the current heading.
+- **Second friend review — 3 fixes**:
+  - `data/config.example.yaml` L3 still pointed users to `~/.claude/pinrule/config.yaml` (pre-v0.16.0 rename path); fixed to `~/.pinrule/config.yaml`.
+  - `skills/pinrule/SKILL.md` had stale Gemini install/trigger documentation despite Gemini backend being dropped in v0.13.2. Replaced with Cursor (project-scoped) docs.
+  - `pinrule/cli.py` two docstrings (L126 / L159) listed `gemini-cli` as a valid backend filter value; updated to `cursor` (matches actual REGISTRY). Added "v0.13.2 dropped Gemini" historical footnote at L69 + L328 so reader understands why TOML conversion paths are dead.
+  - **README `pinrule init` side-effect spell-out** (bilingual): added a "What each command does" callout right after the one-liner install, making explicit that `init` doesn't just create the data dir — it also auto-runs `install-skill` to register `/pinrule <NL>`. Hooks remain a separate `install-hooks` step. Cautious users no longer get surprised by `~/.claude/skills/pinrule/` appearing after `init`.
 - **External review polish — 6 fixes (8.8/10 friend review)**:
   - **Slogan harden** (bilingual): EN "Keeps your AI from forgetting your rules in long tasks" → "Pin the 5-10 rules your AI must not drift from during long tasks"; zh "让 AI 在长任务里不忘掉你的规则" → "把 5-10 条最重要的协作规则钉住，让 AI 长任务里别漂". "Pin / 钉住 / 别漂" lock pinrule's unique positioning, no longer reads like a generic memory system.
   - **Soften "supported clients" overclaim** (bilingual): "Claude / Codex / Cursor — desktop and CLI form factors both adapted on all 3" was too broad — easy to get caught on Claude Desktop / Codex Desktop / Cursor Agent nuances. Now: "Claude / Codex / Cursor agent runtimes. CLI and desktop coverage depends on each client's hook runtime — see backend capability matrix below". Hands off the matrix to detail-readers, doesn't make per-form-factor promises.
