@@ -9,7 +9,7 @@ pinrule is a tool born from real AI-collaboration pain points. Community atmosph
 - **Speak truth directly** — see a bug / design flaw, say so directly without beating around the bush. Negative feedback is a real signal for project improvement
 - **Bring evidence** — bug reports should include `pinrule audit` / `pinrule doctor` output / actual reproduction commands; don't hide behind "should" / "maybe"
 - **Respect boundaries** — what pinrule **doesn't do** (auto-distillation / retrieval / LLM dependency etc.) has historical lessons behind it; read the [README's "Tried and rejected" section](./README.md#tried-and-rejected-what-pinrule-doesnt-do) before proposing changes there
-- **Accept rejections** — features you propose may be closed for not fitting pinrule's design philosophy. That's not disrespecting you. See [pinrule v1 archive](https://github.com/jhaizhou-ops/karma-v1) to understand why v2 strictly preserves boundaries
+- **Accept rejections** — features you propose may be closed for not fitting pinrule's design philosophy. That's not disrespecting you. See [karma-v1 archive (pinrule's predecessor)](https://github.com/jhaizhou-ops/karma-v1) to understand why the current design strictly preserves boundaries
 
 ## What's not allowed
 
