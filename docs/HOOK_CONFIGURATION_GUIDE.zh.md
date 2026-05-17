@@ -8,7 +8,7 @@
 | Backend | install 命令 | 写入位置 | Native event 数 |
 |---|---|---|---|
 | Claude（默认） | `pinrule install-hooks` | `~/.claude/settings.json` | 8 |
-| Codex CLI | `pinrule install-hooks --backend codex` | `~/.codex/config.toml` | 6 |
+| Codex CLI | `pinrule install-hooks --backend codex` | `~/.codex/hooks.json` (+ `~/.codex/config.toml` 写 trusted_hash) | 6 |
 | Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `~/.cursor/hooks.json` | 12 |
 
 ## 快速开始
@@ -61,7 +61,8 @@ pinrule doctor                                     # 验证装机（自动扫所
 
 # Codex CLI
 ~/.codex/hooks/pinrule_*.py           # 6 个 hook wrapper
-~/.codex/config.toml                  # Codex 配置（pinrule 写入 [hooks.*] 段 + trusted_hash）
+~/.codex/hooks.json                   # hook 入口（pinrule 写这里）
+~/.codex/config.toml                  # Codex 配置（pinrule 写 trusted_hash 这里）
 
 # Cursor 1.7+
 ~/.cursor/hooks/pinrule_*.py          # 12 个 hook wrapper（含 4 个独立 gate）
@@ -131,7 +132,7 @@ pinrule doctor                                     # 验证装机（自动扫所
 
 能。两种方式：
 - `pinrule uninstall-hooks`（也接 `--backend` 拆指定 backend，或 `all`）
-- 手工编辑对应 backend 的 settings 文件（`~/.claude/settings.json` / `~/.codex/config.toml` / `~/.cursor/hooks.json`），在 hooks 段删 / 注释掉对应 event
+- 手工编辑对应 backend 的 settings 文件（`~/.claude/settings.json` / `~/.codex/hooks.json` / `~/.cursor/hooks.json`），在 hooks 段删 / 注释掉对应 event
 
 但建议先用一周看效果。
 

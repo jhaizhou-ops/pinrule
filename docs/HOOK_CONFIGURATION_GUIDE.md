@@ -7,7 +7,7 @@
 | Backend | Install command | Write location | Native event count |
 |---|---|---|---|
 | Claude (default) | `pinrule install-hooks` | `~/.claude/settings.json` | 8 |
-| Codex CLI | `pinrule install-hooks --backend codex` | `~/.codex/config.toml` | 6 |
+| Codex CLI | `pinrule install-hooks --backend codex` | `~/.codex/hooks.json` (+ `~/.codex/config.toml` for trusted_hash) | 6 |
 | Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `~/.cursor/hooks.json` | 12 |
 
 ## Quick start
@@ -60,7 +60,8 @@ All hook outputs strictly follow each client's official protocol schema — no c
 
 # Codex CLI
 ~/.codex/hooks/pinrule_*.py           # 6 hook wrappers
-~/.codex/config.toml                  # Codex config (pinrule writes [hooks.*] sections + trusted_hash)
+~/.codex/hooks.json                   # Hook entries (pinrule writes here)
+~/.codex/config.toml                  # Codex config (pinrule writes trusted_hash here)
 
 # Cursor 1.7+
 ~/.cursor/hooks/pinrule_*.py          # 12 hook wrappers (including 4 dedicated gates)
@@ -130,7 +131,7 @@ If you think this is a pinrule false positive, run `pinrule audit` and look for 
 
 Yes. Two ways:
 - `pinrule uninstall-hooks` (also accepts `--backend` to remove from a specific backend, or `all`)
-- Manually edit the backend's settings file (`~/.claude/settings.json` / `~/.codex/config.toml` / `~/.cursor/hooks.json`) and remove / comment out the event from the hooks section
+- Manually edit the backend's settings file (`~/.claude/settings.json` / `~/.codex/hooks.json` / `~/.cursor/hooks.json`) and remove / comment out the event from the hooks section
 
 But try it for a week first.
 

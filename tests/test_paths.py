@@ -78,3 +78,111 @@ def test_pinrule_home_expanduser_tilde():
     )
     expected = str(Path.home() / "pinrule-tilde-test")
     assert out == expected
+
+
+# ---- v0.16.11 真 sandbox: pinrule_install_root() 覆盖 hook wrapper / settings / skill ----
+#
+# 朋友外部 review 标的雷点: README/ARCHITECTURE 写 "全部装到 /tmp — 真实
+# ~/.claude / ~/.cursor / ~/.codex 一个字节不改", 这是硬承诺. 之前测试只覆盖
+# pinrule_home() (数据目录), pinrule_install_root() 全无测试. 一旦 backend
+# 某个 path 漏走 install_root 直接接 Path.home(), README 就成虚假宣传.
+# 这一组测把承诺锁死: 所有 backend 关键路径都必须 anchor 在 PINRULE_HOME 下.
+
+
+def test_pinrule_install_root_default_when_env_not_set():
+    """没 PINRULE_HOME → install_root = ~/ (生产默认行为)."""
+    out = _spawn_pinrule_check(
+        {},
+        "import os; os.environ.pop('PINRULE_HOME', None); "
+        "from pinrule.paths import pinrule_install_root; print(pinrule_install_root())",
+    )
+    assert out == str(Path.home())
+
+
+def test_pinrule_install_root_override_via_env():
+    """`PINRULE_HOME=/tmp/x` → install_root = /tmp/x."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-install-root-test"},
+        "from pinrule.paths import pinrule_install_root; print(pinrule_install_root())",
+    )
+    assert out == "/tmp/pinrule-install-root-test"
+
+
+def test_claude_backend_paths_honor_sandbox():
+    """Claude backend hook wrapper / settings / backup 全 anchor 在 PINRULE_HOME 下."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-claude-sandbox"},
+        """
+from pinrule.backends.claude_code import ClaudeCodeBackend
+b = ClaudeCodeBackend()
+print(b.hooks_dir())
+print(b.settings_path())
+print(b.settings_backup_path())
+""",
+    )
+    lines = out.splitlines()
+    assert lines[0] == "/tmp/pinrule-claude-sandbox/.claude/hooks"
+    assert lines[1] == "/tmp/pinrule-claude-sandbox/.claude/settings.json"
+    assert lines[2] == "/tmp/pinrule-claude-sandbox/.claude/settings.json.before-pinrule"
+
+
+def test_codex_backend_paths_honor_sandbox():
+    """Codex backend hooks dir / settings 全 anchor 在 PINRULE_HOME 下."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-codex-sandbox"},
+        """
+from pinrule.backends.codex import CodexBackend
+b = CodexBackend()
+print(b.hooks_dir())
+print(b.settings_path())
+""",
+    )
+    lines = out.splitlines()
+    assert lines[0] == "/tmp/pinrule-codex-sandbox/.codex/hooks"
+    assert lines[1] == "/tmp/pinrule-codex-sandbox/.codex/hooks.json"
+
+
+def test_cursor_backend_paths_honor_sandbox():
+    """Cursor backend hooks dir / settings / rules dir 全 anchor 在 PINRULE_HOME 下."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-cursor-sandbox"},
+        """
+from pinrule.backends.cursor import CursorBackend
+from pinrule.cursor_rules_sync import cursor_rules_dir
+b = CursorBackend()
+print(b.hooks_dir())
+print(b.settings_path())
+print(cursor_rules_dir())
+""",
+    )
+    lines = out.splitlines()
+    assert lines[0] == "/tmp/pinrule-cursor-sandbox/.cursor/hooks"
+    assert lines[1] == "/tmp/pinrule-cursor-sandbox/.cursor/hooks.json"
+    # cursor_rules_dir() 调 .resolve() 在 macOS 上把 /tmp 展成 /private/tmp
+    assert lines[2] == str(Path("/tmp/pinrule-cursor-sandbox/.cursor/rules").resolve())
+
+
+def test_real_home_untouched_when_sandbox_active():
+    """硬承诺验证: 设了 PINRULE_HOME 之后, 没一个 backend 路径还指向真 ~/."""
+    real_home = str(Path.home())
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-home-untouched-test"},
+        """
+from pinrule.backends.claude_code import ClaudeCodeBackend
+from pinrule.backends.codex import CodexBackend
+from pinrule.backends.cursor import CursorBackend
+from pinrule.cursor_rules_sync import cursor_rules_dir
+paths = []
+for b in (ClaudeCodeBackend(), CodexBackend(), CursorBackend()):
+    paths.append(str(b.hooks_dir()))
+    paths.append(str(b.settings_path()))
+    paths.append(str(b.settings_backup_path()))
+paths.append(str(cursor_rules_dir()))
+for p in paths:
+    print(p)
+""",
+    )
+    for line in out.splitlines():
+        assert not line.startswith(real_home + "/"), (
+            f"PINRULE_HOME sandbox 承诺破: {line} 仍 anchor 在真 home {real_home}"
+        )

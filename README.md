@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, ~50-70ms hook latency, ~2% token overhead in typical dogfood.**
+> **Pin the 5-10 rules your AI must not drift from during long tasks. Pure engineering, zero LLM, ~50-70ms hook latency, ~2% token overhead in typical dogfood.**
 
 ![pinrule demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
@@ -21,11 +21,11 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
-✨ **Say it in plain words → pinrule writes the rule.** Type `/pinrule <natural language>` in Claude / Codex (or `.cursor/skills/pinrule/` per-project for Cursor) and the pinrule skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude + Codex by `pinrule init` (Cursor is project-scoped, see post-install hint).
+✨ **Say it in plain words → pinrule writes the rule.** Type `/pinrule <natural language>` in Claude / Codex (or `.cursor/skills/pinrule/` per-project for Cursor) and the pinrule skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. The `/pinrule` skill is installed by `pinrule install-skill` (Claude + Codex home-global; Cursor project-scoped, see post-install hint) — `pinrule init` runs this for you on first setup, hooks themselves go in via `pinrule install-hooks`.
 
 Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
-**Supported clients**: Claude / Codex / Cursor — desktop and CLI form factors both adapted on all 3.
+**Supported clients**: Claude / Codex / Cursor agent runtimes. CLI and desktop coverage depends on each client's hook runtime — see the [backend capability matrix](#backend-capability-matrix) below for the per-client surface.
 
 ---
 
@@ -104,7 +104,7 @@ After install, the Agent shows a summary of default rules — you see at a glanc
 ### Uninstall
 
 ```bash
-.venv/bin/pinrule uninstall-hooks                                # Remove hooks
+pinrule uninstall-hooks                                          # Remove hooks
 cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # Restore original
 ```
 
@@ -279,11 +279,8 @@ pinrule installs at 8 hook positions (detailed below) — not just "inject once 
 | **Source code** | ~9.7K lines Python | Readable, modifiable, no magic |
 | **Quality gates** | lint / type-check / dead-code / **845 unit tests**, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | typically 50-70ms (Python startup-bound, machine-dependent — author's M-series Mac ~49ms, 67ms reported on lower-end machines). Reproduce on your machine: `python scripts/measure_perf.py` | Well within AI client protocol budget of 200ms |
-| **Token cost** | 1.8K SessionStart baseline + per-turn anchor listing only session-violated rules + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood: ~2% of conversation context** (30 sessions measured: 60% of work sessions = 0 anchor token, median 1 violated rule per session). Same script computes anchor-char-per-typical-turn ratio for your rules.yaml |
-| **Disk usage** | < 10MB | Config + violation history + session state |
-| **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
+| **Token cost** | 1.8K SessionStart baseline + per-turn anchor listing only session-violated rules + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood: ~2% of conversation context** (30 sessions measured: 60% of work sessions = 0 anchor token, median 1 violated rule per session) |
 | **Supported clients** | Claude / Codex / Cursor | Add a backend via [HOWTO](./pinrule/backends/HOWTO.md) |
-| **User languages** | Chinese + English, extensible | All 7 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~7 small files, zero Python code |
 
 ---
 
