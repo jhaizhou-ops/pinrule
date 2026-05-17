@@ -68,6 +68,11 @@ pip install pinrule && pinrule init && pinrule install-hooks
 Claude / Codex / Cursor 重启后立即生效所有监控点和默认规则。
 如需添加自定义规则只需「/pinrule 自然语言规则」。
 
+> **每个命令做啥** (init 有副作用值得先知道):
+> - `pinrule init` — 建 `~/.pinrule/` 目录 + 复制默认规则模板，**顺带**自动跑 `install-skill` 把 `/pinrule <自然语言>` skill 装到每个检测到的客户端. **不**装 hook (下一步才装).
+> - `pinrule install-hooks` — 把 hook wrapper + settings 入口写到每个检测到的客户端 (`~/.claude/`, `~/.codex/`, `~/.cursor/`). 默认装所有装机的; 想限定哪家加 `--backend claude-code/codex/cursor`.
+> - `pinrule doctor` — 只读自检, 随时可跑.
+
 <details>
 <summary>从源码装 (开发 / 贡献者)</summary>
 

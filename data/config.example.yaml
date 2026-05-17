@@ -1,6 +1,6 @@
 # pinrule 配置文件 — 调阈值不用改代码
 #
-# 安装：pinrule init 会复制本文件到 ~/.claude/pinrule/config.yaml
+# 安装：pinrule init 会复制本文件到 ~/.pinrule/config.yaml
 # 缺失字段用代码 DEFAULTS（见 pinrule/config.py:DEFAULTS）
 
 # 桌面通知开关（macOS osascript / Linux notify-send / Windows msg）

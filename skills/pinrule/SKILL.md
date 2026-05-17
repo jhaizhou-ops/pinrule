@@ -8,12 +8,12 @@ description: Natural-language pinrule rule input — refine user's plain descrip
 **Auto-installed by**: `pinrule init` / `pinrule install-skill`. Installed across all detected backends:
 - Claude Code: `~/.claude/skills/pinrule/SKILL.md`
 - Codex CLI: `~/.agents/skills/pinrule/SKILL.md`
-- Gemini CLI: `~/.gemini/skills/pinrule/SKILL.md` (auto-trigger) + `~/.gemini/commands/pinrule.toml` (explicit `/pinrule` slash command, generated from this Markdown)
+- Cursor 1.7+: per-project `.cursor/skills/pinrule/SKILL.md` (Cursor doesn't expose home-global skills — see post-install hint)
 
 **Trigger**:
 - **Claude Code**: user types `/pinrule <natural-language description>` — args available as `$ARGUMENTS`
 - **Codex**: user invokes via `/skills` menu or inline `$pinrule <description>`; auto-trigger on description match
-- **Gemini CLI**: explicit `/pinrule <description>` (commands path) or auto-trigger (skills path)
+- **Cursor**: project-scoped skill, invoked from inside an Agent session that has the project's `.cursor/skills/pinrule/` directory available
 
 **No-argument trigger** (v0.9.11+): when the user types `/pinrule` with **no description** (empty `$ARGUMENTS`), don't try to refine — instead, run `pinrule audit --by-check` and relay the output to the user. This gives them a quick "dogfood data dashboard": which engine checks fire most, real vs false-positive distribution, keyword-only fallback share. The user can then decide whether to tune any check or skip a rule. See "No-argument flow" section below.
 

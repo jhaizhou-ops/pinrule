@@ -66,7 +66,8 @@ EXAMPLE_RULES_MINIMAL_EN = _DATA_DIR / "rules.dev.minimal.example.yaml"
 EXAMPLE_RULES_MINIMAL_ZH = _DATA_DIR / "rules.dev.minimal.example.zh.yaml"
 EXAMPLE_CONFIG = _DATA_DIR / "config.example.yaml"
 # v0.5.16: pinrule skill source — Markdown source of truth; auto-installed to
-# all detected backends with format conversion (Markdown → TOML for Gemini commands path).
+# all detected backends (Claude / Codex / Cursor). v0.13.2 dropped Gemini backend +
+# the Markdown→TOML conversion path that used to feed it.
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
 PINRULE_SKILL_SRC = _SKILLS_DIR / "pinrule" / "SKILL.md"
 
@@ -123,7 +124,7 @@ def _install_pinrule_skill_multi_backend(
     """装 pinrule skill 到所有 (或指定) detected backend.
 
     backend_filter: None / "all" → 所有 detected backend
-                    "claude-code" / "codex" / "gemini-cli" → 单独装该 backend
+                    "claude-code" / "codex" / "cursor" → 单独装该 backend
                     (不要求 backend 在本机已装 — 用户可能想预装等以后用客户端时生效)
 
     返回 [(backend_name, dest_path, changed, reason), ...] 让 caller 汇报.
@@ -156,7 +157,7 @@ def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
     flow:
     - pinrule init 已自动调一次, 已 init 老用户跑 pinrule install-skill 补装
     - skill 升级 (clarity audit 等) 用 --force 覆盖
-    - --backend <name> 单独装某家 (claude-code / codex / gemini-cli)
+    - --backend <name> 单独装某家 (claude-code / codex / cursor)
     """
     results = _install_pinrule_skill_multi_backend(force=force, backend_filter=backend)
 
@@ -324,8 +325,8 @@ def cmd_init(minimal: bool | None = None) -> int:
         override_flag = "--no-minimal" if minimal else "--minimal"
         print(f"自动选不对？强制覆盖：pinrule init {override_flag}")
 
-    # v0.5.16: 自动装 pinrule skill 到所有 backend (Claude Code / Codex / Gemini)
-    # 让 /pinrule <NL> 流程在装机的客户端开箱即用
+    # v0.5.16: 自动装 pinrule skill 到所有 backend (Claude Code / Codex / Cursor)
+    # 让 /pinrule <NL> 流程在装机的客户端开箱即用 (v0.13.2 砍 Gemini 后剩这三家)
     skill_results = _install_pinrule_skill_multi_backend(force=False, backend_filter="all")
     if skill_results and skill_results[0][0] == "source":
         print(f"⚠ pinrule skill source 未找到 ({PINRULE_SKILL_SRC}) — 跳过自动装")

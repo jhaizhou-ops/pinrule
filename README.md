@@ -68,6 +68,11 @@ pip install pinrule && pinrule init && pinrule install-hooks
 Restart Claude / Codex / Cursor — all hook positions + default rules take effect immediately.
 For custom rules, just type `/pinrule <natural-language rule>`.
 
+> **What each command does** (init has side effects worth knowing):
+> - `pinrule init` — creates `~/.pinrule/` + copies default rules template, **and** auto-runs `install-skill` to register the `/pinrule <NL>` skill on every detected client. Does **not** install hooks (that's the next step).
+> - `pinrule install-hooks` — writes hook wrappers + settings entries into every detected client (`~/.claude/`, `~/.codex/`, `~/.cursor/`). Defaults to all detected; pass `--backend claude-code/codex/cursor` to limit.
+> - `pinrule doctor` — read-only diagnostic; safe to run anytime.
+
 <details>
 <summary>From source (dev / contributors)</summary>
 
