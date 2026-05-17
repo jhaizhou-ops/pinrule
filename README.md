@@ -221,25 +221,17 @@ The check is combo-pattern based (intent prefix + short-term action verb within 
 
 ## `/pinrule <natural language>` — Agent writes the rule for you
 
-This is pinrule's other half — the **partner** side, not the **monitor** side.
-
 ```
-You (in Claude):   /pinrule When I say "done" I want test pass evidence attached
-                        Don't accept vague "should work" claims.
+You (in Claude):  /pinrule When I say "done" I want test pass evidence attached.
+                       Don't accept vague "should work" claims.
 
-Agent (pinrule skill walks 7 steps automatically):
-  ① Understand intent — flags anchor-vs-scope ambiguity if any
-  ② Check existing rules — semantic overlap detection (modify vs add)
-  ③ Draft yaml inline — collaborative-agreement tone, locale-aware
-  ④ pinrule rule preview — schema + REGISTRY validation
-  ⑤ Confirm with you — adjust wording / keywords / engine-check
-  ⑥ pinrule rule add — atomic write to rules.yaml
-  ⑦ Report — count, takes-effect timing, redundancy suggestions
-
-→ 30 seconds end-to-end, rule live on next UserPromptSubmit.
+pinrule skill:    Refines tone, validates schema, checks overlap with existing
+                  rules, previews the injection, confirms with you, then writes
+                  to rules.yaml. ~30 seconds end-to-end; rule live on the next
+                  prompt.
 ```
 
-> **Type `/pinrule` with no arguments** anytime to see the interception dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions the Agent violates most in your sessions, so you can decide whether to add or drop a rule.
+> Type `/pinrule` with no arguments anytime to see the interception dashboard — which checks fire most, real-vs-false-positive distribution, which directions the Agent violates most in your sessions.
 
 ---
 
