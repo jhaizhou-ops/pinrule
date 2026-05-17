@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+import pytest
 
 from pinrule.session_state import SessionState, get_current_session_id, load, save
 
 from tests.conftest import np
+
+# Windows 没 fcntl, _state_lock fallback no-op → cross-process race 不保护.
+# 这些 race-fix 验证测试在 Windows 跑没意义 (会因 race 真发生而 fail),
+# 不是 bug — 这是 v0.9.8 已声明的平台 trade-off (注释在 pinrule/session_state.py:42).
+WINDOWS_NO_FCNTL = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows 无 fcntl → cross-process lock no-op fallback, race-fix 验证不适用",
+)
 
 
 def test_round_trip(tmp_path):
@@ -523,6 +534,7 @@ def test_state_lock_acquire_and_release(tmp_path):
         pass
 
 
+@WINDOWS_NO_FCNTL
 def test_update_state_concurrent_no_lost_updates(tmp_path):
     """**core race fix 验证** — 多进程并发 update_state 不丢「写不同 key」更新。
 
@@ -584,6 +596,7 @@ update_state("concurrent_sess", _add_my_read, base_dir=base_dir)
     )
 
 
+@WINDOWS_NO_FCNTL
 def test_update_state_concurrent_counter_increment(tmp_path):
     """**race fix 试金石** — read-modify-write 同一字段不丢更新。
 
@@ -641,6 +654,7 @@ update_state("counter_sess", _increment, base_dir=base_dir)
     )
 
 
+@WINDOWS_NO_FCNTL
 def test_update_state_different_sessions_truly_parallel(tmp_path):
     """**lock 颗粒度反向验证** — 不同 session 真并发不被全局串行化拖。
 

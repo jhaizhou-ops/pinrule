@@ -16,9 +16,18 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
+
+# Windows 上 os.path.abspath() 把 Unix-style `/x/foo.py` 解释成 `<drive>:\x\foo.py`
+# (真 Windows path 语义). 这两个 normalize 测试用 Unix abs path 字面跟 expected
+# 比较, Windows 不适用 — Python stdlib 跨平台行为不是 pinrule 自己代码.
+WINDOWS_UNIX_PATH_NORMALIZE = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="测试用 Unix-style /x/y.py 字面, Windows abspath 真行为不同 (stdlib, 非 pinrule)",
+)
 
 from pinrule.session_state import (
     SessionState,
@@ -124,6 +133,7 @@ def test_read_state_missing_file_returns_fresh(tmp_path):
 # _normalize_path
 # ---------------------------------------------------------------------------
 
+@WINDOWS_UNIX_PATH_NORMALIZE
 def test_normalize_path_relative_to_absolute(tmp_path, monkeypatch):
     """相对路径应被展开为绝对路径。"""
     monkeypatch.chdir(tmp_path)
@@ -132,6 +142,7 @@ def test_normalize_path_relative_to_absolute(tmp_path, monkeypatch):
     assert "subdir/file.py" in p or p.endswith("subdir/file.py")
 
 
+@WINDOWS_UNIX_PATH_NORMALIZE
 def test_normalize_path_absolute_unchanged():
     p = _normalize_path("/absolute/path/file.py")
     assert p == "/absolute/path/file.py"
