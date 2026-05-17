@@ -6,6 +6,33 @@
 
 ## [Unreleased]
 
+## [0.13.2] — 2026-05-17（minor — 砍 Gemini CLI backend，专注 Claude Code / Codex CLI / Cursor）
+
+karma 支持的客户端从 4 家收到 **3 家**，专注最常用的 AI 编程客户端. Gemini CLI 装机量小, 维护 4-backend 矩阵 (4× 边角文档, 4× cross-backend audit 成本, 4× 每 release dogfood overhead) 不划算. v0.13.0+ launch-readiness 定位 **Claude Code + Codex CLI + Cursor**.
+
+### 砍了什么
+
+- `karma/backends/gemini_cli.py` — 整 backend 文件删
+- `karma/skill_packaging.py` — Gemini-only Markdown → TOML 转换 helper (只有 Gemini commands 路径用), 整模块删
+- `protocol_adapter._GEMINI_EVENT_NAMES` + `detect_backend()` Gemini detection 分支
+- `REGISTRY["gemini-cli"]` from `karma.backends.REGISTRY`
+- 所有 Gemini-specific 测试 (test_backends.py / test_protocol_adapter.py / test_hooks.py / test_cli.py / test_payload.py)
+- 所有 `karma install-hooks --backend gemini-cli` 跟 `~/.gemini/...` user-facing 提及 (README / PRD / SECURITY / HOWTO 双语)
+- GH repo description 更新去掉 Gemini
+
+### 留了什么
+
+- `CHANGELOG.zh.md`, `docs/HANDOFF.zh.md`, `docs/ARCHITECTURE.md/zh.md` v0.9.15+ / v0.10.x milestone 历史叙述中 Gemini 协议 audit 产生的 cross-backend 教训 (那些教训仍在架构里, Gemini 砍后不影响)
+- 少数 `# v0.13.2 砍 Gemini` explainer 注释在 `cli.py` / `_base.py` / `protocol_adapter.py`, 让后续维护者读代码看到 Gemini-shape code path 为啥不见了
+
+### 验证
+
+- 798 pytest 全绿 (从 824 降下, Gemini-specific 测试被砍), ruff 0, mypy 0
+- backend 矩阵: Claude Code (8 hook), Codex CLI (4 hook), Cursor (5 hook). 三家 contract test 全过
+- 端到端: `karma install-hooks --backend gemini-cli` 返 "unknown backend" 错 (符合预期); `karma doctor` 不再报告 Gemini skill 状态
+
+如果你是现有 Gemini CLI 用户: 留在 v0.13.1 — Gemini backend 最后一个完整维护版本. 后续 Gemini 支持回归走 Codex 同款 contributor-PR pattern (Gemini 侧 maintainer 接手 `karma/backends/gemini_cli.py`).
+
 ## [0.13.1] — 2026-05-17（patch — Cursor dogfood 跟进: beforeSubmitPrompt mapping + transcript 要求）
 
 两件 Cursor desktop Agent dogfood 跟进事一波带走.

@@ -135,7 +135,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 
 ### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次触发的 release）
 
-**触发方式**：用户在 Claude Code / Codex CLI / Gemini CLI 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
+**触发方式**：用户在 Claude Code / Codex CLI / Cursor 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
 
 **skill 替你做的事**：
 - 语气优化（协作默契语气 — 大模型对此回应是「我对齐」不是「我争辩」）
@@ -152,7 +152,6 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 **多 backend 装机**（v0.5.16+）：
 - Claude Code: `~/.claude/skills/karma/SKILL.md`（Markdown + YAML frontmatter）
 - Codex CLI: `~/.agents/skills/karma/SKILL.md`（注：`~/.agents/` 不是 `~/.codex/` — 按 OpenAI 设计跟 Anthropic 共享命名空间）
-- Gemini CLI: `~/.gemini/skills/karma/SKILL.md`（auto-trigger）**加** `~/.gemini/commands/karma.toml`（显式 `/karma` slash，通过 `karma/skill_packaging.py` Markdown → TOML 转换生成，含 `$ARGUMENTS` ↔ `{{args}}` 语法翻译）
 - `karma init` 自动装到所有三家；`karma install-skill [--force] [--backend <name>]` 给升级用；`karma doctor` 报每个 backend skill 状态
 
 
@@ -242,7 +241,7 @@ karma = **通用 hook 框架** + **场景规则集**。
 - ❌ Web UI / 图形配置（CLI 编辑 yaml 够了）
 - ❌ 评测体系 / accuracy 指标（自用观察够了）
 
-跨 IDE / 跨 AI 客户端支持已经 ship: Claude Code / Codex CLI / Gemini CLI 三家通用, 基类抽象让加 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作. 详 [`karma/backends/HOWTO.zh.md`](../karma/backends/HOWTO.zh.md).
+跨 IDE / 跨 AI 客户端支持已经 ship: Claude Code / Codex CLI / Cursor 三家通用, 基类抽象让加 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作. 详 [`karma/backends/HOWTO.zh.md`](../karma/backends/HOWTO.zh.md).
 
 ## 后续可能（v1+）
 

@@ -79,7 +79,7 @@ class Backend(Protocol):
         实测用户装完就以为生效了实际 0 hook fire**（rule #4 loud-failure-with-evidence
         反方向 — 不响亮告诉用户限制就是「让用户以为正常」的隐性失败）。
 
-        返回 [] 表示该 backend 装完就生效不需要额外提醒（Claude Code / Gemini CLI）。
+        返回 [] 表示该 backend 装完就生效不需要额外提醒（Claude Code）。
         Codex 返回完整审批步骤含 4 个 wrapper 完整路径。
 
         `_install_to_backend` 在装机末尾打印每条 message 为一行 — backend 可加 emoji /
@@ -116,7 +116,7 @@ class Backend(Protocol):
         ContextInjection 类 hook 含 SessionStart / UserPromptSubmit /
         PostToolUse / SubagentStart 等向 Agent 注入 additionalContext 的事件.
         Claude Code 用 hookSpecificOutput.additionalContext shape, 其他
-        backend 可能 shape 不同 (Codex / Gemini 没文档化对 ContextInjection
+        backend 可能 shape 不同 (Codex / Cursor 没文档化对 ContextInjection
         类 event 的支持 — v0.9.15 同款假设潜伏点).
         """
         ...
@@ -126,7 +126,7 @@ class Backend(Protocol):
 
         Stop hook 是 karma 干预 Agent 最强动作 (force_block / keep_pushing_block).
         Claude Code 用顶层 {decision: "block", reason} shape, 其他 backend
-        可能不接受 (Gemini AfterAgent 没 block 概念, Codex Stop event
+        可能不接受 (Cursor stop 用 followup_message, Codex Stop event
         是否接受这个 shape 未验证).
         """
         ...
@@ -134,15 +134,11 @@ class Backend(Protocol):
     def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
         """返回该 backend 装 skill 的目标 [(dest_path, content_format), ...].
 
-        content_format: "markdown" (Markdown 原样写) 或 "toml" (Markdown 转 Gemini commands TOML 写).
+        content_format: "markdown" (Markdown 原样写) (v0.13.2 砍 Gemini 后只剩 markdown).
 
         例:
         - ClaudeCode: [(~/.claude/skills/karma/SKILL.md, "markdown")]
         - Codex: [(~/.agents/skills/karma/SKILL.md, "markdown")] (注意路径 ~/.agents/ 不是 ~/.codex/)
-        - Gemini: [
-            (~/.gemini/skills/karma/SKILL.md, "markdown"),     # auto-trigger
-            (~/.gemini/commands/karma.toml, "toml"),           # 显式 /karma 触发
-          ]
         """
         ...
 

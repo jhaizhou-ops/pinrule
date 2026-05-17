@@ -40,14 +40,14 @@ from karma.violations import Violation, append, detect
 
 
 def _allow(payload: dict) -> None:
-    """v0.9.15: 走 protocol_adapter — Gemini 用 `{}`, Claude/Codex 用 hookSpecificOutput."""
+    """v0.9.15: 走 protocol_adapter — Cursor 用 `{permission: allow}`, Claude/Codex 用 hookSpecificOutput."""
     print(emit_allow(payload))
 
 
 def _deny(reason: str, payload: dict) -> None:
-    """v0.9.15: 走 protocol_adapter — Gemini `{decision: deny, reason}` 顶层,
+    """v0.9.15: 走 protocol_adapter — Cursor 顶层 `{permission: deny, agent_message, user_message}`,
     Claude/Codex `hookSpecificOutput.permissionDecision`. 之前 karma 只输出
-    Claude 风格让 Gemini 拦截全失效（GPT-5.5 cross-model audit 抓到）."""
+    Claude 风格让 Cursor 拦截可能失效."""
     print(emit_deny(reason, payload))
 
 
@@ -61,7 +61,7 @@ def main() -> int:
         return 0
 
     # v0.9.15 cross-backend: tool_name 归一化到 karma canonical（Claude 风格） —
-    # Gemini run_shell_command → Bash / Codex apply_patch → Edit 等。所有
+    # Cursor Shell → Bash / Codex apply_patch → Edit 等。所有
     # checks 用 canonical 比较不需要每条 check 知道 backend。原 raw tool_name
     # 也保留（rare cases 需要原值时仍可读 payload）。
     raw_tool_name = payload.get("tool_name", "")

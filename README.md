@@ -21,7 +21,7 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
-✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed across all three backends on `karma init`.
+✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude Code + Codex CLI by `karma init` (Cursor is project-scoped, see post-install hint).
 
 Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
@@ -51,7 +51,7 @@ Chinese + English auto-detected — open an issue if you'd like other languages 
 | **Long context accumulation → attention decay → Agent drifts** | At 60-80K accumulated context, headers get diluted — Agent isn't ignorant, attention decayed | Per-model adaptive threshold (different decay points per model), auto-reinject mid-conversation when accumulation hits threshold |
 | **Agent sees a reminder → reacts defensively or rationalizes around it** | LLMs trained to please users — when faced with a violation reminder, the first reaction is to self-justify or find the shortest patch around it, not to genuinely correct | Rephrase rule tone as "collaborative agreement" tone. The Agent reads "the user you're working with hopes…" and switches to "let me realign" instead of "let me defend" |
 | **Agent finishes one small step, then stops to ask "what's next?" (you're fully delegating)** | You give a clear direction → Agent finishes step 1 → "What should I do next?" → you come back from other work and find the Agent has been idle for 30 minutes | Stop hook catches silent stops and injects a continuation nudge — up to 2 in a row, then it lets the Agent saturate if it genuinely is stuck |
-| **"I want to add a rule but writing yaml is heavy / my phrasing doesn't change Agent behavior"** | You know what behavior you want, but writing the rule is its own chore — wrong `violation_keywords` format triggers false positives, wrong tone makes the Agent defensive | Type `/karma <natural language>` in Claude Code / Codex / Gemini CLI — the karma skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes. ~30 seconds end-to-end |
+| **"I want to add a rule but writing yaml is heavy / my phrasing doesn't change Agent behavior"** | You know what behavior you want, but writing the rule is its own chore — wrong `violation_keywords` format triggers false positives, wrong tone makes the Agent defensive | Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) — the karma skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes. ~30 seconds end-to-end |
 
 ---
 
@@ -63,12 +63,12 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-Restart Claude Code / Codex CLI / Gemini CLI — all hook positions + default rules take effect immediately.
+Restart Claude Code / Codex CLI / Cursor — all hook positions + default rules take effect immediately.
 For custom rules, just type `/karma <natural-language rule>`.
 
 ### Or ask your AI client to install it
 
-Paste this to Claude Code / Codex / Gemini (desktop or CLI):
+Paste this to Claude Code / Codex / Cursor (desktop or CLI):
 
 ```
 Install karma (github.com/jhaizhou-ops/karma) — a lightweight hook system that keeps my core direction preferences from being lost in long tasks.
@@ -88,7 +88,6 @@ After install, the Agent shows a summary of default rules — you see at a glanc
 |---|---|---|
 | Claude Code | `karma install-hooks` (default) | Takes effect immediately |
 | Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
-| Gemini CLI | `karma install-hooks --backend gemini-cli` | Takes effect immediately |
 | Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Hooks fire on every IDE Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
 
 ### Uninstall
@@ -235,10 +234,9 @@ The `/karma` skill helps you phrase a rule in the way Agent responds to best:
 |---|---|---|
 | Claude Code | `~/.claude/skills/karma/SKILL.md` | `/karma <natural language>` |
 | Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` shared with Anthropic) | `/skills` menu, `$karma <description>` inline, or auto-trigger |
-| Gemini CLI | `~/.gemini/skills/karma/SKILL.md` (auto) + `~/.gemini/commands/karma.toml` (explicit) | `/karma <natural language>` (explicit) or auto-trigger (skill path) |
 | Cursor | **Not auto-installed (project-scoped only)** — Cursor has no home-level global skills directory. Copy `skills/karma/SKILL.md` to `.cursor/skills/karma/` in each project that needs it. | `/karma` (per-project) or use `karma rule add` CLI directly |
 
-The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); `karma install-skill` handles Markdown → TOML conversion for the Gemini commands path automatically.
+The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); `karma install-skill` writes raw Markdown per backend.
 
 ### Updating the skill after a karma upgrade
 
@@ -259,7 +257,7 @@ System architecture at a glance:
 flowchart LR
     R[(rules.yaml<br/>5-10 core directions)]
     K[karma engine<br/>regex + counting<br/>zero LLM, ~50-70ms]
-    A[🤖 Agent<br/>Claude / Codex / Gemini]
+    A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>audit history)]
 
     R ==>|inject every turn| K
@@ -305,7 +303,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Token cost (cumulative)** | 1.8K SessionStart baseline (one-time, re-sent every turn) + per-turn anchor **only lists rules violated this session** (v0.13.0 — empty session = 0 anchor; typical engineering session 3-5 violated rules ≈ 150 tokens/turn) + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Typical engineering session ~1-3% of total API input tokens (down from 10-15% in v0.12.x); long session context window ~5-10% (down from 25%).** sessionStart baseline + PostToolUse mid-session reinject cover anti-decay; anchor focuses on drift signal |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
-| **Supported clients** | Claude Code / Codex CLI / Gemini CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
+| **Supported clients** | Claude Code / Codex CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
 | **User languages** | Chinese + English, extensible | All 7 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~7 small files, zero Python code |
 
 ---
@@ -380,7 +378,7 @@ Think of karma as sitting between `git` and a linter — it gives signals, you m
 <summary><b>Nothing happens after install?</b></summary>
 
 Run `karma doctor` to check:
-- Are all hook events ✓? (Claude Code 8 / Codex 4 / Gemini 4)
+- Are all hook events ✓? (Claude Code 8 / Codex 4 / Cursor 5)
 - Did rules load successfully?
 - Did session state directory generate new files?
 </details>

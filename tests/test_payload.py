@@ -1,7 +1,7 @@
 """tests for karma.hooks._payload extract_session_id (v0.12.1).
 
 跨 backend stdin payload 字段 fallback 链:
-- Claude / Codex / Gemini: `session_id`
+- Claude / Codex (Cursor 用 conversation_id): `session_id`
 - Cursor 1.7+: `conversation_id`
 - fail-open: `default`
 """
@@ -12,7 +12,7 @@ from karma.hooks._payload import extract_session_id
 
 
 def test_session_id_primary_path():
-    """Claude / Codex / Gemini stdin 用 session_id."""
+    """Claude Code / Codex stdin 用 session_id."""
     assert extract_session_id({"session_id": "claude-abc-123"}) == "claude-abc-123"
 
 

@@ -6,7 +6,7 @@ karma v0.10.0 形式化了 6-method backend 契约 (`karma/backends/_base.py:Bac
 不需要为每个 backend 写一遍同样的契约测试.
 
 **只测契约不测具体协议字面**: 这是分工边界 — backend 具体协议私货（codex
-apply_patch envelope / Gemini Beforetool output shape 等）归各自 backend.py
+apply_patch envelope / Cursor permission shape 等）归各自 backend.py
 单独测试，本文件只验「6 method 都 callable + 返回类型合理 + 不抛异常」.
 
 参考: [[karma-backend-ownership-split]] memory, docs/CODEX_BACKEND.md
@@ -101,7 +101,7 @@ def test_emit_context_injection_returns_valid_json_string(backend):
 
 
 def test_emit_stop_block_returns_valid_json_string(backend):
-    """v0.10.6: emit_stop_block 必须返合法 JSON string. Gemini 等 fail-open 返 {}
+    """v0.10.6: emit_stop_block 必须返合法 JSON string. 各 backend 自决 fail-open shape
     也是合法的, 调用方 stop.py 主逻辑接受 (printed {} = passthrough 不阻塞)."""
     out = backend.emit_stop_block("test reason", {})
     assert isinstance(out, str)
@@ -129,7 +129,7 @@ def test_hook_events_returns_nonempty_dict(backend):
 def test_settings_path_under_config_dir(backend):
     """settings_path() 必须在 backend 的配置目录下."""
     sp = backend.settings_path()
-    # 至少应该含 backend 名特征（.claude / .codex / .gemini 等）
+    # 至少应该含 backend 名特征（.claude / .codex / .cursor 等）
     assert any(part.startswith(".") for part in sp.parts), (
         f"backend {backend.name!r} settings_path {sp} 不在 dotted config 目录下"
     )
@@ -139,7 +139,7 @@ def test_build_event_entry_returns_valid_entry(backend):
     """build_event_entry 必须返回 dict, 内含 backend-specific 协议 shape.
 
     跨 backend shape 差异 (v0.12.3 Cursor dogfood 暴露):
-    - Claude / Codex / Gemini: nested `{"hooks": [{"type": "command", "command": "..."}]}`
+    - Claude / Codex: nested `{"hooks": [{"type": "command", "command": "..."}]}`
     - Cursor (native, https://cursor.com/docs/hooks): flat `{"command": "..."}`
 
     Contract 只验 dict 且至少有 karma wrapper 路径痕迹 — 具体 shape 各 backend 自己测.

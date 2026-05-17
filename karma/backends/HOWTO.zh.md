@@ -2,8 +2,8 @@
 
 **[🇬🇧 English](./HOWTO.md) · [🇨🇳 中文（当前）](./HOWTO.zh.md)**
 
-karma 当前装机支持 3 家（Claude Code / Codex / Gemini CLI）。本文档讲怎么
-加第 4 家 — 实证 vibe-island 桥支持的 9 家清单：claude / codex / gemini /
+karma 当前装机支持 3 家（Claude Code / Codex / Cursor）。本文档讲怎么
+加第 3 家 — 实证 vibe-island 桥支持的 9 家清单：claude / codex / cursor /
 cursor / factory / qoder / copilot / codebuddy / kimi。
 
 ## 5 步加一个新 backend
@@ -13,7 +13,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 按 karma 的 `long-term-fundamental` 规则 — **真跑不凭假设**，调研以下：
 
 1. **hook 配置文件路径** — 通常 `~/.<client>/settings.json` 或 `~/.<client>/hooks.json`
-2. **hook event 名** — 写进配置文件的 event 名（如 `UserPromptSubmit` vs Gemini 的
+2. **hook event 名** — 写进配置文件的 event 名（如 `UserPromptSubmit` vs Cursor 的 camelCase
    `BeforeAgent`）
 3. **stdin payload 字段** — case style（snake_case 还是 camelCase？）+ 哪些字段
    karma 关心（`prompt` / `tool_name` / `tool_input` / `tool_response` /
@@ -40,7 +40,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 | 是否要启用步骤 | override `pre_install_setup`（可选） | Codex 跑 `codex features enable hooks` |
 | stdin payload 字段差异 | 改 `karma/hooks/stop.py` fallback 链（可选） | Codex 用 `last_assistant_message` 而非 `transcript_path` |
 
-参考 `karma/backends/gemini_cli.py` 最简洁的样板（继承 `JsonHooksBackend`
+参考 `karma/backends/claude_code.py` 最简洁的样板（继承 `JsonHooksBackend`
 只填类属性）：
 
 ```python
@@ -84,7 +84,7 @@ karma v0.4.28+ 加了 2 个 Claude Code 协议特有 hook event 给「中段
 
 - 如果 backend 协议**有**类似 session lifecycle / context compact 事件 →
   在 `_HOOK_EVENTS` 加映射 + 写对应 wrapper 升级到 karma 中段注入 + compact 落盘双端夹击能力
-- 如果**没**对应事件（如 Codex / Gemini 当前情况）→ 跳过即可，4 个通用
+- 如果**没**对应事件（如 Codex / Cursor 当前情况）→ 跳过即可，4 个通用
   wrapper 已经够 karma 核心功能（违反检测 + sticky 注入到 user prompt）
 
 如果 backend 需要 matcher / timeout 字段在 hook entry 里：override
@@ -114,7 +114,6 @@ from karma.backends.cursor import CursorBackend
 REGISTRY: dict[str, Backend] = {
     "claude-code": ClaudeCodeBackend(),
     "codex": CodexBackend(),
-    "gemini-cli": GeminiCLIBackend(),
     "cursor": CursorBackend(),              # 加这行
 }
 ```
@@ -130,7 +129,6 @@ karma hook 入口（`karma/hooks/*.py`）用以下字段，跨 backend 一般同
 Stop 字段三家不同（karma stop.py 已三选一适配）：
 - Claude Code: `transcript_path`（反向读 transcript）
 - Codex: `last_assistant_message`
-- Gemini: `prompt_response`
 
 如果新 backend 用第四种字段名，改 `karma/hooks/stop.py:_read_last_assistant_response`
 前面那段 fallback 链加一条 `or payload.get("<new_field>", "")`。
@@ -184,7 +182,6 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 |---|---|---|
 | Claude Code | `~/.claude/settings.json` | ✓ v0.1.0 起 |
 | Codex CLI | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
-| Gemini CLI | `~/.gemini/settings.json` | ✓ v0.4.0 起 |
 | Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/karma` skill 仅 project-scoped — Cursor 没 home-level global skills 目录） |
 | Factory | `~/.factory/settings.json` | 待装 + 实测 |
 | Qoder | `~/.qoder/settings.json` | 待装 + 实测 |

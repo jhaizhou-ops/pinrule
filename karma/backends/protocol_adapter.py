@@ -1,8 +1,8 @@
 """Cross-backend hook protocol adapter — 纯调度层（v0.10.0 重构）.
 
-v0.9.15-v0.9.16 这个模块自己拥有 Gemini / Codex 映射表 + envelope parser 等
+v0.9.15-v0.9.16 这个模块自己拥有 backend-specific 映射表 + envelope parser 等
 **backend-specific 代码**. v0.10.0 把这些归还各自 backend (`karma/backends/codex.py`
-/ `gemini_cli.py`) 让 backend 拥有自己的协议私货，本模块退化成只做调度：
+等) 让 backend 拥有自己的协议私货，本模块退化成只做调度：
 
 1. `detect_backend(payload)` — 看 payload 字段路由到 REGISTRY 里某个 backend 名
 2. 其他函数（`normalize_tool_name` / `normalize_tool_input` / `emit_deny` /
@@ -21,7 +21,6 @@ v0.9.15-v0.9.16 这个模块自己拥有 Gemini / Codex 映射表 + envelope par
 - 默认基类提供 Claude Code 风格行为，需要才 override
 
 Sources（v0.9.15 还引用，v0.10.0 移到各 backend 文件 docstring）:
-- Gemini hooks reference: https://geminicli.com/docs/hooks/reference/
 - Codex hooks docs: https://developers.openai.com/codex/hooks
 - Claude Code hooks docs: https://code.claude.com/docs/en/hooks
 
@@ -42,15 +41,11 @@ from karma.backends import REGISTRY
 # 老 re-export `from karma.backends.codex import parse_apply_patch_envelope`
 # (v0.9.16 back-compat). 测试改成直接 from codex.py import.
 
-Backend = Literal["claude-code", "codex", "cursor", "gemini-cli"]
+Backend = Literal["claude-code", "codex", "cursor"]
 
-
-# Gemini event 名集合 — 用于 detect_backend
-# 来源：~/.gemini/settings.json 真实 event 名 + 官方 hook 文档
-_GEMINI_EVENT_NAMES = frozenset({"BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"})
 
 # Cursor event 名集合 — camelCase 小开头 (官方 docs 2026-05-17 fetch)
-# 跟 Claude Code PascalCase / Gemini PascalCase 都不同, 是 Cursor 独有特征
+# 跟 Claude Code PascalCase 不同, 是 Cursor 独有特征
 _CURSOR_EVENT_NAMES = frozenset({
     "sessionStart", "sessionEnd",
     "preToolUse", "postToolUse", "postToolUseFailure",
@@ -64,20 +59,17 @@ _CURSOR_EVENT_NAMES = frozenset({
 def detect_backend(payload: dict) -> str:
     """从 stdin payload 检测当前 hook 跑在哪个 backend.
 
-    Detection 顺序 (v0.12.0 升级加 cursor 分支):
-    1. payload.hook_event_name ∈ Gemini event 名 → 'gemini-cli'
-    2. payload.hook_event_name ∈ Cursor event 名 (camelCase 小开头) → 'cursor'
-    3. wrapper 调用路径含 '/.cursor/' → 'cursor' (event name 缺失兜底)
-    4. wrapper 调用路径含 '/.codex/' → 'codex'
+    Detection 顺序 (v0.13.2 砍 Gemini 后简化):
+    1. payload.hook_event_name ∈ Cursor event 名 (camelCase 小开头) → 'cursor'
+    2. wrapper 调用路径含 '/.cursor/' → 'cursor' (event name 缺失兜底)
+    3. wrapper 调用路径含 '/.codex/' → 'codex'
        (真测试 2026-05-16: codex error "unsupported permissionDecision:allow"
        证实 codex 不接受 Claude allow shape — emit_allow 必须返 {}.)
-    5. 否则 fallback 'claude-code'
+    4. 否则 fallback 'claude-code'
 
     返回 backend 名 (REGISTRY key) — 调用方用 `REGISTRY[name]` 拿 backend 实例.
     """
     event = payload.get("hook_event_name", "") or ""
-    if event in _GEMINI_EVENT_NAMES:
-        return "gemini-cli"
     if event in _CURSOR_EVENT_NAMES:
         return "cursor"
     # Path-based fallback for 协议未在 payload 写 hook_event_name 的边缘情况
@@ -99,7 +91,7 @@ def normalize_tool_name(raw_tool_name: str, payload: dict) -> str:
     路由到对应 backend 自己的 `normalize_tool_name` — 让 backend 决定怎么映射.
 
     特殊情况：Codex 的 `apply_patch` 在 detect_backend 阶段会被识别为
-    `claude-code`（因为没 hook_event_name 字段或字段值不是 Gemini）.
+    `claude-code`（因为没 hook_event_name 字段或字段值不属于已知 backend）.
     所以 claude-code backend 的默认 normalize_tool_name 也走一次 codex map —
     让 mainstream Claude Code 用户 + Codex 用户都走同一路径. 这是因为
     `apply_patch` 是 Codex 私有 tool_name 不会出现在 Claude payload 里，所以
@@ -110,7 +102,7 @@ def normalize_tool_name(raw_tool_name: str, payload: dict) -> str:
     这是 codex 私有命名，不会假阳.
     """
     backend = _backend_for(payload)
-    # 先走 backend 自己的 normalize（Gemini run_shell_command → Bash 等）
+    # 先走 backend 自己的 normalize（Cursor Shell → Bash 等）
     return backend.normalize_tool_name(raw_tool_name, payload)
 
 
@@ -155,7 +147,7 @@ def emit_stop_block(reason: str, payload: dict) -> str:
     """生成 backend-specific Stop hook block output JSON string (v0.10.6).
 
     Stop hook force_block / keep_pushing_block 走这个调度入口. Claude
-    顶层 `{decision: block, reason}`; Gemini override 返 `{}` fail-open
+    顶层 `{decision: block, reason}`; Cursor override 返 followup_message
     (AfterAgent 没 block 概念); Codex 跟 Claude shape 一致 (待验证).
     """
     return _backend_for(payload).emit_stop_block(reason, payload)

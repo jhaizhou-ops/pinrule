@@ -20,19 +20,17 @@ from karma.backends._base import Backend
 from karma.backends.claude_code import ClaudeCodeBackend
 from karma.backends.codex import CodexBackend
 from karma.backends.cursor import CursorBackend
-from karma.backends.gemini_cli import GeminiCLIBackend
 
 # 名字 → backend 实例的注册表
 REGISTRY: dict[str, Backend] = {
     "claude-code": ClaudeCodeBackend(),
     "codex": CodexBackend(),
-    "gemini-cli": GeminiCLIBackend(),
     "cursor": CursorBackend(),
 }
 
 __all__ = [
     "Backend", "ClaudeCodeBackend", "CodexBackend",
-    "CursorBackend", "GeminiCLIBackend", "REGISTRY",
+    "CursorBackend", "REGISTRY",
 ]
 
 

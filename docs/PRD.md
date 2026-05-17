@@ -130,7 +130,7 @@ Three hook feedback points:
 
 ### F5. Natural-language rule input via `/karma` skill ✅ (v0.5.16+ — first release where the skill actually triggers)
 
-**Triggering**: user types `/karma <natural language>` in any of Claude Code / Codex CLI / Gemini CLI. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft yaml inline → `karma rule preview` schema check → confirm with user → `karma rule add` write → report.
+**Triggering**: user types `/karma <natural language>` in any of Claude Code / Codex CLI / Cursor. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft yaml inline → `karma rule preview` schema check → confirm with user → `karma rule add` write → report.
 
 **What the skill handles**:
 - Tone refinement (collaborative-agreement phrasing — LLMs respond with alignment instead of defensive argument)
@@ -147,7 +147,6 @@ Three hook feedback points:
 **Multi-backend installation** (v0.5.16+):
 - Claude Code: `~/.claude/skills/karma/SKILL.md` (Markdown + YAML frontmatter)
 - Codex CLI: `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/`, not `~/.codex/` — shared namespace with Anthropic per OpenAI design)
-- Gemini CLI: `~/.gemini/skills/karma/SKILL.md` (auto-trigger) **plus** `~/.gemini/commands/karma.toml` (explicit `/karma` slash, generated via `karma/skill_packaging.py` Markdown → TOML conversion with `$ARGUMENTS` ↔ `{{args}}` syntax translation)
 - `karma init` auto-installs to all three; `karma install-skill [--force] [--backend <name>]` for upgrades; `karma doctor` reports per-backend skill status
 
 
@@ -237,7 +236,7 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 - ❌ Web UI / graphical config (CLI yaml editing is enough)
 - ❌ Evaluation system / accuracy metrics (self-use observation is enough)
 
-Cross-IDE / cross-AI client support already shipped: Claude Code / Codex CLI / Gemini CLI all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`karma/backends/HOWTO.md`](../karma/backends/HOWTO.md).
+Cross-IDE / cross-AI client support already shipped: Claude Code / Codex CLI / Cursor all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`karma/backends/HOWTO.md`](../karma/backends/HOWTO.md).
 
 ## Future possibilities (v1+)
 

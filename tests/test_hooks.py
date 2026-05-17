@@ -489,34 +489,6 @@ def test_stop_hook_force_block_releases_when_current_turn_not_triggering(monkeyp
             f"v0.4.16 fix：当前 turn 不触发 long-term 不该被历史累积 force_block，reason={reason}"
 
 
-def test_stop_hook_uses_gemini_prompt_response_field(monkeypatch, tmp_path, capsys):
-    """Gemini AfterAgent payload 给 `prompt_response` 字段 — karma stop.py 适配。
-
-    跨 3 个 backend payload 字段全适配：
-    - Codex Stop: last_assistant_message
-    - Gemini AfterAgent: prompt_response
-    - Claude Code Stop: transcript_path（反向读）
-    """
-    _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
-        {"id": "long-term-fundamental", "preference": "x",
-         "violation_keywords": ["先打个补丁"]},
-    ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
-    payload = json.dumps({
-        "session_id": "gemini-stop-test",
-        "cwd": "/Users/x",
-        "hook_event_name": "AfterAgent",
-        "prompt": "hi",
-        "prompt_response": "我先打个补丁应付下",
-        "stop_hook_active": False,
-    })
-    monkeypatch.setattr("sys.stdin", io.StringIO(payload))
-    stop.main()
-    lines = violations_path.read_text(encoding="utf-8").splitlines()
-    assert any("先打个补丁" in ln for ln in lines), \
-        "Gemini prompt_response 中的违反应被 catch"
-
-
 def test_stop_hook_uses_codex_last_assistant_message_field(monkeypatch, tmp_path, capsys):
     """Codex Stop payload 给 `last_assistant_message` 字段直接用，不读 transcript。
 

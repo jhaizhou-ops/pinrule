@@ -10,6 +10,33 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.13.2] — 2026-05-17 (minor — drop Gemini CLI backend, focus on Claude Code / Codex CLI / Cursor)
+
+karma's supported clients trim from 4 to **3** focused on the most-used AI coding clients. Gemini CLI's installed base is small enough that maintaining 4-backend matrix (4× edge-case docs, 4× cross-backend audit cost, 4× per-release dogfood overhead) outweighed the user surface. v0.13.0+ launch-readiness positioning is **Claude Code + Codex CLI + Cursor**.
+
+### What's removed
+
+- `karma/backends/gemini_cli.py` — entire backend file deleted
+- `karma/skill_packaging.py` — Gemini-only Markdown → TOML conversion helper (used only by Gemini commands path), entire module deleted
+- `protocol_adapter._GEMINI_EVENT_NAMES` + Gemini detection branch in `detect_backend()`
+- `REGISTRY["gemini-cli"]` from `karma.backends.REGISTRY`
+- All Gemini-specific tests across `test_backends.py` / `test_protocol_adapter.py` / `test_hooks.py` / `test_cli.py` / `test_payload.py`
+- All `karma install-hooks --backend gemini-cli` and `~/.gemini/...` user-facing doc mentions across README / PRD / SECURITY / HOWTO (en + zh)
+- GH repo description updated to drop Gemini from supported clients line
+
+### What's kept
+
+- Historical narrative in `CHANGELOG.zh.md`, `docs/HANDOFF.zh.md`, `docs/ARCHITECTURE.md/zh.md` v0.9.15+ / v0.10.x milestones where Gemini protocol audit produced cross-backend learnings (those learnings live on in the architecture even after Gemini support dropped)
+- A handful of `# v0.13.2 dropped Gemini` explainer comments in `cli.py` / `_base.py` / `protocol_adapter.py` so future maintainers reading the code see why the Gemini-shaped code path disappeared
+
+### Validation
+
+- 798 pytest green (down from 824 — Gemini-specific tests removed), ruff 0, mypy 0
+- backend matrix now: Claude Code (8 hook events), Codex CLI (4 hook events), Cursor (5 hook events). All three pass full contract test
+- end-to-end manual: `karma install-hooks --backend gemini-cli` returns "unknown backend" error (intended); `karma doctor` no longer reports Gemini skill status
+
+If you're an existing Gemini CLI user: stick with v0.13.1 — the last release where Gemini backend is fully maintained. Future Gemini support would need to come back via the same contributor-PR pattern as Codex (a Gemini-side maintainer takes ownership of `karma/backends/gemini_cli.py`).
+
 ## [0.13.1] — 2026-05-17 (patch — Cursor dogfood follow-ups: beforeSubmitPrompt mapping + transcript requirement)
 
 Two Cursor desktop Agent dogfood follow-ups landed in this patch.

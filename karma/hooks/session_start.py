@@ -34,7 +34,7 @@ def _passthrough() -> None:
 
 def _emit(additional_context: str, payload: dict | None = None) -> None:
     # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
-    # 让 backend 自己决定 shape (codex / gemini 可能不接受 Claude shape).
+    # 让 backend 自己决定 shape (codex / cursor 可能不接受 Claude shape).
     # 之前直 print hookSpecificOutput 是 v0.9.15 类型潜伏点 — 不响亮 fail
     # 静默被 backend reject 时 Agent 看不到 baseline 注入.
     from karma.backends.protocol_adapter import emit_context_injection

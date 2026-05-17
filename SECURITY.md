@@ -22,7 +22,7 @@ karma is a **local hook tool** — runs on your machine, reads your local config
 
 ### **Not** karma's security responsibility
 
-- **Claude / Codex / Gemini model security issues** → contact upstream
+- **Claude / Codex / Cursor model security issues** → contact upstream
 - **Agent behavior after rule injection** → model behavior is outside karma's control (karma only injects rule text, doesn't adjudicate how the Agent executes)
 - **Security of other tools in your `~/.claude/`** → contact those tools' maintainers
 - **Network-layer / system-layer threats** → outside karma's threat model

@@ -191,7 +191,7 @@ def _handle_force_block(
         f"禁止继续绕（手动改 karma 状态 / 临时改 rules.yaml）。"
     )
     # v0.10.6 (Agent 2 F3 fix): 走 protocol_adapter.emit_stop_block —
-    # Gemini AfterAgent 没 block 概念 backend 自己 fail-open 返 {}.
+    # Cursor stop 用 followup_message; backend 自己决定 fail-open shape.
     from karma.backends.protocol_adapter import emit_stop_block
     print(emit_stop_block(reason, payload or {}))
     return True
@@ -267,7 +267,7 @@ def main() -> int:
     session_id = extract_session_id(payload)
     # 跨 backend payload 字段适配 — 优先「直传 message」字段，fallback transcript
     # - Codex Stop: last_assistant_message
-    # - Gemini AfterAgent: prompt_response
+    # (历史: Gemini AfterAgent 用 prompt_response, v0.13.2 砍掉)
     # - Claude Code Stop: 没直传，要 transcript_path 反向读最后 assistant message
     response = (
         payload.get("last_assistant_message", "")

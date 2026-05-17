@@ -81,8 +81,8 @@ def main() -> int:
     # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state 文件
     agent_id = payload.get("agent_id") or None
     # v0.9.15 cross-backend: tool_name 归一化到 karma canonical（Claude 风格） —
-    # Gemini run_shell_command → Bash / Codex apply_patch → Edit 等。
-    # record_read / record_edit / record_bash 全部按 canonical 比较，让 Gemini
+    # Cursor Shell → Bash / Codex apply_patch → Edit 等。
+    # record_read / record_edit / record_bash 全部按 canonical 比较，让 Cursor
     # / Codex 真触发 state 推进（之前 apply_patch 漏推 last_edit_ts 让 evidence
     # check 旧测试通过状态被错保留 → git commit 绕过 evidence 门）。
     raw_tool_name = payload.get("tool_name", "")
@@ -213,7 +213,7 @@ def main() -> int:
         # v0.4.24+v0.4.32：智能 sticky reinject — 按 token 累积阈值决定。
         # 在 lock 内跑保证 last_reinject_byte_seq 节流跨进程一致（fn 返回该值
         # 给外面 stdout 输出）
-        return _build_smart_reinject(session_id, state)
+        return _build_smart_reinject(session_id, state, payload)
 
     try:
         _state, additional_context = session_state.update_state(
@@ -241,7 +241,7 @@ def _estimate_tokens(tool_input, tool_response) -> int:
     return (len(str(tool_input or "")) + len(str(tool_response or ""))) // 3
 
 
-def _build_smart_reinject(session_id: str, state) -> str:
+def _build_smart_reinject(session_id: str, state, payload: dict | None = None) -> str:
     """智能 sticky reinject — 按 token 累积维度决定是否注入（v0.4.32 升级）。
 
     设计意图（用户 v0.4.32 决策 + v0.4.34 叙事对齐）：
@@ -266,8 +266,14 @@ def _build_smart_reinject(session_id: str, state) -> str:
         sticky_list = _load_sticky()
     except Exception:
         return ""
-    if not sticky_list or state.turn_count <= 0:
+    if not sticky_list:
         return ""
+    if state.turn_count <= 0:
+        # v0.12.2 Cursor: turn 由 beforeSubmitPrompt 推进; 若 hook 未装/失败,
+        # 仍允许按 tool_byte_seq 阈值做中段 reinject (dogfood: turn_count 卡 0).
+        from karma.backends.protocol_adapter import detect_backend
+        if not (payload and detect_backend(payload) == "cursor"):
+            return ""
 
     try:
         cfg = _load_config()

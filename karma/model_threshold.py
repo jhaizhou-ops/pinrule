@@ -114,13 +114,14 @@ def extract_model_from_transcript(transcript_path: str | None) -> str | None:
 
     **Scope (v0.10.5 Agent 2 F6 clarification)**: 此函数**仅对 Claude Code
     transcript jsonl 工作** — regex `"model":"xxx"` 假设 Claude transcript shape.
-    其他 backend (Codex / Gemini) 不该走此 fallback:
+    其他 backend (Codex / Cursor) 不该走此 fallback:
 
     - **Codex**: payload.model 每个 hook event 都有, 走 model_from_payload
       首选不到这里. 若强 fallback 到此, codex transcript jsonl 字段名不同
       (官方文档警告 transcript_path 不是稳定 hook 接口), regex 可能误命中
       非真 model slug.
-    - **Gemini**: 同上, 应该用 payload.model 不走 transcript.
+    - **Cursor**: payload.model 每个 hook event 也有 (cursor.com/docs/hooks),
+      走 model_from_payload 首选不到这里.
 
     karma 路径: reverse scan transcript jsonl 找最后一条非合成 model 字面.
     跳过 `<synthetic>` (Claude Code 内部生成的注入 message, 不是真 model).

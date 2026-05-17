@@ -28,10 +28,9 @@ def fake_home(tmp_path, monkeypatch):
     """
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(cli, "KARMA_DIR", tmp_path / ".claude" / "karma")
-    from karma.backends import ClaudeCodeBackend, CodexBackend, GeminiCLIBackend
+    from karma.backends import ClaudeCodeBackend, CodexBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     return tmp_path
 
 
@@ -77,11 +76,10 @@ def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch
     注：必须 mock 全部 3 个 backend 的 client_installed — CI 环境通常无任何
     AI 客户端，作者本机有 claude 但 CI 没，依赖本机 PATH 会让 test 在 CI fail。
     """
-    from karma.backends import ClaudeCodeBackend, CodexBackend, GeminiCLIBackend
+    from karma.backends import ClaudeCodeBackend, CodexBackend
     # mock Claude Code 装了，其他都没装
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     rc = cli.cmd_install_hooks(backend_name="all")
     assert rc == 0
     # 只有 Claude Code 装了 wrapper，其他 backend 没装
@@ -89,18 +87,17 @@ def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch
     # 动态从 _HOOK_EVENTS 算 — 避免每次加 hook 改测试硬编码（v0.4.28 SessionStart /
     # v0.4.29 PreCompact / v0.4.30 SubagentStart+Stop 都得改这数字是反 pattern）
     assert len(cc_wrappers) == len(ClaudeCodeBackend._HOOK_EVENTS)
-    # Codex / Gemini 目录可能不存在（client 没装）— 不该建
+    # Codex 目录可能不存在（client 没装）— 不该建
     assert not (fake_home / ".codex" / "hooks").exists() or \
         not list((fake_home / ".codex" / "hooks").glob("karma_*.py"))
 
 
 def test_uninstall_all_backend_iterates_each_installed(fake_home, monkeypatch):
     """`--backend all` 卸装应对每个检测到的 backend 各跑一遍卸装流程。"""
-    from karma.backends import ClaudeCodeBackend, CodexBackend, GeminiCLIBackend
+    from karma.backends import ClaudeCodeBackend, CodexBackend
     # mock 全部 3 个 backend — CI 隔离防 PATH 干扰
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="all")
     rc = cli.cmd_uninstall_hooks(backend_name="all")
     assert rc == 0
@@ -113,10 +110,9 @@ def test_uninstall_one_shot_alias(fake_home, monkeypatch, capsys):
 
     陌生用户不用记 backend flag 长串 — 想完全卸载就 karma uninstall 一句。
     """
-    from karma.backends import ClaudeCodeBackend, CodexBackend, GeminiCLIBackend
+    from karma.backends import ClaudeCodeBackend, CodexBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="claude-code")
     # 用 main dispatch 跑 `karma uninstall`（不带 args）
     rc = cli.main(["uninstall"])
@@ -485,11 +481,10 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
     sticky_path.write_text("- id: test\n  preference: x\n")
     import karma.rule
     import karma.violations
-    from karma.backends import CodexBackend, GeminiCLIBackend
+    from karma.backends import CodexBackend
     import unittest.mock
     # mock 其他 backend 没装（fake_home 是 tmp，本测试只关心 Claude Code 路径）
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="claude-code")
     with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
         with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
@@ -513,40 +508,29 @@ def _patch_rules_path(monkeypatch, fake_home):
 
 
 def test_v0516_init_auto_installs_karma_skill_all_backends(fake_home, monkeypatch, capsys):
-    """v0.5.16: karma init 自动装 karma skill 到所有 backend (Claude/Codex/Gemini).
+    """v0.5.16: karma init 自动装 karma skill 到所有 backend (v0.13.2 砍 Gemini 后剩 Claude/Codex).
 
-    路径正确: ~/.claude/skills/karma/SKILL.md (Claude, 目录形式)
-             ~/.agents/skills/karma/SKILL.md (Codex, 注意 ~/.agents/ 不是 ~/.codex/)
-             ~/.gemini/skills/karma/SKILL.md + ~/.gemini/commands/karma.toml (Gemini 双轨)
+    Cursor 协议级限制 — 只 project-scoped skills, 没 home global, skill_install_targets 返 [].
+
+    路径: ~/.claude/skills/karma/SKILL.md (Claude, 目录形式)
+         ~/.agents/skills/karma/SKILL.md (Codex, 注意 ~/.agents/ 不是 ~/.codex/)
     """
     _patch_rules_path(monkeypatch, fake_home)
 
     claude_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
     codex_dest = fake_home / ".agents" / "skills" / "karma" / "SKILL.md"
-    gemini_skill = fake_home / ".gemini" / "skills" / "karma" / "SKILL.md"
-    gemini_toml = fake_home / ".gemini" / "commands" / "karma.toml"
-    for p in (claude_dest, codex_dest, gemini_skill, gemini_toml):
+    for p in (claude_dest, codex_dest):
         assert not p.exists()
 
     rc = cli.cmd_init(minimal=True)
     assert rc == 0
     assert claude_dest.exists(), "Claude Code skill 应自动装"
     assert codex_dest.exists(), "Codex skill 应自动装"
-    assert gemini_skill.exists(), "Gemini skill 应自动装 (auto-trigger 路径)"
-    assert gemini_toml.exists(), "Gemini commands TOML 应自动装 (显式触发路径)"
 
-    # Markdown source 跟 Claude/Codex/Gemini-skill 三处内容一致
+    # Markdown source 跟 Claude/Codex 两处内容一致 (raw markdown, 没有 TOML 转换)
     src_text = cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
     assert claude_dest.read_text(encoding="utf-8") == src_text
     assert codex_dest.read_text(encoding="utf-8") == src_text
-    assert gemini_skill.read_text(encoding="utf-8") == src_text
-
-    # Gemini commands TOML 应该是转换后内容 (有 description = / prompt = """ 段)
-    toml_text = gemini_toml.read_text(encoding="utf-8")
-    assert "description = " in toml_text
-    assert 'prompt = """' in toml_text
-    # $ARGUMENTS 应该转成 Gemini 原生的 {{args}}
-    assert "{{args}}" in toml_text or "$ARGUMENTS" not in toml_text
 
 
 def test_v0516_init_second_run_idempotent(fake_home, monkeypatch, capsys):
@@ -593,12 +577,11 @@ def test_v0516_install_skill_force_overwrites_all_backends(fake_home):
 
 
 def test_v0516_install_skill_backend_filter(fake_home):
-    """karma install-skill --backend claude-code 只装 Claude, 不动 Codex/Gemini."""
+    """karma install-skill --backend claude-code 只装 Claude, 不动 Codex."""
     rc = cli.cmd_install_skill(force=False, backend="claude-code")
     assert rc == 0
     assert (fake_home / ".claude" / "skills" / "karma" / "SKILL.md").exists()
     assert not (fake_home / ".agents" / "skills" / "karma" / "SKILL.md").exists()
-    assert not (fake_home / ".gemini" / "skills" / "karma" / "SKILL.md").exists()
 
 
 def test_v0516_install_skill_handles_missing_source(fake_home, monkeypatch):
@@ -609,7 +592,7 @@ def test_v0516_install_skill_handles_missing_source(fake_home, monkeypatch):
 
 
 def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch, capsys):
-    """karma doctor 报告 multi-backend skill 装机状态: claude/codex/gemini 各自一行."""
+    """karma doctor 报告 multi-backend skill 装机状态: claude/codex 各自一行."""
     import karma.violations
     _patch_rules_path(monkeypatch, fake_home)
     monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
@@ -621,7 +604,7 @@ def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch,
     cli.cmd_doctor()
     out = capsys.readouterr().out
     assert "karma skill 装机" in out
-    assert "claude-code" in out and "codex" in out and "gemini-cli" in out
+    assert "claude-code" in out and "codex" in out and "cursor" in out
     assert "最新" in out
 
     # case 2: 删掉 Claude skill → doctor 报「未装」

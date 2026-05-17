@@ -10,7 +10,6 @@ from karma.backends import (
     ClaudeCodeBackend,
     CodexBackend,
     CursorBackend,
-    GeminiCLIBackend,
     detect_installed_backends,
 )
 from karma.backends._base import SettingsParseError
@@ -24,28 +23,24 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_registry_has_four_backends():
+def test_registry_has_three_backends():
     assert "claude-code" in REGISTRY
     assert "codex" in REGISTRY
-    assert "gemini-cli" in REGISTRY
     assert "cursor" in REGISTRY
+    assert "gemini-cli" not in REGISTRY  # v0.13.2 砍 Gemini
     assert isinstance(REGISTRY["claude-code"], ClaudeCodeBackend)
     assert isinstance(REGISTRY["codex"], CodexBackend)
-    assert isinstance(REGISTRY["gemini-cli"], GeminiCLIBackend)
     assert isinstance(REGISTRY["cursor"], CursorBackend)
 
 
-def test_backends_all_have_4_common_karma_wrappers():
-    """4 个 CLI-like backend 都有 pre_tool_use / post_tool_use / stop 通用 wrapper.
+def test_backends_all_have_common_karma_wrappers():
+    """3 个 backend 都有 pre_tool_use / post_tool_use / stop 通用 wrapper.
 
-    historical 4 commons = {user_prompt_submit, pre_tool_use, post_tool_use, stop}.
     Cursor v0.12.2+ 用 beforeSubmitPrompt → user_prompt_submit 作每 turn 注入;
-    session_start 仍是 session 起手 baseline. 用 {pre, post, stop} 作跨 backend 最小集.
-
-    v0.4.28: Claude Code 额外有 session_start wrapper, v0.12.0 Cursor 也用 session_start.
+    session_start 是 session 起手 baseline. 用 {pre, post, stop} 作跨 backend 最小集.
     """
     minimum_commons = {"pre_tool_use", "post_tool_use", "stop"}
-    for name in ("claude-code", "codex", "gemini-cli", "cursor"):
+    for name in ("claude-code", "codex", "cursor"):
         wrappers = set(REGISTRY[name].hook_events().values())
         assert minimum_commons.issubset(wrappers), (
             f"{name} 缺通用 wrapper: 缺 {minimum_commons - wrappers}"
@@ -53,43 +48,11 @@ def test_backends_all_have_4_common_karma_wrappers():
 
 
 def test_claude_code_has_session_start_wrapper():
-    """v0.4.28 (karma v3 第四步)：Claude Code 多加 SessionStart 注入 sticky baseline
-    特别处理 compact 后场景。Codex / Gemini 协议没对应 event，是 Claude Code 特有。
+    """v0.4.28: Claude Code 多加 SessionStart 注入 sticky baseline 特别处理 compact 后.
+    Codex 协议没对应 event, Cursor 自己有 sessionStart (v0.12.0).
     """
     cc_wrappers = set(REGISTRY["claude-code"].hook_events().values())
     assert "session_start" in cc_wrappers
-
-
-def test_gemini_uses_different_event_names():
-    """Gemini event 名是 BeforeAgent/AfterAgent/BeforeTool/AfterTool —
-    跟 Claude Code/Codex 的 UserPromptSubmit/Stop/PreToolUse/PostToolUse 完全不同。"""
-    gemini_events = set(REGISTRY["gemini-cli"].hook_events().keys())
-    expected = {"BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool"}
-    assert gemini_events == expected
-
-
-def test_gemini_event_to_wrapper_mapping():
-    """Gemini 的 BeforeAgent → user_prompt_submit / AfterAgent → stop 等映射对。"""
-    g = REGISTRY["gemini-cli"]
-    events = g.hook_events()
-    assert events["BeforeAgent"] == "user_prompt_submit"
-    assert events["AfterAgent"] == "stop"
-    assert events["BeforeTool"] == "pre_tool_use"
-    assert events["AfterTool"] == "post_tool_use"
-
-
-def test_gemini_paths(fake_home):
-    g = GeminiCLIBackend()
-    assert g.hooks_dir() == fake_home / ".gemini" / "hooks"
-    assert g.settings_path() == fake_home / ".gemini" / "settings.json"
-
-
-def test_gemini_event_entry_timeout_ms(fake_home):
-    """Gemini hook entry 用 timeout 毫秒（跟 vibe-island 已用格式一致 5000）。"""
-    g = GeminiCLIBackend()
-    entry = g.build_event_entry("user_prompt_submit", "BeforeAgent")
-    assert "matcher" not in entry
-    assert entry["hooks"][0]["timeout"] == 5000
 
 
 # ---- Claude Code backend ----
@@ -209,19 +172,17 @@ def test_detect_installed_returns_list_of_names():
 
 
 def test_detect_installed_picks_up_each_backend(monkeypatch):
-    """4 个 backend 都「装了」→ detect 返回 4 个（顺序按 REGISTRY）。"""
+    """3 个 backend 都「装了」→ detect 返回 3 个（顺序按 REGISTRY）。"""
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: True)
-    assert detect_installed_backends() == ["claude-code", "codex", "gemini-cli", "cursor"]
+    assert detect_installed_backends() == ["claude-code", "codex", "cursor"]
 
 
 def test_detect_installed_skips_uninstalled_backend(monkeypatch):
     """只装一个 → detect 只返回那个。"""
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
-    monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
     assert detect_installed_backends() == ["codex"]
 

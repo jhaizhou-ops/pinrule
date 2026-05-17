@@ -6,10 +6,11 @@ Usage:
                                    默认按系统语言偏好自动选：中文 → 7 条完整；
                                    非中文/检测不到 → 5 条精简（砍 chinese_plain）
                                    --minimal / --no-minimal 强制覆盖
-    karma install-hooks [--backend claude-code|codex|gemini-cli|all]
+    karma install-hooks [--backend claude-code|codex|cursor|all]
+    karma sync-cursor-rules          刷新 ~/.cursor/rules/karma-sticky.mdc (Cursor 起手可见)
                                    自动配置 hooks（默认 claude-code 向后兼容）
                                    codex 会同时启用 features.hooks；
-                                   gemini-cli 写 ~/.gemini/settings.json；
+                                   
                                    all 装本机检测到的所有 AI 编程客户端
     karma install-skill [--force]  装 karma-rule Claude Code skill 到 ~/.claude/skills/
                                    (karma init 已自动跑一次, 老用户 / skill 升级时用)
@@ -64,8 +65,8 @@ EXAMPLE_RULES_ZH = _DATA_DIR / "rules.dev.example.zh.yaml"     # 中文
 EXAMPLE_RULES_MINIMAL_EN = _DATA_DIR / "rules.dev.minimal.example.yaml"
 EXAMPLE_RULES_MINIMAL_ZH = _DATA_DIR / "rules.dev.minimal.example.zh.yaml"
 EXAMPLE_CONFIG = _DATA_DIR / "config.example.yaml"
-# v0.5.16: karma skill source — Markdown source of truth; auto-installed to
-# all detected backends with format conversion (Markdown → TOML for Gemini commands path).
+# v0.5.16: karma skill source — Markdown source of truth; auto-installed raw to
+# Claude Code + Codex CLI on `karma init` (v0.13.2 dropped Gemini TOML conversion).
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
 KARMA_SKILL_SRC = _SKILLS_DIR / "karma" / "SKILL.md"
 
@@ -92,11 +93,8 @@ def _write_skill_target(
     - 已存在 + 内容不同 + force=False → 写 .new 兄弟文件, 返回 (False, "exists-diff")
     - 已存在 + 内容不同 + force=True → 覆盖, 返回 (True, "force-overwritten")
     """
-    if content_format == "toml":
-        from karma.skill_packaging import markdown_to_toml
-        body = markdown_to_toml(src_text)
-    else:
-        body = src_text
+    # v0.13.2: 砍 Gemini 后只剩 markdown content_format (Claude/Codex/Cursor 都 raw markdown)
+    body = src_text
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 
@@ -123,7 +121,7 @@ def _install_karma_skill_multi_backend(
     """装 karma skill 到所有 (或指定) detected backend.
 
     backend_filter: None / "all" → 所有 detected backend
-                    "claude-code" / "codex" / "gemini-cli" → 单独装该 backend
+                    "claude-code" / "codex" / "cursor" → 单独装该 backend
                     (不要求 backend 在本机已装 — 用户可能想预装等以后用客户端时生效)
 
     返回 [(backend_name, dest_path, changed, reason), ...] 让 caller 汇报.
@@ -156,7 +154,7 @@ def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
     flow:
     - karma init 已自动调一次, 已 init 老用户跑 karma install-skill 补装
     - skill 升级 (clarity audit 等) 用 --force 覆盖
-    - --backend <name> 单独装某家 (claude-code / codex / gemini-cli)
+    - --backend <name> 单独装某家 (claude-code / codex / cursor)
     """
     results = _install_karma_skill_multi_backend(force=force, backend_filter=backend)
 
@@ -247,7 +245,7 @@ def cmd_init(minimal: bool | None = None) -> int:
         override_flag = "--no-minimal" if minimal else "--minimal"
         print(f"自动选不对？强制覆盖：karma init {override_flag}")
 
-    # v0.5.16: 自动装 karma skill 到所有 backend (Claude Code / Codex / Gemini)
+    # v0.5.16: 自动装 karma skill 到所有 backend (Claude Code / Codex / Cursor)
     # 让 /karma <NL> 流程在装机的客户端开箱即用
     skill_results = _install_karma_skill_multi_backend(force=False, backend_filter="all")
     if skill_results and skill_results[0][0] == "source":
@@ -1045,10 +1043,10 @@ def cmd_doctor() -> int:
     if src_text is None:
         print(f"    ⚠ source 未找到: {KARMA_SKILL_SRC} (dev install 异常)")
     else:
-        from karma.skill_packaging import markdown_to_toml
+        # v0.13.2: 砍 Gemini 后所有 backend 都 raw markdown (没 TOML 转换)
         for backend_name, backend in _BACKENDS_FOR_SKILL.items():
-            for dest, fmt in backend.skill_install_targets("karma"):
-                expected = markdown_to_toml(src_text) if fmt == "toml" else src_text
+            for dest, _fmt in backend.skill_install_targets("karma"):
+                expected = src_text
                 if not dest.exists():
                     print(f"    [{backend_name}] {dest}: 未装")
                     continue
@@ -1264,6 +1262,19 @@ def _install_to_backend(backend) -> int:
     return 0
 
 
+def cmd_sync_cursor_rules() -> int:
+    """把当前 rules.yaml 同步到 Cursor native alwaysApply rule 文件."""
+    from karma.cursor_rules_sync import sync_cursor_rules
+
+    written, logs = sync_cursor_rules(user=True, project_root=Path.cwd())
+    for line in logs:
+        print(line)
+    if not written:
+        return 1
+    print("✓ Cursor rules 已同步 — Reload Cursor 后新 Composer 起手应可见 karma 默契")
+    return 0
+
+
 def cmd_install_hooks(backend_name: str = "claude-code") -> int:
     """生成 wrapper + 自动写客户端配置（idempotent + 备份 + 保留他人 hook）。
 
@@ -1422,6 +1433,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if cmd in ("reset", "reset-session"):
         return cmd_reset_session()
+    if cmd == "sync-cursor-rules":
+        return cmd_sync_cursor_rules()
     if cmd == "install-hooks":
         return cmd_install_hooks(backend_name=_parse_backend_arg(args))
     if cmd == "install-skill":

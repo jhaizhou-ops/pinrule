@@ -225,10 +225,11 @@ def main() -> int:
             transcript_path, sticky_list, state, session_id, current_turn,
         )
 
-    # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
-    # 让 backend 自己决定 shape (codex / gemini UserPromptSubmit shape 未文档化).
+    # v0.10.6: 走 protocol_adapter — backend 决定 output shape.
+    # v0.12.2 Cursor: hook_event_name=beforeSubmitPrompt, 同一 main().
     from karma.backends.protocol_adapter import emit_context_injection
-    print(emit_context_injection("UserPromptSubmit", additional_context, payload))
+    event_name = payload.get("hook_event_name") or "UserPromptSubmit"
+    print(emit_context_injection(event_name, additional_context, payload))
     return 0
 
 
