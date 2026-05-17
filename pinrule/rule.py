@@ -167,8 +167,9 @@ def format_rule_id_catalog(rule_list: list[Rule]) -> str:
     """Compact rule-id list for Cursor — hooks/rules layer visibility.
 
     Cursor sessionStart stdout is often invisible; beforeSubmitPrompt used to
-    passthrough when no violations (empty anchor). This block is small (~50
-    tokens for 5 rules) and always safe to inject on Cursor turns.
+    passthrough when no violations (empty anchor). This block is small (~70
+    tokens for the default 7 rules, ~100 tokens at soft cap of 10) and
+    always safe to inject on Cursor turns.
     """
     if not rule_list:
         return ""
