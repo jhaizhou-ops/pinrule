@@ -30,6 +30,8 @@ from pinrule.backends.protocol_adapter import (
 # 不再从 protocol_adapter re-export (v0.9.16 back-compat 已不需要)
 from pinrule.backends.codex import parse_apply_patch_envelope
 
+from tests.conftest import np
+
 
 # v0.9.16 Codex apply_patch envelope — 真捕获自本机 codex 0.130.0 + GPT-5.5
 # session rollout (2026-05-16T13:51:47, custom_tool_call.input 字段). 锁这条字面
@@ -358,7 +360,7 @@ def test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts(
         "evidence check 假阴. v0.10.5 F4 fix wiring 失败."
     )
     edits = [str(p) for p in reloaded.edit_files]
-    assert "/workspace/src/x.py" in edits
+    assert np("/workspace/src/x.py") in edits
 
 
 def test_post_tool_use_records_codex_shell_read_paths(tmp_path, monkeypatch):
@@ -393,7 +395,7 @@ def test_post_tool_use_records_codex_shell_read_paths(tmp_path, monkeypatch):
     assert rc == 0
 
     reloaded = session_state.load("codex-shell-read-test", base_dir=tmp_path)
-    assert reloaded.has_read("/workspace/src/x.py"), (
+    assert reloaded.has_read(np("/workspace/src/x.py")), (
         "codex tail exec_command 没穿透到通用 record_read — read_first 在 codex "
         "下仍会假阳拦后续 Edit. v0.10.1 codex+pinrule 配套环节断了."
     )
@@ -432,10 +434,10 @@ def test_post_tool_use_records_all_update_paths_in_multi_file_patch(tmp_path, mo
     # 期望 Update /workspace/src/a.py + b.py + Add c.py 都 record_edit
     # (Delete d.py 跳过)
     edits = [str(p) for p in reloaded.edit_files]
-    assert "/workspace/src/a.py" in edits
-    assert "/workspace/src/b.py" in edits
-    assert "/workspace/src/c.py" in edits
-    assert "/workspace/src/d.py" not in edits, "Delete 不应 record_edit"
+    assert np("/workspace/src/a.py") in edits
+    assert np("/workspace/src/b.py") in edits
+    assert np("/workspace/src/c.py") in edits
+    assert np("/workspace/src/d.py") not in edits, "Delete 不应 record_edit"
     # last_edit_ts 必须真推（代码路径 .py，不是 docs）
     assert reloaded.last_edit_ts > 0, (
         "多文件 patch 含代码改动 last_edit_ts 没推 → evidence check 在 codex 下假阴"

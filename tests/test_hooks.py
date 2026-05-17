@@ -11,6 +11,8 @@ import yaml
 from pinrule.hooks import post_tool_use, pre_tool_use, stop, user_prompt_submit
 from pinrule import session_state
 
+from tests.conftest import np
+
 
 def _patch_paths(monkeypatch, tmp_path: Path, sticky_items: list[dict] | None = None):
     """让 hook 用 tmp 目录的 sticky/violations 文件。"""
@@ -222,8 +224,8 @@ def test_post_tool_use_write_records_read(monkeypatch, tmp_path, capsys):
     assert rc == 0
     # 验证 state 文件里 read_files 含 /x/new.py
     state = session_state.load("write_then_edit", base_dir=tmp_path)
-    assert "/x/new.py" in state.read_files, "Write 应该同时 record_read"
-    assert "/x/new.py" in state.edit_files
+    assert np("/x/new.py") in state.read_files, "Write 应该同时 record_read"
+    assert np("/x/new.py") in state.edit_files
 
 
 def test_post_tool_use_edit_does_not_imply_read(monkeypatch, tmp_path, capsys):
@@ -239,8 +241,8 @@ def test_post_tool_use_edit_does_not_imply_read(monkeypatch, tmp_path, capsys):
     rc = post_tool_use.main()
     assert rc == 0
     state = session_state.load("edit_only", base_dir=tmp_path)
-    assert "/x/existing.py" not in state.read_files, "Edit 不应自动 record_read"
-    assert "/x/existing.py" in state.edit_files
+    assert np("/x/existing.py") not in state.read_files, "Edit 不应自动 record_read"
+    assert np("/x/existing.py") in state.edit_files
 
 
 # ---- 缺口 #6 — tool 失败时不 record（防 read_first 被绕过） ----
@@ -259,7 +261,7 @@ def test_post_tool_use_failed_read_does_not_record(monkeypatch, tmp_path):
     rc = post_tool_use.main()
     assert rc == 0
     state = session_state.load("read_fail", base_dir=tmp_path)
-    assert "/x/notexist.py" not in state.read_files, "Read 失败不该 record_read"
+    assert np("/x/notexist.py") not in state.read_files, "Read 失败不该 record_read"
 
 
 def test_post_tool_use_failed_read_string_error_does_not_record(monkeypatch, tmp_path):
@@ -274,7 +276,7 @@ def test_post_tool_use_failed_read_string_error_does_not_record(monkeypatch, tmp
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     post_tool_use.main()
     state = session_state.load("read_str_fail", base_dir=tmp_path)
-    assert "/x/notexist.py" not in state.read_files
+    assert np("/x/notexist.py") not in state.read_files
 
 
 def test_post_tool_use_failed_edit_does_not_record(monkeypatch, tmp_path):
@@ -289,7 +291,7 @@ def test_post_tool_use_failed_edit_does_not_record(monkeypatch, tmp_path):
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     post_tool_use.main()
     state = session_state.load("edit_fail", base_dir=tmp_path)
-    assert "/x/foo.py" not in state.edit_files, "Edit 失败不该 record_edit"
+    assert np("/x/foo.py") not in state.edit_files, "Edit 失败不该 record_edit"
 
 
 def test_post_tool_use_failed_bash_still_records(monkeypatch, tmp_path):
@@ -323,7 +325,7 @@ def test_post_tool_use_successful_read_records(monkeypatch, tmp_path):
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     post_tool_use.main()
     state = session_state.load("read_ok", base_dir=tmp_path)
-    assert "/x/exists.py" in state.read_files
+    assert np("/x/exists.py") in state.read_files
 
 
 def test_post_tool_use_docs_edit_does_not_push_last_edit_ts(monkeypatch, tmp_path):
@@ -361,7 +363,7 @@ def test_post_tool_use_code_edit_pushes_last_edit_ts(monkeypatch, tmp_path):
     post_tool_use.main()
     state = session_state.load("code_edit", base_dir=tmp_path)
     assert state.last_edit_ts > 0, "代码 Edit 应推 last_edit_ts"
-    assert "/x/src/foo.py" in state.edit_files
+    assert np("/x/src/foo.py") in state.edit_files
 
 
 def test_post_tool_use_yaml_write_does_not_push_last_edit_ts(monkeypatch, tmp_path):

@@ -11,6 +11,8 @@ from pinrule.backends import codex as codex_backend
 from pinrule.backends._json_hooks import hook_command_str
 from pinrule.backends.codex import CodexBackend, codex_hook_trusted_hash
 
+from tests.conftest import np
+
 
 def _fake_home(tmp_path, monkeypatch):
     # 跨平台兜底: Unix Path.home() 读 HOME, Windows 读 USERPROFILE.
@@ -469,7 +471,7 @@ def test_codex_exec_command_sed_i_records_canonical_write_path(tmp_path, monkeyp
     assert post_tool_use.main() == 0
 
     reloaded = session_state.load("codex-sed-write", base_dir=tmp_path)
-    assert "/workspace/x.py" in reloaded.edit_files
+    assert np("/workspace/x.py") in reloaded.edit_files
     assert reloaded.last_edit_ts > 0
 
 
@@ -497,4 +499,4 @@ def test_codex_native_bash_records_canonical_read_path(tmp_path, monkeypatch):
     assert post_tool_use.main() == 0
 
     reloaded = session_state.load("codex-native-bash-read", base_dir=tmp_path)
-    assert "/workspace/x.py" in reloaded.read_files
+    assert np("/workspace/x.py") in reloaded.read_files
