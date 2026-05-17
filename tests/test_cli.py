@@ -25,12 +25,22 @@ def fake_home(tmp_path, monkeypatch):
     不依赖 CI 环境是否实际装 claude（v0.4.7 加 client_installed 门槛后所有
     cli.cmd_install_hooks() 测试都会查这个）。需要测「客户端没装」场景的测试
     自己 monkeypatch 覆盖即可。
+
+    v0.16.7 加 sys.prefix + repo_root 隔离 — v0.16.5 引入的 _cleanup_legacy_karma
+    会 unlink `Path(sys.prefix)/bin/karma` 跟 rmtree `Path(__file__)/../src/karma`,
+    fixture 不 mock 这俩 pytest 就**真删开发机** `.venv/bin/karma` 跟 `src/karma`.
+    现在指 tmp_path 子目录, 测试副作用归零.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(cli, "PINRULE_DIR", tmp_path / ".claude" / "pinrule")
-    from pinrule.backends import ClaudeCodeBackend, CodexBackend
+    # v0.16.7 sandbox: _cleanup_legacy_karma 用到的两条外部路径都 redirect 到 tmp
+    fake_venv = tmp_path / "venv"
+    (fake_venv / "bin").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("sys.prefix", str(fake_venv))
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
     return tmp_path
 
 
@@ -559,6 +569,9 @@ def test_doctor_cursor_flat_hook_entry_detected(fake_home, monkeypatch, capsys):
 
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
+    # v0.16.7: fake_home fixture 现在 mock CursorBackend.client_installed=False,
+    # 本 test 需要 Cursor 装着才能验 doctor detect — 显式 override.
+    monkeypatch.setattr(CursorBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CursorBackend, "_CONFIG_DIR_NAME", "cursor-pinrule-test")
 
     b = CursorBackend()

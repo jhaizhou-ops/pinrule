@@ -10,6 +10,8 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+- **test fixture sandbox fix**: `tests/test_cli.py::fake_home` now monkeypatches `sys.prefix` + sets `CursorBackend.client_installed=False`. Previous fixture didn't isolate `_cleanup_legacy_karma()`'s `Path(sys.prefix)/bin/karma` + `repo_root/src/karma` paths — pytest could really `unlink` an old dev-machine `.venv/bin/karma`. Audit-finding from round 2.
+
 ## [0.16.6] — 2026-05-17 (patch — 2-round multi-agent audit P0/P1 batch fix)
 
 Two rounds of 8 parallel sub-agent audits surfaced ~75 findings across 8 perspectives (engine checks / backends / hooks fail-open contract / rename residue / test coverage / user journey / doc consistency / hidden race + security). P0 + P1 critical fixes:
