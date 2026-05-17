@@ -19,9 +19,9 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 >
 **同一闭环的两面**：
 
-🛡️ **钉住规则 → Agent 对齐。** 5-10 条核心方向 session 起手注入完整 baseline + 每 turn 精简 anchor (id + 第一行 + 偏离标记, 平均 ~490 token) + 长 context 累积达拐点自动 reinject; 工具调用前实时拦截; 跨 compact / 跨 locale / 跨 backend 都不丢。
+🛡️ **钉住规则 → Agent 对齐。** 5-10 条核心方向 session 起手注入完整 baseline + 每 turn 精简 anchor + 长 context 累积达拐点自动 reinject; 工具调用前实时拦截; 跨 compact / 跨 locale / 跨 backend 都不丢。
 
-✨ **大白话告诉 pinrule → pinrule 替你写规则。** 在 Claude / Codex / Cursor 输 `/pinrule <自然语言>`，pinrule skill 把你的意图改写成校验过的「协作默契」语气，预览注入效果，跟你确认后写入 `rules.yaml`。`/pinrule` skill 装机命令是 `pinrule install-skill` (Claude + Codex 走 home-global；Cursor 协议级限 project-scoped 看安装提示) — `pinrule init` 第一次起手自动帮你跑, hook 本身走 `pinrule install-hooks` 单独装.
+✨ **大白话告诉 pinrule → pinrule 替你写规则。** 在 Claude / Codex / Cursor 输 `/pinrule <自然语言>`，pinrule skill 把你的意图改写成校验过的「协作默契」语气，预览注入效果，跟你确认后写入 `rules.yaml`。
 
 中英语言自动适配，如需更多语言支持请随时提交 issue。
 
@@ -68,11 +68,6 @@ pip install pinrule && pinrule init && pinrule install-hooks
 Claude / Codex / Cursor 重启后立即生效所有监控点和默认规则。
 如需添加自定义规则只需「/pinrule 自然语言规则」。
 
-> **每个命令做啥** (init 有副作用值得先知道):
-> - `pinrule init` — 建 `~/.pinrule/` 目录 + 复制默认规则模板，**顺带**自动跑 `install-skill` 把 `/pinrule <自然语言>` skill 装到每个检测到的客户端. **不**装 hook (下一步才装).
-> - `pinrule install-hooks` — 把 hook wrapper + settings 入口写到每个检测到的客户端 (`~/.claude/`, `~/.codex/`, `~/.cursor/`). 默认装所有装机的; 想限定哪家加 `--backend claude-code/codex/cursor`.
-> - `pinrule doctor` — 只读自检, 随时可跑.
-
 <details>
 <summary>从源码装 (开发 / 贡献者)</summary>
 
@@ -96,7 +91,7 @@ cd ~/pinrule && python -m venv .venv && .venv/bin/python -m pip install -e .
 4. 跑 pinrule doctor 确认装机成功
 ```
 
-安装成功后Agent会展示默认规则简要列表 — 你一眼能看到现在启用的 7 条规则是什么 (默认 `data/rules.dev.example.yaml` / `.zh.yaml` 模板)。之后想改哪条规则，直接跟 Agent 说「帮我去掉Pinrule规则 X」/「改下Pinrule规则 Y」就行 — Agent 知道用 `/pinrule` skill。
+安装成功后Agent会展示默认规则简要列表 — 你一眼能看到现在启用的 7 条规则是什么。之后想改哪条规则，直接跟 Agent 说「帮我去掉Pinrule规则 X」/「改下Pinrule规则 Y」就行 — Agent 知道用 `/pinrule` skill。
 
 ### 装机后验证
 
@@ -126,7 +121,7 @@ cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # 恢复原 se
 
 装完重启后，你会看到 pinrule 自动在这几个时刻干预：
 
-### 1. session 起手注入完整 baseline + 每 turn 精简 anchor (v0.9.0 注入架构, 每 turn 节省 ~73% token)
+### 1. session 起手注入完整 baseline + 每 turn 精简 anchor
 
 **每个 session 起手** (`SessionStart` hook), pinrule 注入完整规则 baseline — 5-10 条方向全文, 每条带 `[规则 id]`. Agent 在对话顶部第一眼看到:
 

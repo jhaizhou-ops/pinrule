@@ -19,9 +19,9 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 >
 **Two sides of the same loop**:
 
-🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected as session-start baseline + compact per-turn anchor (id + first line + drift marker, ~490 tokens average) + auto-reinject on long-context decay; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
+🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected as session-start baseline + compact per-turn anchor + auto-reinject on long-context decay; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
-✨ **Say it in plain words → pinrule writes the rule.** Type `/pinrule <natural language>` in Claude / Codex (or `.cursor/skills/pinrule/` per-project for Cursor) and the pinrule skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. The `/pinrule` skill is installed by `pinrule install-skill` (Claude + Codex home-global; Cursor project-scoped, see post-install hint) — `pinrule init` runs this for you on first setup, hooks themselves go in via `pinrule install-hooks`.
+✨ **Say it in plain words → pinrule writes the rule.** Type `/pinrule <natural language>` in Claude / Codex (or `.cursor/skills/pinrule/` per-project for Cursor) and the pinrule skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`.
 
 Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
@@ -68,11 +68,6 @@ pip install pinrule && pinrule init && pinrule install-hooks
 Restart Claude / Codex / Cursor — all hook positions + default rules take effect immediately.
 For custom rules, just type `/pinrule <natural-language rule>`.
 
-> **What each command does** (init has side effects worth knowing):
-> - `pinrule init` — creates `~/.pinrule/` + copies default rules template, **and** auto-runs `install-skill` to register the `/pinrule <NL>` skill on every detected client. Does **not** install hooks (that's the next step).
-> - `pinrule install-hooks` — writes hook wrappers + settings entries into every detected client (`~/.claude/`, `~/.codex/`, `~/.cursor/`). Defaults to all detected; pass `--backend claude-code/codex/cursor` to limit.
-> - `pinrule doctor` — read-only diagnostic; safe to run anytime.
-
 <details>
 <summary>From source (dev / contributors)</summary>
 
@@ -96,7 +91,7 @@ Steps:
 4. Run `pinrule doctor` to verify installation
 ```
 
-After install, the Agent shows a summary of default rules — you see at a glance which 7 rules are active (the default `data/rules.dev.example.yaml` / `.zh.yaml` templates). To modify any rule afterward, tell the Agent "remove pinrule rule X" / "change pinrule rule Y" — it knows to use the `/pinrule` skill.
+After install, the Agent shows a summary of default rules — you see at a glance which 7 rules are active. To modify any rule afterward, tell the Agent "remove pinrule rule X" / "change pinrule rule Y" — it knows to use the `/pinrule` skill.
 
 ### Per-client manual install commands
 
@@ -119,7 +114,7 @@ cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # Restore orig
 
 After install + restart, here's what you'll see pinrule doing automatically:
 
-### 1. Session-start baseline + compact anchor every turn (v0.9.0 injection architecture, ~73% token saving vs always-full)
+### 1. Session-start baseline + compact anchor every turn
 
 **Once per session** (`SessionStart` hook), pinrule injects the full rule baseline — your 5-10 directions in full prose, each tagged with its `[rule-id]`. The Agent reads them at the conversation top:
 
