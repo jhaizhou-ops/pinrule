@@ -74,11 +74,11 @@ def main() -> int:
     tool_input = normalize_tool_input(raw_tool_name, raw_tool_input, payload)
     if not isinstance(tool_input, dict):
         tool_input = {}
-    from karma.hooks._payload import extract_session_id
+    from karma.hooks._payload import extract_session_id, extract_subagent_id
     session_id = extract_session_id(payload)
     # v0.4.34 子 Agent 独立架构：agent_id 区分主/子 Agent
-    # 主 Agent payload 没 agent_id 字段；子 Agent (Task tool 启动) payload 含 uuid
-    agent_id = payload.get("agent_id") or None
+    # Claude: agent_id; Cursor: subagent_id
+    agent_id = extract_subagent_id(payload) or None
 
     # v0.4.37 子 Agent model 捕获到 — manual run 实验验证：
     # PreToolUse 派子 Agent 时 tool_name == "Agent"（不是 "Task"，dogfooding 真名）

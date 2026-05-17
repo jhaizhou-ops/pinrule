@@ -82,20 +82,18 @@ def _select_rule_template(minimal: bool) -> Path:
 def _write_skill_target(
     src_text: str,
     dest: Path,
-    _content_format: str = "markdown",
+    content_format: str,
     force: bool = False,
 ) -> tuple[bool, str]:
-    """装一份 skill 到单个目标路径 (raw Markdown).
+    """装一份 skill 到单个目标路径, 按 format 决定 Markdown 直写还是 TOML 转换.
 
     冲突处理 (sticky #1 不覆盖用户改动):
     - 不存在 → 写, 返回 (True, "installed")
     - 已存在 + 内容一致 → skip, 返回 (False, "up-to-date")
     - 已存在 + 内容不同 + force=False → 写 .new 兄弟文件, 返回 (False, "exists-diff")
     - 已存在 + 内容不同 + force=True → 覆盖, 返回 (True, "force-overwritten")
-
-    v0.13.2 后: 砍 Gemini 后只剩 markdown 一种 content_format (Claude/Codex/Cursor
-    都 raw markdown). 参数保留 _ 前缀标 intentionally-unused, 维持 caller 调用契约.
     """
+    # v0.13.2: 砍 Gemini 后只剩 markdown content_format (Claude/Codex/Cursor 都 raw markdown)
     body = src_text
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -266,6 +264,8 @@ def cmd_init(minimal: bool | None = None) -> int:
     # v0.9.9: 装完展示默认启用规则简要列表 — 让用户（自己跑 / 让 Agent 代装）
     # 一眼看到默认开了什么，知道下一步该改 / 删 / 加什么
     _print_default_rules_summary()
+    _auto_install_hooks_for_detected_clients()
+    _sync_cursor_rules_if_installed()
     return 0
 
 
@@ -1031,6 +1031,66 @@ def cmd_violations_clear(sticky_filter: str | None = None, trigger_filter: str |
     return 0
 
 
+def _karma_hook_entry_covers_event(
+    backend, hooks: dict, event_name: str, hook_basename: str,
+) -> bool:
+    """True if hooks.json lists a karma wrapper for this event (Claude nested or Cursor flat)."""
+    for entry in hooks.get(event_name, []):
+        if not backend.is_karma_entry(entry):
+            continue
+        cmd = entry.get("command", "")
+        if hook_basename in cmd:
+            return True
+        for nested in entry.get("hooks", []):
+            if hook_basename in nested.get("command", ""):
+                return True
+    return False
+
+
+def _backend_hooks_incomplete(backend) -> bool:
+    """Missing wrapper or settings entry for any expected hook event."""
+    if not backend.client_installed():
+        return False
+    try:
+        settings = backend.load_settings()
+    except Exception:
+        return True
+    hooks = settings.get("hooks", {})
+    for event_name, hook_basename in backend.hook_events().items():
+        wrapper = backend.hooks_dir() / f"karma_{hook_basename}.py"
+        if not wrapper.exists():
+            return True
+        if not _karma_hook_entry_covers_event(
+            backend, hooks, event_name, hook_basename,
+        ):
+            return True
+    return False
+
+
+def _auto_install_hooks_for_detected_clients() -> None:
+    """init 末尾：已装客户端 hook 不齐则 idempotent 跑 install-hooks all."""
+    from karma.backends import REGISTRY
+
+    if not any(_backend_hooks_incomplete(b) for b in REGISTRY.values()):
+        return
+    print("\n→ 检测到 hook 未装全，自动 install-hooks --backend all（功能与 Claude 对齐）…")
+    cmd_install_hooks("all")
+
+
+def _sync_cursor_rules_if_installed() -> None:
+    from karma.backends import REGISTRY
+
+    cursor = REGISTRY.get("cursor")
+    if cursor is None or not cursor.client_installed():
+        return
+    from karma.cursor_rules_sync import sync_cursor_rules
+
+    _written, logs = sync_cursor_rules(user=True)
+    for line in logs:
+        if line.strip():
+            print(line)
+
+
 def cmd_doctor() -> int:
     print(f"karma v{__version__} doctor")
     print(f"  KARMA_DIR: {KARMA_DIR} ({'存在' if KARMA_DIR.exists() else '不存在'})")
@@ -1130,9 +1190,8 @@ def cmd_doctor() -> int:
         for event_name, hook_basename in backend.hook_events().items():
             wrapper = backend.hooks_dir() / f"karma_{hook_basename}.py"
             wrapper_ok = wrapper.exists() and os.access(wrapper, os.X_OK)
-            in_settings = any(
-                backend.is_karma_entry(e) for e in hooks.get(event_name, [])
-                if any(hook_basename in h.get("command", "") for h in e.get("hooks", []))
+            in_settings = _karma_hook_entry_covers_event(
+                backend, hooks, event_name, hook_basename,
             )
             if wrapper_ok and in_settings:
                 print(f"      {event_name}: ✓")
