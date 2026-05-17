@@ -103,7 +103,7 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 | Stop 强提醒 | 违反命中 + suggested_fix | 检测到违反时 |
 | SubagentStart | 子 Agent 精简规则 | 起子 Agent 时 |
 
-每 turn 注入: v0.13.0+ anchor 只列本 session 违反过的规则（median 1 条 ≈ 60 token; 干净 session = 0 anchor passthrough）。**真 dogfood 实测: 占对话约 2%, 极端维护者撞 sticky 多的 session 最大 ~10%。**
+每 turn 注入: anchor 只列本 session 违反过的规则（median 1 条 ≈ 60 token; 干净 session = 0 anchor passthrough）。**真 dogfood 实测: 占对话约 2%。**
 
 ### F3. 违反检测 / 反馈闭环 ✅
 

@@ -97,7 +97,7 @@ karma does only **"core direction persistence + violation detection"** — one t
 | Stop strong reminder | violation hits + suggested_fix | when violations detected |
 | SubagentStart | compact rule list | per subagent spawn |
 
-Per-turn injection: v0.13.0+ anchor only lists session-violated rules (median 1 rule ≈ 60 tokens; clean session = 0 anchor passthrough). **Real dogfood measure: ~2% of conversation context in typical session, max ~10% in heavy-violation maintainer sessions.**
+Per-turn injection: anchor only lists session-violated rules (median 1 rule ≈ 60 tokens; clean session = 0 anchor passthrough). **Real dogfood measure: ~2% of conversation context in typical session.**
 - Performance: 50-70ms hook latency (Python startup-bound)
 
 ### F3. Violation detection / feedback loop ✅

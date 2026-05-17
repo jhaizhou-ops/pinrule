@@ -215,38 +215,6 @@ Agent (karma skill walks 7 steps automatically):
 
 > **Type `/karma` with no arguments** anytime to see the interception dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions the Agent violates most in your sessions, so you can decide whether to add or drop a rule.
 
-### What the skill handles for you
-
-The `/karma` skill helps you phrase a rule in the way Agent responds to best:
-
-| Hard part of writing a rule | What the skill does |
-|---|---|
-| **Tone — "you must always X" backfires on LLMs** | Rewrites in karma's "collaborative agreement" phrasing. Long-term testing shows LLMs respond with "let me align" rather than "let me argue" |
-| **Format — bare keywords trigger false positives** | Converts to "intent-prefix + action" format (e.g. `"I'll hardcode"` not `"hardcode"`) so discussion vs. action is distinguishable |
-| **Overlap — accidentally adding a duplicate rule wastes a slot** | 4-row decision table on overlap shape (full duplicate / superset / keyword-overlap / no overlap); offers modify-existing path instead of bloating to 11 rules |
-| **Scope ambiguity — "during X, do Y" is often anchor not scope** | Surfaces the ambiguity verbatim ("just to check: whenever we collaborate, or strictly during X?") instead of silently guessing |
-| **Locale — mixing English skill body for Chinese user** | Detects user's chat language; writes Chinese `preference` for Chinese users, English for English users. Built-in `violation_checks` function names stay English (stable identifiers) |
-| **Modify vs add — no separate `rule replace` command** | Knows the `remove + add` recipe atomically; preserves `id` so violation history stays linked |
-
-### Four backends — three auto-install, one per-project
-
-| Backend | Path (auto-installed) | Trigger in client |
-|---|---|---|
-| Claude Code | `~/.claude/skills/karma/SKILL.md` | `/karma <natural language>` |
-| Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` shared with Anthropic) | `/skills` menu, `$karma <description>` inline, or auto-trigger |
-| Cursor | **Not auto-installed (project-scoped only)** — Cursor has no home-level global skills directory. Copy `skills/karma/SKILL.md` to `.cursor/skills/karma/` in each project that needs it. | `/karma` (per-project) or use `karma rule add` CLI directly |
-
-The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); `karma install-skill` writes raw Markdown per backend.
-
-### Updating the skill after a karma upgrade
-
-```bash
-karma install-skill --force          # overwrite all backends with current version
-karma install-skill --backend codex  # update one backend only
-```
-
-Without `--force`, the new version is written to a `.new` sibling file so you can `diff` your local edits against upstream before deciding. `karma doctor` reports per-backend skill status.
-
 ---
 
 ## Why it works
@@ -297,11 +265,10 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | Dimension | Number | Note |
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
-| **Source code** | ~8.6K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / 775 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
+| **Source code** | ~9.5K lines Python | Readable, modifiable, no magic |
+| **Quality gates** | lint / type-check / dead-code / **834 unit tests**, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | typically 50-70ms (Python startup-bound, machine-dependent — author's M-series Mac ~49ms, 67ms reported on lower-end machines) | Well within AI client protocol budget of 200ms |
-| **Token cost (cumulative)** | 1.8K SessionStart baseline (one-time, re-sent every turn) + per-turn anchor **only lists rules violated this session** (v0.13.0+; empty session = 0 anchor) + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **~2% of conversation context in typical dogfood** (30 sessions real measured: 60% clean = 0 anchor token, median 1 violated rule). Outlier: maintainer sessions hitting many sticky rules can reach ~10% (ceiling — typical user 1-3%). v0.13.0 cuts cumulative anchor cost 45-80% vs v0.12.x's "list all sticky every turn" |
-| **API input bill share** | SessionStart prefix + per-turn **new** anchor/catalog; earlier prefix mostly **prompt cache reads (~10% of input price on Anthropic)** | **~1–3%** typical engineering session; drift-heavy or Cursor per-turn id catalog **~2–4%**; v0.12 listed all ids every turn **~10–15%** (mechanism estimate, not invoice reconciliation). **Context window** fill at end of long session is a separate metric (~4–6%) |
+| **Token cost** | 1.8K SessionStart baseline + per-turn anchor listing only session-violated rules + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood: ~2% of conversation context** (30 sessions measured: 60% of work sessions = 0 anchor token, median 1 violated rule per session) |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
 | **Supported clients** | Claude Code / Codex CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
@@ -309,9 +276,9 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 
 ---
 
-## 8 hook positions, all covered
+## Claude / Codex / Cursor native hook support
 
-Conversation lifecycle showing where each hook fires (GitHub renders the diagram below):
+Native hook coverage on all 3 backends — **Claude 8 events, Codex 6 events, Cursor 12 events**, all wired end-to-end. Diagram below uses Claude's 8-event lifecycle as example (Codex/Cursor share the same karma logic with backend-specific event subsets):
 
 ```mermaid
 flowchart TB

@@ -247,7 +247,7 @@ KARMA_LOCALE env > config.yaml `locale` 字段 > 自动检测（中文比例）>
 | Stop hook 强提醒 | 违反 + suggested_fix | ~135 / 条 | 违反时 |
 | SubagentStart | 子 Agent 精简规则 | ~383 | 起子 Agent 时 |
 
-分层注入: v0.13.0+ UserPromptSubmit anchor 只列本 session 违反过的规则（median 1 条 ≈ 60 token; 干净 session = 0 anchor passthrough）, 从 v0.9.0–v0.12.x「全列每条 sticky」的 ~490 token/turn 降下来. **真 dogfood 实测（30 sessions）: 占对话约 2%, 极端维护者撞 sticky 多的最大 ~10%.** SessionStart 跟 PostToolUse 中段 reinject 各承担一次全量, 把规则信号集中在 Agent 注意力高点 + 衰减拐点.
+分层注入: UserPromptSubmit anchor 只列本 session 违反过的规则（median 1 条 ≈ 60 token; 干净 session = 0 anchor passthrough）. **真 dogfood 实测: 占对话约 2%**（30 sessions, 60% 工作 session 完全 0 anchor token）. SessionStart 跟 PostToolUse 中段 reinject 各承担一次全量, 把规则信号集中在 Agent 注意力高点 + 衰减拐点.
 
 ### 听话端：`karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}`（v0.8.0 → v0.8.2）
 

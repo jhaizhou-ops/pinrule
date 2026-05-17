@@ -235,7 +235,7 @@ KARMA_LOCALE env > config.yaml `locale` field > auto-detect (chinese ratio) > en
 | Stop hook strong reminder | violation hits + suggested_fix | ~135 / hit | on violation |
 | SubagentStart | compact rule list | ~383 | per subagent spawn |
 
-Layered injection: v0.13.0+ UserPromptSubmit anchor only lists session-violated rules (median 1 rule ≈ 60 tokens; clean session = 0 anchor passthrough), down from v0.9.0–v0.12.x's "list every sticky rule" ~490 token/turn. **Real dogfood measure (30 sessions): ~2% of conversation context in typical dogfood, max ~10% in heavy-violation maintainer sessions.** SessionStart and PostToolUse mid-reinject each carry one full baseline, concentrating the rule signal at the Agent's attention peak and decay threshold.
+Layered injection: UserPromptSubmit anchor lists only session-violated rules (median 1 rule ≈ 60 tokens; clean session = 0 anchor passthrough). **Real dogfood measure: ~2% of conversation context** (30 sessions, 60% of work sessions = 0 anchor token). SessionStart and PostToolUse mid-reinject each carry one full baseline, concentrating the rule signal at the Agent's attention peak and decay threshold.
 
 ### Listening side: `karma/signals.py` + `data/signals/<name>/{zh,en}.{txt,yaml}` (v0.8.0 → v0.8.2)
 
