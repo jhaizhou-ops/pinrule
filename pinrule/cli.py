@@ -195,6 +195,12 @@ def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
     return 0
 
 
+# v0.16.10: module-level 常量让 test fixture 真 monkeypatch sandbox.
+# 之前 hardcoded `Path(__file__).resolve().parent.parent` 在函数体内,
+# fixture 改不动 → pytest 跑时真 rmtree 老开发机 src/karma/ 子目录.
+_CLEANUP_REPO_ROOT: Path = Path(__file__).resolve().parent.parent
+
+
 def _cleanup_legacy_karma() -> None:
     """清掉 v0.15→v0.16 rename 残留 — 老 karma daemon / .pyc / 旧 CLI entry.
 
@@ -236,8 +242,10 @@ def _cleanup_legacy_karma() -> None:
             actions.append(f"  ⚠ 老 entry {legacy_entry} 删不掉, 手动 `rm {legacy_entry}`")
 
     # 3) 删 src 树外的 karma 残留 __pycache__/*.pyc (现仓的 pinrule/__pycache__/bypass_karma.cpython-*.pyc 保留 — 它属 pinrule 不是老 karma)
-    repo_root = Path(__file__).resolve().parent.parent
-    src_karma = repo_root / "src" / "karma"
+    # v0.16.10: repo_root 走 module-level 常量让 test 真 mock (round-3 audit
+    # 视角 9 #1: 之前 fixture docstring 说 mock 了 repo_root 但实际只 mock sys.prefix,
+    # 贡献者建 src/karma/ 跑 pytest 真被 rmtree).
+    src_karma = _CLEANUP_REPO_ROOT / "src" / "karma"
     if src_karma.exists():
         try:
             import shutil
@@ -1698,7 +1706,9 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_violations_clear(sticky_filter, trigger_filter)
         print(f"未知 violations 子命令: {args[0]}", file=sys.stderr)
         return 1
-    print(f"未知命令: {cmd}\n{__doc__}", file=sys.stderr)
+    # v0.16.10: 之前打整页 help 把错误信息淹没. 现单行错误 + 一行 hint, 让用户
+    # 一眼看到 typo, 想看完整 usage 自己跑 `pinrule` (无参) — round-3 视角 6 #5.
+    print(f"未知命令: {cmd!r}\n💡 跑 `pinrule` (无参) 看完整 usage", file=sys.stderr)
     return 1
 
 

@@ -329,6 +329,14 @@ class SessionState:
             output_file = task.get("output_file", "")
             cmd = task.get("cmd", "")
             if not output_file:
+                # v0.16.10: 之前 silent continue 等于丢任务. 现在放回 still_pending
+                # 让后续 hook 再试 + stderr warning loud-failure (历史 loud-failure
+                # 违反, round-3 视角 11 #3).
+                import sys as _sys
+                _sys.stderr.write(
+                    f"pinrule catchup_pending_bg: task missing output_file, kept in pending: cmd={cmd!r}\n"
+                )
+                still_pending.append(task)
                 continue
             try:
                 p = Path(output_file)

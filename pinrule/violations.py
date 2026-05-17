@@ -107,11 +107,20 @@ def detect(
                 continue
             start = max(0, idx - SNIPPET_RADIUS)
             end = min(len(response), idx + len(kw) + SNIPPET_RADIUS)
+            # v0.16.10: 真填 trigger_key — 让 audit/stats locale-agnostic 分组
+            # (rule_id + 关键词 index) 真生效. 之前 detect() 永远不填, i18n 分组
+            # 系统打从 v0.5.7 就空跑 (round-3 audit 视角 11 #1).
+            try:
+                kw_idx = r.violation_keywords.index(kw)
+                trigger_key_val = f"{r.id}#kw{kw_idx}"
+            except (ValueError, AttributeError):
+                trigger_key_val = ""
             out.append(Violation(
                 ts=now,
                 session_id=session_id,
                 rule_id=r.id,
                 trigger=kw,
+                trigger_key=trigger_key_val,
                 snippet=_sanitize_snippet(response[start:end]),
                 turn=turn,
                 agent_id=agent_id,

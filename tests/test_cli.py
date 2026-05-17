@@ -26,17 +26,22 @@ def fake_home(tmp_path, monkeypatch):
     cli.cmd_install_hooks() 测试都会查这个）。需要测「客户端没装」场景的测试
     自己 monkeypatch 覆盖即可。
 
-    v0.16.7 加 sys.prefix + repo_root 隔离 — v0.16.5 引入的 _cleanup_legacy_karma
-    会 unlink `Path(sys.prefix)/bin/karma` 跟 rmtree `Path(__file__)/../src/karma`,
-    fixture 不 mock 这俩 pytest 就**真删开发机** `.venv/bin/karma` 跟 `src/karma`.
-    现在指 tmp_path 子目录, 测试副作用归零.
+    v0.16.10 真隔离: _cleanup_legacy_karma 的 3 条外部路径全 mock 到 tmp_path —
+    - `Path(sys.prefix)/bin/karma` → fake_venv/bin/karma
+    - `_CLEANUP_REPO_ROOT/src/karma` → fake_repo/src/karma
+    - `Path.home()/.karma/daemon.*` → tmp_path/.karma/daemon.*
+    v0.16.7 只 mock 了 sys.prefix, v0.16.10 把 repo_root 也通过 module 常量 mock,
+    pytest 真不会动用户机器任何文件.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(cli, "PINRULE_DIR", tmp_path / ".claude" / "pinrule")
-    # v0.16.7 sandbox: _cleanup_legacy_karma 用到的两条外部路径都 redirect 到 tmp
     fake_venv = tmp_path / "venv"
     (fake_venv / "bin").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("sys.prefix", str(fake_venv))
+    # v0.16.10: 真 mock repo_root 让 _cleanup_legacy_karma 不 rmtree 老开发机 src/
+    fake_repo = tmp_path / "fake_repo"
+    fake_repo.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(cli, "_CLEANUP_REPO_ROOT", fake_repo)
     from pinrule.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)

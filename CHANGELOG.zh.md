@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.16.10] — 2026-05-17（patch — 再修 4 个 audit finding: trigger_key / catchup loud / unknowncmd / fixture 真 sandbox）
+
+用户问"都修了吗?" 真盘点后还有 4 个 quick win 真该修的, 现在做:
+
+- **`violations.detect()` 真填 `trigger_key`**: v0.5.7 加这个字段做 locale-agnostic 违反分组, 但 `detect()` 从来不填 — 整个 i18n 分组系统**死代码** ~30 release. 现在用 `{rule_id}#kw{idx}`, 让 audit / stats 跨语言切换真分组.
+- **`catchup_pending_bg` 不再静默丢任务**: `output_file` 缺时 stderr warning + 任务保留 pending (loud-failure 合规, 之前 silent continue).
+- **未知命令错误**: typo 后不再打整页 help. 改单行错 + hint "跑 `pinrule` (无参) 看完整 usage".
+- **测试 fixture 真 sandbox**: `_cleanup_legacy_karma` 的 `repo_root` 走 `_CLEANUP_REPO_ROOT` module 常量, `fake_home` fixture 真 `monkeypatch.setattr(cli, "_CLEANUP_REPO_ROOT", tmp_path)`. v0.16.7 fixture docstring 说隔离了 `repo_root` 但实际没 — 贡献者建 `src/karma/` 跑 pytest 会被真 rmtree. 现真隔离.
+
+测试: 834 passing.
+
 ## [0.16.9] — 2026-05-17（patch — round-3 audit medium findings 批 fix）
 
 第 3 轮 audit medium 级 5 个 findings 一波打包修:

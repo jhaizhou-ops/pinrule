@@ -10,6 +10,17 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.10] — 2026-05-17 (patch — 4 more audit findings: trigger_key / catchup loud / unknowncmd / fixture true sandbox)
+
+Honest check after user asked "都修了吗?": still 4 more audit findings were quick wins worth doing. Now done:
+
+- **`violations.detect()` finally fills `trigger_key`**: v0.5.7 introduced the field for locale-agnostic violation grouping, but `detect()` never populated it — the i18n grouping system has been dead code for ~30 releases. Now uses `{rule_id}#kw{idx}` so audit / stats group correctly across language switches.
+- **`catchup_pending_bg` no longer silently drops tasks**: missing `output_file` now logs to stderr + keeps the task in pending (loud-failure compliance, was silent before).
+- **Unknown command error**: stop dumping the entire help page on typo. Now single-line error + hint to run `pinrule` (no-arg) for full usage.
+- **Test fixture *truly* sandboxed**: `_cleanup_legacy_karma`'s `repo_root` now goes through `_CLEANUP_REPO_ROOT` module constant so `fake_home` fixture can `monkeypatch.setattr(cli, "_CLEANUP_REPO_ROOT", tmp_path)`. v0.16.7 fixture docstring claimed it isolated `repo_root` but actually didn't — a contributor creating `src/karma/` in the repo root would have it `rmtree`'d during pytest. Now real.
+
+Tests: 834 passing.
+
 ## [0.16.9] — 2026-05-17 (patch — round-3 audit medium findings batch fix)
 
 5 medium findings from round-3 audit, batch-fixed in one go:
