@@ -39,8 +39,9 @@ Usage:
     pinrule audit                    审计 — 每条 rule top 触发词 + 假阳嫌疑标记
     pinrule reset                    清 session-state（漂移实验重启）
 
-提示: Claude Code 用户可发 `/pinrule rule <自然语言描述>` 让 Agent 自动用
-pinrule skill 优化结构后调 `pinrule rule add --from-stdin` 写入。
+提示: Claude / Codex / Cursor 用户都可发 `/pinrule <自然语言描述>` 让 Agent
+自动用 pinrule skill 优化结构后调 `pinrule rule add --from-stdin` 写入.
+(Cursor 协议级限 project-scoped, 需把 skill cp 到目标项目 .cursor/skills/pinrule/)
 """
 
 from __future__ import annotations
@@ -548,8 +549,8 @@ def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
     else:
         print(
             "用法: pinrule rule add --from-yaml <file>  或  --from-stdin\n"
-            "建议: 在 Claude Code 里发 '/pinrule rule <自然语言描述>' 让 Agent 用 pinrule "
-            "skill 优化结构后调本命令",
+            "建议: 在 Claude / Codex / Cursor 里发 '/pinrule <自然语言描述>' 让 Agent "
+            "用 pinrule skill 优化结构后调本命令",
             file=sys.stderr,
         )
         return 1
