@@ -2,7 +2,7 @@
 
 **[🇬🇧 English (current)](./HOWTO.md) · [🇨🇳 中文](./HOWTO.zh.md)**
 
-karma currently supports 3 clients out-of-the-box (Claude Code / Codex / Cursor). This doc explains how to add a 4th — empirically-verified vibe-island bridge supports 9 clients: claude / codex / cursor / factory / qoder / copilot / codebuddy / kimi.
+karma currently supports 3 clients out-of-the-box (Claude / Codex / Cursor). This doc explains how to add a 4th — empirically-verified vibe-island bridge supports 9 clients: claude / codex / cursor / factory / qoder / copilot / codebuddy / kimi.
 
 ## 5 steps to add a new backend
 
@@ -11,9 +11,9 @@ karma currently supports 3 clients out-of-the-box (Claude Code / Codex / Cursor)
 Per karma's `long-term-fundamental` rule — **actually run, don't assume.** Research:
 
 1. **Hook config file path** — usually `~/.<client>/settings.json` or `~/.<client>/hooks.json`
-2. **Hook event names** — the event names written in config (e.g., Claude Code's `UserPromptSubmit` vs. Cursor's `preToolUse`)
+2. **Hook event names** — the event names written in config (e.g., Claude's `UserPromptSubmit` vs. Cursor's `preToolUse`)
 3. **stdin payload fields** — case style (snake_case or camelCase?) + which fields karma cares about (`prompt` / `tool_name` / `tool_input` / `tool_response` / equivalent stop fields like `last_assistant_message` / `prompt_response` / `transcript_path`)
-4. **stdout JSON fields** — consistent with Claude Code → use directly; inconsistent → adapt in hook entry module
+4. **stdout JSON fields** — consistent with Claude → use directly; inconsistent → adapt in hook entry module
 5. **Whether enablement step needed** — like Codex requires `[features] hooks = true`
 6. **Whether each hook entry needs matcher / timeout fields** — varies per client
 
@@ -61,12 +61,12 @@ class CursorBackend(JsonHooksBackend):
     # reasonable defaults.
 ```
 
-### Claude Code-specific optional extensions (v0.4.28+)
+### Claude-specific optional extensions (v0.4.28+)
 
-karma v0.4.28+ added 2 Claude Code protocol-specific hook events for "rule mid-injection + compact amnesia two-pronged defense":
+karma v0.4.28+ added 2 Claude protocol-specific hook events for "rule mid-injection + compact amnesia two-pronged defense":
 
 ```python
-# Claude Code backend additional 2 events (other backends without these don't require)
+# Claude backend additional 2 events (other backends without these don't require)
 "SessionStart": "session_start",  # v0.4.28 — inject rule baseline at session start
                                    # source field distinguishes startup/resume/clear/compact
 "PreCompact": "pre_compact",       # v0.4.29 — dump full rule state before compact
@@ -119,7 +119,7 @@ karma hook entries (`karma/hooks/*.py`) use the following fields, typically same
 - `tool_name` / `tool_input` / `tool_response` — Pre/PostToolUse all use same names
 
 Stop fields differ across 3 backends (karma stop.py already three-way fallback):
-- Claude Code: `transcript_path` (reverse-read transcript)
+- Claude: `transcript_path` (reverse-read transcript)
 - Codex: `last_assistant_message`
 
 If a new backend uses a 4th field name, modify `karma/hooks/stop.py:_read_last_assistant_response` fallback chain to add `or payload.get("<new_field>", "")`.
@@ -167,8 +167,8 @@ From `~/.vibe-island/bin/vibe-island-bridge` zsh script line 28, vibe-island's e
 
 | Client | Suspected config path | Status |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` | ✓ Since v0.1.0 |
-| Codex | `~/.codex/hooks.json` | ✓ Since v0.3.0 (CLI + desktop both adapted) |
+| Claude | `~/.claude/settings.json` | ✓ Since v0.1.0 |
+| Codex | `~/.codex/hooks.json` | ✓ Since v0.3.0 |
 | Cursor | `~/.cursor/hooks.json` | ✓ Since v0.12.0 (Cursor 1.7+ required; `/karma` skill is project-scoped only — no global skills dir on Cursor) |
 | Factory | `~/.factory/settings.json` | Pending install + test |
 | Qoder | `~/.qoder/settings.json` | Pending install + test |

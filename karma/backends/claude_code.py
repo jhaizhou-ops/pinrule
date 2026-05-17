@@ -1,4 +1,4 @@
-"""Claude Code backend — `~/.claude/settings.json` + `~/.claude/hooks/`。
+"""Claude backend — `~/.claude/settings.json` + `~/.claude/hooks/`。
 
 继承 `JsonHooksBackend` 通用基类，只填差异：matcher 字段（Stop 不加 matcher）。
 """
@@ -12,7 +12,7 @@ from karma.backends._json_hooks import JsonHooksBackend
 
 class ClaudeCodeBackend(JsonHooksBackend):
     name = "claude-code"
-    display_name = "Claude Code"
+    display_name = "Claude"
     _CONFIG_DIR_NAME = ".claude"
     _SETTINGS_FILENAME = "settings.json"
     _CLIENT_CMD = "claude"
@@ -30,7 +30,7 @@ class ClaudeCodeBackend(JsonHooksBackend):
         # v0.4.29（karma v3 第五步）: PreCompact 触发前落盘 sticky 完整状态到
         # ~/.claude/karma/pre_compact_snapshot.md，让 SessionStart(source=compact)
         # 重起时读盘加强提醒。两端夹击 compact 失忆。
-        # 注：不用 exit 2 阻止 compact — compact 是 Claude Code 保护机制，karma
+        # 注：不用 exit 2 阻止 compact — compact 是 Claude 保护机制，karma
         # 不该干扰，只做纯落盘 + 提醒。
         "PreCompact": "pre_compact",
         # v0.4.30（karma v3 第六步）: SubagentStart / SubagentStop 让 sticky 跨
@@ -44,7 +44,7 @@ class ClaudeCodeBackend(JsonHooksBackend):
     }
 
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
-        """Claude Code 特有：PreToolUse / PostToolUse / UserPromptSubmit 加
+        """Claude 特有：PreToolUse / PostToolUse / UserPromptSubmit 加
         `matcher: "*"`；PreCompact matcher 区分 manual / auto（用 `*` 匹配两种）；
         Stop / SessionStart / SubagentStart / SubagentStop 等 lifecycle event
         不加 matcher（加了会被无声忽略）。
@@ -58,8 +58,8 @@ class ClaudeCodeBackend(JsonHooksBackend):
         return entry
 
     def skill_install_targets(self, skill_name: str = "karma") -> list[tuple[Path, str]]:
-        """Claude Code skill 装到 ~/.claude/skills/<name>/SKILL.md (Markdown 原样).
+        """Claude skill 装到 ~/.claude/skills/<name>/SKILL.md (Markdown 原样).
 
-        触发: 用户在 Claude Code 输 `/<skill_name> <NL>`, $ARGUMENTS 接全部.
+        触发: 用户在 Claude 输 `/<skill_name> <NL>`, $ARGUMENTS 接全部.
         """
         return [(Path.home() / ".claude" / "skills" / skill_name / "SKILL.md", "markdown")]

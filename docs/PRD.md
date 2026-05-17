@@ -33,7 +33,7 @@ These examples share the same pattern:
 | Solution | Insufficient because |
 |---|---|
 | **CLAUDE.md** | Written but drowned by task details; Agent attention disperses; compressed into vague words after compact; project-level doesn't cross projects |
-| **Claude Code auto-memory** | Leans toward "factual memory" (I use Mac / I like X), doesn't specialize in "behavioral-direction preferences"; recall timing is wrong |
+| **Claude auto-memory** | Leans toward "factual memory" (I use Mac / I like X), doesn't specialize in "behavioral-direction preferences"; recall timing is wrong |
 | **karma v1** | Tried auto-distillation + retrieval — but the real pain point is "persistence" not "recall," directionally misaligned |
 
 ## karma design philosophy
@@ -63,9 +63,9 @@ karma uses **"behavioral-violation detection"** as feedback:
 
 ### 4. Doesn't compete with any existing track
 
-- Factual memory / preference retrieval → Claude Code auto-memory / mem0 etc.
+- Factual memory / preference retrieval → Claude auto-memory / mem0 etc.
 - Project-level rules → CLAUDE.md
-- Workflow automation → Claude Code hooks directly
+- Workflow automation → Claude hooks directly
 
 karma does only **"core direction persistence + violation detection"** — one thing.
 
@@ -80,7 +80,7 @@ karma does only **"core direction persistence + violation detection"** — one t
 ### F2. user_prompt_submit hook ✅
 
 - Every user_prompt_submit, hook reads `rules.yaml`
-- Uses `additionalContext` injection into Claude Code context (doesn't modify user_text itself)
+- Uses `additionalContext` injection into Claude context (doesn't modify user_text itself)
 - **v0.9.0**: per-turn injection is compact anchor (`format_anchor_only`: id + first-line preference + drift marker, ~490 tokens), NOT the full preference text
 - Full baseline (with every preference's complete multi-line body, ~1817 tokens) is injected once at SessionStart and persists in conversation history — see F2.5 below
 - Rules triggered within recent N turns get `〔Last response showed drift — let's realign〕` marker on the anchor
@@ -123,14 +123,14 @@ Three hook feedback points:
 
 - `karma stats` — Each rule's violation count + last trigger time
 - `karma violations recent [N]` — Last N violation details
-- `karma doctor` — Check environment (rule validity + all hook install status + skill install status, Claude Code 8 events)
+- `karma doctor` — Check environment (rule validity + all hook install status + skill install status, Claude 8 events)
 - `karma audit` — Per-rule top trigger frequency + locale-agnostic grouping (v0.5.7+)
 - `karma install-hooks / uninstall-hooks` — Auto-write/clean settings.json (idempotent + backup + preserve other hooks)
-- `karma install-skill [--force]` — Install / upgrade the `karma-rule` Claude Code skill (`karma init` runs this automatically; standalone command for upgrades)
+- `karma install-skill [--force]` — Install / upgrade the `karma-rule` Claude skill (`karma init` runs this automatically; standalone command for upgrades)
 
 ### F5. Natural-language rule input via `/karma` skill ✅ (v0.5.16+ — first release where the skill actually triggers)
 
-**Triggering**: user types `/karma <natural language>` in any of Claude Code / Codex CLI / Cursor. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft yaml inline → `karma rule preview` schema check → confirm with user → `karma rule add` write → report.
+**Triggering**: user types `/karma <natural language>` in any of Claude / Codex / Cursor. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft yaml inline → `karma rule preview` schema check → confirm with user → `karma rule add` write → report.
 
 **What the skill handles**:
 - Tone refinement (collaborative-agreement phrasing — LLMs respond with alignment instead of defensive argument)
@@ -145,8 +145,8 @@ Three hook feedback points:
 - `karma rule preview --from-yaml/--from-stdin` — Dry-run validation + header-injection preview
 
 **Multi-backend installation** (v0.5.16+):
-- Claude Code: `~/.claude/skills/karma/SKILL.md` (Markdown + YAML frontmatter)
-- Codex CLI: `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/`, not `~/.codex/` — shared namespace with Anthropic per OpenAI design)
+- Claude: `~/.claude/skills/karma/SKILL.md` (Markdown + YAML frontmatter)
+- Codex: `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/`, not `~/.codex/` — shared namespace with Anthropic per OpenAI design)
 - `karma init` auto-installs to all three; `karma install-skill [--force] [--backend <name>]` for upgrades; `karma doctor` reports per-backend skill status
 
 
@@ -236,7 +236,7 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 - ❌ Web UI / graphical config (CLI yaml editing is enough)
 - ❌ Evaluation system / accuracy metrics (self-use observation is enough)
 
-Cross-IDE / cross-AI client support already shipped: Claude Code / Codex CLI / Cursor all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`karma/backends/HOWTO.md`](../karma/backends/HOWTO.md).
+Cross-IDE / cross-AI client support already shipped: Claude / Codex / Cursor all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`karma/backends/HOWTO.md`](../karma/backends/HOWTO.md).
 
 ## Future possibilities (v1+)
 

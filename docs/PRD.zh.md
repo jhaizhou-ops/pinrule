@@ -38,7 +38,7 @@ karma 的设计起点是一个**长期痛点**，用户原话：
 | 方案 | 不够的地方 |
 |---|---|
 | **CLAUDE.md** | 写了但被任务细节淹没，Agent 注意力分散；compact 后压成模糊词；项目级不跨项目 |
-| **Claude Code auto-memory** | 偏「事实记忆」(我用 Mac / 我喜欢 X)，不专门处理「行为方向偏好」；召回时机不对 |
+| **Claude auto-memory** | 偏「事实记忆」(我用 Mac / 我喜欢 X)，不专门处理「行为方向偏好」；召回时机不对 |
 | **karma v1** | 试图自动蒸馏 + retrieval — 但痛点是「永驻」而非「召回」，方向错位 |
 
 ## karma 设计哲学
@@ -68,9 +68,9 @@ karma 用 **「行为违反检测」** 做反馈：
 
 ### 4. 不抢任何已有赛道
 
-- 事实记忆 / 偏好检索 → Claude Code auto-memory / mem0 等
+- 事实记忆 / 偏好检索 → Claude auto-memory / mem0 等
 - 项目级规则 → CLAUDE.md
-- 工作流自动化 → Claude Code hooks 直接做
+- 工作流自动化 → Claude hooks 直接做
 
 karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 
@@ -128,14 +128,14 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 
 - `karma stats` — 每条规则违反次数 + 最近触发时间
 - `karma violations recent [N]` — 最近 N 条违反详情
-- `karma doctor` — 检查环境（规则合法 + 全部 hook 装机状态 + skill 装机状态，Claude Code 8 个 event）
+- `karma doctor` — 检查环境（规则合法 + 全部 hook 装机状态 + skill 装机状态，Claude 8 个 event）
 - `karma audit` — 每条规则 top 触发词频次 + 跨 locale 稳定分组（v0.5.7+）
 - `karma install-hooks / uninstall-hooks` — 自动写/清 settings.json（idempotent + 备份 + 保留他人 hook）
-- `karma install-skill [--force]` — 装 / 升级 `karma-rule` Claude Code skill（`karma init` 自动跑过；独立命令给升级用）
+- `karma install-skill [--force]` — 装 / 升级 `karma-rule` Claude skill（`karma init` 自动跑过；独立命令给升级用）
 
 ### F5. 自然语言规则录入（`/karma` skill）✅（v0.5.16+ — skill 第一次触发的 release）
 
-**触发方式**：用户在 Claude Code / Codex CLI / Cursor 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
+**触发方式**：用户在 Claude / Codex / Cursor 任一输 `/karma <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 yaml → `karma rule preview` schema 校验 → 跟用户确认 → `karma rule add` 写入 → 反馈报告
 
 **skill 替你做的事**：
 - 语气优化（协作默契语气 — 大模型对此回应是「我对齐」不是「我争辩」）
@@ -150,8 +150,8 @@ karma 只做**「核心方向永驻 + 违反检测」**这一件事。
 - `karma rule preview --from-yaml/--from-stdin` — dry-run 校验 + 头部注入预览
 
 **多 backend 装机**（v0.5.16+）：
-- Claude Code: `~/.claude/skills/karma/SKILL.md`（Markdown + YAML frontmatter）
-- Codex CLI: `~/.agents/skills/karma/SKILL.md`（注：`~/.agents/` 不是 `~/.codex/` — 按 OpenAI 设计跟 Anthropic 共享命名空间）
+- Claude: `~/.claude/skills/karma/SKILL.md`（Markdown + YAML frontmatter）
+- Codex: `~/.agents/skills/karma/SKILL.md`（注：`~/.agents/` 不是 `~/.codex/` — 按 OpenAI 设计跟 Anthropic 共享命名空间）
 - `karma init` 自动装到所有三家；`karma install-skill [--force] [--backend <name>]` 给升级用；`karma doctor` 报每个 backend skill 状态
 
 
@@ -241,7 +241,7 @@ karma = **通用 hook 框架** + **场景规则集**。
 - ❌ Web UI / 图形配置（CLI 编辑 yaml 够了）
 - ❌ 评测体系 / accuracy 指标（自用观察够了）
 
-跨 IDE / 跨 AI 客户端支持已经 ship: Claude Code / Codex CLI / Cursor 三家通用, 基类抽象让加 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作. 详 [`karma/backends/HOWTO.zh.md`](../karma/backends/HOWTO.zh.md).
+跨 IDE / 跨 AI 客户端支持已经 ship: Claude / Codex / Cursor 三家通用, 基类抽象让加 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作. 详 [`karma/backends/HOWTO.zh.md`](../karma/backends/HOWTO.zh.md).
 
 ## 后续可能（v1+）
 

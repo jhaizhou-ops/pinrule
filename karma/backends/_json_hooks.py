@@ -5,7 +5,7 @@
 - 每个 event 是 array of entry，每个 entry 含 `hooks` array 含命令
 - karma wrapper 路径含 `karma_` 前缀识别自己装的
 
-3 个现有 backend（Claude Code / Codex / Cursor）共用以下逻辑：
+3 个现有 backend（Claude / Codex / Cursor）共用以下逻辑：
 - load_settings / save_settings JSON 原子写
 - is_karma_entry 用前缀识别
 - client_installed 检测命令在 PATH 或配置目录存在
@@ -45,7 +45,7 @@ class JsonHooksBackend:
     子类需填以下类属性：
 
     - `name`: str — backend 注册名（如 'claude-code' / 'codex' / 'cursor'）
-    - `display_name`: str — 给用户看的名字（如 'Claude Code'）
+    - `display_name`: str — 给用户看的名字（如 'Claude'）
     - `_CONFIG_DIR_NAME`: str — `~/` 下配置目录名（如 '.claude' / '.codex' / '.cursor'）
     - `_SETTINGS_FILENAME`: str — 配置文件名（如 'settings.json' / 'hooks.json'）
     - `_CLIENT_CMD`: str — 客户端命令名用于 PATH 检测（如 'claude' / 'codex' / 'cursor'）
@@ -119,7 +119,7 @@ class JsonHooksBackend:
         return []
 
     def post_install_message(self) -> list[str]:
-        """默认装完即生效，无额外提醒（Claude Code 这样）。
+        """默认装完即生效，无额外提醒（Claude 这样）。
 
         Codex 类 override 返回审批步骤（v0.9.17 引入）— codex 0.130+ 安全模型
         要求每个 hook 在 TUI `/hooks` 命令里被用户手动 approve 才生效，karma
@@ -129,14 +129,14 @@ class JsonHooksBackend:
 
     # ------------------------------------------------------------------ #
     # v0.10.0 协议契约 — 让 hook 通用主逻辑跟具体 backend 解耦                    #
-    # 默认是 Claude Code 风格（pass-through name + hookSpecificOutput shape）。 #
+    # 默认是 Claude 风格（pass-through name + hookSpecificOutput shape）。 #
     # Codex / Cursor / 其他 backend 在自己文件 override 需要的方法。              #
     # ------------------------------------------------------------------ #
 
     def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
         """归一化 tool_name 到 karma canonical（Claude 风格 `Bash`/`Read`/`Edit`/`Write`）。
 
-        默认 passthrough — Claude Code 自身用 canonical 名字所以不需要映射。
+        默认 passthrough — Claude 自身用 canonical 名字所以不需要映射。
         Codex / Cursor 在自己 backend 文件 override 映射各自 tool_name 到 canonical。
         """
         return raw_tool_name
@@ -146,7 +146,7 @@ class JsonHooksBackend:
     ) -> Any:
         """归一化 tool_input 到 karma canonical shape。
 
-        默认 passthrough — Claude Code tool_input 已经是 karma 期望的 dict shape:
+        默认 passthrough — Claude tool_input 已经是 karma 期望的 dict shape:
         `{"file_path": ..., "new_string": ..., "command": ...}`。
 
         Codex apply_patch 在 codex.py override 把 envelope 字符串解成 canonical
@@ -158,7 +158,7 @@ class JsonHooksBackend:
     def emit_deny(self, reason: str, payload: dict) -> str:
         """生成 deny output JSON string。
 
-        默认 Claude Code 风格 `{hookSpecificOutput: {permissionDecision: "deny"}}`。
+        默认 Claude 风格 `{hookSpecificOutput: {permissionDecision: "deny"}}`。
         Codex 接受同样 shape 所以也用这个默认（codex docs 实验证）；Cursor override 到顶层 `{permission, agent_message, user_message}`（cursor 官方文档要求）。
         """
         return json.dumps({
@@ -172,7 +172,7 @@ class JsonHooksBackend:
     def emit_allow(self, payload: dict) -> str:
         """生成 allow output JSON string.
 
-        默认 Claude Code 风格 `{hookSpecificOutput: {permissionDecision: "allow"}}`。
+        默认 Claude 风格 `{hookSpecificOutput: {permissionDecision: "allow"}}`。
         Cursor override 到 `{permission: allow}`（cursor 文档要求）。
         """
         return json.dumps({
@@ -187,7 +187,7 @@ class JsonHooksBackend:
     ) -> str:
         """生成 ContextInjection 类 hook output JSON (v0.10.6 引入).
 
-        默认 Claude Code shape: `{hookSpecificOutput: {hookEventName, additionalContext}}`.
+        默认 Claude shape: `{hookSpecificOutput: {hookEventName, additionalContext}}`.
         Codex 等 backend 文档没明确说对 SessionStart / UserPromptSubmit
         类 ContextInjection event 接受什么 shape — 默认这个跟 PreToolUse Claude
         shape 一致, 各 backend 真测到失败时各自 override.
@@ -202,7 +202,7 @@ class JsonHooksBackend:
     def emit_stop_block(self, reason: str, payload: dict) -> str:
         """生成 Stop hook 强制 block output JSON (v0.10.6 引入).
 
-        默认 Claude Code 顶层 shape: `{decision: "block", reason}`.
+        默认 Claude 顶层 shape: `{decision: "block", reason}`.
         Stop event 通常跨 backend 不一致 — Cursor stop 用 followup_message,
         Codex Stop 接受未验证. 默认 Claude shape, Cursor override 返 followup_message
         让通用 stop.py 主逻辑 fail-open 不阻塞 Agent.

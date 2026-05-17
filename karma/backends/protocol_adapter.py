@@ -18,11 +18,11 @@ v0.9.15-v0.9.16 这个模块自己拥有 backend-specific 映射表 + envelope p
 - 只动自己的 `karma/backends/<name>.py`，override 6 个契约方法
   （`pre_install_setup` / `post_install_message` / `normalize_tool_name` /
   `normalize_tool_input` / `emit_deny` / `emit_allow`）
-- 默认基类提供 Claude Code 风格行为，需要才 override
+- 默认基类提供 Claude 风格行为，需要才 override
 
 Sources（v0.9.15 还引用，v0.10.0 移到各 backend 文件 docstring）:
 - Codex hooks docs: https://developers.openai.com/codex/hooks
-- Claude Code hooks docs: https://code.claude.com/docs/en/hooks
+- Claude hooks docs: https://code.claude.com/docs/en/hooks
 
 ## Back-compat re-exports
 
@@ -45,7 +45,7 @@ Backend = Literal["claude-code", "codex", "cursor"]
 
 
 # Cursor event 名集合 — camelCase 小开头 (官方 docs 2026-05-17 fetch)
-# 跟 Claude Code PascalCase 不同, 是 Cursor 独有特征
+# 跟 Claude PascalCase 不同, 是 Cursor 独有特征
 _CURSOR_EVENT_NAMES = frozenset({
     "sessionStart", "sessionEnd",
     "preToolUse", "postToolUse", "postToolUseFailure",
@@ -95,7 +95,7 @@ def normalize_tool_name(raw_tool_name: str, payload: dict) -> str:
     特殊情况：Codex 的 `apply_patch` 在 detect_backend 阶段会被识别为
     `claude-code`（因为没 hook_event_name 字段或字段值不属于已知 backend）.
     所以 claude-code backend 的默认 normalize_tool_name 也走一次 codex map —
-    让 mainstream Claude Code 用户 + Codex 用户都走同一路径. 这是因为
+    让 mainstream Claude 用户 + Codex 用户都走同一路径. 这是因为
     `apply_patch` 是 Codex 私有 tool_name 不会出现在 Claude payload 里，所以
     映射不会冲突.
 

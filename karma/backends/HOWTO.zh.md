@@ -2,7 +2,7 @@
 
 **[🇬🇧 English](./HOWTO.md) · [🇨🇳 中文（当前）](./HOWTO.zh.md)**
 
-karma 当前装机支持 3 家（Claude Code / Codex / Cursor）。本文档讲怎么
+karma 当前装机支持 3 家（Claude / Codex / Cursor）。本文档讲怎么
 加第 3 家 — 实证 vibe-island 桥支持的 9 家清单：claude / codex / cursor /
 cursor / factory / qoder / copilot / codebuddy / kimi。
 
@@ -18,7 +18,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 3. **stdin payload 字段** — case style（snake_case 还是 camelCase？）+ 哪些字段
    karma 关心（`prompt` / `tool_name` / `tool_input` / `tool_response` /
    等同 stop 字段如 `last_assistant_message` / `prompt_response` / `transcript_path`）
-4. **stdout JSON 字段** — 跟 Claude Code 一致就直接用，不一致要适配 hook 入口模块
+4. **stdout JSON 字段** — 跟 Claude 一致就直接用，不一致要适配 hook 入口模块
 5. **是否需要启用步骤** — 像 Codex 要 `[features] hooks = true`
 6. **每条 hook entry 是否需要 matcher / timeout 字段** — 各家不一样
 
@@ -67,13 +67,13 @@ class CursorBackend(JsonHooksBackend):
     # build_event_entry / pre_install_setup。基类 _json_hooks.py 提供合理默认。
 ```
 
-### Claude Code 特有可选扩展 (v0.4.28+)
+### Claude 特有可选扩展 (v0.4.28+)
 
-karma v0.4.28+ 加了 2 个 Claude Code 协议特有 hook event 给「中段
+karma v0.4.28+ 加了 2 个 Claude 协议特有 hook event 给「中段
 注入 + compact 失忆两端夹击」用：
 
 ```python
-# Claude Code backend 额外 2 个（其他 backend 协议没对应不强求）
+# Claude backend 额外 2 个（其他 backend 协议没对应不强求）
 "SessionStart": "session_start",  # v0.4.28 — session 起手注入 sticky baseline
                                    # source 字段区分 startup/resume/clear/compact
 "PreCompact": "pre_compact",       # v0.4.29 — compact 前落盘 sticky 完整状态
@@ -127,7 +127,7 @@ karma hook 入口（`karma/hooks/*.py`）用以下字段，跨 backend 一般同
 - `tool_name` / `tool_input` / `tool_response` — Pre/PostToolUse 都用同名
 
 Stop 字段三家不同（karma stop.py 已三选一适配）：
-- Claude Code: `transcript_path`（反向读 transcript）
+- Claude: `transcript_path`（反向读 transcript）
 - Codex: `last_assistant_message`
 
 如果新 backend 用第四种字段名，改 `karma/hooks/stop.py:_read_last_assistant_response`
@@ -180,8 +180,8 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 
 | 客户端 | 推测配置路径 | 状态 |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` | ✓ v0.1.0 起 |
-| Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 (CLI + desktop 都适配) |
+| Claude | `~/.claude/settings.json` | ✓ v0.1.0 起 |
+| Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
 | Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/karma` skill 仅 project-scoped — Cursor 没 home-level global skills 目录） |
 | Factory | `~/.factory/settings.json` | 待装 + 实测 |
 | Qoder | `~/.qoder/settings.json` | 待装 + 实测 |

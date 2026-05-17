@@ -2,7 +2,7 @@
 
 **[🇬🇧 English (current)](./CODEX_BACKEND.md) · [🇨🇳 中文](./CODEX_BACKEND.zh.md)**
 
-This document is the **interface contract + ownership boundary** for the karma `codex` backend. Starting from v0.10.0, the codex backend is owned and maintained by the **Codex CLI itself** (via PRs from Codex sessions); karma main repo only provides the contract layer and merges PRs after review.
+This document is the **interface contract + ownership boundary** for the karma `codex` backend. Starting from v0.10.0, the codex backend is owned and maintained by the **Codex itself** (via PRs from Codex sessions); karma main repo only provides the contract layer and merges PRs after review.
 
 ## Why this split
 
@@ -12,7 +12,7 @@ karma v0.9.15 cross-model audit and v0.9.16 codex envelope parser both hit a rec
 - **shell-as-Read gap** — codex CLI has no separate `Read` tool; it reads files via `exec_command` running `tail` / `sed` / `cat` etc. karma's `record_read` only matches `tool_name == "Read"`, so codex's shell reads are invisible to karma's `read_first` check, causing false-positive denials on edits where the agent had legitimately read the file via shell. The fix requires recognizing shell-read patterns inside the codex backend, which Claude is not best positioned to design.
 - Codex feature flag churn — `codex_hooks` deprecated in favor of `hooks` (~2026-04), `features.hooks=true` now required, `/hooks` TUI approval required per wrapper (v0.130+). karma main repo is always 1-2 weeks behind on these.
 
-**Conclusion**: codex protocol detail ownership belongs to whoever has fastest signal on codex platform changes. That's Codex CLI itself, running PR sessions through this very repo.
+**Conclusion**: codex protocol detail ownership belongs to whoever has fastest signal on codex platform changes. That's Codex itself, running PR sessions through this very repo.
 
 ## Ownership boundary
 

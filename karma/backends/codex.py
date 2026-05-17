@@ -1,4 +1,4 @@
-"""Codex CLI backend — `~/.codex/hooks.json` + hooks feature + protocol normalization.
+"""Codex backend — `~/.codex/hooks.json` + hooks feature + protocol normalization.
 
 继承 `JsonHooksBackend`，差异：
 ① 配置文件名 `hooks.json` 不是 `settings.json`

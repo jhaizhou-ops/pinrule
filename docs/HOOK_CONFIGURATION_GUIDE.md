@@ -1,6 +1,6 @@
 # karma Hook 配置指南
 
-`karma install-hooks` 把 8 个 hook 写进 Claude Code `~/.claude/settings.json`。本指南说明每个 hook 做什么、什么时候触发、你能看到什么。
+`karma install-hooks` 把 8 个 hook 写进 Claude `~/.claude/settings.json`。本指南说明每个 hook 做什么、什么时候触发、你能看到什么。
 
 ## 快速开始
 
@@ -10,7 +10,7 @@ karma install-hooks  # 装 8 个 hook 到 settings.json
 karma doctor         # 验证装机
 ```
 
-装完重启 Claude Code，hook 立即生效。规则在 `~/.claude/karma/rules.yaml` — 用 `karma rule edit` 编辑，或 `/karma <自然语言>` 让 skill 替你写。
+装完重启 Claude，hook 立即生效。规则在 `~/.claude/karma/rules.yaml` — 用 `karma rule edit` 编辑，或 `/karma <自然语言>` 让 skill 替你写。
 
 ---
 
@@ -27,7 +27,7 @@ karma doctor         # 验证装机
 | **SubagentStart** | 启动子 Agent 时 | 子 Agent 自动继承完整规则 + 维护独立监控状态 | 子 Agent 头部看到规则注入 |
 | **SubagentStop** | 子 Agent 结束时 | 子 Agent 临时状态自动销毁，不污染主 session | 后台清理，无通知 |
 
-所有 hook 输出严格按 Claude Code 官方协议 schema — 不会被客户端 UI 报错。
+所有 hook 输出严格按 Claude 官方协议 schema — 不会被客户端 UI 报错。
 
 ---
 
@@ -40,7 +40,7 @@ karma doctor         # 验证装机
 ~/.claude/karma/session-state/       # 每个 session 一份 json（30 天自动清理）
 ~/.claude/karma/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
 ~/.claude/hooks/karma_*.py           # 8 个 hook wrapper（karma install-hooks 自动生成）
-~/.claude/settings.json              # Claude Code 配置（karma 写入 hooks 段）
+~/.claude/settings.json              # Claude 配置（karma 写入 hooks 段）
 ```
 
 ---
@@ -52,9 +52,9 @@ karma doctor         # 验证装机
 **你在做**：多小时开发任务，Agent 累积 60K+ context。
 
 **发生的事**：
-1. Claude Code 自动触发 compact
+1. Claude 自动触发 compact
 2. **PreCompact hook**：完整 `rules.yaml` 状态落盘到 `pre_compact_snapshot.md`
-3. compact 执行（Claude Code 自己的压缩）
+3. compact 执行（Claude 自己的压缩）
 4. **SessionStart hook**（compact 后重起触发）：读 snapshot 强注入完整规则
 
 **结果**：规则跨 compact 不丢，Agent 不会把核心方向压成模糊词。

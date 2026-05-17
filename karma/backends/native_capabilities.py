@@ -1,8 +1,8 @@
 """Per-backend native hook surfaces — karma 能力如何挂到各客户端原生事件上.
 
-Claude Code: PascalCase events + hookSpecificOutput (baseline reference).
-Codex CLI: nested hooks + payload.model + trusted_hash (see codex.py).
-Cursor IDE: camelCase events + permission/followup_message + Rules .mdc (本模块).
+Claude: PascalCase events + hookSpecificOutput (baseline reference).
+Codex: nested hooks + payload.model + trusted_hash (see codex.py).
+Cursor: camelCase events + permission/followup_message + Rules .mdc (本模块).
 
 设计原则: **同一套 checks/rules/session_state**, **不同 native 触达点**.
 不追求 event 名一一对应; 追求 **能力覆盖** (注入 / 拦截 / 审计 / 续推).

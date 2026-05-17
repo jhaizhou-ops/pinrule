@@ -18,7 +18,7 @@ class Backend(Protocol):
     """AI 编程客户端 backend 接口。"""
 
     name: str  # "claude-code" / "codex"
-    display_name: str  # "Claude Code" / "Codex CLI"
+    display_name: str  # "Claude" / "Codex" / "Cursor"
 
     def client_installed(self) -> bool:
         """检测本机是否装了该客户端（用于 install-hooks 自动选 backend）。"""
@@ -29,7 +29,7 @@ class Backend(Protocol):
         ...
 
     def settings_path(self) -> Path:
-        """客户端的 hook 配置文件（Claude Code: settings.json / Codex: hooks.json）。"""
+        """客户端的 hook 配置文件（Claude: settings.json / Codex: hooks.json）。"""
         ...
 
     def settings_backup_path(self) -> Path:
@@ -39,7 +39,7 @@ class Backend(Protocol):
     def hook_events(self) -> dict[str, str]:
         """支持的 hook event 名 → wrapper basename（snake_case）映射。
 
-        Claude Code 4 个：UserPromptSubmit / PreToolUse / PostToolUse / Stop
+        Claude 4 个：UserPromptSubmit / PreToolUse / PostToolUse / Stop
         Codex 4 个（同上 — 协议几乎一对一）
         """
         ...
@@ -47,7 +47,7 @@ class Backend(Protocol):
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
         """构造一条 hook entry，返回写进 settings 的 dict。
 
-        不同 backend 对 matcher 等字段要求可能不同（Claude Code Stop event 不支持
+        不同 backend 对 matcher 等字段要求可能不同（Claude Stop event 不支持
         matcher；Codex 据官方文档也是 matcher 可选）。
         """
         ...
@@ -79,7 +79,7 @@ class Backend(Protocol):
         实测用户装完就以为生效了实际 0 hook fire**（rule #4 loud-failure-with-evidence
         反方向 — 不响亮告诉用户限制就是「让用户以为正常」的隐性失败）。
 
-        返回 [] 表示该 backend 装完就生效不需要额外提醒（Claude Code）。
+        返回 [] 表示该 backend 装完就生效不需要额外提醒（Claude）。
         Codex 返回完整审批步骤含 4 个 wrapper 完整路径。
 
         `_install_to_backend` 在装机末尾打印每条 message 为一行 — backend 可加 emoji /
@@ -115,7 +115,7 @@ class Backend(Protocol):
 
         ContextInjection 类 hook 含 SessionStart / UserPromptSubmit /
         PostToolUse / SubagentStart 等向 Agent 注入 additionalContext 的事件.
-        Claude Code 用 hookSpecificOutput.additionalContext shape, 其他
+        Claude 用 hookSpecificOutput.additionalContext shape, 其他
         backend 可能 shape 不同 (Codex / Cursor 没文档化对 ContextInjection
         类 event 的支持 — v0.9.15 同款假设潜伏点).
         """
@@ -125,7 +125,7 @@ class Backend(Protocol):
         """生成 Stop hook 强制 block output JSON string (v0.10.6 引入).
 
         Stop hook 是 karma 干预 Agent 最强动作 (force_block / keep_pushing_block).
-        Claude Code 用顶层 {decision: "block", reason} shape, 其他 backend
+        Claude 用顶层 {decision: "block", reason} shape, 其他 backend
         可能不接受 (Cursor stop 用 followup_message, Codex Stop event
         是否接受这个 shape 未验证).
         """

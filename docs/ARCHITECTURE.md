@@ -17,7 +17,7 @@
                        │ read / write
                        ▼
 ┌───────────────────────────────────────────────────────────┐
-│  Claude Code hooks (~/.claude/hooks/)                     │
+│  Claude hooks (~/.claude/hooks/)                          │
 │  ├── karma_user_prompt_submit.py   ← Inject rules per msg │
 │  ├── karma_pre_tool_use.py         ← Real-time intercept  │
 │  ├── karma_post_tool_use.py        ← State tracking       │
@@ -27,7 +27,7 @@
                        │ additionalContext / permissionDecision
                        ▼
               ┌─────────────────────┐
-              │   Claude Code       │
+              │   Claude            │
               │   (Agent loop)      │
               └─────────────────────┘
 ```
@@ -92,13 +92,13 @@ Cross-hook shared state:
 
 Files untouched for 30 days auto-cleaned (user_prompt_submit hook runs purge each turn). Save uses `{stem}.{pid}.{ns}.json.tmp` + atomic rename; concurrent writes don't conflict.
 
-## 4 Hooks (Claude Code standard protocol)
+## 4 Hooks (Claude standard protocol)
 
 ### UserPromptSubmit hook
 
 Timing: User sends message → before model sees it.
 
-Input stdin payload (Claude Code protocol):
+Input stdin payload (Claude protocol):
 ```json
 {"prompt": "...", "session_id": "abc", "transcript_path": "...", "cwd": "..."}
 ```
@@ -179,11 +179,11 @@ Implementation: `karma/hooks/stop.py`
 2. Scan violation_keywords (keyword layer) + engine-layer violation_checks (chinese_plain / evidence / keep_pushing / **long_term_fundamental response-level** primarily here — v0.11.0+ added response-level patch-intent detection)
 3. Hits write to `violations.jsonl` + stderr notify + desktop notify + cumulative alerts
 4. **keep-pushing-no-stop hit → output `{"decision": "block", "reason": "..."}`** to keep Agent from immediately stopping (intervenes rule #7 "don't auto-stop"). Safeguard: cumulative block ≥ N within single turn (`stop_block_max_per_turn` default 2) → let Agent stop, prevents loops
-5. Otherwise outputs passthrough (Stop hook doesn't support `hookSpecificOutput` per Claude Code protocol — fixed in v0.4.43)
+5. Otherwise outputs passthrough (Stop hook doesn't support `hookSpecificOutput` per Claude protocol — fixed in v0.4.43)
 
 Performance: < 200ms.
 
-**⚠️ Stop hook config note**: Stop / SessionStart / SessionEnd etc. **don't support `matcher` field** — Claude Code silently ignores entire hook entry if matcher present. `karma install-hooks` fixed this: Stop entry has no matcher; PreToolUse/PostToolUse/UserPromptSubmit do. If `/tmp/karma_stop_trace.log` has 0 entries for real sessions, check `~/.claude/settings.json` Stop entry for matcher field.
+**⚠️ Stop hook config note**: Stop / SessionStart / SessionEnd etc. **don't support `matcher` field** — Claude silently ignores entire hook entry if matcher present. `karma install-hooks` fixed this: Stop entry has no matcher; PreToolUse/PostToolUse/UserPromptSubmit do. If `/tmp/karma_stop_trace.log` has 0 entries for real sessions, check `~/.claude/settings.json` Stop entry for matcher field.
 
 ## 8 violation_check functions (engine-layer precise detection)
 
@@ -280,9 +280,9 @@ karma violations recent [N]      # Recent N violation details
 karma violations clear           # Clear violation history (confirmation required)
 
 # Installation
-karma install-hooks              # Generate wrapper + auto-write settings.json (Claude Code 8 events)
+karma install-hooks              # Generate wrapper + auto-write settings.json (Claude 8 events)
 karma uninstall-hooks            # Delete wrapper + clean karma entries from settings.json
-karma doctor                     # Check environment + all hook install status (Claude Code 8)
+karma doctor                     # Check environment + all hook install status (Claude 8)
 ```
 
 `install-hooks` key features:
@@ -354,7 +354,7 @@ Performance hasn't been a bottleneck — measured far below budget.
 - ❌ Database — `violations.jsonl` + `session-state/*.json` text IO is enough
 - ❌ Auto-distilling new rules — user-controlled
 - ❌ retrieval / cosine / scene rule selection — 5-10 rules always-on
-- ❌ Cross-platform support (v0.4+ supports Claude Code / Codex CLI / Cursor)
+- ❌ Cross-platform support (v0.4+ supports Claude / Codex / Cursor)
 - ❌ Web UI / TUI — CLI + $EDITOR is enough
 
 ## Delivered milestones

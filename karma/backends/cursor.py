@@ -1,13 +1,13 @@
-"""Cursor IDE backend — `~/.cursor/hooks.json` + `~/.cursor/hooks/`.
+"""Cursor backend — `~/.cursor/hooks.json` + `~/.cursor/hooks/`.
 
-Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude Code 高度同构
+Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude 高度同构
 (`conversation_id` / `tool_name` / `tool_input`), 但 event 名用 camelCase 小开头
 (`preToolUse` 而非 `PreToolUse`), output shape 用 `permission` + `user_message`/
 `agent_message` 而非 Claude `hookSpecificOutput.permissionDecision`.
 
 参考: https://cursor.com/docs/hooks (2026-05-17 fetch 确认 reality, 不 guess).
 
-跟 Claude Code / Codex / Gemini 的关键差异:
+跟 Claude / Codex / Gemini 的关键差异:
 
 ① **每 turn 注入走 `beforeSubmitPrompt` → `user_prompt_submit`**. Cursor 官方
    schema 只文档化 `continue` / `user_message`, 但 third-party hooks 文档确认
@@ -66,7 +66,7 @@ class CursorBackend(JsonHooksBackend):
     _CLIENT_CMD = "cursor"  # 可能不在 PATH — fallback 到 ~/.cursor 目录检测
 
     # Cursor event 名是 camelCase 小开头 — 写进 hooks.json 时大小写敏感, 不能
-    # 套用 Claude Code 的 PascalCase. wrapper basename 保持 karma 内部规范让
+    # 套用 Claude 的 PascalCase. wrapper basename 保持 karma 内部规范让
     # hook 入口模块 (karma/hooks/*.py) 跨 backend 完全复用.
     #
     # Native-first surface (see native_capabilities.CURSOR_NATIVE_HOOKS) — not a
@@ -197,12 +197,12 @@ class CursorBackend(JsonHooksBackend):
         """Cursor 装完响亮告知 skill 协议限制 (project-scoped only).
 
         karma rule #4 loud-failure-with-evidence: Cursor 不支持 global skills 这件
-        事如果埋 README 表格里, 用户会以为「装完 karma 跟 Claude Code 体验一样」,
+        事如果埋 README 表格里, 用户会以为「装完 karma 跟 Claude 体验一样」,
         实际 /karma 自然语言加规则功能在 Cursor 0 触发. 在装完时打印响亮一段告知.
         """
         return [
             "",
-            "⚠️  Cursor 跟 Claude Code / Codex / Gemini 不一样 — 只支持 project-scoped",
+            "⚠️  Cursor 跟 Claude / Codex / Gemini 不一样 — 只支持 project-scoped",
             "    skills (`.cursor/skills/` 在每个项目根目录), **没有 home-level global**.",
             "",
             "    影响: karma 核心能力 (sticky 规则注入 + 行为拦截) 完全可用. 但是",

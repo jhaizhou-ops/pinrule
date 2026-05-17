@@ -17,7 +17,7 @@
                        │ 读 / 写
                        ▼
 ┌───────────────────────────────────────────────────────────┐
-│  Claude Code hooks (~/.claude/hooks/)                     │
+│  Claude hooks (~/.claude/hooks/)                     │
 │  ├── karma_user_prompt_submit.py   ← 每条消息前注入 sticky │
 │  ├── karma_pre_tool_use.py         ← 实时拦截违反 tool 调用│
 │  ├── karma_post_tool_use.py        ← 跟踪状态 + catchup    │
@@ -27,7 +27,7 @@
                        │ additionalContext / permissionDecision
                        ▼
               ┌─────────────────────┐
-              │   Claude Code       │
+              │   Claude            │
               │   (Agent loop)      │
               └─────────────────────┘
 ```
@@ -94,13 +94,13 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 文件 30 天没动自动清理（user_prompt_submit hook 每 turn 跑 purge）。
 保存用 `{stem}.{pid}.{ns}.json.tmp` + atomic rename，并发写不冲突。
 
-## 4 个 Hook（Claude Code 标准协议）
+## 4 个 Hook（Claude 标准协议）
 
 ### UserPromptSubmit hook
 
 时机：用户发消息 → 模型看到消息前。
 
-输入 stdin payload（Claude Code 协议）：
+输入 stdin payload（Claude 协议）：
 ```json
 {"prompt": "...", "session_id": "abc", "transcript_path": "...", "cwd": "..."}
 ```
@@ -192,7 +192,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 性能：< 200ms。
 
 **⚠️ Stop hook 配置注意**：Stop / SessionStart / SessionEnd 等 event **不支持
-`matcher` 字段** — Claude Code 看到 matcher 会无声忽略整个 hook entry。
+`matcher` 字段** — Claude 看到 matcher 会无声忽略整个 hook entry。
 `karma install-hooks` 已修：Stop entry 不加 matcher，PreToolUse/PostToolUse/
 UserPromptSubmit 才加。如果你看 `/tmp/karma_stop_trace.log` 实际 session 0 条，
 先检查 `~/.claude/settings.json` 的 Stop entry 是否含 matcher 字段。
@@ -376,7 +376,7 @@ violations / session_state / config / cli）都从它读 env。
 - ❌ 数据库 — `violations.jsonl` + `session-state/*.json` 文本 IO 足够
 - ❌ 自动蒸馏新 sticky — 用户掌控
 - ❌ retrieval / cosine / scene 选规则 — 5-10 条 always-on
-- ❌ 跨平台支持 — 先 Claude Code only
+- ❌ 跨平台支持 — 先 Claude only
 - ❌ Web UI / TUI — CLI + $EDITOR 足够
 
 ## 已交付里程碑

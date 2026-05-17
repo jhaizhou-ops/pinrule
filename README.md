@@ -21,9 +21,11 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
-✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude Code + Codex by `karma init` (Cursor is project-scoped, see post-install hint).
+✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude / Codex (or `.cursor/skills/karma/` per-project for Cursor) and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude + Codex by `karma init` (Cursor is project-scoped, see post-install hint).
 
 Chinese + English auto-detected — open an issue if you'd like other languages supported.
+
+**Supported clients**: Claude / Codex / Cursor — desktop and CLI form factors both adapted on all 3.
 
 ---
 
@@ -51,7 +53,7 @@ Chinese + English auto-detected — open an issue if you'd like other languages 
 | **Long context accumulation → attention decay → Agent drifts** | At 60-80K accumulated context, headers get diluted — Agent isn't ignorant, attention decayed | Per-model adaptive threshold (different decay points per model), auto-reinject mid-conversation when accumulation hits threshold |
 | **Agent sees a reminder → reacts defensively or rationalizes around it** | LLMs trained to please users — when faced with a violation reminder, the first reaction is to self-justify or find the shortest patch around it, not to genuinely correct | Rephrase rule tone as "collaborative agreement" tone. The Agent reads "the user you're working with hopes…" and switches to "let me realign" instead of "let me defend" |
 | **Agent finishes one small step, then stops to ask "what's next?" (you're fully delegating)** | You give a clear direction → Agent finishes step 1 → "What should I do next?" → you come back from other work and find the Agent has been idle for 30 minutes | Stop hook catches silent stops and injects a continuation nudge — up to 2 in a row, then it lets the Agent saturate if it genuinely is stuck |
-| **"I want to add a rule but writing yaml is heavy / my phrasing doesn't change Agent behavior"** | You know what behavior you want, but writing the rule is its own chore — wrong `violation_keywords` format triggers false positives, wrong tone makes the Agent defensive | Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) — the karma skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes. ~30 seconds end-to-end |
+| **"I want to add a rule but writing yaml is heavy / my phrasing doesn't change Agent behavior"** | You know what behavior you want, but writing the rule is its own chore — wrong `violation_keywords` format triggers false positives, wrong tone makes the Agent defensive | Type `/karma <natural language>` in Claude / Codex (or `.cursor/skills/karma/` per-project for Cursor) — the karma skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes. ~30 seconds end-to-end |
 
 ---
 
@@ -63,12 +65,12 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-Restart Claude Code / Codex / Cursor (desktop and CLI both supported) — all hook positions + default rules take effect immediately.
+Restart Claude / Codex / Cursor — all hook positions + default rules take effect immediately.
 For custom rules, just type `/karma <natural-language rule>`.
 
 ### Or ask your AI client to install it
 
-Paste this to Claude Code / Codex / Cursor (desktop or CLI):
+Paste this to Claude / Codex / Cursor:
 
 ```
 Install karma (github.com/jhaizhou-ops/karma) — a lightweight hook system that keeps my core direction preferences from being lost in long tasks.
@@ -86,9 +88,9 @@ After install, the Agent shows a summary of default rules — you see at a glanc
 
 | Client | Install command | Note |
 |---|---|---|
-| Claude Code | `karma install-hooks` (default) | Takes effect immediately |
-| Codex | `karma install-hooks --backend codex` | Works on Codex CLI + Codex desktop. Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
-| Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Works on Cursor IDE + Cursor CLI. Hooks fire on every Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
+| Claude | `karma install-hooks` (default) | Takes effect immediately |
+| Codex | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
+| Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Hooks fire on every Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
 
 ### Uninstall
 
@@ -198,7 +200,7 @@ The check is combo-pattern based (intent prefix + short-term action verb within 
 This is karma's other half — the **partner** side, not the **monitor** side.
 
 ```
-You (in Claude Code):   /karma When I say "done" I want test pass evidence attached
+You (in Claude):   /karma When I say "done" I want test pass evidence attached
                         Don't accept vague "should work" claims.
 
 Agent (karma skill walks 7 steps automatically):
@@ -271,7 +273,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Token cost** | 1.8K SessionStart baseline + per-turn anchor listing only session-violated rules + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood: ~2% of conversation context** (30 sessions measured: 60% of work sessions = 0 anchor token, median 1 violated rule per session) |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
-| **Supported clients** | Claude Code / Codex / Cursor (desktop and CLI both supported on all 3) | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
+| **Supported clients** | Claude / Codex / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
 | **User languages** | Chinese + English, extensible | All 7 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~7 small files, zero Python code |
 
 ---
@@ -279,6 +281,21 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 ## Claude / Codex / Cursor native hook support
 
 Native hook coverage on all 3 backends — **Claude 8 events, Codex 6 events, Cursor 12 events**, all wired end-to-end. Diagram below uses Claude's 8-event lifecycle as example (Codex/Cursor share the same karma logic with backend-specific event subsets):
+
+### Backend capability matrix
+
+| Capability | Claude | Codex | Cursor |
+|---|---|---|---|
+| Native hook count | 8 | 6 | 12 |
+| Session-start rule inject | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart |
+| Real-time tool gate | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 dedicated gates (Shell / MCP / Read / File) |
+| Stop intervention | ✓ block decision | ✓ block decision | ✓ followup_message (auto-continue) |
+| Compact resilience | ✓ PreCompact dump | — | ✓ preCompact dump |
+| Subagent coverage | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop |
+| `/karma <NL>` rule input | ✓ home-global | ✓ home-global | ⚠ project-scoped only |
+| Visibility fallback | — | trusted_hash auto-trust | `.mdc` Rules `alwaysApply` |
+
+Same karma core logic on all 3 — each backend uses the native protocol's strongest surface (Cursor's 4 dedicated gates, Codex's PermissionRequest, Claude's PreCompact dump). No backend reuses another's protocol shape.
 
 ```mermaid
 flowchart TB
@@ -346,7 +363,7 @@ Think of karma as sitting between `git` and a linter — it gives signals, you m
 <summary><b>Nothing happens after install?</b></summary>
 
 Run `karma doctor` to check:
-- Are all hook events ✓? (Claude Code 8 / Codex 6 / Cursor 12)
+- Are all hook events ✓? (Claude 8 / Codex 6 / Cursor 12)
 - Did rules load successfully?
 - Did session state directory generate new files?
 </details>
@@ -416,7 +433,7 @@ All listed docs are bilingual (`.md` English + `.zh.md` Chinese):
 - [CHANGELOG.md](./CHANGELOG.md) — Version change history (bilingual from v0.5.1 onward; pre-v0.5.1 release notes are Chinese-only)
 - [docs/HANDOFF.md](./docs/HANDOFF.md) — Internal development handoff entry (English summary; full timeline in `.zh.md`)
 - [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary and 8-method contract
-- [CLAUDE.md](./CLAUDE.md) — Project charter for Claude Code collaboration
+- [CLAUDE.md](./CLAUDE.md) — Project charter for Claude collaboration
 
 Translation PRs welcome for any bilingual gap (HANDOFF.md still summary-only).
 
