@@ -209,67 +209,31 @@ def _handle_keep_pushing_block(
     return True
 
 
-def main() -> int:
-    try:
-        payload = json.load(sys.stdin)
-    except json.JSONDecodeError as e:
-        print(f"karma Stop: 输入 JSON 解析失败 ({e})", file=sys.stderr)
-        print(json.dumps({}))
-        return 0
+def audit_agent_response(
+    payload: dict,
+    response: str,
+    last_user_prompt: str = "",
+    *,
+    allow_stop_interventions: bool = True,
+) -> bool:
+    """Response-level checks — shared by Stop and Cursor afterAgentResponse.
 
-    # 可选 debug trace — 仅当 KARMA_DEBUG_TRACE 环境变量指向可写路径时启用
-    # 不写死 /tmp 路径（跨平台 / 多用户机器互相覆盖）。production 默认完全关。
-    _trace_path = os.environ.get("KARMA_DEBUG_TRACE")
-    if _trace_path:
-        try:
-            import time as _t
-            from pathlib import Path as _P
-            with _P(_trace_path).open("a", encoding="utf-8") as f:
-                f.write(f"[{_t.strftime('%H:%M:%S')}] Stop hook fired, session={payload.get('session_id', '')!r}\n")
-        except OSError:
-            pass
-
+    返 True = 已 print stop_block 干预 (main 不要再 print 兜底 {}),
+    False = 没 print (caller 可兜底 print({})).
+    """
     from karma.hooks._payload import extract_session_id, extract_subagent_id
     session_id = extract_session_id(payload)
-    # 跨 backend payload 字段适配 — 优先「直传 message」字段，fallback transcript
-    # - Codex Stop: last_assistant_message
-    # (历史: Gemini AfterAgent 用 prompt_response, v0.13.2 砍掉)
-    # - Claude Code Stop: 没直传，要 transcript_path 反向读最后 assistant message
-    response = (
-        payload.get("last_assistant_message", "")
-        or payload.get("prompt_response", "")
-        or _read_last_assistant_response(payload.get("transcript_path", ""))
-    )
-
-    # v0.4.41: 拿用户上 turn prompt 让 keep_pushing.check 识别叫停字眼
-    # 原因：HANDOFF v3 第三步候选 — keep_pushing 只看 Agent response 末尾，
-    # 看不到 user 上文「不用啦 / 休息吧 / 明天再说」叫停字面 → 反思 hook
-    # 反复触发即使用户已明确叫停（sticky #8 例外条件命中但 check 不知道）。
-    last_user_prompt = (
-        payload.get("user_prompt", "")
-        or payload.get("prompt", "")
-        or _read_last_user_prompt(payload.get("transcript_path", ""))
-    )
+    agent_id = extract_subagent_id(payload) or None
 
     try:
         sticky_list = load()
     except RuleConfigError as e:
         print(f"karma: {e}", file=sys.stderr)
-        print(json.dumps({}))
-        return 0
+        return False
 
-    if not sticky_list or not response:
-        print(json.dumps({}))
-        return 0
+    if not sticky_list or not (response or "").strip():
+        return False
 
-    # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state（Stop hook 也支持 agent_id）
-    agent_id = extract_subagent_id(payload) or None
-    # v0.10.5 (Agent 1 F1.2 fix): Stop hook 跟 Pre/PostToolUse / UserPromptSubmit
-    # 一样要 catchup_pending_bg — 之前 stop.py 漏这一步, 让最后一个 PostToolUse
-    # 之后才完成的 bg pytest (启动: `pytest tests/ > /tmp/log &`) last_test_pass_ts
-    # 不推 → evidence check 看 has_recent_test_pass()=False → 完成词被错算
-    # loud-failure 拦. 同 v0.9.13 C1 family (load+modify+save 路径).
-    # 套 try/except 跟 pre_tool_use 一致, 失败 fallback 裸 load 不阻塞 Stop hook.
     try:
         state, _ = session_state.update_state(
             session_id,
@@ -277,7 +241,10 @@ def main() -> int:
             agent_id=agent_id,
         )
     except Exception as e:
-        print(f"karma Stop: catchup_pending_bg 失败 fallback 裸 load ({e})", file=sys.stderr)
+        print(
+            f"karma response audit: catchup_pending_bg 失败 fallback ({e})",
+            file=sys.stderr,
+        )
         state = session_state.load(session_id, agent_id=agent_id)
 
     check_hits = []
@@ -299,17 +266,15 @@ def main() -> int:
     )
 
     if not check_hits and not keyword_violations:
-        print(json.dumps({}))
-        return 0
+        return False
 
-    # 写违反
     all_records: list[Violation] = []
     for h in check_hits:
         all_records.append(Violation(
             ts=int(time.time()), session_id=session_id, rule_id=h.rule_id,
             trigger=h.trigger, snippet=h.snippet, turn=state.turn_count,
             agent_id=agent_id,
-            trigger_key=h.trigger_key,  # v0.5.7: locale-agnostic 分组 key
+            trigger_key=h.trigger_key,
         ))
     seen_ids = {h.rule_id for h in check_hits}
     for v in keyword_violations:
@@ -318,35 +283,77 @@ def main() -> int:
     if all_records:
         append(all_records)
 
-    # 当前 turn 触发的 rule_id 集合 — 用于 force_block 原因 fix:
-    # 只惩罚「当前 turn 触发 + 历史累积超阈值」的规则；fix 原因后不再触发
-    # 不该被历史累积反复 force_block (否则 Agent 没法靠「修根因」解除卡死)
     hit_sticky_ids = {h.rule_id for h in check_hits} | {
         v.rule_id for v in keyword_violations if v.rule_id not in seen_ids
     }
 
-    # stderr ⚠️ 通知 + 桌面通知 + 累积告警升级 (拆 helper: v0.8.3)
     _emit_notifications(
         check_hits, keyword_violations, seen_ids, hit_sticky_ids, state, session_id,
     )
 
-    # 机制 1: 累积强制 block — 累积违反超阈值 → decision=block 强制查根因
+    if not allow_stop_interventions:
+        return False
+
     if _handle_force_block(state, sticky_list, hit_sticky_ids, session_id, payload):
-        return 0
+        return True  # _handle 内部已 print emit_stop_block, main 不要再 print {}
 
-    # 机制 2: keep-pushing 干预 — Agent 沉默式停下时让继续生成
     if _handle_keep_pushing_block(check_hits, keyword_violations, state, payload):
+        return True
+
+    return False
+
+
+def main() -> int:
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as e:
+        print(f"karma Stop: 输入 JSON 解析失败 ({e})", file=sys.stderr)
+        print(json.dumps({}))
         return 0
 
-    # 2026-05-15 原因 fix：Stop hook 协议**不支持 hookSpecificOutput**
-    # （schema 仅 PreToolUse / UserPromptSubmit / PostToolUse / PostToolBatch 支持）
-    # 之前 v0.4.x 输出 hookSpecificOutput.additionalContext → 被 Claude Code
-    # 报「Expected schema」错误日志，且 Agent 看不到（Stop 后已停）。
-    #
-    # 摘要已通过 stderr ⚠️ 通知（第 178 行）+ violations.jsonl 落盘 + 桌面通知 +
-    # 下次 UserPromptSubmit sticky 注入的偏离标记 — 不需要 Stop hook 再 echo
-    # 一遍违反摘要。无干预原因 → passthrough。
-    print(json.dumps({}))
+    # 可选 debug trace — 仅当 KARMA_DEBUG_TRACE 环境变量指向可写路径时启用
+    # 不写死 /tmp 路径（跨平台 / 多用户机器互相覆盖）。production 默认完全关。
+    _trace_path = os.environ.get("KARMA_DEBUG_TRACE")
+    if _trace_path:
+        try:
+            import time as _t
+            from pathlib import Path as _P
+            with _P(_trace_path).open("a", encoding="utf-8") as f:
+                f.write(f"[{_t.strftime('%H:%M:%S')}] Stop hook fired, session={payload.get('session_id', '')!r}\n")
+        except OSError:
+            pass
+
+    # session_id 在 line 220 已通过 extract_session_id 定义, 这里不重复.
+    # 跨 backend payload 字段适配 — 优先「直传 message」字段，fallback transcript
+    # - Codex Stop: last_assistant_message
+    # (历史: Gemini AfterAgent 用 prompt_response, v0.13.2 砍掉)
+    # - Claude Code Stop: 没直传，要 transcript_path 反向读最后 assistant message
+    response = (
+        payload.get("last_assistant_message", "")
+        or payload.get("prompt_response", "")
+        or _read_last_assistant_response(payload.get("transcript_path", ""))
+    )
+
+    # v0.4.41: 拿用户上 turn prompt 让 keep_pushing.check 识别叫停字眼
+    # 原因：HANDOFF v3 第三步候选 — keep_pushing 只看 Agent response 末尾，
+    # 看不到 user 上文「不用啦 / 休息吧 / 明天再说」叫停字面 → 反思 hook
+    # 反复触发即使用户已明确叫停（sticky #8 例外条件命中但 check 不知道）。
+    last_user_prompt = (
+        payload.get("user_prompt", "")
+        or payload.get("prompt", "")
+        or _read_last_user_prompt(payload.get("transcript_path", ""))
+    )
+
+    if not response:
+        print(json.dumps({}))
+        return 0
+
+    intervened = audit_agent_response(
+        payload, response, last_user_prompt, allow_stop_interventions=True,
+    )
+    if not intervened:
+        # audit 没 print 干预 → 兜底 print {} 让 hook 协议有合法 stdout
+        print(json.dumps({}))
     return 0
 
 

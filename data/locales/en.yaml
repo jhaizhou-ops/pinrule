@@ -10,6 +10,8 @@ inject.header.line2: "This isn't rules and isn't a judgment — these are the co
 inject.drift_marker: "  〔Last response had drift on this one — let's realign this turn〕"
 anchor.header.title: "[karma — long-term agreement anchor (compact form; full preferences injected at session start)]"
 anchor.header.line: "This turn: a quick name + one-line reminder of each direction. Full preference text was injected at session start."
+catalog.header.title: "[karma — active rule IDs (Cursor visibility)]"
+catalog.header.line: "If the user asks for karma rule ids, list these verbatim (no need to read rules.yaml):"
 
 # ===== PostToolUse mid-injection (锚定刷新) =====
 mid_inject.header.title: "[karma — After long context, recall the agreement with the user]"
@@ -115,6 +117,9 @@ check.non_blocking.python_block.trigger: "Real blocking call inside python -c: {
 check.non_blocking.sleep.trigger: "Bash sleep command: {cmd!r}"
 check.non_blocking.wait.trigger: "Bash wait command blocking"
 check.non_blocking.long_task.trigger: "Long task without run_in_background: {cmd!r}"
+check.non_blocking.mcp_await.trigger: "Cursor MCP long poll ({tool}): block_until_ms ≥ 30s"
+check.non_blocking.mcp_await.fix: "Do not block on Await/MCP polling for 30s+. Use run_in_background=True on Shell tasks, or poll with short block_until_ms and keep pushing other work."
+check.non_blocking.mcp_long_poll.fix: "Shorten block_until_ms or use background Shell + notifications instead of a long synchronous MCP wait."
 
 # evidence (3 entries)
 check.evidence.commit.trigger: "No recent passing-test evidence in session before git commit"

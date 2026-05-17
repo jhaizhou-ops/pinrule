@@ -8,6 +8,7 @@ Usage:
                                    --minimal / --no-minimal 强制覆盖
     karma install-hooks [--backend claude-code|codex|cursor|all]
     karma sync-cursor-rules          刷新 ~/.cursor/rules/karma-sticky.mdc (Cursor 起手可见)
+    karma sync-cursor-visibility   hook 之外: Claude skills 目录 + empty-window 项目 rules
                                    自动配置 hooks（默认 claude-code 向后兼容）
                                    codex 会同时启用 features.hooks；
                                    gemini-cli 写 ~/.gemini/settings.json；
@@ -56,7 +57,7 @@ from karma.rule import load as load_rules
 from karma.violations import DEFAULT_PATH as VIOLATIONS_PATH
 from karma.violations import load_all
 
-from karma.paths import karma_home
+from karma.paths import CURSOR_LEGACY_KARMA_HOME, LEGACY_KARMA_HOME, karma_home
 
 KARMA_DIR = karma_home()
 _DATA_DIR = Path(__file__).parent.parent / "data"
@@ -87,14 +88,14 @@ def _write_skill_target(
 ) -> tuple[bool, str]:
     """装一份 skill 到单个目标路径 (raw Markdown).
 
+    v0.13.2 后: 砍 Gemini 后只剩 markdown 一种, 参数 _ 前缀标 intentionally-unused
+    维持 caller 调用契约.
+
     冲突处理 (sticky #1 不覆盖用户改动):
     - 不存在 → 写, 返回 (True, "installed")
     - 已存在 + 内容一致 → skip, 返回 (False, "up-to-date")
     - 已存在 + 内容不同 + force=False → 写 .new 兄弟文件, 返回 (False, "exists-diff")
     - 已存在 + 内容不同 + force=True → 覆盖, 返回 (True, "force-overwritten")
-
-    v0.13.2 后: 砍 Gemini 后只剩 markdown 一种 content_format (Claude/Codex/Cursor
-    都 raw markdown). 参数保留 _ 前缀标 intentionally-unused, 维持 caller 调用契约.
     """
     body = src_text
 
@@ -205,6 +206,11 @@ def cmd_init(minimal: bool | None = None) -> int:
     跨平台检测见 `karma/locale_detect.py`（macOS 用 defaults read AppleLanguages,
     Linux 用 $LANG / $LC_ALL）。跟 VS Code / Slack 等 app 安装时自动选语言做法一致。
     """
+    from karma.paths import LEGACY_KARMA_HOME, migrate_legacy_home_if_needed
+
+    migrated = migrate_legacy_home_if_needed()
+    if migrated:
+        print(f"  已从 {LEGACY_KARMA_HOME} 迁移规则库 → {migrated}")
     KARMA_DIR.mkdir(parents=True, exist_ok=True)
 
     auto_chose = ""
@@ -266,6 +272,8 @@ def cmd_init(minimal: bool | None = None) -> int:
     # v0.9.9: 装完展示默认启用规则简要列表 — 让用户（自己跑 / 让 Agent 代装）
     # 一眼看到默认开了什么，知道下一步该改 / 删 / 加什么
     _print_default_rules_summary()
+    _auto_install_hooks_for_detected_clients()
+    _sync_cursor_rules_if_installed()
     return 0
 
 
@@ -1031,9 +1039,91 @@ def cmd_violations_clear(sticky_filter: str | None = None, trigger_filter: str |
     return 0
 
 
+def _karma_hook_entry_covers_event(
+    backend, hooks: dict, event_name: str, hook_basename: str,
+) -> bool:
+    """True if hooks.json lists a karma wrapper for this event (Claude nested or Cursor flat)."""
+    for entry in hooks.get(event_name, []):
+        if not backend.is_karma_entry(entry):
+            continue
+        cmd = entry.get("command", "")
+        if hook_basename in cmd:
+            return True
+        for nested in entry.get("hooks", []):
+            if hook_basename in nested.get("command", ""):
+                return True
+    return False
+
+
+def _backend_hooks_incomplete(backend) -> bool:
+    """Missing wrapper or settings entry for any expected hook event."""
+    if not backend.client_installed():
+        return False
+    try:
+        settings = backend.load_settings()
+    except Exception:
+        return True
+    hooks = settings.get("hooks", {})
+    for event_name, hook_basename in backend.hook_events().items():
+        wrapper = backend.hooks_dir() / f"karma_{hook_basename}.py"
+        if not wrapper.exists():
+            return True
+        if not _karma_hook_entry_covers_event(
+            backend, hooks, event_name, hook_basename,
+        ):
+            return True
+    return False
+
+
+def _auto_install_hooks_for_detected_clients() -> None:
+    """init 末尾：已装客户端 hook 不齐则 idempotent 跑 install-hooks all."""
+    from karma.backends import REGISTRY
+
+    if not any(_backend_hooks_incomplete(b) for b in REGISTRY.values()):
+        return
+    print("\n→ 检测到 hook 未装全，自动 install-hooks --backend all（功能与 Claude 对齐）…")
+    cmd_install_hooks("all")
+
+
+def _sync_cursor_rules_if_installed() -> None:
+    from karma.backends import REGISTRY
+
+    cursor = REGISTRY.get("cursor")
+    if cursor is None or not cursor.client_installed():
+        return
+    from karma.cursor_rules_sync import sync_cursor_rules
+
+    _written, logs = sync_cursor_rules(user=True)
+    for line in logs:
+        if line.strip():
+            print(line)
+
+
+def _doctor_warn_split_karma_homes() -> None:
+    """Warn when legacy split homes still have rules.yaml (dual-injection hazard)."""
+    active = KARMA_DIR / "rules.yaml"
+    extras: list[tuple[str, Path]] = []
+    for label, home in (
+        ("legacy Claude home", LEGACY_KARMA_HOME),
+        ("legacy Cursor-only home", CURSOR_LEGACY_KARMA_HOME),
+    ):
+        alt = home / "rules.yaml"
+        if alt.exists() and alt.resolve() != active.resolve():
+            extras.append((label, alt))
+    if not extras:
+        return
+    print("")
+    print("  ⚠️  检测到多份 karma 规则库（会导致 Cursor 注入两段不同 id 列表）:")
+    print(f"      当前生效: {active}")
+    for label, alt in extras:
+        print(f"      另有 {label}: {alt}")
+    print("      → 合并到 ~/.karma 后删除或移走旧目录；跑 `karma sync-cursor-visibility`")
+
+
 def cmd_doctor() -> int:
     print(f"karma v{__version__} doctor")
     print(f"  KARMA_DIR: {KARMA_DIR} ({'存在' if KARMA_DIR.exists() else '不存在'})")
+    _doctor_warn_split_karma_homes()
     print(f"  rules.yaml: {RULES_PATH} ({'存在' if RULES_PATH.exists() else '不存在'})")
     print(f"  violations.jsonl: {VIOLATIONS_PATH} ({'存在' if VIOLATIONS_PATH.exists() else '不存在'})")
     config_path = KARMA_DIR / "config.yaml"
@@ -1130,9 +1220,8 @@ def cmd_doctor() -> int:
         for event_name, hook_basename in backend.hook_events().items():
             wrapper = backend.hooks_dir() / f"karma_{hook_basename}.py"
             wrapper_ok = wrapper.exists() and os.access(wrapper, os.X_OK)
-            in_settings = any(
-                backend.is_karma_entry(e) for e in hooks.get(event_name, [])
-                if any(hook_basename in h.get("command", "") for h in e.get("hooks", []))
+            in_settings = _karma_hook_entry_covers_event(
+                backend, hooks, event_name, hook_basename,
             )
             if wrapper_ok and in_settings:
                 print(f"      {event_name}: ✓")
@@ -1202,20 +1291,12 @@ def _install_to_backend(backend) -> int:
     hooks_dir = backend.hooks_dir()
     hooks_dir.mkdir(parents=True, exist_ok=True)
     karma_python = sys.executable
-    karma_home_line = ""
-    if backend.name == "cursor":
-        karma_home_line = (
-            "import os\n"
-            "os.environ.setdefault(\"KARMA_HOME\", "
-            "os.path.expanduser(\"~/.cursor/karma\"))\n"
-        )
     for hook_basename in backend.hook_events().values():
         wrapper = hooks_dir / f"karma_{hook_basename}.py"
         wrapper.write_text(
             f"#!{karma_python}\n"
             f"# karma {hook_basename} hook wrapper (auto-generated)\n"
             f"# python: {karma_python}\n"
-            f"{karma_home_line}"
             f"import sys\n"
             f"sys.exit(__import__('karma.hooks.{hook_basename}', fromlist=['main']).main())\n"
         )
@@ -1269,6 +1350,16 @@ def _install_to_backend(backend) -> int:
     post_msg: list[str] = getattr(backend, "post_install_message", lambda: [])()
     for line in post_msg:
         print(line)
+    return 0
+
+
+def cmd_sync_cursor_visibility() -> int:
+    """Sync karma rule ids into paths Cursor Composer actually loads (not hooks stdout)."""
+    from karma.cursor_visibility import sync_all_visibility_layers
+
+    for line in sync_all_visibility_layers():
+        print(line)
+    print("\n✓ 可见性同步完成 — Reload Cursor，新开 Composer，问「列出 karma 规则 id」")
     return 0
 
 
@@ -1445,6 +1536,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_reset_session()
     if cmd == "sync-cursor-rules":
         return cmd_sync_cursor_rules()
+    if cmd == "sync-cursor-visibility":
+        return cmd_sync_cursor_visibility()
     if cmd == "install-hooks":
         return cmd_install_hooks(backend_name=_parse_backend_arg(args))
     if cmd == "install-skill":

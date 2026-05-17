@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from karma.backends._json_hooks import JsonHooksBackend
+from karma.backends.native_capabilities import CURSOR_HOOK_EVENTS
 
 
 # Cursor → karma canonical tool_name 映射.
@@ -68,19 +69,10 @@ class CursorBackend(JsonHooksBackend):
     # 套用 Claude Code 的 PascalCase. wrapper basename 保持 karma 内部规范让
     # hook 入口模块 (karma/hooks/*.py) 跨 backend 完全复用.
     #
-    # beforeSubmitPrompt → user_prompt_submit: Cursor 每 user turn 等价 Claude
-    # UserPromptSubmit (turn 推进 + anchor 注入). sessionStart/postToolUse/stop 同前.
-    # 与 Claude Code 相同的 8 个 karma wrapper; 仅 native event 名不同 (camelCase).
-    _HOOK_EVENTS: dict[str, str] = {
-        "sessionStart": "session_start",
-        "beforeSubmitPrompt": "user_prompt_submit",
-        "preToolUse": "pre_tool_use",
-        "postToolUse": "post_tool_use",
-        "stop": "stop",
-        "preCompact": "pre_compact",
-        "subagentStart": "subagent_start",
-        "subagentStop": "subagent_stop",
-    }
+    # Native-first surface (see native_capabilities.CURSOR_NATIVE_HOOKS) — not a
+    # 1:1 clone of Claude's 8 PascalCase events. Extra gates: beforeShellExecution,
+    # beforeMCPExecution, beforeReadFile; audit: afterAgentResponse.
+    _HOOK_EVENTS: dict[str, str] = dict(CURSOR_HOOK_EVENTS)
 
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
         """Cursor native hooks.json entry — flat `{command: ...}` not Claude nested.
@@ -107,10 +99,16 @@ class CursorBackend(JsonHooksBackend):
         data.setdefault("version", 1)
         super().save_settings(data)
 
-    # v0.13.4 删 `post_install_setup()` (cursor agent 加的 stub) — cli.py install-hooks
-    # 流程未接, 是 dead code 让 vulture CI 红. Cursor 用户首装后看
-    # `post_install_message` 提示手动跑 `karma sync-cursor-rules` 创建 `.mdc` 保险层.
-    # 后续若想 install 后自动 sync, 加新方法 + 接进 cli.py install-hooks 不留 stub.
+    def post_install_setup(self) -> list[str]:
+        """Install 后同步 Cursor native rules + 提示 reload."""
+        from karma.cursor_rules_sync import sync_cursor_rules
+
+        _written, logs = sync_cursor_rules(user=True)
+        logs.append(
+            "  → 改 rules 后跑 `karma sync-cursor-rules` 刷新 .mdc;"
+            " Reload Cursor window 让 hooks.json 生效."
+        )
+        return logs
 
     def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
         """Cursor tool_name 归一化 — Shell → Bash."""

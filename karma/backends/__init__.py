@@ -5,7 +5,7 @@
   （Claude Code 跟 Codex 字段大多同名：session_id / prompt / tool_name 等）
 - backend 抽象只负责「装机」差异：配置文件路径 / 配置格式 / 是否要启用 feature flag
 - karma 状态（violations / session-state / sticky.yaml）跨 backend **共享** —
-  ~/.claude/karma/（保留历史路径向后兼容，新装也用这个；未来可加 KARMA_HOME env）
+  ~/.karma/（v0.14+ 共享规则库；`KARMA_HOME` env 可覆盖；`~/.claude/karma` 迁移保留）
 
 Backend 列表：
 - claude-code: ~/.claude/settings.json + ~/.claude/hooks/karma_*.py

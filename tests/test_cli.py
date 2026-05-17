@@ -498,6 +498,51 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
         assert event in out, f"doctor 应列出 {event} 状态"
 
 
+def test_doctor_cursor_flat_hook_entry_detected(fake_home, monkeypatch, capsys):
+    """Cursor native flat {command} entry 应被 doctor 识别为已安装 (v0.13.5 fix)."""
+    from karma.backends import CursorBackend, CodexBackend, ClaudeCodeBackend
+
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(CursorBackend, "_CONFIG_DIR_NAME", "cursor-karma-test")
+
+    b = CursorBackend()
+    hooks_dir = b.hooks_dir()
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    for basename in b.hook_events().values():
+        w = hooks_dir / f"karma_{basename}.py"
+        w.write_text("#!/bin/sh\n", encoding="utf-8")
+        w.chmod(0o755)
+
+    settings = {"version": 1, "hooks": {}}
+    for event_name, basename in b.hook_events().items():
+        wrapper = hooks_dir / f"karma_{basename}.py"
+        settings["hooks"][event_name] = [{"command": str(wrapper)}]
+    b.save_settings(settings)
+
+    sticky_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    sticky_path.parent.mkdir(parents=True, exist_ok=True)
+    sticky_path.write_text("- id: test\n  preference: x\n")
+    import karma.rule
+    import karma.violations
+    import unittest.mock
+
+    with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
+        with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
+            with unittest.mock.patch.object(
+                karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl",
+            ):
+                with unittest.mock.patch.object(
+                    cli, "VIOLATIONS_PATH", fake_home / "v.jsonl",
+                ):
+                    rc = cli.cmd_doctor()
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "preToolUse: ✓" in out or "preToolUse: ✓" in out.replace(" ", "")
+    assert "beforeSubmitPrompt: ✓" in out
+    assert "未引用" not in out.split("[cursor]")[-1][:800]
+
+
 # ---- v0.5.16 karma install-skill / karma init 多 backend skill 装机 ----
 
 def _patch_rules_path(monkeypatch, fake_home):

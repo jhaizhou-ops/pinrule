@@ -85,25 +85,8 @@ def _build_strong_reminder(
         tp = _Path(transcript_path)
         if not tp.exists():
             return ""
-        # 反向找 last assistant message
-        lines = tp.read_text(encoding="utf-8").splitlines()
-        last_text = ""
-        for ln in reversed(lines):
-            try:
-                d = json.loads(ln.strip())
-            except json.JSONDecodeError:
-                continue
-            if d.get("type") != "assistant":
-                continue
-            msg = d.get("message", {})
-            content = msg.get("content", [])
-            if isinstance(content, list):
-                parts = [c.get("text", "") for c in content
-                         if isinstance(c, dict) and c.get("type") == "text"]
-                last_text = "\n".join(parts)
-            elif isinstance(content, str):
-                last_text = content
-            break
+        from karma.hooks._transcript import read_last_message_text
+        last_text = read_last_message_text(str(tp), "assistant")
         if not last_text:
             return ""
         # 跑所有规则的 violation_checks 看上一 response
@@ -210,13 +193,26 @@ def main() -> int:
         _output_passthrough()
         return 0
 
-    # v0.13.0: anchor 只列本 session 累积违反过的 rule (不再全列 sticky id).
-    # 没累积违反 → 返 "" passthrough. sticky id list 完全交 sessionStart
-    # baseline + PostToolUse 中段重注入双层 anti-decay 覆盖.
-    # 历史: v0.9.0-v0.12.x 每 turn 全列, prompt-cache 累积占总 input 10-15%.
+    from karma.backends.protocol_adapter import detect_backend
+    from karma.rule import format_for_injection, format_rule_id_catalog
     from karma.violations import session_violations as _session_violations
+
     violated = _session_violations(session_id)
-    additional_context = format_anchor_only(sticky_list, violated)
+    is_cursor = detect_backend(payload) == "cursor"
+    if is_cursor:
+        # Cursor: sessionStart 注入常进不了模型上下文; v0.13.0 anchor-only
+        # passthrough 让新会话 beforeSubmitPrompt 输出 {"continue":true} 零规则可见.
+        parts = [format_rule_id_catalog(sticky_list)]
+        if current_turn <= 1:
+            parts.append(format_for_injection(sticky_list))
+        else:
+            anchor = format_anchor_only(sticky_list, violated)
+            if anchor:
+                parts.append(anchor)
+        additional_context = "\n\n".join(p for p in parts if p.strip())
+    else:
+        # Claude/Codex: v0.13.0 anchor 只列本 session 违反过的 rule.
+        additional_context = format_anchor_only(sticky_list, violated)
 
     # 强提醒 fallback：跑上一 response 通过所有规则的 violation_checks (拆 helper: v0.8.3)
     transcript_path = payload.get("transcript_path", "")

@@ -6,22 +6,31 @@
 
 ## [Unreleased]
 
-## [0.13.5] — 2026-05-17（patch — 修 v0.13.2/0.13.3 sweep 引入的 CI vulture dead-code fail）
+## [0.14.0] — 2026-05-17（minor — 共享 `~/.karma` + Cursor 原生能力收口）
 
-CI 警报: v0.13.2 / v0.13.3 / v0.13.4 + 2 个 docs commit 连续 5 个全 CI red — vulture dead-code scan 抓到 2 处 unused identifier:
+### 共享规则库（各端共用）
 
-1. **`karma/cli.py:_write_skill_target(content_format)`** — 参数在 v0.13.2 砍 Gemini TOML 转换后 unused (函数体简化成 `body = src_text`). 改名 `_content_format` + 加 default 值, 保留参数维持 caller 调用契约. docstring 同步反映 markdown-only 行为.
-2. **`karma/backends/cursor.py:post_install_setup`** — Cursor desktop Agent v0.13.2 `.mdc` sync 那波加的, 想 `install-hooks` 后自动跑, 但 `cli.py` install 流程没接. 整方法删除; Cursor 用户首装走 `post_install_message` 现有提示手动跑 `karma sync-cursor-rules`. 后续要做自动 sync 加新方法接进 cli.py 不留 unused stub.
+- 默认 `KARMA_HOME` 改为 `~/.karma/`（与客户端无关）。Claude / Cursor / Codex hooks 读同一份 `rules.yaml`，避免 `~/.cursor/karma` 与 `~/.claude/karma` 双源注入。
+- `karma init` 在 `~/.karma` 为空时，从 `~/.claude/karma/` 自动迁移。
+- `karma doctor` 检测仍存在的 legacy 第二份 `rules.yaml` 并告警。
+- 去掉 Cursor wrapper 里写死的 `KARMA_HOME=~/.cursor/karma`。
 
-老实交底 **sticky #4 违反**: 5 个 commit 没看 CI 就 push (memory `feedback-loud-failure-pre-push-ci-check` 历史已警告同款 pattern). 第 6 个 commit 后才 catch, memory 提示 reinforced.
+### Cursor 原生支持（v0.14 功能收口）
 
-806 pytest 全绿 / ruff 0 / mypy 0 / **vulture 0**.
+- **12 个 hook 事件**：含 `beforeShellExecution` / `beforeMCPExecution` / `beforeReadFile` / `afterAgentResponse` 等。
+- 共享 `_tool_gate.py`；`beforeMCPExecution` 拦截长 `Await`。
+- `karma sync-cursor-visibility`：写入 `karma-rules-catalog` skill + `.mdc`（Composer 常不把 hook stdout 放进 `<rules>`）。
+- `format_for_injection` 每行带 `[rule-id]`；Cursor 每轮 `beforeSubmitPrompt` 注入 id 目录。
+- `python -m karma`；`scripts/cursor-install-local.sh` 一键装机。
 
-## [0.13.4] — 2026-05-17（patch — Cursor backend test isolation: 沙箱 CI 用可配 `_CONFIG_DIR_NAME`）
+## [0.13.6] — 2026-05-17（patch — Cursor 与 Claude 功能对齐）
 
-Cursor desktop Agent dogfood 跟进的小 test-isolation 修: 部分沙箱 CI 环境禁止 `mkdir ~/.cursor` (当 protected user-config 拦). 直接创建 backend 配置目录的测试现走 `cursor_test_config_dir` pytest fixture, monkeypatch `CursorBackend._CONFIG_DIR_NAME` 到沙箱安全名 (`cursor-karma-test`).
+### Cursor 功能对齐 (不只注册 hook)
 
-无 production 行为变化 — Cursor 用户仍走 `~/.cursor/hooks.json`. 只 test setup 受影响. 806 pytest 全绿.
+- Transcript 解析支持 Cursor `role` JSONL (Claude 用 `type`) — Stop / UserPromptSubmit 的 response 级 check 在 Cursor 上生效
+- `karma doctor` 正确识别 Cursor 扁平 `{command}` entry (之前误报未引用)
+- `karma init` 检测 hook 未装全时自动 `install-hooks --backend all`; 有 Cursor 时同步 `karma-sticky.mdc`
+- sessionStart/postToolUse 传 `hook_event_name`; pre_tool_use/stop 用 `extract_subagent_id`
 
 ## [0.13.3] — 2026-05-17（patch — Cursor ↔ Claude hook 对齐, 8/8 wrapper）
 

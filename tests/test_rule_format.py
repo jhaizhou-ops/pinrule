@@ -64,8 +64,7 @@ def test_format_anchor_violated_rule_not_in_rule_list_returns_empty():
 def test_format_injection_single_rule():
     rules = [_r("my-rule", "保持长期方案")]
     out = format_for_injection(rules)
-    assert "1. 保持长期方案" in out
-    assert "my-rule" not in out  # 完整注入不显示 id（只 anchor 显示）
+    assert "1. [my-rule] 保持长期方案" in out
 
 
 def test_format_anchor_single_violated_rule():
@@ -87,9 +86,9 @@ def test_format_injection_multiple_rules_numbered():
         _r("rule-c", "方向 C"),
     ]
     out = format_for_injection(rules)
-    assert "1. 方向 A" in out
-    assert "2. 方向 B" in out
-    assert "3. 方向 C" in out
+    assert "1. [rule-a] 方向 A" in out
+    assert "2. [rule-b] 方向 B" in out
+    assert "3. [rule-c] 方向 C" in out
 
 
 def test_format_anchor_only_violated_rules_listed_not_full_sticky():
@@ -251,7 +250,7 @@ def test_format_injection_ten_rules_all_numbered():
     rules = [_r(f"rule-{i:02d}", f"方向 {i}") for i in range(1, 11)]
     out = format_for_injection(rules)
     for i in range(1, 11):
-        assert f"{i}. 方向 {i}" in out
+        assert f"{i}. [rule-{i:02d}] 方向 {i}" in out
 
 
 # ---------------------------------------------------------------------------
@@ -261,4 +260,4 @@ def test_format_injection_ten_rules_all_numbered():
 def test_format_injection_force_block_exempt_rule_included_normally():
     rules = [_r("r1", "不受 force_block 惩罚的规则", force_block_exempt=True)]
     out = format_for_injection(rules)
-    assert "1. 不受 force_block 惩罚的规则" in out
+    assert "1. [r1] 不受 force_block 惩罚的规则" in out

@@ -154,9 +154,31 @@ def format_for_injection(
         marker = drift_marker if r.id in recent_violations else ""
         # preference 多行 → 缩进对齐
         pref_lines = r.preference.strip().split("\n")
-        lines.append(f"{i}. {pref_lines[0]}{marker}")
+        # Always prefix rule id — Cursor often drops hook-only catalog blocks but
+        # keeps narrative preference text; ids must live on the same lines.
+        lines.append(f"{i}. [{r.id}] {pref_lines[0]}{marker}")
         for extra in pref_lines[1:]:
             lines.append(f"   {extra}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_rule_id_catalog(rule_list: list[Rule]) -> str:
+    """Compact rule-id list for Cursor — hooks/rules layer visibility.
+
+    Cursor sessionStart stdout is often invisible; beforeSubmitPrompt used to
+    passthrough when no violations (empty anchor). This block is small (~50
+    tokens for 5 rules) and always safe to inject on Cursor turns.
+    """
+    if not rule_list:
+        return ""
+    lines = [
+        tr("catalog.header.title"),
+        tr("catalog.header.line"),
+        "",
+    ]
+    for r in rule_list:
+        lines.append(f"- `{r.id}`")
     lines.append("")
     return "\n".join(lines)
 

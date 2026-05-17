@@ -10,22 +10,31 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
-## [0.13.5] — 2026-05-17 (patch — fix CI vulture dead-code failures from v0.13.2/0.13.3 sweep)
+## [0.14.0] — 2026-05-17 (minor — shared `~/.karma` home + Cursor native surface)
 
-CI alert: v0.13.2 / v0.13.3 / v0.13.4 + 2 docs commits ran red on vulture dead-code scan. Two unused identifiers were the root cause:
+### Shared rules library (all backends)
 
-1. **`karma/cli.py:_write_skill_target(content_format)`** — parameter became unused in v0.13.2 when Gemini's TOML conversion path was removed (function body simplified to `body = src_text`). Renamed to `_content_format` with default value, kept in signature to preserve caller contract. Updated docstring to reflect markdown-only behavior.
-2. **`karma/backends/cursor.py:post_install_setup`** — Cursor desktop Agent added this method in the v0.13.2 `.mdc` sync wave intending it to run after `install-hooks`, but `cli.py` install flow never wired it up. Removed entirely; Cursor users get the manual `karma sync-cursor-rules` hint via the existing `post_install_message` (which is wired up). If future install-hooks integration is desired, add a new method + plumb it through `cli.py` instead of leaving an unused stub.
+- Default `KARMA_HOME` is now `~/.karma/` (client-neutral). Claude / Cursor / Codex hooks all read the same `rules.yaml` — no more split `~/.cursor/karma` vs `~/.claude/karma` dual-injection hazard.
+- `karma init` migrates existing `~/.claude/karma/` → `~/.karma/` when the new directory is empty.
+- `karma doctor` warns if legacy `~/.claude/karma` or `~/.cursor/karma` still has a separate `rules.yaml`.
+- Removed Cursor-only `KARMA_HOME=~/.cursor/karma` from hook wrappers.
 
-This is honest follow-up on the **sticky #4 violation**: 5 consecutive commits pushed without `gh run list` verification (memory `feedback-loud-failure-pre-push-ci-check` flagged this pattern before). I caught it on the 6th and fixed; reminder in memory updated.
+### Cursor native support (feature-complete for v0.14)
 
-806 pytest green / ruff 0 / mypy 0 / **vulture 0**.
+- **12 hook events**: `beforeSubmitPrompt`, `sessionStart`, `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeMCPExecution`, `beforeReadFile`, `afterAgentResponse`, `stop`, `preCompact`, `subagentStart`, `subagentStop`.
+- Shared tool gate (`_tool_gate.py`) for `preToolUse` / shell / MCP paths; blocks long `Await` via `beforeMCPExecution`.
+- `karma sync-cursor-visibility`: `~/.claude/skills/karma-rules-catalog/` + `.mdc` rules (Composer often does not surface hook stdout in `<rules>`).
+- `format_for_injection` prefixes each line with `[rule-id]`; Cursor `beforeSubmitPrompt` injects id catalog every turn.
+- `python -m karma` entrypoint; `scripts/cursor-install-local.sh` one-shot install.
 
-## [0.13.4] — 2026-05-17 (patch — Cursor backend test isolation: configurable `_CONFIG_DIR_NAME` for sandboxed CI)
+## [0.13.6] — 2026-05-17 (patch — Cursor functional parity with Claude)
 
-Tiny test-isolation fix from Cursor desktop Agent's continued dogfood: some sandboxed CI environments forbid `mkdir ~/.cursor` (treated as protected user-config). Tests that create the backend's config dir directly now use a `cursor_test_config_dir` pytest fixture that monkeypatches `CursorBackend._CONFIG_DIR_NAME` to a sandbox-safe name (`cursor-karma-test`).
+### Cursor functional parity (not just hook registration)
 
-No production behavior change — Cursor users still get `~/.cursor/hooks.json`. Only test setup affected. 806 pytest green.
+- Transcript reader accepts Cursor `role` JSONL (Claude uses `type`) — **Stop** / **UserPromptSubmit** response-level checks (`keep_pushing`, `loud_failure_with_evidence`, strong reminder) work on Cursor transcripts
+- `karma doctor` recognizes Cursor native flat `{command}` hook entries (was false ✗ before)
+- `karma init` auto-runs `install-hooks --backend all` when any detected client is missing hooks; syncs `karma-sticky.mdc` when Cursor is present
+- Hooks pass through `hook_event_name` for `sessionStart` / `postToolUse`; `pre_tool_use` / `stop` use `extract_subagent_id`
 
 ## [0.13.3] — 2026-05-17 (patch — Cursor ↔ Claude hook parity, 8/8 wrappers)
 

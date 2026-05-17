@@ -54,12 +54,12 @@ def _build_state_path_re() -> re.Pattern[str]:
     `karma_home()` 在 import 时 freeze（paths.py docstring 已明确这点 — `KARMA_HOME`
     必须在 hook 子进程启动前 set），所以 module-level 编译一次即可。
     """
+    from karma.paths import LEGACY_KARMA_HOME, SHARED_KARMA_HOME
+
     karma_dir = karma_home()
-    default_dir = Path.home() / ".claude" / "karma"
+    paths = [r"\.karma", r"\.claude/karma"]  # 共享 home + 历史 legacy 路径字面
 
-    paths = [r"\.claude/karma"]  # 默认 mode 任意写法都 match 这段相对 fragment
-
-    if karma_dir != default_dir:
+    if karma_dir not in (SHARED_KARMA_HOME, LEGACY_KARMA_HOME):
         # KARMA_HOME 改了路径 — 加 override 路径绝对字面
         paths.append(re.escape(str(karma_dir)))
         # KARMA_HOME 在 home 下时还加 `~/<rel>` 字面（用户敲 ~ 不展开）

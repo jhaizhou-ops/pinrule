@@ -97,7 +97,34 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     cmd_raw = (tool_input or {}).get("command", "") or ""
     if not cmd_raw:
         return None
-    is_bg = bool((tool_input or {}).get("run_in_background"))
+    tool_input = tool_input or {}
+    is_bg = bool(tool_input.get("run_in_background"))
+    # Cursor Shell: sync `timeout` ms (no run_in_background field) — treat as blocking wait.
+    if not is_bg:
+        timeout_ms = tool_input.get("timeout")
+        if isinstance(timeout_ms, (int, float)) and timeout_ms >= 30_000:
+            return CheckHit(
+                rule_id=_STICKY_ID,
+                trigger=tr(
+                    "check.non_blocking.cursor_timeout.trigger",
+                    ms=int(timeout_ms),
+                ),
+                trigger_key="check.non_blocking.cursor_timeout.trigger",
+                snippet=cmd_raw[:200],
+                suggested_fix=tr("check.non_blocking.cursor_timeout.fix"),
+            )
+        block_ms = tool_input.get("block_until_ms")
+        if isinstance(block_ms, (int, float)) and block_ms >= 30_000:
+            return CheckHit(
+                rule_id=_STICKY_ID,
+                trigger=tr(
+                    "check.non_blocking.cursor_timeout.trigger",
+                    ms=int(block_ms),
+                ),
+                trigger_key="check.non_blocking.cursor_timeout.trigger",
+                snippet=cmd_raw[:200],
+                suggested_fix=tr("check.non_blocking.cursor_timeout.fix"),
+            )
     # 扫命令骨架，跳过引号字面（commit message / echo 引号内容不是执行意图）
     cmd = strip_shell_quoted_literals(cmd_raw)
 

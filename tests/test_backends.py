@@ -221,12 +221,15 @@ def test_cursor_event_names_are_camelcase(fake_home):
     assert "SessionStart" not in events
 
 
-def test_cursor_hook_wrappers_match_claude_coverage(fake_home):
-    """Cursor 与 Claude 装同一套 8 个 karma wrapper (仅 native event 名不同)."""
+def test_cursor_native_hook_surface_superset_of_claude_wrappers(fake_home):
+    """Cursor native surface covers all Claude wrappers plus IDE-only gates."""
     claude = set(ClaudeCodeBackend().hook_events().values())
     cursor = set(CursorBackend().hook_events().values())
-    assert cursor == claude
-    assert len(cursor) == 8
+    assert claude <= cursor
+    assert "before_shell_execution" in cursor
+    assert "before_mcp_execution" in cursor
+    assert "after_agent_response" in cursor
+    assert len(CursorBackend().hook_events()) == 12
 
 
 def test_cursor_maps_before_submit_to_user_prompt_submit(fake_home):

@@ -124,6 +124,11 @@ def main() -> int:
     # 旧 v0.4.28 精简版（id + 第一行）在 v0.9.0 之前因为 UserPromptSubmit 每
     # turn 全量, 这里精简就够；现在 UserPromptSubmit 精简了, 这里必须扛起
     # 完整 preference 的注入责任。
+    from karma.backends.protocol_adapter import detect_backend
+    from karma.rule import format_rule_id_catalog
+
+    if detect_backend(payload) == "cursor":
+        lines.append(format_rule_id_catalog(rule_list))
     lines.append(format_for_injection(rule_list))
     if source == "compact":
         lines.append(tr("session_start.compact.tail"))
