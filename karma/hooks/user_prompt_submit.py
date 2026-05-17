@@ -85,25 +85,8 @@ def _build_strong_reminder(
         tp = _Path(transcript_path)
         if not tp.exists():
             return ""
-        # 反向找 last assistant message
-        lines = tp.read_text(encoding="utf-8").splitlines()
-        last_text = ""
-        for ln in reversed(lines):
-            try:
-                d = json.loads(ln.strip())
-            except json.JSONDecodeError:
-                continue
-            if d.get("type") != "assistant":
-                continue
-            msg = d.get("message", {})
-            content = msg.get("content", [])
-            if isinstance(content, list):
-                parts = [c.get("text", "") for c in content
-                         if isinstance(c, dict) and c.get("type") == "text"]
-                last_text = "\n".join(parts)
-            elif isinstance(content, str):
-                last_text = content
-            break
+        from karma.hooks._transcript import read_last_message_text
+        last_text = read_last_message_text(str(tp), "assistant")
         if not last_text:
             return ""
         # 跑所有规则的 violation_checks 看上一 response
