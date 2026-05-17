@@ -8,6 +8,8 @@ v0.5.1 起双语发布. v0.1.0 – v0.4.x 早期历史只在本中文 CHANGELOG.
 
 ## [Unreleased]
 
+- PyPI metadata 精修: 包 description 跟 v0.16.14 slogan 对齐 (「Pin the 5-10 rules your AI must not drift from during long tasks」), keywords 加 `pinrule` / `claude-code` / `agent-rules`, 砍 `dogfooding` (内部工程语用户不会搜). 下次 release 时上 PyPI.
+
 ## [0.16.x] — 2026-05-17 (当前)
 
 - **karma → pinrule 改名**: 干净 PyPI 包, 新 brand, 不背 karma legacy 包袱.

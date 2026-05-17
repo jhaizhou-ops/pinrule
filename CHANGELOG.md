@@ -8,6 +8,8 @@ Releases from v0.5.1 onward publish bilingually. Earlier history (v0.1.0 – v0.
 
 ## [Unreleased]
 
+- PyPI metadata polish: package description aligned with the v0.16.14 slogan ("Pin the 5-10 rules your AI must not drift from during long tasks") + keywords add `pinrule` / `claude-code` / `agent-rules`, drop `dogfooding` (internal-only term, not a search term users actually type). Ships on the next release.
+
 ## [0.16.x] — 2026-05-17 (current)
 
 - **Renamed karma → pinrule** with a fresh PyPI package and clean brand boundary; no automatic legacy migration.

@@ -1,12 +1,12 @@
 [project]
 name = "pinrule"
 version = "0.16.15"
-description = "Sticky core directional preferences for Claude / Codex / Cursor — keep Agent on track in long sessions"
+description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor, pure engineering, zero LLM, ~50-70ms hook latency"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "jhz" }]
 license = { text = "MIT" }
-keywords = ["claude", "codex", "cursor", "agent", "hook", "rules", "preferences", "dogfooding"]
+keywords = ["claude", "codex", "cursor", "agent", "hook", "rules", "preferences", "pinrule", "claude-code", "agent-rules"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
