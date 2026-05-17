@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-05-17（patch — demo SVG 真根因修, v0.16.1 还是 0.5 秒一闪而过）
+
+### 真根因: termtosvg `-m`/`-M` 单位是**毫秒**, 不是秒
+
+v0.16.1 我改了 `demo-script.sh` 的 sleep 时长以为 SVG 会慢下来. 用户反馈还是 0.5 秒闪完. 真根因: `regenerate-demo-svg.sh` 用 `termtosvg -M 6 -m 1` 我以为是秒, **真单位是毫秒**. 42 秒的 cast 被压缩到每 frame 最多 6ms × 22 frame ≈ 130ms 总长.
+
+修: 改成 `-M 4000 -m 100` (banner 最大 4 秒/帧, 打字最小 100ms). 新 SVG `animation-duration: 42551ms` = 42.5 秒, 跟 cast 真实长度一致, scene 看得清.
+
+这种**单位混淆 bug** 看代码乍一眼是对的, 真跑才发现.
+
 ## [0.16.1] — 2026-05-17（patch — install-hooks 默认 'all' + demo SVG 重新生成慢动画 + scene 5 真 trigger）
 
 ### `pinrule install-hooks` 默认改 'all'

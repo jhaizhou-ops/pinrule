@@ -10,6 +10,16 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-05-17 (patch — demo SVG real timing fix, was 0.5s flash)
+
+### Root cause: termtosvg `-m`/`-M` units are milliseconds, not seconds
+
+v0.16.1 changed `demo-script.sh` `sleep` durations expecting demo SVG to slow down. User reported SVG still flashes in ~0.5 seconds. Real root cause: `regenerate-demo-svg.sh` used `termtosvg -M 6 -m 1` thinking units are seconds; **they're milliseconds**. So a 42-second cast was compressed to max 6ms per frame × 22 frames ≈ 130ms total animation.
+
+Fixed to `-M 4000 -m 100` (max 4 seconds per frame for banners, min 100ms for typing). New SVG `animation-duration: 42551ms` = 42.5 seconds — matches cast length, scenes readable.
+
+This is the kind of unit-confusion bug that survives many iterations because the code "looks right" at a glance.
+
 ## [0.16.1] — 2026-05-17 (patch — install-hooks default = all + demo SVG re-pace + scene 5 fix)
 
 ### `pinrule install-hooks` default 改 'all'
