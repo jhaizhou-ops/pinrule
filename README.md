@@ -424,8 +424,8 @@ Translation PRs welcome for any bilingual gap (HANDOFF.md still summary-only).
 
 ## Acknowledgments
 
-- [Andrej Karpathy's CLAUDE.md coding-principles template](https://github.com/forrestchang/andrej-karpathy-skills) — universal coding principles. Complementary to pinrule, not competing: Karpathy teaches the model *how* to write code; pinrule keeps your *preferences* from drifting in long tasks
-- [Mnilax's 30-codebase 6-week CLAUDE.md rule-count study](https://x.com/Mnilax/status/2053116311132155938) — pinrule's "soft cap 10 / hard cap 12" design comes directly from this empirical work
+- [Andrej Karpathy's CLAUDE.md template](https://github.com/forrestchang/andrej-karpathy-skills) — the universal coding-principles companion to pinrule's personal preferences.
+- [Mnilax's 30-codebase 6-week CLAUDE.md rule-count study](https://x.com/Mnilax/status/2053116311132155938) — pinrule's "soft cap 10 / hard cap 12" comes from this empirical work.
 
 ## Contributing
 
