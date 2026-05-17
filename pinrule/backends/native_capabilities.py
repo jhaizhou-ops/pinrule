@@ -52,8 +52,3 @@ CURSOR_HOOK_EVENTS: dict[str, str] = {
 CODEX_HOOK_EVENTS: dict[str, str] = {
     spec["event"]: spec["wrapper"] for spec in CODEX_NATIVE_HOOKS
 }
-
-
-def cursor_rules_are_primary_visibility() -> bool:
-    """Cursor sessionStart is fire-and-forget; Rules .mdc is the reliable visibility path."""
-    return True
