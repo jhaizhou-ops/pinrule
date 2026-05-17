@@ -10,6 +10,9 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+- **README PINRULE_HOME sandbox section** (bilingual): v0.16.11 shipped true sandbox isolation (install root + data dir both honor `PINRULE_HOME`) but README never documented the user-facing feature. Added "Try it without touching your machine" section under "Uninstall" in both `README.md` and `README.zh.md` — covers `pinrule init` / `install-hooks` / `doctor` in a `/tmp` sandbox and use cases (friends trial / CI dry-run / multi-profile).
+- **CI hygiene**: vulture `--min-confidence 60` caught `_backend_hooks_incomplete` as truly unused (v0.16.12 added it as "back-compat wrapper" but no callers existed — pure speculation per CLAUDE.md "no hypothetical future requirements"). Removed it. Side audit of `whitelist.py` found two more stale entries: `CursorBackend.post_install_setup` (renamed to `_sync_native_rules_and_reload_hint` in v0.16.6 — whitelist still referenced the dead name) and `cursor_rules_are_primary_visibility` (dogfood placeholder, no callers anywhere — deleted function + whitelist entry).
+
 ## [0.16.13] — 2026-05-17 (patch — 4 check FP fixes with ground-truth regression lockdown)
 
 Round-1 audit viewpoint 1 reported 5 check FPs. v0.16.13 fixes **4 of them with regression test lockdown** (1 deferred — see below):

@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+- **README PINRULE_HOME sandbox 段落** (双语): v0.16.11 上了真 sandbox 隔离 (install 根 + 数据目录都跟着 `PINRULE_HOME` 走), 但 README 一直没文档化这个用户可见能力. 在 `README.md` / `README.zh.md` 「卸载」段之后加 "不动主机的试用" 章节 — 演示 `pinrule init` / `install-hooks` / `doctor` 全装 `/tmp` 沙箱, 列三类适用场景 (朋友试用零风险 / CI dry-run / 多 profile).
+- **CI 卫生**: vulture `--min-confidence 60` 抓到 `_backend_hooks_incomplete` 真是死代码 (v0.16.12 加的「back-compat wrapper」但全 repo 没一个 caller — 违 CLAUDE.md 「不为假设的未来需求设计」). 删. 顺手 audit `whitelist.py` 又找到两条 stale: `CursorBackend.post_install_setup` (v0.16.6 重命名为 `_sync_native_rules_and_reload_hint` 后 whitelist 还引用旧名) 和 `cursor_rules_are_primary_visibility` (dogfood placeholder, 真没 caller — 函数 + whitelist 条目一起删).
+
 ## [0.16.13] — 2026-05-17（patch — 4 个 check FP 真根因修 + ground-truth 回归 lockdown）
 
 Round-1 audit 视角 1 报 5 个 check FP. v0.16.13 修 **4 个 + 加测试 lockdown**, 1 个推迟 (见末尾):
