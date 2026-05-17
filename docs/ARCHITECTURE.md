@@ -185,6 +185,21 @@ Performance: < 200ms.
 
 **⚠️ Stop hook config note**: Stop / SessionStart / SessionEnd etc. **don't support `matcher` field** — Claude silently ignores entire hook entry if matcher present. `pinrule install-hooks` fixed this: Stop entry has no matcher; PreToolUse/PostToolUse/UserPromptSubmit do. If `/tmp/pinrule_stop_trace.log` has 0 entries for real sessions, check `~/.claude/settings.json` Stop entry for matcher field.
 
+## Backend capability matrix
+
+Per-backend native event surface — same pinrule core logic on all 3, each backend uses the native protocol's strongest surface (Cursor's 4 dedicated gates, Codex's PermissionRequest, Claude's PreCompact dump). No backend reuses another's protocol shape.
+
+| Capability | Claude | Codex | Cursor |
+|---|---|---|---|
+| Native hook count | 8 | 6 | 12 |
+| Session-start rule inject | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart |
+| Real-time tool gate | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 dedicated gates (Shell / MCP / Read / File) |
+| Stop intervention | ✓ block decision | ✓ block decision | ✓ followup_message (auto-continue) |
+| Compact resilience | ✓ PreCompact dump | — | ✓ preCompact dump |
+| Subagent coverage | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop |
+| `/pinrule <NL>` rule input | ✓ home-global | ✓ home-global | ⚠ project-scoped only |
+| Visibility fallback | — | trusted_hash auto-trust | `.mdc` Rules `alwaysApply` |
+
 ## 8 violation_check functions (engine-layer precise detection)
 
 `pinrule/checks/__init__.py:REGISTRY` maps rules.yaml's `violation_checks` strings → functions:

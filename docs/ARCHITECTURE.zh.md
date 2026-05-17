@@ -197,6 +197,21 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 UserPromptSubmit 才加。如果你看 `/tmp/pinrule_stop_trace.log` 实际 session 0 条，
 先检查 `~/.claude/settings.json` 的 Stop entry 是否含 matcher 字段。
 
+## 三端能力对照
+
+每家 backend native event 触达面 — 三端共用 pinrule 核心逻辑, 但每家挑该平台原生协议最强的触达点 (Cursor 4 个独立 gate / Codex PermissionRequest / Claude PreCompact 落盘), 不互相套别家协议形状.
+
+| 能力 | Claude | Codex | Cursor |
+|---|---|---|---|
+| Native hook 数 | 8 | 6 | 12 |
+| 起手注入规则 | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart |
+| 工具调用前实时拦截 | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 个独立 gate (Shell / MCP / Read / File) |
+| Stop 干预 | ✓ block 决策 | ✓ block 决策 | ✓ followup_message (自动续推) |
+| compact 后续命 | ✓ PreCompact 落盘 | — | ✓ preCompact 落盘 |
+| 子 Agent 覆盖 | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop |
+| `/pinrule <NL>` 加规则 | ✓ home 全局 | ✓ home 全局 | ⚠ 只 project-scoped |
+| 可见性兜底 | — | trusted_hash 自动信任 | `.mdc` Rules `alwaysApply` |
+
 ## 8 个 violation_check 函数（工程层精准检测）
 
 `pinrule/checks/__init__.py:REGISTRY` 映射 `rules.yaml` 的 `violation_checks` 字符串 → 函数：

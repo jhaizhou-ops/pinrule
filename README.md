@@ -25,7 +25,7 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
-**Supported clients**: Claude / Codex / Cursor agent runtimes. CLI and desktop coverage depends on each client's hook runtime — see the [backend capability matrix](#backend-capability-matrix) below for the per-client surface.
+**Supported clients**: Claude / Codex / Cursor agent runtimes. CLI and desktop coverage depends on each client's hook runtime — see the [backend capability matrix](./docs/ARCHITECTURE.md#backend-capability-matrix) in ARCHITECTURE.md for the per-client surface.
 
 ---
 
@@ -291,22 +291,7 @@ pinrule installs at 8 hook positions (detailed below) — not just "inject once 
 
 ## Claude / Codex / Cursor native hook support
 
-Native hook coverage on all 3 backends — **Claude 8 events, Codex 6 events, Cursor 12 events**, all wired end-to-end. Diagram below uses Claude's 8-event lifecycle as example (Codex/Cursor share the same pinrule logic with backend-specific event subsets):
-
-### Backend capability matrix
-
-| Capability | Claude | Codex | Cursor |
-|---|---|---|---|
-| Native hook count | 8 | 6 | 12 |
-| Session-start rule inject | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart |
-| Real-time tool gate | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 dedicated gates (Shell / MCP / Read / File) |
-| Stop intervention | ✓ block decision | ✓ block decision | ✓ followup_message (auto-continue) |
-| Compact resilience | ✓ PreCompact dump | — | ✓ preCompact dump |
-| Subagent coverage | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop |
-| `/pinrule <NL>` rule input | ✓ home-global | ✓ home-global | ⚠ project-scoped only |
-| Visibility fallback | — | trusted_hash auto-trust | `.mdc` Rules `alwaysApply` |
-
-Same pinrule core logic on all 3 — each backend uses the native protocol's strongest surface (Cursor's 4 dedicated gates, Codex's PermissionRequest, Claude's PreCompact dump). No backend reuses another's protocol shape.
+Native hook coverage on all 3 backends — **Claude 8 events, Codex 6 events, Cursor 12 events**, all wired end-to-end. Diagram below uses Claude's 8-event lifecycle as example; for the per-backend event mapping see the [backend capability matrix](./docs/ARCHITECTURE.md#backend-capability-matrix) in ARCHITECTURE.md.
 
 ```mermaid
 flowchart TB
@@ -348,12 +333,7 @@ Several ideas looked attractive but failed in practice. Recorded here so the sam
 | **Retrieval / cosine recall** | The real pain is "persistence," not "recall" — 5-10 rules can all be always-on, no selection needed. Retrieval adds latency and matching errors with no upside |
 | **More than 12 rules** | Beyond ~12, LLMs pattern-match "a rule list exists" instead of reading it (see [Mnilax's 30-codebase empirical study](https://x.com/Mnilax/status/2053116311132155938) for the compliance cliff). Keeping the count under 10 is the empirically safe zone |
 | **Competing with memory systems** | "Facts / preferences about the user" belong in the AI client's built-in memory. pinrule only does the one thing memory systems don't: pin behaviors you've already repeated |
-| **Adding an LLM dependency** | Latency and cost, both. Pure-engineering keeps the hook in the 50-70ms range and the install reproducible |
-| **Reward / RL scoring** | Behavior reminders aren't reward functions. Scoring rules makes the model optimize the score, not the behavior |
-| **Blocking compact** | Compact is the client's protection mechanism — pinrule shouldn't fight it. PreCompact dump + SessionStart re-read bridges the gap instead |
-| **"Must follow X / Fix immediately / Don't repeat" warning wording** | Activates defense or workaround-seeking. The collaborative-agreement rephrase changes the first reaction to "let me align" — the biggest single lever for actual compliance |
-| **Hardcoded numeric thresholds in `suggested_fix`** | "34% < 40%" gets optimized by padding Chinese characters instead of fixing readability. Goal descriptions ("readable without looking up words") avoid the gaming |
-| **Reshipping pinrule as an MCP server** | pinrule works because hooks are *enforced* by the client (UserPromptSubmit fires whether the Agent likes it or not). MCP servers expose tools the Agent *chooses* to call — in long-session attention decay, the Agent doesn't proactively query "what rules apply here," it drifts first and gets corrected by hooks. MCP-only would lose the core enforcement guarantee. Plus the supposed "10x audience expansion" doesn't hold: Claude Desktop / Codex Desktop / Cursor Desktop all already use pinrule via inherited hooks (Claude Desktop ships an embedded Claude Code runtime sharing `~/.claude/settings.json`); the actual MCP-only delta is ChatGPT Desktop chat (wrong domain) and Windsurf (small audience) |
+| **Reshipping pinrule as an MCP server** | pinrule works because hooks are *enforced* by the client (UserPromptSubmit fires whether the Agent likes it or not). MCP servers expose tools the Agent *chooses* to call — in long-session attention decay, the Agent doesn't proactively query "what rules apply here," it drifts first and gets corrected by hooks. MCP-only would lose the core enforcement guarantee |
 
 ---
 
