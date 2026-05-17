@@ -143,8 +143,6 @@ are the collaborative agreements they hope to build with you.
    plain Chinese, save technical terms for their first use
 ```
 
-Why split the two: the full baseline (~1.8K tokens) only loads once at session start; per-turn anchor averages ~490 tokens (often 0 when no rule drifted) — **net ~73% per-turn token saving** vs re-sending everything every turn.
-
 ### 2. Mid-conversation refresh when context accumulates
 
 LLM attention decays in long contexts — header content gets diluted by everything that came after it. pinrule tracks accumulation per tool call, and once the current model's decay point is hit (each model has its own), injects a concise refresh right at the boundary:

@@ -148,8 +148,6 @@ cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # 恢复原 se
 3. [chinese-plain-no-jargon] 跟你协作的用户是非技术身份，他要的是听得懂的汇报...
 ```
 
-为啥拆两层: 完整 baseline (~1.8K token) 只在 session 起手注入一次; 每 turn anchor 平均 ~490 token (经常 0 当没规则偏离时) — **每 turn 净省 ~73% token** vs 每 turn 都重发完整规则.
-
 ### 2. 长 context 累积时中段补一次提醒
 
 LLM 在长 context 中注意力会衰减 — 头部规则被新内容稀释。pinrule 在每次 tool 调用后跟踪累积量，到了当前模型的衰减拐点（每个模型不同），就在中段补一次精简提醒：
