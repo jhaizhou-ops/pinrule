@@ -6,8 +6,7 @@
 
 ## [Unreleased]
 
-- **README PINRULE_HOME sandbox 段落** (双语): v0.16.11 上了真 sandbox 隔离 (install 根 + 数据目录都跟着 `PINRULE_HOME` 走), 但 README 一直没文档化这个用户可见能力. 在 `README.md` / `README.zh.md` 「卸载」段之后加 "不动主机的试用" 章节 — 演示 `pinrule init` / `install-hooks` / `doctor` 全装 `/tmp` 沙箱, 列三类适用场景 (朋友试用零风险 / CI dry-run / 多 profile).
-- **ARCHITECTURE PINRULE_HOME 段落 refresh** (双语): 原停在 v0.15.x "只管数据目录" 描述, 改成 5 行表格覆盖所有锚点 (数据目录 / hook wrapper / settings.json / skill / Cursor rules), 显式区分 `pinrule_home()` 跟 `pinrule_install_root()` 两个 helper.
+- **ARCHITECTURE `PINRULE_HOME` 段落 refresh** (双语): 原停在 v0.15.x "只管数据目录" 描述, 改成 5 行表格覆盖所有锚点 (数据目录 / hook wrapper / settings.json / skill / Cursor rules), 显式区分 `pinrule_home()` 跟 `pinrule_install_root()` 两个 helper. README 故意**不**讲这个 — sandbox 是 power-user 功能, 用户偶然发现比放主页更显高级.
 - **PRD scenario positioning 段同步** (双语): "7 条默认规则" 段停在 v0.16.7 前. 更新为反映双语对称 (v0.16.7) + EN `plain-language-no-jargon` 重命名 (v0.16.8) + `deep-fix-not-bypass` 正式名.
 - **HOOK_CONFIGURATION_GUIDE 双语化**: 原文件按 `.md` 命名但内容全中文, 跟我们 README/ARCHITECTURE/PRD 用 `.md` 表示 EN 的惯例不一致. 重命名为 `HOOK_CONFIGURATION_GUIDE.zh.md`, 新写 EN 版 (人翻不机翻), 双语都含 multi-backend 表 (Claude 8 / Codex 6 / Cursor 12)、每 backend hook 路径、`PINRULE_HOME` sandbox 注脚、三家协议官方 URL.
 - **README FAQ — pinrule vs memory 系统** (双语): issue #8 提交者拿 pinrule 跟 mem0 (55k⭐ memory layer) 做对比. "不跟 memory 系统竞争" 这条永久边界之前埋在 L368 "Tried and rejected" 表里一句话, 从 mem0/awesome-cursorrules 过来的访客容易错过. 加专门 FAQ 条目, 用 2 行表对比职责 (memory: 存事实, Agent 主动查; pinrule: 行为约束, hook 自动 fire), 放 CLAUDE.md 区别 FAQ 之后.

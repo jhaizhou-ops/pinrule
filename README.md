@@ -108,26 +108,6 @@ After install, the Agent shows a summary of default rules — you see at a glanc
 cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # Restore original
 ```
 
-### Try it without touching your machine — `PINRULE_HOME` sandbox
-
-```bash
-# Everything goes into /tmp — no real ~/.claude / ~/.cursor / ~/.codex modified
-PINRULE_HOME=/tmp/pinrule-trial pinrule init
-PINRULE_HOME=/tmp/pinrule-trial pinrule install-hooks
-PINRULE_HOME=/tmp/pinrule-trial pinrule doctor
-
-# When done, drop the trial cleanly:
-rm -rf /tmp/pinrule-trial
-```
-
-Set `PINRULE_HOME` and pinrule anchors **everything** under it — rules.yaml, violations log, hook wrappers, settings.json entries, skill files, Cursor rules. Useful for:
-
-- **Friends trying pinrule**: zero risk to their working machine
-- **CI / dry-run**: PR builds isolate pinrule entirely
-- **Multi-profile**: `PINRULE_HOME=~/work` and `PINRULE_HOME=~/play` for separate rule sets
-
-Without `PINRULE_HOME`, pinrule uses the standard `~/.pinrule/` data dir + `~/.claude/` etc. hook locations (production default — unchanged).
-
 ---
 
 ## Usage effects
