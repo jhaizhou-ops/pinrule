@@ -24,7 +24,7 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 pip install pinrule && pinrule init && pinrule install-hooks
 ```
 
-Restart Claude / Codex / Cursor. Default rules active. To add a personal rule:
+Restart Claude / Codex / Cursor — default rules become active once hooks load. To add a personal rule:
 
 ```
 /pinrule When I say "done" I want test pass evidence attached.
@@ -82,7 +82,7 @@ Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable d
 | **Runtime deps** | Zero (just PyYAML) |
 | **Hook latency** | ~50-70ms (machine-bound; reproduce via `scripts/measure_perf.py`) |
 | **Token overhead** | ~2% of conversation context in real dogfood (60% of work sessions = 0 anchor tokens) |
-| **Tests** | 854 unit, green on 4-matrix CI (ubuntu+macos × py3.11+3.12) |
+| **Tests** | [854 unit, green on 4-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu+macos × py3.11+3.12) |
 | **Supported clients** | Claude / Codex / Cursor — [add a backend](./pinrule/backends/HOWTO.md) |
 
 ---

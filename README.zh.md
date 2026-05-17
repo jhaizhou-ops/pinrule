@@ -24,7 +24,7 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 pip install pinrule && pinrule init && pinrule install-hooks
 ```
 
-重启 Claude / Codex / Cursor. 默认规则生效。加一条个性化规则:
+重启 Claude / Codex / Cursor — hook 加载完默认规则就生效. 加一条个性化规则:
 
 ```
 /pinrule 我说「完成」的时候希望附上测试通过证据.
@@ -82,7 +82,7 @@ flowchart LR
 | **运行时依赖** | 0 (只用 PyYAML) |
 | **hook 延迟** | ~50-70ms (机器相关; 本机复现 `scripts/measure_perf.py`) |
 | **token 占比** | 真 dogfood 实测约 2% (60% 工作 session 完全 0 anchor token) |
-| **测试** | 854 单元, CI 4 矩阵全绿 (ubuntu+macos × py3.11+3.12) |
+| **测试** | [854 单元, CI 4 矩阵全绿](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu+macos × py3.11+3.12) |
 | **支持客户端** | Claude / Codex / Cursor — [加新 backend](./pinrule/backends/HOWTO.zh.md) |
 
 ---
