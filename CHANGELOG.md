@@ -8,6 +8,7 @@ Releases from v0.5.1 onward publish bilingually in both files. Earlier history (
 
 ## [Unreleased]
 
+## [0.16.15] — 2026-05-17 — Close `PINRULE_HOME` sandbox gap: Claude skill install path now honors `pinrule_install_root()` (was hardcoded to `Path.home()`); 3 new lockdown tests cover skill paths across all 3 backends (854 tests).
 ## [0.16.14] — 2026-05-17 — README polish + two external review fixes + `PINRULE_HOME` sandbox regression-test lockdown (851 tests).
 ## [0.16.13] — 2026-05-17 — 4 check false-positive fixes (long_term negation context / markdown code blocks / chinese_plain inline backtick / full-width punctuation) with ground-truth regression tests.
 ## [0.16.12] — 2026-05-17 — `pinrule init` reinstall-detection root cause fix (executable-bit check parity with doctor) + verbose "what's missing" reasons.

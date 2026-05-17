@@ -162,8 +162,55 @@ print(cursor_rules_dir())
     assert lines[2] == str(Path("/tmp/pinrule-cursor-sandbox/.cursor/rules").resolve())
 
 
+def test_claude_backend_skill_install_target_honors_sandbox():
+    """v0.16.15: Claude skill 装机路径在 sandbox 下 anchor 在 sandbox (之前漏走 install_root,
+    朋友外部 review 9.1/10 抓的真不一致 — Codex skill 进 sandbox, Claude skill 写真 home)."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-claude-skill-sandbox"},
+        """
+from pinrule.backends.claude_code import ClaudeCodeBackend
+b = ClaudeCodeBackend()
+for dest, fmt in b.skill_install_targets("pinrule"):
+    print(dest)
+""",
+    )
+    assert out == "/tmp/pinrule-claude-skill-sandbox/.claude/skills/pinrule/SKILL.md"
+
+
+def test_codex_backend_skill_install_target_honors_sandbox():
+    """Codex skill 装机路径在 sandbox 下走 install_root (防回归 — Codex 一直对的)."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-codex-skill-sandbox"},
+        """
+from pinrule.backends.codex import CodexBackend
+b = CodexBackend()
+for dest, fmt in b.skill_install_targets("pinrule"):
+    print(dest)
+""",
+    )
+    assert out == "/tmp/pinrule-codex-skill-sandbox/.agents/skills/pinrule/SKILL.md"
+
+
+def test_cursor_backend_skill_install_target_empty():
+    """Cursor 协议级真限制: 没 home-level skills, skill_install_targets 返空 list.
+    锁住 — 防有人误加 home-level skill 路径让 Cursor 装机偷偷写 home 之外的地方."""
+    out = _spawn_pinrule_check(
+        {"PINRULE_HOME": "/tmp/pinrule-cursor-skill-sandbox"},
+        """
+from pinrule.backends.cursor import CursorBackend
+b = CursorBackend()
+print(len(b.skill_install_targets("pinrule")))
+""",
+    )
+    assert out == "0"
+
+
 def test_real_home_untouched_when_sandbox_active():
-    """硬承诺验证: 设了 PINRULE_HOME 之后, 没一个 backend 路径还指向真 ~/."""
+    """硬承诺验证: 设了 PINRULE_HOME 之后, 没一个 backend 路径还指向真 ~/.
+
+    v0.16.15: 加 skill_install_targets 到兜底扫描 — 之前只覆盖 hooks/settings,
+    skill 路径漏 audit 是朋友 review 抓的真根因.
+    """
     real_home = str(Path.home())
     out = _spawn_pinrule_check(
         {"PINRULE_HOME": "/tmp/pinrule-home-untouched-test"},
@@ -177,6 +224,8 @@ for b in (ClaudeCodeBackend(), CodexBackend(), CursorBackend()):
     paths.append(str(b.hooks_dir()))
     paths.append(str(b.settings_path()))
     paths.append(str(b.settings_backup_path()))
+    for dest, _fmt in b.skill_install_targets("pinrule"):
+        paths.append(str(dest))
 paths.append(str(cursor_rules_dir()))
 for p in paths:
     print(p)

@@ -58,8 +58,14 @@ class ClaudeCodeBackend(JsonHooksBackend):
         return entry
 
     def skill_install_targets(self, skill_name: str = "pinrule") -> list[tuple[Path, str]]:
-        """Claude skill 装到 ~/.claude/skills/<name>/SKILL.md (Markdown 原样).
+        """Claude skill 装到 `<install_root>/.claude/skills/<name>/SKILL.md` (Markdown 原样).
 
         触发: 用户在 Claude 输 `/<skill_name> <NL>`, $ARGUMENTS 接全部.
+
+        v0.16.15: 走 `pinrule_install_root()` 而不是直接 `Path.home()` — 之前漏走
+        install_root 让 PINRULE_HOME sandbox 承诺破口 (设了 sandbox, Codex skill
+        进 sandbox 但 Claude skill 还写真 ~/.claude/skills/). 朋友外部 review
+        9.1/10 抓的真不一致.
         """
-        return [(Path.home() / ".claude" / "skills" / skill_name / "SKILL.md", "markdown")]
+        from pinrule.paths import pinrule_install_root
+        return [(pinrule_install_root() / ".claude" / "skills" / skill_name / "SKILL.md", "markdown")]
