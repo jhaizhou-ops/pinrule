@@ -144,7 +144,7 @@ class CursorBackend(JsonHooksBackend):
 
         注: karma 主功能 (sticky 规则注入 + 行为拦截) **不依赖 skill** — skill 只是
         给「用户用自然语言加新规则」走捷径. Cursor 用户没 skill 也能用 karma 全部
-        核心能力, 加规则改走 `karma rule add --from-yaml` 或手工编辑 sticky.yaml.
+        核心能力, 加规则改走 `karma rule add --from-yaml` 或手工编辑 rules.yaml.
         """
         return []
 

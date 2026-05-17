@@ -1,15 +1,15 @@
-"""rule.yaml 加载 + schema 验证（2026-05-15 起从 sticky 改名 rule）。
+"""rule.yaml 加载 + schema 验证.
 
-设计：纯工程，无 LLM。yaml 文件足够小所以全量读，不需要 cache。
+设计: 纯工程, 无 LLM. yaml 文件足够小所以全量读, 不需要 cache.
 
-向后兼容：DEFAULT_PATH 先找 rules.yaml，找不到 fallback sticky.yaml
-（带 deprecation warning）— 让老用户平滑迁移。
+v0.12.2 (2026-05-17): 砍 sticky.yaml legacy fallback — karma v2 pre-launch,
+没有公开 v0.5.0 之前用户, 没必要维护 sticky.yaml 兼容代码. rules.yaml 是
+唯一规则文件名.
 """
 
 from __future__ import annotations
 
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,25 +18,7 @@ import yaml
 from karma.i18n import tr
 from karma.paths import karma_home
 
-_RULES_PATH = karma_home() / "rules.yaml"
-_LEGACY_STICKY_PATH = karma_home() / "sticky.yaml"
-
-
-def _resolve_default_path() -> Path:
-    """优先 rules.yaml；fallback sticky.yaml（deprecation warning）。"""
-    if _RULES_PATH.exists():
-        return _RULES_PATH
-    if _LEGACY_STICKY_PATH.exists():
-        # 老配置自动 fallback，下次 karma init 会自动 migrate
-        print(
-            f"karma: 使用旧配置 {_LEGACY_STICKY_PATH}（建议 `karma init` 迁移到 rules.yaml）",
-            file=sys.stderr,
-        )
-        return _LEGACY_STICKY_PATH
-    return _RULES_PATH  # 都不存在返回 rules.yaml 路径（让加载逻辑 return [] 处理）
-
-
-DEFAULT_PATH = _resolve_default_path()
+DEFAULT_PATH = karma_home() / "rules.yaml"
 MAX_RULES = 10  # 软上限，超过 12 抛错
 HARD_MAX = 12  # 注意力拐点，硬上限
 

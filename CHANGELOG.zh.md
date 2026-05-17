@@ -6,6 +6,27 @@
 
 ## [Unreleased]
 
+## [0.12.2] — 2026-05-17（patch — 砍 sticky.yaml legacy fallback，无 migration 需要）
+
+karma v2 pre-launch — 没有公开 v0.5.0 之前用户需要 migrate. `rule.py` 跟 `cli.py` 从 v0.5.0 (sticky→rule 改名时) 起一直带 `sticky.yaml` legacy fallback + `karma init` 自动迁移逻辑. v0.12.2 砍掉这块死代码.
+
+### 砍了什么
+
+- `rule.py`: `_LEGACY_STICKY_PATH` 常量 + `_resolve_default_path()` fallback 函数 + deprecation stderr warning. `DEFAULT_PATH = karma_home() / "rules.yaml"` 现在一行了事.
+- `cli.py:cmd_init`: 12 行 migration block (228-240 行) — 检测 + copy + backup `sticky.yaml → rules.yaml`. 这 block 还带个潜伏 bug (Task #40) — `rules_path.name == "rules.yaml"` 条件永远 False, 因为 `_resolve_default_path()` 在 legacy 文件存在时把 `RULES_PATH` resolve 到 sticky.yaml. 这波 cleanup 死分支跟 bug 一起清.
+- `backends/cursor.py:post_install_message`: "或手工编辑 sticky.yaml" → "或手工编辑 rules.yaml" (唯一还在 user-facing 文案里的 sticky.yaml 提及).
+
+### 保留了什么
+
+- 开发者注释里提到 sticky.yaml 的历史 context (`bypass_karma.py` / `description_context.py` 等的 `#` 注释) — 给后续维护者读代码看演进, 不是 user-facing.
+- `bypass_karma` check 仍然 match `.claude/karma` 路径 fragment (任何 karma state 文件意外编辑都拦, 不管文件名是啥), 所以 `cp ~/.claude/karma/sticky.yaml ~/backup/` 这种绕路企图仍然被抓.
+
+### 验证
+
+- pytest 819 测试全绿 (test fixture 用 `tmp_path / "sticky.yaml"` 是纯字符串字面, 跟 production path resolution 解耦 — 不改也 pass)
+- ruff 0 issue, mypy karma/ + mypy tests/ 0 error
+- 关闭 Task #40 (init migration 条件 bug — 死代码不可能有 bug)
+
 ## [0.12.0] — 2026-05-17（minor — Cursor backend 支持，第 4 家 AI 客户端接入）
 
 karma 现在能装到 **Cursor IDE 1.7+**（2025-10 发布），跟 Claude Code / Codex CLI / Gemini CLI 平起平坐. `karma install-hooks --backend cursor` 写 4 个 hook entry 到 `~/.cursor/hooks.json`, 覆盖 karma 规则注入 + 违规拦截全生命周期.

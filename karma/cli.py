@@ -225,20 +225,8 @@ def cmd_init(minimal: bool | None = None) -> int:
     template = _select_rule_template(minimal)
     label = "minimal 5 cross-user-neutral" if minimal else "full 7 dev-scenario"
 
-    # v0.5.0 migration: 检测旧 sticky.yaml 自动迁移到 rules.yaml
-    # RULES_PATH 来自 karma.rule.DEFAULT_PATH (fallback 优先 rules.yaml)
-    # 测试 monkeypatch RULES_PATH 仍生效
     rules_path = RULES_PATH
-    legacy_sticky_path = rules_path.parent / "sticky.yaml"
-    if legacy_sticky_path.exists() and not rules_path.exists() and rules_path.name == "rules.yaml":
-        # 旧用户 — migrate sticky.yaml → rules.yaml + backup 老文件
-        rules_path.parent.mkdir(parents=True, exist_ok=True)
-        backup_path = legacy_sticky_path.with_suffix(".yaml.bak")
-        shutil.copyfile(legacy_sticky_path, rules_path)
-        legacy_sticky_path.rename(backup_path)
-        print(f"⚠ 检测到旧 sticky.yaml — 自动迁移到 {rules_path}")
-        print(f"  老文件备份到: {backup_path}")
-    elif rules_path.exists():
+    if rules_path.exists():
         print(f"{rules_path.name} 已存在: {rules_path}")
     elif not template.exists():
         print(f"模板文件不存在: {template}", file=sys.stderr)

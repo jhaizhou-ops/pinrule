@@ -10,6 +10,27 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.12.2] — 2026-05-17 (patch — drop sticky.yaml legacy fallback, no migration needed)
+
+karma v2 pre-launch — no public v0.5.0-or-earlier users to migrate. `rule.py` and `cli.py` carried legacy `sticky.yaml` fallback + `karma init` auto-migration logic since v0.5.0 (the sticky→rule rename). v0.12.2 deletes this dead weight.
+
+### What's gone
+
+- `rule.py`: `_LEGACY_STICKY_PATH` constant + `_resolve_default_path()` fallback function + deprecation stderr warning. `DEFAULT_PATH = karma_home() / "rules.yaml"` is now a one-liner.
+- `cli.py:cmd_init`: 12-line migration block (lines 228-240) detecting + copying + backing up `sticky.yaml → rules.yaml`. The block had a latent bug (Task #40) — `rules_path.name == "rules.yaml"` condition never fired because `_resolve_default_path()` resolved `RULES_PATH` to sticky.yaml when the legacy file existed. Cleanup kills both the dead branch and the bug.
+- `backends/cursor.py:post_install_message`: changed "或手工编辑 sticky.yaml" → "或手工编辑 rules.yaml" (the only user-facing message still mentioning sticky.yaml).
+
+### What's kept
+
+- Developer comments referencing sticky.yaml history (`#` comments in `bypass_karma.py` / `description_context.py` / etc.) — historical context for future maintainers reading the code, not user-facing.
+- `bypass_karma` check still matches `.claude/karma` path fragment (catches accidental edits to any karma state file regardless of name), so `cp ~/.claude/karma/sticky.yaml ~/backup/` style bypass attempts stay flagged.
+
+### Validation
+
+- pytest 819 tests green (test fixtures using `tmp_path / "sticky.yaml"` are pure string literals, decoupled from production path resolution — they still pass without change)
+- ruff 0 issues, mypy karma/ + mypy tests/ 0 errors
+- Closes Task #40 (init migration condition bug — dead code can't have bugs)
+
 ## [0.12.0] — 2026-05-17 (minor — Cursor backend support, 4th AI client supported)
 
 karma now installs into **Cursor IDE 1.7+** (released 2025-10) alongside Claude Code / Codex CLI / Gemini CLI. `karma install-hooks --backend cursor` writes 4 hook entries to `~/.cursor/hooks.json` covering the full karma rule-injection + violation-block lifecycle.
