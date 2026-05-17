@@ -358,6 +358,15 @@ rm -rf /tmp/pinrule-trial                              # Clean trial removal
 
 Note: paths freeze at module-level constant import time, so `PINRULE_HOME` must be set **before** launching pinrule. Hook-wrapper-invoked pinrule inherits parent process env, so once the sandbox install is done the env is no longer required at runtime (wrapper path is already sandbox-internal).
 
+## Cross-platform notes (v0.16.17+)
+
+pinrule runs on Linux, macOS, and Windows. A few platform details:
+
+- **Hook command in `settings.json` / `hooks.json`** is `subprocess.list2cmdline([sys.executable, wrapper])` — explicit `python.exe wrapper.py` instead of relying on Unix shebang. Same on all platforms; auto-quotes paths with spaces.
+- **Cross-process file lock** uses `fcntl.flock` on Unix (advisory, kernel-released on process exit). On Windows `fcntl` isn't available; pinrule falls back to no-op (single-process is fine; concurrent multi-client writes to the same `session-state/` are racy on Windows). Test suite skips the N=20 concurrent race-fix tests on Windows; if you need cross-process safety on Windows, a `msvcrt.locking` shim can ship in a follow-up.
+- **Desktop notifications** dispatch by `sys.platform`: macOS `osascript`, Linux `notify-send`, Windows `msg`. `msg` ships with Windows Pro/Enterprise; Home builds need an alternative or have notifications silently no-op.
+- **Path normalization** in `_normalize_path` uses `os.path.abspath(os.path.expanduser(...))`. Per-platform behavior is what stdlib gives you: Unix-style `/x/foo.py` on Windows becomes `<drive>:\x\foo.py` (Windows abspath semantics). In real usage, Windows AI clients pass Windows paths, so this matches expectation; only tests that mock Unix-path inputs need platform-skip.
+
 ## Performance budget
 
 | Path | Budget | Measured |

@@ -47,6 +47,10 @@ jobs:
           python -m build --wheel
 
       - name: Verify wheel contains yaml templates AND signal data
+        env:
+          # Windows PowerShell 默认 cp1252 codec 不能 encode 中文 print 输出.
+          # force utf-8 跨平台一致.
+          PYTHONIOENCODING: utf-8
         run: |
           python -c "
           import glob, zipfile, sys
@@ -86,6 +90,8 @@ jobs:
         # 真能编译出 non-empty regex（防 packaging path 错 / load 失败）.
         # codex GPT-5.5 推荐 smoke test pattern.
         # v0.16.17: 跨平台 — Windows venv binaries 在 Scripts/, Unix 在 bin/.
+        env:
+          PYTHONIOENCODING: utf-8
         shell: bash
         run: |
           python -m venv smoke-venv
