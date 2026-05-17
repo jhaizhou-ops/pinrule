@@ -42,31 +42,47 @@ from karma.backends import REGISTRY
 # 老 re-export `from karma.backends.codex import parse_apply_patch_envelope`
 # (v0.9.16 back-compat). 测试改成直接 from codex.py import.
 
-Backend = Literal["claude-code", "codex", "gemini-cli"]
+Backend = Literal["claude-code", "codex", "cursor", "gemini-cli"]
 
 
 # Gemini event 名集合 — 用于 detect_backend
 # 来源：~/.gemini/settings.json 真实 event 名 + 官方 hook 文档
 _GEMINI_EVENT_NAMES = frozenset({"BeforeAgent", "BeforeTool", "AfterTool", "AfterAgent"})
 
+# Cursor event 名集合 — camelCase 小开头 (官方 docs 2026-05-17 fetch)
+# 跟 Claude Code PascalCase / Gemini PascalCase 都不同, 是 Cursor 独有特征
+_CURSOR_EVENT_NAMES = frozenset({
+    "sessionStart", "sessionEnd",
+    "preToolUse", "postToolUse", "postToolUseFailure",
+    "beforeSubmitPrompt", "stop",
+    "beforeShellExecution", "afterShellExecution",
+    "beforeMCPExecution", "afterMCPExecution",
+    "beforeReadFile", "afterFileEdit",
+})
+
 
 def detect_backend(payload: dict) -> str:
     """从 stdin payload 检测当前 hook 跑在哪个 backend.
 
-    Detection 顺序（v0.10.0 升级 — 必须真区分 codex 因为 emit_allow shape 不同）:
+    Detection 顺序 (v0.12.0 升级加 cursor 分支):
     1. payload.hook_event_name ∈ Gemini event 名 → 'gemini-cli'
-    2. wrapper 调用路径含 '/.codex/' → 'codex'
-       （真测试 2026-05-16: codex error "unsupported permissionDecision:allow"
-       证实 codex 不接受 Claude allow shape — emit_allow 必须返 {}.）
-    3. 否则 fallback 'claude-code'
+    2. payload.hook_event_name ∈ Cursor event 名 (camelCase 小开头) → 'cursor'
+    3. wrapper 调用路径含 '/.cursor/' → 'cursor' (event name 缺失兜底)
+    4. wrapper 调用路径含 '/.codex/' → 'codex'
+       (真测试 2026-05-16: codex error "unsupported permissionDecision:allow"
+       证实 codex 不接受 Claude allow shape — emit_allow 必须返 {}.)
+    5. 否则 fallback 'claude-code'
 
     返回 backend 名 (REGISTRY key) — 调用方用 `REGISTRY[name]` 拿 backend 实例.
     """
     event = payload.get("hook_event_name", "") or ""
     if event in _GEMINI_EVENT_NAMES:
         return "gemini-cli"
-    # codex wrapper 文件路径含 /.codex/hooks/ — sys.argv[0] 是 hook 入口路径
-    # (codex spawn karma_*.py wrapper → wrapper import karma.hooks.* main())
+    if event in _CURSOR_EVENT_NAMES:
+        return "cursor"
+    # Path-based fallback for 协议未在 payload 写 hook_event_name 的边缘情况
+    if sys.argv and "/.cursor/" in sys.argv[0]:
+        return "cursor"
     if sys.argv and "/.codex/" in sys.argv[0]:
         return "codex"
     return "claude-code"

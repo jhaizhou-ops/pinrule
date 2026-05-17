@@ -9,6 +9,7 @@ from karma.backends import (
     REGISTRY,
     ClaudeCodeBackend,
     CodexBackend,
+    CursorBackend,
     GeminiCLIBackend,
     detect_installed_backends,
 )
@@ -23,25 +24,33 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_registry_has_three_backends():
+def test_registry_has_four_backends():
     assert "claude-code" in REGISTRY
     assert "codex" in REGISTRY
     assert "gemini-cli" in REGISTRY
+    assert "cursor" in REGISTRY
     assert isinstance(REGISTRY["claude-code"], ClaudeCodeBackend)
     assert isinstance(REGISTRY["codex"], CodexBackend)
     assert isinstance(REGISTRY["gemini-cli"], GeminiCLIBackend)
+    assert isinstance(REGISTRY["cursor"], CursorBackend)
 
 
 def test_backends_all_have_4_common_karma_wrappers():
-    """3 个 backend 都有 4 个通用 karma wrapper basename（跨 backend hook 入口复用）。
-    v0.4.28：Claude Code 额外加 session_start wrapper（karma v3 第四步），所以
-    断言改成「至少包含 4 通用 wrapper」而不是「恰好 4 个」。
+    """4 个 CLI-like backend 都有 pre_tool_use / post_tool_use / stop 通用 wrapper.
+
+    historical 4 commons = {user_prompt_submit, pre_tool_use, post_tool_use, stop}.
+    Cursor 协议层没 UserPromptSubmit 等价 (beforeSubmitPrompt 只能 block 不能注入
+    additional_context), 改用 sessionStart 一次性注入 + postToolUse 中段重注入. 所以
+    Cursor 的「baseline 注入入口」是 session_start 而非 user_prompt_submit. 用
+    {pre_tool_use, post_tool_use, stop} 作为真跨 backend 通用最小集.
+
+    v0.4.28: Claude Code 额外有 session_start wrapper, v0.12.0 Cursor 也用 session_start.
     """
-    common_wrappers = {"user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"}
-    for name in ("claude-code", "codex", "gemini-cli"):
+    minimum_commons = {"pre_tool_use", "post_tool_use", "stop"}
+    for name in ("claude-code", "codex", "gemini-cli", "cursor"):
         wrappers = set(REGISTRY[name].hook_events().values())
-        assert common_wrappers.issubset(wrappers), (
-            f"{name} 缺通用 wrapper: 缺 {common_wrappers - wrappers}"
+        assert minimum_commons.issubset(wrappers), (
+            f"{name} 缺通用 wrapper: 缺 {minimum_commons - wrappers}"
         )
 
 
@@ -202,11 +211,12 @@ def test_detect_installed_returns_list_of_names():
 
 
 def test_detect_installed_picks_up_each_backend(monkeypatch):
-    """3 个 backend 都「装了」→ detect 返回 3 个（顺序按 REGISTRY）。"""
+    """4 个 backend 都「装了」→ detect 返回 4 个（顺序按 REGISTRY）。"""
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: True)
-    assert detect_installed_backends() == ["claude-code", "codex", "gemini-cli"]
+    monkeypatch.setattr(CursorBackend, "client_installed", lambda self: True)
+    assert detect_installed_backends() == ["claude-code", "codex", "gemini-cli", "cursor"]
 
 
 def test_detect_installed_skips_uninstalled_backend(monkeypatch):
@@ -214,4 +224,178 @@ def test_detect_installed_skips_uninstalled_backend(monkeypatch):
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(GeminiCLIBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
     assert detect_installed_backends() == ["codex"]
+
+
+# ---- Cursor backend (v0.12.0) ----
+
+
+def test_cursor_paths(fake_home):
+    b = CursorBackend()
+    assert b.hooks_dir() == fake_home / ".cursor" / "hooks"
+    assert b.settings_path() == fake_home / ".cursor" / "hooks.json"
+    assert b.settings_backup_path() == fake_home / ".cursor" / "hooks.json.before-karma"
+
+
+def test_cursor_event_names_are_camelcase(fake_home):
+    """Cursor event 名是 camelCase 小开头 — preToolUse 而非 PreToolUse.
+
+    跟 Claude Code PascalCase 大开头不同, 写进 hooks.json 时大小写敏感.
+    """
+    b = CursorBackend()
+    events = b.hook_events()
+    assert "preToolUse" in events
+    assert "postToolUse" in events
+    assert "sessionStart" in events
+    assert "stop" in events
+    # 没有 PascalCase 形式 (Claude 是)
+    assert "PreToolUse" not in events
+    assert "SessionStart" not in events
+
+
+def test_cursor_has_no_user_prompt_submit_equivalent(fake_home):
+    """Cursor 协议没 UserPromptSubmit 等价 — beforeSubmitPrompt 只能 block
+    不能注入 additional_context. baseline 注入走 sessionStart.
+    """
+    b = CursorBackend()
+    wrappers = set(b.hook_events().values())
+    assert "user_prompt_submit" not in wrappers
+    assert "session_start" in wrappers
+
+
+def test_cursor_event_entry_no_matcher_no_timeout(fake_home):
+    """Cursor hook entry 用基类默认 — 不加 matcher 不加 timeout."""
+    b = CursorBackend()
+    entry = b.build_event_entry("pre_tool_use", "preToolUse")
+    assert "matcher" not in entry
+    hooks = entry["hooks"]
+    assert len(hooks) == 1
+    assert hooks[0]["type"] == "command"
+    assert "karma_pre_tool_use.py" in hooks[0]["command"]
+    assert "timeout" not in hooks[0]
+
+
+def test_cursor_normalize_tool_name_shell_to_bash():
+    """Cursor Shell tool == Claude Bash — 归一化."""
+    b = CursorBackend()
+    assert b.normalize_tool_name("Shell", {}) == "Bash"
+    assert b.normalize_tool_name("Read", {}) == "Read"
+    assert b.normalize_tool_name("Write", {}) == "Write"
+
+
+def test_cursor_emit_deny_top_level_permission_shape():
+    """Cursor preToolUse deny: 顶层 `permission` + `user_message` + `agent_message`.
+
+    跟 Claude `hookSpecificOutput.permissionDecision` / Gemini `decision` 都不同.
+    """
+    import json as _json
+    b = CursorBackend()
+    out = _json.loads(b.emit_deny("triggered rule X", {}))
+    assert out == {
+        "permission": "deny",
+        "user_message": "triggered rule X",
+        "agent_message": "triggered rule X",
+    }
+    # 必须不含 hookSpecificOutput (Claude 形态)
+    assert "hookSpecificOutput" not in out
+    # 必须不含 decision (Gemini 形态)
+    assert "decision" not in out
+
+
+def test_cursor_emit_allow_top_level_permission_shape():
+    """Cursor allow: 顶层 `permission: "allow"`."""
+    import json as _json
+    b = CursorBackend()
+    out = _json.loads(b.emit_allow({}))
+    assert out == {"permission": "allow"}
+
+
+def test_cursor_emit_context_injection_snake_case_key():
+    """Cursor sessionStart / postToolUse 用 snake_case `additional_context`,
+    不是 Claude camelCase `additionalContext`.
+    """
+    import json as _json
+    b = CursorBackend()
+    out = _json.loads(b.emit_context_injection(
+        "sessionStart", "you are sticky baseline", {},
+    ))
+    assert out == {"additional_context": "you are sticky baseline"}
+    assert "additionalContext" not in out
+    assert "hookSpecificOutput" not in out
+
+
+def test_cursor_emit_stop_followup_message_not_decision_block():
+    """Cursor stop 没 block 概念 — 用 `followup_message` auto-continue.
+
+    这正映射 karma keep-pushing 「stop 时塞反思 prompt 让继续」语义,
+    比 Gemini AfterAgent 强制返 {} fail-open 更适配 karma 干预模型.
+    """
+    import json as _json
+    b = CursorBackend()
+    out = _json.loads(b.emit_stop_block("keep thinking about root cause", {}))
+    assert out == {"followup_message": "keep thinking about root cause"}
+    # 必须不含 Claude 的 decision:block (协议不接受)
+    assert "decision" not in out
+
+
+def test_cursor_client_installed_falls_back_to_config_dir(fake_home, monkeypatch):
+    """Cursor IDE 通常没 PATH 命令 (`cursor` 是可选 shell shim) — fallback
+    检测 ~/.cursor 目录存在.
+    """
+    monkeypatch.setattr("shutil.which", lambda x: None)
+    b = CursorBackend()
+    # 默认 fake_home 下没 .cursor 目录 → False
+    assert b.client_installed() is False
+    # 创建后 → True
+    (fake_home / ".cursor").mkdir()
+    assert b.client_installed() is True
+
+
+def test_cursor_is_karma_entry_recognizes_wrapper(fake_home):
+    """karma 装的 hook entry (路径含 karma_ 前缀) 被识别."""
+    b = CursorBackend()
+    karma_entry = {"hooks": [{"type": "command", "command": "/x/karma_stop.py"}]}
+    other_entry = {"hooks": [{"type": "command", "command": "/x/vibe-island"}]}
+    assert b.is_karma_entry(karma_entry) is True
+    assert b.is_karma_entry(other_entry) is False
+
+
+def test_cursor_load_save_roundtrip(fake_home):
+    b = CursorBackend()
+    data = {"hooks": {"preToolUse": [{"hooks": [{"command": "/x", "type": "command"}]}]}}
+    b.save_settings(data)
+    loaded = b.load_settings()
+    assert loaded == data
+
+
+def test_cursor_load_corrupted_raises(fake_home):
+    """损坏的 hooks.json 抛 SettingsParseError 不静默返回 {}."""
+    b = CursorBackend()
+    p = b.settings_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("{not valid json", encoding="utf-8")
+    with pytest.raises(SettingsParseError):
+        b.load_settings()
+
+
+# ---- detect_backend cursor routing (v0.12.0) ----
+
+
+def test_detect_backend_routes_cursor_by_event_name():
+    """payload.hook_event_name 含 Cursor camelCase event → 路由到 cursor."""
+    from karma.backends.protocol_adapter import detect_backend
+    assert detect_backend({"hook_event_name": "preToolUse"}) == "cursor"
+    assert detect_backend({"hook_event_name": "sessionStart"}) == "cursor"
+    assert detect_backend({"hook_event_name": "postToolUse"}) == "cursor"
+    assert detect_backend({"hook_event_name": "stop"}) == "cursor"
+
+
+def test_detect_backend_routes_cursor_by_path_fallback(monkeypatch):
+    """sys.argv[0] 含 /.cursor/ → 路由到 cursor (event name 缺失兜底)."""
+    from karma.backends import protocol_adapter
+    monkeypatch.setattr(
+        protocol_adapter.sys, "argv",
+        ["/Users/x/.cursor/hooks/karma_pre_tool_use.py"],
+    )
+    assert protocol_adapter.detect_backend({}) == "cursor"

@@ -6,6 +6,40 @@
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-17（minor — Cursor backend 支持，第 4 家 AI 客户端接入）
+
+karma 现在能装到 **Cursor IDE 1.7+**（2025-10 发布），跟 Claude Code / Codex CLI / Gemini CLI 平起平坐. `karma install-hooks --backend cursor` 写 4 个 hook entry 到 `~/.cursor/hooks.json`, 覆盖 karma 规则注入 + 违规拦截全生命周期.
+
+### Cursor 协议级适配
+
+Cursor hooks 协议 (https://cursor.com/docs/hooks) 结构上跟 Claude Code 同源, 但每个 output shape 都有差异. `karma/backends/cursor.py` 适配如下:
+
+| 维度 | Cursor 协议 | karma 适配 |
+|---|---|---|
+| Event 名大小写 | camelCase 小开头 (`preToolUse`, `sessionStart`) | `_HOOK_EVENTS` dict literal — 按 Cursor 真期望大小写写进 `hooks.json` |
+| Tool 名归一化 | `Shell`（不是 `Bash`） | `normalize_tool_name()` 把 `Shell` → `Bash`, karma check 都看 canonical 形 |
+| PreToolUse deny shape | 顶层 `{"permission": "deny", "user_message": ..., "agent_message": ...}` (不是 Claude `hookSpecificOutput.permissionDecision`, 不是 Gemini `decision`) | `emit_deny()` 返顶层 permission shape |
+| Context injection key | snake_case `additional_context`（不是 Claude camelCase `additionalContext`） | `emit_context_injection()` 双 event (sessionStart / postToolUse) 都返 snake_case |
+| Stop hook block | 没 `decision: block` — 用 `{"followup_message": "..."}` auto-continue | `emit_stop_block()` 返 followup_message shape，**正映射** karma keep-pushing 反思推进语义 |
+
+Cursor stop hook 协议跟 karma 干预模型出奇适配: Gemini `AfterAgent` 没 block 概念 karma 被迫返 `{}` fail-open, Cursor `followup_message` 让 karma 能 redirect Agent flow 而非只能观察.
+
+### 老实说出两个协议级限制
+
+**没有 UserPromptSubmit 等价.** Cursor `beforeSubmitPrompt` 只能阻断提交, 不能注入 `additional_context`. karma 改走 `sessionStart` (一次性 baseline 注入) + `postToolUse.additional_context` (中段重注入). 行为含义: Cursor 用户**不会**在每个 user message header 看到 karma sticky 规则重出现 — 规则在 prompt cache + system message 里, 每 turn 模型能看到但不视觉重现.
+
+**没有 home-level global skills 目录.** 据 https://cursor.com/help/customization/skills, Cursor 只支持 `.cursor/skills/` 每个项目根目录. `CursorBackend.skill_install_targets()` 返 `[]`, `post_install_message()` 响亮告知: 想用 `/karma` 需手工 cp `skills/karma/SKILL.md` 到每个目标项目, 或改走 `karma rule add --from-yaml` CLI (CLI 不受影响). 这是 Cursor 协议层限制不是 karma 缺陷, 按 `loud-failure-with-evidence` 规则老实说出来.
+
+### Backend registry 扩到 4 家 + 16 测试
+
+`REGISTRY` 现在含 `{claude-code, codex, gemini-cli, cursor}`. `detect_backend()` 加 Cursor 识别两路: ① payload `hook_event_name` ∈ Cursor camelCase 集合, ② wrapper 路径含 `/.cursor/` (event 名缺失兜底). 16 个新单元测试覆盖路径布局, 大小写, 4 个 emit shape 契约, 装机 fallback, 路由识别.
+
+### 验证状态（老实交底）
+
+- ✓ 协议级实现完成 + 16 个单元测试通过
+- ✓ pytest 全套 812 测试全绿, ruff 0 issue, mypy 0 error
+- ⚠ **真 Cursor IDE 端到端装机验证 pending** 作者 dogfood — 协议层 shape 按 Cursor 官方 hooks reference 真证据写, 真装机 + 真 hook fire 走完才算闭环, v0.12.0+ 点 release 跟进真用户反馈.
+
 ## [0.11.4] — 2026-05-17（minor — hook 输出 i18n + `long-term-fundamental` 英文 response-level pattern + 第一忠实用户 PR #7 + 5 场景双语 demo）
 
 一个 session 跟「第一忠实用户」反馈循环驱动的密集迭代:

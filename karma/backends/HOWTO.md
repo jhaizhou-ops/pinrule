@@ -172,7 +172,7 @@ From `~/.vibe-island/bin/vibe-island-bridge` zsh script line 28, vibe-island's e
 | Claude Code | `~/.claude/settings.json` | ✓ Since v0.1.0 |
 | Codex CLI | `~/.codex/hooks.json` | ✓ Since v0.3.0 |
 | Gemini CLI | `~/.gemini/settings.json` | ✓ Since v0.4.0 |
-| Cursor | `~/.cursor/hooks.json` | Pending install + test |
+| Cursor | `~/.cursor/hooks.json` | ✓ Since v0.12.0 (Cursor 1.7+ required; `/karma` skill is project-scoped only — no global skills dir on Cursor) |
 | Factory | `~/.factory/settings.json` | Pending install + test |
 | Qoder | `~/.qoder/settings.json` | Pending install + test |
 | GitHub Copilot | `~/.copilot/config.json` | Pending install + test (may not have hook protocol) |

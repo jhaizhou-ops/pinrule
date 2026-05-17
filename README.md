@@ -89,6 +89,7 @@ After install, the Agent shows a summary of default rules — you see at a glanc
 | Claude Code | `karma install-hooks` (default) | Takes effect immediately |
 | Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
 | Gemini CLI | `karma install-hooks --backend gemini-cli` | Takes effect immediately |
+| Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Hooks fire on every IDE Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
 
 ### Uninstall
 
@@ -228,13 +229,14 @@ The `/karma` skill helps you phrase a rule in the way Agent responds to best:
 | **Locale — mixing English skill body for Chinese user** | Detects user's chat language; writes Chinese `preference` for Chinese users, English for English users. Built-in `violation_checks` function names stay English (stable identifiers) |
 | **Modify vs add — no separate `rule replace` command** | Knows the `remove + add` recipe atomically; preserves `id` so violation history stays linked |
 
-### Three backends, one command
+### Four backends — three auto-install, one per-project
 
 | Backend | Path (auto-installed) | Trigger in client |
 |---|---|---|
 | Claude Code | `~/.claude/skills/karma/SKILL.md` | `/karma <natural language>` |
 | Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` shared with Anthropic) | `/skills` menu, `$karma <description>` inline, or auto-trigger |
 | Gemini CLI | `~/.gemini/skills/karma/SKILL.md` (auto) + `~/.gemini/commands/karma.toml` (explicit) | `/karma <natural language>` (explicit) or auto-trigger (skill path) |
+| Cursor | **Not auto-installed (project-scoped only)** — Cursor has no home-level global skills directory. Copy `skills/karma/SKILL.md` to `.cursor/skills/karma/` in each project that needs it. | `/karma` (per-project) or use `karma rule add` CLI directly |
 
 The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); `karma install-skill` handles Markdown → TOML conversion for the Gemini commands path automatically.
 
@@ -303,7 +305,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Token cost per turn** | ~490 tokens compact anchor at UserPromptSubmit; full baseline (~1.8K tokens) injected once at SessionStart + auto-refreshed when context accumulates past the current model's decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
-| **Supported clients** | Claude Code / Codex CLI / Gemini CLI | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
+| **Supported clients** | Claude Code / Codex CLI / Gemini CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
 | **User languages** | Chinese + English, extensible | All 7 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~7 small files, zero Python code |
 
 ---

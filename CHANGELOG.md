@@ -10,6 +10,38 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-05-17 (minor — Cursor backend support, 4th AI client supported)
+
+karma now installs into **Cursor IDE 1.7+** (released 2025-10) alongside Claude Code / Codex CLI / Gemini CLI. `karma install-hooks --backend cursor` writes 4 hook entries to `~/.cursor/hooks.json` covering the full karma rule-injection + violation-block lifecycle.
+
+### Cursor protocol adaptation
+
+Cursor's hooks protocol (https://cursor.com/docs/hooks) is structurally similar to Claude Code's but diverges in shape on every output. `karma/backends/cursor.py` adapts:
+
+| Concern | Cursor protocol | karma adapter |
+|---|---|---|
+| Event name casing | camelCase lowercase (`preToolUse`, `sessionStart`) | `_HOOK_EVENTS` dict literal — written into `hooks.json` exactly as Cursor expects |
+| Tool name canonicalization | `Shell` (not `Bash`) | `normalize_tool_name()` maps `Shell` → `Bash` so karma checks see canonical form |
+| PreToolUse deny shape | top-level `{"permission": "deny", "user_message": ..., "agent_message": ...}` | `emit_deny()` returns the top-level permission shape |
+| Context injection key | snake_case `additional_context` (not Claude camelCase `additionalContext`) | `emit_context_injection()` returns snake_case for both `sessionStart` and `postToolUse` |
+| Stop hook block | no `decision: block` — uses `{"followup_message": "..."}` for auto-continue | `emit_stop_block()` returns followup_message shape, which **maps naturally** to karma keep-pushing reflection nudge |
+
+### Two protocol limitations called out honestly
+
+**No UserPromptSubmit equivalent.** Cursor's `beforeSubmitPrompt` can only block, not inject `additional_context`. karma falls back to `sessionStart` (one-time baseline inject) + `postToolUse.additional_context` mid-session reinjection. Behavioral impact: Cursor users won't see karma sticky rules reappear in every user message header; they live in prompt cache + system message instead.
+
+**No global skills directory.** Per https://cursor.com/help/customization/skills — Cursor only supports `.cursor/skills/` per-project. `CursorBackend.skill_install_targets()` returns `[]` and `post_install_message()` prints loud guidance: copy `skills/karma/SKILL.md` per project, or use `karma rule add --from-yaml` CLI (CLI unaffected).
+
+### Backend registry expanded + 16 tests
+
+`REGISTRY` now contains `{claude-code, codex, gemini-cli, cursor}`. `detect_backend()` adds Cursor identification via either ① payload `hook_event_name` ∈ Cursor camelCase set, or ② wrapper path containing `/.cursor/`. 16 new unit tests cover path layout, casing, all 4 emit shape contracts, install fallback, routing.
+
+### Validation status (honest)
+
+- ✓ Protocol implementation complete + 16 unit tests pass
+- ✓ pytest 812 green, ruff 0, mypy 0
+- ⚠ **Real Cursor IDE end-to-end install validation pending** the maintainer's dogfood pass — shapes follow Cursor's official hooks reference but real install + real hook fire are dogfooded in v0.12.0+ point releases.
+
 ## [0.11.4] — 2026-05-17 (minor — i18n hook output + `long-term-fundamental` English response-level pattern + first loyal user PR #7 + 5-scene bilingual demo)
 
 User-visible improvements coming from a single session of intensive iteration with the first-loyal-user feedback loop:

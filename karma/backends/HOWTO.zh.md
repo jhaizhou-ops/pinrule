@@ -185,7 +185,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 | Claude Code | `~/.claude/settings.json` | ✓ v0.1.0 起 |
 | Codex CLI | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
 | Gemini CLI | `~/.gemini/settings.json` | ✓ v0.4.0 起 |
-| Cursor | `~/.cursor/hooks.json` | 待装 + 实测 |
+| Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/karma` skill 仅 project-scoped — Cursor 没 home-level global skills 目录） |
 | Factory | `~/.factory/settings.json` | 待装 + 实测 |
 | Qoder | `~/.qoder/settings.json` | 待装 + 实测 |
 | GitHub Copilot | `~/.copilot/config.json` | 待装 + 实测（可能没 hook 协议） |
