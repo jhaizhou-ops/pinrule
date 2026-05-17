@@ -120,6 +120,24 @@ def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
     )
 
 
+def test_codex_permission_request_routes_to_codex_deny_shape(monkeypatch):
+    """PermissionRequest is Codex-only; wrapper path must route to Codex output shape."""
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    out = emit_deny(
+        "blocked by karma",
+        {"hook_event_name": "PermissionRequest"},
+    )
+    assert json.loads(out) == {
+        "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {
+                "behavior": "deny",
+                "message": "blocked by karma",
+            },
+        }
+    }
+
+
 def test_normalize_tool_name_codex_apply_patch_to_edit(monkeypatch):
     """v0.9.15 critical fix: Codex apply_patch（编辑入口）归一化成 Edit 让
     long_term / testset / bypass_karma 扫 tool_input.command 时真触发。

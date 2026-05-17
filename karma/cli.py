@@ -1055,6 +1055,11 @@ def _karma_hook_entry_covers_event(
     return False
 
 
+def _unique_hook_basenames(backend) -> list[str]:
+    """Wrapper files are materialized once even if native events share them."""
+    return list(dict.fromkeys(backend.hook_events().values()))
+
+
 def _backend_hooks_incomplete(backend) -> bool:
     """Missing wrapper or settings entry for any expected hook event."""
     if not backend.client_installed():
@@ -1241,11 +1246,10 @@ def cmd_doctor() -> int:
     if any_install_missing:
         print("  → 运行 `karma install-hooks --backend all` 修复")
 
-    # v0.9.17 L2: codex 审批状态 reminder. codex 0.130+ 不公开 approval 存储
-    # 位置 (sqlite / 文件 / keychain 都没查到), karma 没法程序化验证 4 个
-    # wrapper 是否真 approved. 诚实路径: 检测到 codex 装了 + hooks.json 写了
-    # karma entry → 响亮提醒用户去 TUI /hooks 确认审批 + 给完整 wrapper
-    # 路径让用户对照. 不假装能自动检测（rule #4: 假装查过比说没查过更失信任）.
+    # Codex hook trust 状态 reminder. v0.10.2+ karma 会按 Codex 0.130 源码算法
+    # 给自己生成的 wrapper 写 trusted_hash；doctor 只能验证 karma 期望写入的 state
+    # 是否存在且匹配，不能保证未来 Codex 没改算法。匹配时明确告诉用户无需逐个
+    # approve；不匹配时再响亮提示去 TUI /hooks 复核。
     if "codex" in _BACKENDS:
         codex = _BACKENDS["codex"]
         if codex.client_installed():
@@ -1259,20 +1263,40 @@ def cmd_doctor() -> int:
                 codex_has_karma_entry = False
             if codex_has_karma_entry:
                 hooks_dir = codex.hooks_dir()
+                wrapper_basenames = list(dict.fromkeys(codex.hook_events().values()))
+                trust_entries: dict[str, dict[str, str | bool]] = getattr(
+                    codex, "codex_hook_state_entries", lambda _s: {},
+                )(codex_settings)
+                trusted_ok = False
+                try:
+                    import tomllib as _tomllib
+                    config_path = Path.home() / ".codex" / "config.toml"
+                    config = _tomllib.loads(config_path.read_text(encoding="utf-8"))
+                    state = config.get("hooks", {}).get("state", {})
+                    trusted_ok = bool(trust_entries) and all(
+                        state.get(key, {}) == value for key, value in trust_entries.items()
+                    )
+                except (OSError, ValueError):
+                    trusted_ok = False
                 print("")
-                print("  ⚠️  Codex 审批状态自检（karma 无法自动验证，请人工确认）:")
-                print("     codex 0.130+ 安全设计要求每个 hook 在 TUI 内 `/hooks`")
-                print("     命令里手动 approve 才生效. karma hooks.json 写了不等于真生效.")
-                print("     **没 approve = 所有 karma 规则在 codex 下静默失效**.")
+                print("  Codex hook trust 状态:")
+                print(f"     {len(codex.hook_events())} 个 event / "
+                      f"{len(wrapper_basenames)} 个 wrapper 已配置.")
+                if trusted_ok:
+                    print("     trusted_hash 已写入并匹配 karma 当前 wrapper；正常不需要手动逐个 approve。")
+                    print("     Codex 如升级 trust 算法，/hooks 可能显示 new/modified；届时再复核。")
+                else:
+                    all_ok = False
+                    print("     ⚠️  trusted_hash 缺失或不匹配；Codex 可能不会运行 karma hooks。")
+                    print("     请在 TUI `/hooks` 里复核并 approve karma wrapper。")
                 print("")
                 print("     ▶ 确认步骤:")
                 print("        1. 启动 `codex`")
                 print("        2. TUI 内输 `/hooks`")
-                print("        3. 检查这 4 个 wrapper 状态:")
-                for basename in codex.hook_events().values():
+                print("        3. 检查这些 wrapper 状态:")
+                for basename in wrapper_basenames:
                     wrapper = hooks_dir / f"karma_{basename}.py"
                     print(f"           {wrapper}")
-                print("        4. 没 approved 的逐个 approve, 已 approved 跳过.")
                 print("")
                 print("     ▶ 验证: codex 改一个没先 Read 的文件 → 应被 karma 🛑 拦.")
     return 0 if all_ok else 1
@@ -1291,7 +1315,7 @@ def _install_to_backend(backend) -> int:
     hooks_dir = backend.hooks_dir()
     hooks_dir.mkdir(parents=True, exist_ok=True)
     karma_python = sys.executable
-    for hook_basename in backend.hook_events().values():
+    for hook_basename in _unique_hook_basenames(backend):
         wrapper = hooks_dir / f"karma_{hook_basename}.py"
         wrapper.write_text(
             f"#!{karma_python}\n"
@@ -1426,7 +1450,7 @@ def _uninstall_from_backend(backend) -> int:
     print(f"\n→ {backend.display_name}（{backend.name}）")
     hooks_dir = backend.hooks_dir()
     n = 0
-    for hook_basename in list(backend.hook_events().values()) + ["post_response"]:
+    for hook_basename in _unique_hook_basenames(backend) + ["post_response"]:
         wrapper = hooks_dir / f"karma_{hook_basename}.py"
         if wrapper.exists():
             wrapper.unlink()

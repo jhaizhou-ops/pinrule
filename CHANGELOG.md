@@ -10,6 +10,20 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-05-17 (minor — Codex native hook surface and intervention semantics)
+
+### Codex native-first support
+
+- Codex backend now declares the released native hook surface from the official Codex hooks docs: `SessionStart`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, `Stop`.
+- `PermissionRequest` is installed and auto-trusted, but karma does **not** become a permission approval system: rule hits return Codex-native `decision.behavior="deny"`; no-hit returns `{}` so Codex keeps its normal approval prompt. This avoids silently auto-approving escalations.
+- `PreToolUse` and `PermissionRequest` share `karma_pre_tool_use.py`; installer UX now shows 6 native events / 5 wrapper files and no longer prints or asks users to inspect the shared wrapper twice.
+- Codex native `Bash` payloads now receive the same shell-as-Read / shell-write normalization as legacy `exec_command`, so `tail file.py` records reads and `sed -i file.py` records edits in both Codex CLI and desktop-shaped payloads.
+- Codex native `apply_patch` `tool_input.command` is treated as verified, documented input and no longer emits the old speculative-key warning.
+- Codex context injection is explicit in `CodexBackend`: empty context returns `{}` passthrough; non-empty context uses the documented `hookSpecificOutput.additionalContext` shape. Stop intervention remains native `{"decision":"block","reason":...}`.
+- Auto-trust verification covers all 6 native events in `[hooks.state]`, including `PermissionRequest`, preserving the no-manual-approval onboarding shipped in v0.10.2.
+
+Honest scope: Codex docs still say `PreToolUse` / `PostToolUse` do not intercept all shell calls yet, `WebSearch` is not covered, and main-branch generated schemas may include future fields/events not in the current release. karma only installs the documented release surface.
+
 ## [0.14.0] — 2026-05-17 (minor — shared `~/.karma` home + Cursor native surface)
 
 ### Shared rules library (all backends)
