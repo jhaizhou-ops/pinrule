@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/karma?label=release)](https://github.com/jhaizhou-ops/karma/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/karma)](https://github.com/jhaizhou-ops/karma/commits/main)
 
-> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms.**
+> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, ~50-70ms hook latency.**
 
 ![karma demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
@@ -258,7 +258,7 @@ System architecture at a glance:
 ```mermaid
 flowchart LR
     R[(rules.yaml<br/>5-10 core directions)]
-    K[karma engine<br/>regex + counting<br/>zero LLM, < 60ms]
+    K[karma engine<br/>regex + counting<br/>zero LLM, ~50-70ms]
     A[🤖 Agent<br/>Claude / Codex / Gemini]
     V[(violations.jsonl<br/>audit history)]
 
@@ -301,8 +301,8 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~8.6K lines Python | Readable, modifiable, no magic |
 | **Quality gates** | lint / type-check / dead-code / 775 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
-| **Hook latency** | < 60ms (`user_prompt_submit` measured ~49ms) | AI client protocol budget is 200ms |
-| **Token cost per turn** | ~490 tokens compact anchor at UserPromptSubmit; full baseline (~1.8K tokens) injected once at SessionStart + auto-refreshed when context accumulates past the current model's decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | ~8% of a 1M Opus context across a 100-turn session |
+| **Hook latency** | typically 50-70ms (Python startup-bound, machine-dependent — author's M-series Mac ~49ms, 67ms reported on lower-end machines) | Well within AI client protocol budget of 200ms |
+| **Token cost (cumulative)** | 1.8K SessionStart baseline (one-time, re-sent every turn) + ~490 anchor added each turn (each anchor stays in history and re-sends every subsequent turn — LLMs are stateless, every call re-reads full history) + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Typical engineering session ~10-15% of total API input tokens; long 500-turn dogfood ~25% of 1M context window.** Tradeoff: per-turn anchor lets latest drift marker reach model immediately. v0.13.0 delta-only anchor design (compress to ~2%) under consideration |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
 | **Supported clients** | Claude Code / Codex CLI / Gemini CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
@@ -354,7 +354,7 @@ Several ideas looked attractive but failed in practice. Recorded here so the sam
 | **Retrieval / cosine recall** | The real pain is "persistence," not "recall" — 5-10 rules can all be always-on, no selection needed. Retrieval adds latency and matching errors with no upside |
 | **More than 12 rules** | Beyond ~12, LLMs pattern-match "a rule list exists" instead of reading it (see [Mnilax's 30-codebase empirical study](https://x.com/Mnilax/status/2053116311132155938) for the compliance cliff). Keeping the count under 10 is the empirically safe zone |
 | **Competing with memory systems** | "Facts / preferences about the user" belong in the AI client's built-in memory. karma only does the one thing memory systems don't: pin behaviors you've already repeated |
-| **Adding an LLM dependency** | Latency and cost, both. Pure-engineering keeps the hook under 60ms and the install reproducible |
+| **Adding an LLM dependency** | Latency and cost, both. Pure-engineering keeps the hook in the 50-70ms range and the install reproducible |
 | **Reward / RL scoring** | Behavior reminders aren't reward functions. Scoring rules makes the model optimize the score, not the behavior |
 | **Blocking compact** | Compact is the client's protection mechanism — karma shouldn't fight it. PreCompact dump + SessionStart re-read bridges the gap instead |
 | **"Must follow X / Fix immediately / Don't repeat" warning wording** | Activates defense or workaround-seeking. The collaborative-agreement rephrase changes the first reaction to "let me align" — the biggest single lever for actual compliance |
