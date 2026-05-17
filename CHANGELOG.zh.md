@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.13.5] — 2026-05-17（patch — 修 v0.13.2/0.13.3 sweep 引入的 CI vulture dead-code fail）
+
+CI 警报: v0.13.2 / v0.13.3 / v0.13.4 + 2 个 docs commit 连续 5 个全 CI red — vulture dead-code scan 抓到 2 处 unused identifier:
+
+1. **`karma/cli.py:_write_skill_target(content_format)`** — 参数在 v0.13.2 砍 Gemini TOML 转换后 unused (函数体简化成 `body = src_text`). 改名 `_content_format` + 加 default 值, 保留参数维持 caller 调用契约. docstring 同步反映 markdown-only 行为.
+2. **`karma/backends/cursor.py:post_install_setup`** — Cursor desktop Agent v0.13.2 `.mdc` sync 那波加的, 想 `install-hooks` 后自动跑, 但 `cli.py` install 流程没接. 整方法删除; Cursor 用户首装走 `post_install_message` 现有提示手动跑 `karma sync-cursor-rules`. 后续要做自动 sync 加新方法接进 cli.py 不留 unused stub.
+
+老实交底 **sticky #4 违反**: 5 个 commit 没看 CI 就 push (memory `feedback-loud-failure-pre-push-ci-check` 历史已警告同款 pattern). 第 6 个 commit 后才 catch, memory 提示 reinforced.
+
+806 pytest 全绿 / ruff 0 / mypy 0 / **vulture 0**.
+
 ## [0.13.4] — 2026-05-17（patch — Cursor backend test isolation: 沙箱 CI 用可配 `_CONFIG_DIR_NAME`）
 
 Cursor desktop Agent dogfood 跟进的小 test-isolation 修: 部分沙箱 CI 环境禁止 `mkdir ~/.cursor` (当 protected user-config 拦). 直接创建 backend 配置目录的测试现走 `cursor_test_config_dir` pytest fixture, monkeypatch `CursorBackend._CONFIG_DIR_NAME` 到沙箱安全名 (`cursor-karma-test`).

@@ -38,7 +38,8 @@ def _emit(additional_context: str, payload: dict | None = None) -> None:
     # 之前直 print hookSpecificOutput 是 v0.9.15 类型潜伏点 — 不响亮 fail
     # 静默被 backend reject 时 Agent 看不到 baseline 注入.
     from karma.backends.protocol_adapter import emit_context_injection
-    print(emit_context_injection("SessionStart", additional_context, payload or {}))
+    event_name = (payload or {}).get("hook_event_name") or "SessionStart"
+    print(emit_context_injection(event_name, additional_context, payload or {}))
 
 
 def main() -> int:

@@ -81,8 +81,8 @@ def main() -> int:
     # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state 文件
     agent_id = payload.get("agent_id") or None
     # v0.9.15 cross-backend: tool_name 归一化到 karma canonical（Claude 风格） —
-    # Cursor Shell → Bash / Codex apply_patch → Edit 等。
-    # record_read / record_edit / record_bash 全部按 canonical 比较，让 Cursor
+    # Gemini run_shell_command → Bash / Codex apply_patch → Edit 等。
+    # record_read / record_edit / record_bash 全部按 canonical 比较，让 Gemini
     # / Codex 真触发 state 推进（之前 apply_patch 漏推 last_edit_ts 让 evidence
     # check 旧测试通过状态被错保留 → git commit 绕过 evidence 门）。
     raw_tool_name = payload.get("tool_name", "")
@@ -226,7 +226,8 @@ def main() -> int:
     if additional_context:
         # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
         from karma.backends.protocol_adapter import emit_context_injection
-        print(emit_context_injection("PostToolUse", additional_context, payload))
+        event_name = payload.get("hook_event_name") or "PostToolUse"
+        print(emit_context_injection(event_name, additional_context, payload))
     else:
         print(json.dumps({}))
     return 0

@@ -33,49 +33,16 @@ _ESCALATE_THRESHOLD = 3
 
 def _read_last_assistant_response(transcript_path: str) -> str:
     """读 transcript JSONL，取最后一条 assistant message 的所有 text content。"""
-    return _read_last_message_text(transcript_path, msg_type="assistant")
+    from karma.hooks._transcript import read_last_message_text
+    return read_last_message_text(transcript_path, "assistant")
 
 
 def _read_last_user_prompt(transcript_path: str) -> str:
     """v0.4.41: 读 transcript JSONL，取最后一条 user message 的 text content
     让 keep_pushing.check 能识别用户上 turn 叫停字眼（HANDOFF v3 第三步候选）。
     """
-    return _read_last_message_text(transcript_path, msg_type="user")
-
-
-def _read_last_message_text(transcript_path: str, msg_type: str) -> str:
-    """通用反向 scan transcript JSONL 找最后一条指定 type message 的 text content。"""
-    if not transcript_path:
-        return ""
-    p = Path(transcript_path)
-    if not p.exists():
-        return ""
-    try:
-        lines = p.read_text(encoding="utf-8").splitlines()
-        for ln in reversed(lines):
-            ln = ln.strip()
-            if not ln:
-                continue
-            try:
-                d = json.loads(ln)
-            except json.JSONDecodeError:
-                continue
-            if d.get("type") != msg_type:
-                continue
-            msg = d.get("message", {})
-            content = msg.get("content")
-            if isinstance(content, list):
-                text_parts = []
-                for c in content:
-                    if isinstance(c, dict) and c.get("type") == "text":
-                        text_parts.append(c.get("text", ""))
-                return "\n".join(text_parts)
-            if isinstance(content, str):
-                return content
-            return ""
-    except OSError:
-        return ""
-    return ""
+    from karma.hooks._transcript import read_last_message_text
+    return read_last_message_text(transcript_path, "user")
 
 
 def _emit_notifications(
@@ -263,7 +230,7 @@ def main() -> int:
         except OSError:
             pass
 
-    from karma.hooks._payload import extract_session_id
+    from karma.hooks._payload import extract_session_id, extract_subagent_id
     session_id = extract_session_id(payload)
     # 跨 backend payload 字段适配 — 优先「直传 message」字段，fallback transcript
     # - Codex Stop: last_assistant_message
@@ -297,7 +264,7 @@ def main() -> int:
         return 0
 
     # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state（Stop hook 也支持 agent_id）
-    agent_id = payload.get("agent_id") or None
+    agent_id = extract_subagent_id(payload) or None
     # v0.10.5 (Agent 1 F1.2 fix): Stop hook 跟 Pre/PostToolUse / UserPromptSubmit
     # 一样要 catchup_pending_bg — 之前 stop.py 漏这一步, 让最后一个 PostToolUse
     # 之后才完成的 bg pytest (启动: `pytest tests/ > /tmp/log &`) last_test_pass_ts
