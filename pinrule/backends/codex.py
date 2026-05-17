@@ -49,7 +49,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from pinrule.backends._json_hooks import JsonHooksBackend
+from pinrule.backends._json_hooks import JsonHooksBackend, hook_command_str
 from pinrule.backends.native_capabilities import CODEX_HOOK_EVENTS
 
 
@@ -671,7 +671,7 @@ class CodexBackend(JsonHooksBackend):
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
         wrapper = self.hooks_dir() / f"pinrule_{hook_name_lower}.py"
         return {
-            "hooks": [{"type": "command", "command": str(wrapper), "timeout": 30}]
+            "hooks": [{"type": "command", "command": hook_command_str(wrapper), "timeout": 30}]
         }
 
     @staticmethod

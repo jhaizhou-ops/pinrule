@@ -1,6 +1,6 @@
 [project]
 name = "pinrule"
-version = "0.16.16"
+version = "0.16.17"
 description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor, pure engineering, zero LLM, ~50-70ms hook latency"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,8 +13,10 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
-    # Windows 兼容未真测（wrapper 用 Unix shebang `#!python`，Windows shell
-    # 不识别），暂不声明支持。WSL 下可工作。
+    "Operating System :: Microsoft :: Windows",
+    # v0.16.17: Windows native 支持 — hook command 改成 `python.exe wrapper.py`
+    # 显式启 interpreter (不再依赖 Unix shebang); CI matrix 加 windows-latest
+    # runner verify; 16 个 sandbox + Windows lockdown 测试守住跨平台承诺.
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

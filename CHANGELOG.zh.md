@@ -8,6 +8,8 @@ v0.5.1 起双语发布. v0.1.0 – v0.4.x 早期历史只在本中文 CHANGELOG.
 
 ## [Unreleased]
 
+## [0.16.17] — 2026-05-18 — **Windows 原生支持**. Hook command 从裸 `wrapper-path` (依赖 Unix shebang) 改成 `python.exe wrapper-path` 走 `subprocess.list2cmdline` — 跨平台, 含空格 path 自动 quote. CI matrix 加 `windows-latest`; 3 个新 lockdown 测试覆盖 sys.executable 前缀 + 空格 quote + 三家 backend 一致性 (857 测).
+
 ## [0.16.16] — 2026-05-17 — README 全 redesign (双语 203 行, 节奏对齐 aider / open-interpreter / mem0 标杆) + PyPI metadata 精修 (description 跟 slogan 对齐, keywords 砍 `dogfooding` 加 `pinrule` / `claude-code` / `agent-rules`).
 
 ## [0.16.x] — 2026-05-17 (当前)

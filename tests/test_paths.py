@@ -235,3 +235,56 @@ for p in paths:
         assert not line.startswith(real_home + "/"), (
             f"PINRULE_HOME sandbox 承诺破: {line} 仍 anchor 在真 home {real_home}"
         )
+
+
+# ---- v0.16.17 Windows 跨平台 hook command 守护 ----
+#
+# 根因: AI 客户端 spawn hook 走 settings.json 的 `command` 字段字面.
+# 之前 Claude/Codex backend 把 wrapper path 字面写 command, 依赖 Unix
+# shebang 让 kernel 启 Python. Windows kernel 不识别 shebang.
+# 修法: 用 `subprocess.list2cmdline([sys.executable, wrapper])` 显式包
+# `python.exe wrapper-path`, 跨平台 work + 自动 quote 含空格 path.
+
+
+def test_hook_command_str_contains_sys_executable():
+    """hook command 字符串以 sys.executable 起头, 不再裸 wrapper path —
+    Windows kernel 不识别 .py shebang, 必须显式 `python.exe wrapper`."""
+    import sys
+
+    from pinrule.backends._json_hooks import hook_command_str
+
+    cmd = hook_command_str(Path("/some/.claude/hooks/pinrule_session_start.py"))
+    assert sys.executable in cmd
+    assert "pinrule_session_start.py" in cmd
+
+
+def test_hook_command_str_handles_spaces_in_path():
+    """含空格 path (e.g. `C:\\Users\\John Smith\\.claude\\...`) 必须被
+    quote 不被 spawn argv split. subprocess.list2cmdline 跨平台正确."""
+    from pinrule.backends._json_hooks import hook_command_str
+
+    cmd = hook_command_str(Path("/Users/John Smith/.claude/hooks/pinrule_x.py"))
+    # 含空格 path 必须被 `"..."` quote 否则 argv parse 错
+    assert '"' in cmd, f"path with spaces must be quoted, got: {cmd}"
+
+
+def test_all_three_backends_use_sys_executable_in_command():
+    """三家 backend (Claude/Codex/Cursor) build_event_entry 出的 command
+    字面都用 sys.executable 起头. Regression lockdown for Windows support."""
+    import sys
+
+    from pinrule.backends.claude_code import ClaudeCodeBackend
+    from pinrule.backends.codex import CodexBackend
+    from pinrule.backends.cursor import CursorBackend
+
+    claude_entry = ClaudeCodeBackend().build_event_entry("session_start", "SessionStart")
+    claude_cmd = claude_entry["hooks"][0]["command"]
+    assert sys.executable in claude_cmd
+
+    codex_entry = CodexBackend().build_event_entry("session_start", "SessionStart")
+    codex_cmd = codex_entry["hooks"][0]["command"]
+    assert sys.executable in codex_cmd
+
+    cursor_entry = CursorBackend().build_event_entry("session_start", "sessionStart")
+    cursor_cmd = cursor_entry["command"]
+    assert sys.executable in cursor_cmd

@@ -36,11 +36,10 @@ Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude 高�
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
-from pinrule.backends._json_hooks import JsonHooksBackend
+from pinrule.backends._json_hooks import JsonHooksBackend, hook_command_str
 from pinrule.backends.native_capabilities import CURSOR_HOOK_EVENTS
 
 
@@ -83,7 +82,7 @@ class CursorBackend(JsonHooksBackend):
         Use absolute `sys.executable` + wrapper path — user hooks cwd is `~/.cursor/`.
         """
         wrapper = self.hooks_dir() / f"pinrule_{hook_name_lower}.py"
-        entry: dict[str, Any] = {"command": f"{sys.executable} {wrapper}"}
+        entry: dict[str, Any] = {"command": hook_command_str(wrapper)}
         if event_name in ("stop", "subagentStop"):
             entry["loop_limit"] = 10
         return entry

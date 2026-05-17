@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -85,10 +85,17 @@ jobs:
         # v0.9.15 critical: 即便 wheel 含 signal 文件，也要 functional 验证
         # 真能编译出 non-empty regex（防 packaging path 错 / load 失败）.
         # codex GPT-5.5 推荐 smoke test pattern.
+        # v0.16.17: 跨平台 — Windows venv binaries 在 Scripts/, Unix 在 bin/.
+        shell: bash
         run: |
-          python -m venv /tmp/pinrule-wheel-test
-          /tmp/pinrule-wheel-test/bin/pip install dist/pinrule-*-py3-none-any.whl
-          /tmp/pinrule-wheel-test/bin/python -c "
+          python -m venv smoke-venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            VENV_PY="smoke-venv/Scripts/python"
+          else
+            VENV_PY="smoke-venv/bin/python"
+          fi
+          "$VENV_PY" -m pip install dist/pinrule-*-py3-none-any.whl
+          "$VENV_PY" -c "
           from pinrule.signals import compile_alternation
           # 验证 4 个关键 signal 真编译成 working regex
           for sig in ('weak_claims', 'completion_words', 'push_signals', 'stop_hints'):

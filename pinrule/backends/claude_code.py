@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pinrule.backends._json_hooks import JsonHooksBackend
+from pinrule.backends._json_hooks import JsonHooksBackend, hook_command_str
 
 
 class ClaudeCodeBackend(JsonHooksBackend):
@@ -51,7 +51,7 @@ class ClaudeCodeBackend(JsonHooksBackend):
         """
         wrapper = self.hooks_dir() / f"pinrule_{hook_name_lower}.py"
         entry: dict[str, object] = {
-            "hooks": [{"type": "command", "command": str(wrapper)}]
+            "hooks": [{"type": "command", "command": hook_command_str(wrapper)}]
         }
         if event_name in ("PreToolUse", "PostToolUse", "UserPromptSubmit", "PreCompact"):
             entry["matcher"] = "*"

@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import tomllib
 
+from pathlib import Path
+
 from pinrule.backends import codex as codex_backend
+from pinrule.backends._json_hooks import hook_command_str
 from pinrule.backends.codex import CodexBackend, codex_hook_trusted_hash
 
 
@@ -319,21 +322,15 @@ def test_codex_save_settings_pretrusts_only_pinrule_hooks(tmp_path, monkeypatch)
 
     session_key = f"{fake_home}/.codex/hooks.json:session_start:1:0"
     prompt_key = f"{fake_home}/.codex/hooks.json:user_prompt_submit:0:0"
+    session_cmd = hook_command_str(Path(f"{fake_home}/.codex/hooks/pinrule_session_start.py"))
+    prompt_cmd = hook_command_str(Path(f"{fake_home}/.codex/hooks/pinrule_user_prompt_submit.py"))
     assert state[session_key] == {
         "enabled": True,
-        "trusted_hash": codex_hook_trusted_hash(
-            "session_start",
-            f"{fake_home}/.codex/hooks/pinrule_session_start.py",
-            timeout=30,
-        ),
+        "trusted_hash": codex_hook_trusted_hash("session_start", session_cmd, timeout=30),
     }
     assert state[prompt_key] == {
         "enabled": True,
-        "trusted_hash": codex_hook_trusted_hash(
-            "user_prompt_submit",
-            f"{fake_home}/.codex/hooks/pinrule_user_prompt_submit.py",
-            timeout=30,
-        ),
+        "trusted_hash": codex_hook_trusted_hash("user_prompt_submit", prompt_cmd, timeout=30),
     }
     assert not any("vibe-island" in key for key in state)
 

@@ -33,10 +33,29 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from pinrule.backends._base import SettingsParseError
+
+
+def hook_command_str(wrapper: Path) -> str:
+    """Build the spawn-safe command string for a hook wrapper.
+
+    Cross-platform: prefixes `sys.executable` so the hook works on Windows where
+    `.py` shebang isn't kernel-interpreted. Uses `subprocess.list2cmdline` for
+    quoting because:
+      - on Windows it produces `CommandLineToArgvW`-parsable strings
+      - on Linux/macOS the same `"..."` quoting is shlex-parsable
+    so paths with spaces (e.g. `C:\\Users\\John Smith\\.claude\\hooks\\...py`)
+    survive AI-client subprocess spawn.
+
+    Cursor's `~/.cursor/hooks.json` and Claude's `~/.claude/settings.json`
+    `command` field both consume this same string.
+    """
+    return subprocess.list2cmdline([sys.executable, str(wrapper)])
 
 
 class JsonHooksBackend:
@@ -94,7 +113,7 @@ class JsonHooksBackend:
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
         """默认 entry 格式 — 无 matcher / 无 timeout，子类 override 加 backend 特有字段。"""
         wrapper = self.hooks_dir() / f"pinrule_{hook_name_lower}.py"
-        return {"hooks": [{"type": "command", "command": str(wrapper)}]}
+        return {"hooks": [{"type": "command", "command": hook_command_str(wrapper)}]}
 
     def is_pinrule_entry(self, entry: dict) -> bool:
         for h in entry.get("hooks", []):
