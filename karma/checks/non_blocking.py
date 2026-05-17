@@ -97,7 +97,8 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     cmd_raw = (tool_input or {}).get("command", "") or ""
     if not cmd_raw:
         return None
-    is_bg = bool((tool_input or {}).get("run_in_background"))
+    tool_input = tool_input or {}
+    is_bg = bool(tool_input.get("run_in_background"))
     # Cursor Shell: sync `timeout` ms (no run_in_background field) — treat as blocking wait.
     if not is_bg:
         timeout_ms = tool_input.get("timeout")

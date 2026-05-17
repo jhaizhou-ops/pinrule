@@ -83,10 +83,13 @@ def _select_rule_template(minimal: bool) -> Path:
 def _write_skill_target(
     src_text: str,
     dest: Path,
-    content_format: str,
+    _content_format: str = "markdown",
     force: bool = False,
 ) -> tuple[bool, str]:
-    """装一份 skill 到单个目标路径, 按 format 决定 Markdown 直写还是 TOML 转换.
+    """装一份 skill 到单个目标路径 (raw Markdown).
+
+    v0.13.2 后: 砍 Gemini 后只剩 markdown 一种, 参数 _ 前缀标 intentionally-unused
+    维持 caller 调用契约.
 
     冲突处理 (sticky #1 不覆盖用户改动):
     - 不存在 → 写, 返回 (True, "installed")
@@ -94,7 +97,6 @@ def _write_skill_target(
     - 已存在 + 内容不同 + force=False → 写 .new 兄弟文件, 返回 (False, "exists-diff")
     - 已存在 + 内容不同 + force=True → 覆盖, 返回 (True, "force-overwritten")
     """
-    # v0.13.2: 砍 Gemini 后只剩 markdown content_format (Claude/Codex/Cursor 都 raw markdown)
     body = src_text
 
     dest.parent.mkdir(parents=True, exist_ok=True)

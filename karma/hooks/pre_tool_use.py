@@ -18,22 +18,10 @@ from __future__ import annotations
 
 import sys
 
-from karma.backends.protocol_adapter import emit_allow, emit_deny
-
-
-def _allow(payload: dict) -> None:
-    """v0.9.15: 走 protocol_adapter — Cursor 用 `{permission: allow}`, Claude/Codex 用 hookSpecificOutput."""
-    print(emit_allow(payload))
-
-
-def _deny(reason: str, payload: dict) -> None:
-    """v0.9.15: 走 protocol_adapter — Cursor 顶层 `{permission: deny, agent_message, user_message}`,
-    Claude/Codex `hookSpecificOutput.permissionDecision`. 之前 karma 只输出
-    Claude 风格让 Cursor 拦截可能失效."""
-    print(emit_deny(reason, payload))
-
 
 def main() -> int:
+    # v0.14.0: pre_tool_use 主逻辑搬到 _tool_gate, 这里只是入口
+    # cursor agent 重写后 _allow/_deny helper 不需要了 (走 _tool_gate 内部 emit)
     from karma.hooks._tool_gate import main_stdin
     return main_stdin()
 

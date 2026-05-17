@@ -215,8 +215,12 @@ def audit_agent_response(
     last_user_prompt: str = "",
     *,
     allow_stop_interventions: bool = True,
-) -> int:
-    """Response-level checks — shared by Stop and Cursor afterAgentResponse."""
+) -> bool:
+    """Response-level checks — shared by Stop and Cursor afterAgentResponse.
+
+    返 True = 已 print stop_block 干预 (main 不要再 print 兜底 {}),
+    False = 没 print (caller 可兜底 print({})).
+    """
     from karma.hooks._payload import extract_session_id, extract_subagent_id
     session_id = extract_session_id(payload)
     agent_id = extract_subagent_id(payload) or None
@@ -225,10 +229,10 @@ def audit_agent_response(
         sticky_list = load()
     except RuleConfigError as e:
         print(f"karma: {e}", file=sys.stderr)
-        return 0
+        return False
 
     if not sticky_list or not (response or "").strip():
-        return 0
+        return False
 
     try:
         state, _ = session_state.update_state(
@@ -262,7 +266,7 @@ def audit_agent_response(
     )
 
     if not check_hits and not keyword_violations:
-        return 0
+        return False
 
     all_records: list[Violation] = []
     for h in check_hits:
@@ -288,15 +292,15 @@ def audit_agent_response(
     )
 
     if not allow_stop_interventions:
-        return 0
+        return False
 
     if _handle_force_block(state, sticky_list, hit_sticky_ids, session_id, payload):
-        return 0
+        return True  # _handle 内部已 print emit_stop_block, main 不要再 print {}
 
     if _handle_keep_pushing_block(check_hits, keyword_violations, state, payload):
-        return 0
+        return True
 
-    return 0
+    return False
 
 
 def main() -> int:
@@ -319,8 +323,7 @@ def main() -> int:
         except OSError:
             pass
 
-    from karma.hooks._payload import extract_session_id, extract_subagent_id
-    session_id = extract_session_id(payload)
+    # session_id 在 line 220 已通过 extract_session_id 定义, 这里不重复.
     # 跨 backend payload 字段适配 — 优先「直传 message」字段，fallback transcript
     # - Codex Stop: last_assistant_message
     # (历史: Gemini AfterAgent 用 prompt_response, v0.13.2 砍掉)
@@ -345,10 +348,12 @@ def main() -> int:
         print(json.dumps({}))
         return 0
 
-    audit_agent_response(
+    intervened = audit_agent_response(
         payload, response, last_user_prompt, allow_stop_interventions=True,
     )
-    print(json.dumps({}))
+    if not intervened:
+        # audit 没 print 干预 → 兜底 print {} 让 hook 协议有合法 stdout
+        print(json.dumps({}))
     return 0
 
 
