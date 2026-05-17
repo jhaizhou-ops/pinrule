@@ -6,6 +6,8 @@ from pathlib import Path
 
 from pinrule.session_state import SessionState, get_current_session_id, load, save
 
+from tests.conftest import np
+
 
 def test_round_trip(tmp_path):
     s = SessionState(session_id="abc")
@@ -17,8 +19,8 @@ def test_round_trip(tmp_path):
     save(s, base_dir=tmp_path)
 
     loaded = load("abc", base_dir=tmp_path)
-    assert loaded.read_files == {"/tmp/a.py", "/tmp/b.py"}
-    assert loaded.edit_files == ["/tmp/a.py"]
+    assert loaded.read_files == {np("/tmp/a.py"), np("/tmp/b.py")}
+    assert loaded.edit_files == [np("/tmp/a.py")]
     assert len(loaded.recent_bash) == 2
     assert loaded.recent_bash[0].is_test_cmd
     assert loaded.recent_bash[0].output_passed
@@ -320,7 +322,7 @@ def test_session_id_with_unsafe_chars(tmp_path):
     save(s, base_dir=tmp_path)
     # 加载用同样 id 应该能拿到
     loaded = load("/var/some/path with spaces", base_dir=tmp_path)
-    assert loaded.read_files == {"/tmp/a"}
+    assert loaded.read_files == {np("/tmp/a")}
 
 
 def test_get_current_session_id_empty_dir(tmp_path):
@@ -435,11 +437,11 @@ def test_update_state_applies_fn_and_persists(tmp_path):
         state.record_read("/foo.py")
 
     state, _ = update_state("sess1", _add_read, base_dir=tmp_path)
-    assert "/foo.py" in state.read_files
+    assert np("/foo.py") in state.read_files
 
     # 落盘验证
     reloaded = load("sess1", base_dir=tmp_path)
-    assert "/foo.py" in reloaded.read_files
+    assert np("/foo.py") in reloaded.read_files
 
 
 def test_update_state_returns_fn_value(tmp_path):
@@ -473,8 +475,8 @@ def test_update_state_fn_exception_rolls_back(tmp_path):
 
     # 磁盘 state 没变（rollback）
     reloaded = load("sess1", base_dir=tmp_path)
-    assert "/initial.py" in reloaded.read_files
-    assert "/should_not_persist.py" not in reloaded.read_files
+    assert np("/initial.py") in reloaded.read_files
+    assert np("/should_not_persist.py") not in reloaded.read_files
 
 
 def test_update_state_agent_id_isolation(tmp_path):
@@ -505,7 +507,7 @@ def test_read_state_returns_snapshot(tmp_path):
     save(s, base_dir=tmp_path)
 
     snap = read_state("sess1", base_dir=tmp_path)
-    assert "/x.py" in snap.read_files
+    assert np("/x.py") in snap.read_files
 
 
 def test_state_lock_acquire_and_release(tmp_path):
@@ -575,7 +577,7 @@ update_state("concurrent_sess", _add_my_read, base_dir=base_dir)
 
     # 验证所有 N 个 update 都生效（无丢更新）
     final_state = load("concurrent_sess", base_dir=tmp_path)
-    expected = {f"/worker_{i}.py" for i in range(n_workers)}
+    expected = {np(f"/worker_{i}.py") for i in range(n_workers)}
     assert final_state.read_files == expected, (
         f"丢更新 race: expected {n_workers} paths, got {len(final_state.read_files)}"
         f"\n missing: {expected - final_state.read_files}"
