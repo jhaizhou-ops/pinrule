@@ -1137,7 +1137,7 @@ def _backend_hooks_missing_reasons(backend) -> list[str]:
     Empty list = backend fully installed. v0.16.12: also checks `os.access(X_OK)`
     so detection matches `cmd_doctor` (round-2 audit P1 #4 root cause — init
     silently re-installed hooks while doctor showed ✓ because doctor checked
-    executable bit but `_backend_hooks_incomplete` didn't).
+    executable bit but the old `incomplete` flag didn't).
     """
     reasons: list[str] = []
     if not backend.client_installed():
@@ -1161,16 +1161,6 @@ def _backend_hooks_missing_reasons(backend) -> list[str]:
         ):
             reasons.append(f"{event_name}: {backend.settings_path().name} entry missing")
     return reasons
-
-
-def _backend_hooks_incomplete(backend) -> bool:
-    """Missing wrapper or settings entry for any expected hook event.
-
-    Thin wrapper over `_backend_hooks_missing_reasons` for back-compat callers.
-    """
-    if not backend.client_installed():
-        return False
-    return bool(_backend_hooks_missing_reasons(backend))
 
 
 def _auto_install_hooks_for_detected_clients() -> None:
