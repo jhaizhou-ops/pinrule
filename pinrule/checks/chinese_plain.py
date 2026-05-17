@@ -46,6 +46,11 @@ _MARKDOWN_MARK_RE = re.compile(
     re.MULTILINE,
 )
 
+# v0.16.13: inline backtick 内**内容**也剥 — round-1 audit 视角 1 #6 真 FP:
+# `precision` 这种 inline code 应该豁免 (docstring 说明文档 first-use example),
+# 但老 _MARKDOWN_MARK_RE 只剥反引号字符不剥内容, 让 jargon scan 真 hit 'precision'.
+_INLINE_BACKTICK_CONTENT_RE = re.compile(r"`[^`\n]+`")
+
 # emoji / 装饰符号 — 不算可见自然语言字符
 _EMOJI_RE = re.compile(
     r"[☀-➿\U0001F300-\U0001FAFF✅❌⚠✨⭐]"
@@ -119,6 +124,12 @@ def check(*, response: str = "", **_):
     if not natural.strip():
         return None  # 全是代码 - 不算 jargon 对话
 
+    # v0.16.13: 起手剥 inline backtick 内容 — `precision` / `recall` 这种
+    # markdown inline code 不该当自然话术算 jargon (round-1 audit 视角 1 #6
+    # 真 FP). 影响 jargon scan + ratio 算都. strip_code_blocks 只剥 ``` block,
+    # inline 单 backtick 这里补.
+    natural = _INLINE_BACKTICK_CONTENT_RE.sub(" ", natural)
+
     # 先剥**结构性内容**（不是自然语言 jargon 话术）算 ratio：
     # - URL / email / markdown 表格行（v0.4.3 加）
     # - 版本号字面（v0.4.6 / 0.4.3 等）+ markdown emphasis / list / heading 标记
@@ -127,6 +138,9 @@ def check(*, response: str = "", **_):
     natural_for_ratio = _URL_RE.sub("", natural)
     natural_for_ratio = _TABLE_ROW_RE.sub("", natural_for_ratio)
     natural_for_ratio = _VERSION_RE.sub("", natural_for_ratio)
+    # v0.16.13: 先剥 inline backtick 内容再剥单 backtick 字符 (顺序重要 — 后剥
+    # 会让 _MARKDOWN_MARK_RE 删反引号但留内容 'precision' 被 jargon scan 误算)
+    natural_for_ratio = _INLINE_BACKTICK_CONTENT_RE.sub("", natural_for_ratio)
     natural_for_ratio = _MARKDOWN_MARK_RE.sub("", natural_for_ratio)
     natural_for_ratio = _EMOJI_RE.sub("", natural_for_ratio)
     natural_for_ratio = _KEBAB_SNAKE_IDENT_RE.sub("", natural_for_ratio)

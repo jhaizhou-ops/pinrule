@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.16.13] — 2026-05-17（patch — 4 个 check FP 真根因修 + ground-truth 回归 lockdown）
+
+Round-1 audit 视角 1 报 5 个 check FP. v0.16.13 修 **4 个 + 加测试 lockdown**, 1 个推迟 (见末尾):
+
+- **`long_term.py` 否定词上下文 FP** (round-1 #3): `不要我先打补丁` / `Don't let me hardcode` 被当意图 hit, 但这是反 advice. 加 `_RESPONSE_NEGATION_RE` 查 30 字前 window 中英文否定词 (`不要 / 别让 / 禁止 / don't / never / avoid`) — 命中即豁免.
+- **`long_term.py` markdown code block FP** (round-1 #4): ` ``` ` fenced + `inline backtick` 内含 patch-intent 字面 (反例引用) 被 hit. 加 `_strip_markdown_code_for_response_scan` 起手剥 fenced + inline code.
+- **`chinese_plain.py` inline backtick FP** (round-1 #6): 中文用户引用 `` `precision` `` 被算裸 jargon. 现 check() 起手剥 inline-backtick 内容. 裸 `precision` 无 backtick 仍 hit.
+- **`chinese_plain.py::chinese_char_count` 全角标点漏算** (round-1 #8): 老 `"一" <= c <= "鿿"` 只覆盖 CJK Unified, 全角标点 (`，。、`) / CJK Extension A / 书名号 (`《》`) 漏算 — 中文带标点 ratio 假低. 现含 U+3400-4DBF + U+FF00-FFEF + U+3000-303F.
+
+**Ground-truth lockdown**: 新 `tests/test_check_fp_fixes_v0_16_13.py` (11 个 test) 每个 fix 双向 (should-hit + should-not-hit). 任一方向 regression CI 抓住. 按 sticky #5, regex 改动现在有测试 gate 不再盲 ship.
+
+### 推迟: 短 response FP (round-1 #2)
+
+报的 `keep_pushing.py` 把 `'OK'` / `'Done.'` / `'完成'` 当 hit, 试了 `len(text) < 20` 豁免, **回退** — `commit 已推到远程。` (9 字真任务汇报) 跟 `'OK'` (2 字 ack) 字面长度区分不了. 真 fix 需要 context (user_prompt 长度 / sub-agent role / 对话位置) — 推迟 v0.17 dedicated session 用真 violation corpus 当 ground truth, 不在线猜.
+
+测试: **845 passed** (834 + 11 new regression).
+
 ## [0.16.12] — 2026-05-17（patch — `pinrule init` reinstall 检测真根因 + verbose reasons）
 
 Round-2 audit P1 #4: 用户报"doctor 全 ✓ 但 `pinrule init` 还重装 hooks". 真根因 = **两套 detection 不一致**.

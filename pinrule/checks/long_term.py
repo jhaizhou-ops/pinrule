@@ -167,6 +167,32 @@ _RESPONSE_PATCH_INTENT_PATTERNS = [
 
 _STICKY_ID = "long-term-fundamental"
 
+# v0.16.13: response-level FP fixes — 否定词上下文 + markdown code block 引用
+# 反例时不该 hit (round-1 audit 视角 1 #3+#4).
+# 否定词 30 字内前置 → 反 advice 不是真意图.
+_RESPONSE_NEGATION_RE = re.compile(
+    r"(?:不要|别(?:让)?|禁止|不能|反对|不准|不该|"  # 中文否定
+    r"don'?t|do\s+not|never|avoid|stop|prohibited|"  # 英文否定
+    r"shouldn'?t|wouldn'?t|won'?t)",
+    re.IGNORECASE,
+)
+
+# 剥 markdown fenced code block (``` ... ```) + inline code (`...`) 让 response
+# scan 不误判反例引用. 跟 chinese_plain.py:118 strip_code_blocks 同思路.
+_MD_FENCED_RE = re.compile(r"```[^\n]*\n.*?\n```", re.DOTALL)
+_MD_INLINE_BACKTICK_RE = re.compile(r"`[^`\n]+`")
+
+
+def _strip_markdown_code_for_response_scan(text: str) -> str:
+    """Strip ``` fenced ``` blocks + `inline backticks` before pattern scan.
+
+    Why: response containing ```python\n我先打补丁\n``` 是反例引用代码块, 不是
+    Agent 真意图. inline `我先打补丁` 同理 (e.g., docstring 引用 keyword 字面).
+    """
+    text = _MD_FENCED_RE.sub(" ", text)
+    text = _MD_INLINE_BACKTICK_RE.sub(" ", text)
+    return text
+
 
 def check(*, tool_name: str = "", tool_input: dict | None = None, response: str = "", **_):
     """按 tool 类型选不同 pattern 集合扫 (tool_input 层),
@@ -180,11 +206,20 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, response: str 
     # v0.11.0 response-level engine check — Stop hook 给 response 时跑.
     # 跟 tool_input 层并行 (response 是 Agent 自己说的, tool_input 是 Agent 执行的).
     # 必须先于 tool_name early return, 因为 Stop hook response check 没 tool_name.
+    #
+    # v0.16.13 FP fixes:
+    # (a) 剥 markdown code block 字面 — 反例引用 ```\n我先打补丁\n``` 不该 hit
+    # (b) 否定词上下文豁免 — "不要我先打补丁" / "别让我先 hack" 是反 advice 不该 hit
     if response:
+        scan_text = _strip_markdown_code_for_response_scan(response)
         for pat, trigger_key, fix_key in _RESPONSE_PATCH_INTENT_PATTERNS:
-            m = pat.search(response)
+            m = pat.search(scan_text)
             if m:
-                snippet = response[max(0, m.start() - 30): m.end() + 30].strip()
+                # 否定词前置 30 字内 → 豁免 (反 advice, 不是真意图)
+                pre_window = scan_text[max(0, m.start() - 30): m.start()]
+                if _RESPONSE_NEGATION_RE.search(pre_window):
+                    continue
+                snippet = scan_text[max(0, m.start() - 30): m.end() + 30].strip()
                 return CheckHit(
                     rule_id=_STICKY_ID,
                     trigger=tr(trigger_key),

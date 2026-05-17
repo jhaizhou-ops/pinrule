@@ -162,6 +162,12 @@ def check(*, response: str = "", user_prompt: str = "", **_):
     if _SUCCESS_REPORT_RE.search(tail):
         return None
 
+    # v0.16.13 回退: 试过 `if len(text) < 20: return None` 想豁免 'OK'/'Done'/'完成'
+    # 短 ack (audit 视角 1 #2 报的 FP), 但破坏老 test `test_response_with_tail_period_only_blocked`
+    # 期望 "commit 已推到远程。" (9 字真任务汇报) 仍 hit. 字面长度切区分不了 ack
+    # vs 短任务汇报 — 真 fix 需要 context-aware (user_prompt 长度 / sub-agent role
+    # 等), 是 dedicated v0.17 session 工作不是 quick fix. 保留 audit FP report 但不 fix.
+    #
     # 命中 2（默认）：纯陈述完结无下一步 — 用户反馈核心场景
     # 「没有疑问句的停止才是该监控的」
     return CheckHit(

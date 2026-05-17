@@ -10,6 +10,23 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.13] — 2026-05-17 (patch — 4 check FP fixes with ground-truth regression lockdown)
+
+Round-1 audit viewpoint 1 reported 5 check FPs. v0.16.13 fixes **4 of them with regression test lockdown** (1 deferred — see below):
+
+- **`long_term.py` negation context FP** (round-1 #3): `不要我先打补丁` / `Don't let me hardcode` was hitting as "intent" but they're anti-advice. Added `_RESPONSE_NEGATION_RE` checking 30-char pre-window for Chinese (`不要 / 别让 / 禁止`) + English (`don't / never / avoid`) negation prefixes — bail if found.
+- **`long_term.py` markdown code block FP** (round-1 #4): ` ``` ` fenced blocks and `inline backticks` containing patch-intent strings (counter-example quotations) were hitting. Added `_strip_markdown_code_for_response_scan` stripping fenced + inline code before pattern scan.
+- **`chinese_plain.py` inline backtick FP** (round-1 #6): `` `precision` `` in Chinese user response was counted as raw jargon. Now strips inline-backtick content at the start of `check()`, before jargon scan + ratio computation. Raw `precision` without backticks still hits.
+- **`chinese_plain.py::chinese_char_count` full-width punctuation underflow** (round-1 #8): old `"一" <= c <= "鿿"` only covered CJK Unified Ideographs; full-width punctuation (`，。、`), CJK Extension A, and CJK symbols (`《》`) were excluded — Chinese text with punctuation had artificially low ratio. Now includes U+3400-4DBF + U+FF00-FFEF + U+3000-303F.
+
+**Ground-truth lockdown**: new `tests/test_check_fp_fixes_v0_16_13.py` (11 tests) has each fix in positive + negative pairs — should-hit and should-not-hit. Regression on either column will break CI. Per sticky #5, regex tweaks now have a test gate instead of blind shipping.
+
+### Deferred: short-response FP (round-1 #2)
+
+The reported FP `keep_pushing.py` flagging `'OK'` / `'Done.'` / `'完成'` was attempted via `len(text) < 20` exemption, but **rolled back** — `commit 已推到远程。` (9 chars, real task-completion) and `'OK'` (2 chars, ack) can't be distinguished by length alone. True fix needs context (user_prompt length / sub-agent role / conversation position) — deferred to v0.17 dedicated session with real-violation ground truth corpus rather than guessing in-band.
+
+Tests: **845 passing** (834 + 11 new regression).
+
 ## [0.16.12] — 2026-05-17 (patch — `pinrule init` reinstall detection root cause + verbose reasons)
 
 Round-2 audit P1 #4: user reported "doctor shows ✓ but `pinrule init` still re-runs install-hooks." Root cause: two detection functions disagreed.

@@ -1,6 +1,6 @@
 [project]
 name = "pinrule"
-version = "0.16.12"
+version = "0.16.13"
 description = "Sticky core directional preferences for Claude / Codex / Cursor — keep Agent on track in long sessions"
 readme = "README.md"
 requires-python = ">=3.11"

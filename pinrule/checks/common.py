@@ -230,7 +230,21 @@ def extract_natural_language(content: str, file_path: str = "") -> str:
 
 
 def chinese_char_count(text: str) -> int:
-    return sum(1 for c in text if "一" <= c <= "鿿")
+    """Count Chinese chars including CJK Unified + Extension A + full-width punct.
+
+    v0.16.13: 扩 Unicode 范围 (round-1 audit 视角 1 #8 真 FP 修):
+    - U+4E00-U+9FFF: CJK Unified Ideographs (老范围"一"-"鿿")
+    - U+3400-U+4DBF: CJK Extension A (古汉字)
+    - U+FF00-U+FFEF: 全角标点 (，。、！？「」) — 之前漏算让中文带标点 ratio 假低.
+    - U+3000-U+303F: CJK 符号 (《》〈〉 etc)
+    """
+    return sum(
+        1 for c in text
+        if ("一" <= c <= "鿿")
+        or ("㐀" <= c <= "䶿")
+        or ("＀" <= c <= "￯")
+        or ("　" <= c <= "〿")
+    )
 
 
 def total_visible_char_count(text: str) -> int:
