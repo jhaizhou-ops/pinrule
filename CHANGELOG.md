@@ -10,6 +10,8 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.13.3] — 2026-05-17 (patch — Cursor ↔ Claude hook parity, 8/8 wrappers)
+
 ### Cursor ↔ Claude hook parity (8/8 wrappers)
 
 - `install-hooks --backend cursor` now registers the same 8 karma wrappers as Claude Code: `preCompact`, `subagentStart`, `subagentStop` added alongside the existing five events
@@ -17,6 +19,7 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 - `subagent_id` / `parent_conversation_id` payload fields wired through `_payload` helpers (Claude uses `agent_id` / `session_id`)
 - `subagentStart` reads `subagent_model` directly when present (Cursor stdin); `preCompact` emits native `user_message` on Cursor after snapshot write
 - `subagentStop` hook entries get `loop_limit: 10` like `stop`
+- Cursor hook wrappers set `KARMA_HOME=~/.cursor/karma` on install
 
 ## [0.13.2] — 2026-05-17 (minor — drop Gemini CLI backend, focus on Claude Code / Codex CLI / Cursor)
 

@@ -213,6 +213,14 @@ def test_cursor_event_names_are_camelcase(fake_home):
     assert "SessionStart" not in events
 
 
+def test_cursor_hook_wrappers_match_claude_coverage(fake_home):
+    """Cursor 与 Claude 装同一套 8 个 karma wrapper (仅 native event 名不同)."""
+    claude = set(ClaudeCodeBackend().hook_events().values())
+    cursor = set(CursorBackend().hook_events().values())
+    assert cursor == claude
+    assert len(cursor) == 8
+
+
 def test_cursor_maps_before_submit_to_user_prompt_submit(fake_home):
     """v0.12.2: beforeSubmitPrompt 复用 user_prompt_submit wrapper (每 turn 注入)."""
     b = CursorBackend()
@@ -239,6 +247,34 @@ def test_cursor_normalize_tool_name_shell_to_bash():
     assert b.normalize_tool_name("Shell", {}) == "Bash"
     assert b.normalize_tool_name("Read", {}) == "Read"
     assert b.normalize_tool_name("Write", {}) == "Write"
+    assert b.normalize_tool_name("Task", {}) == "Agent"
+
+
+def test_cursor_emit_pre_compact_user_message():
+    """Cursor preCompact 用 user_message (observational); Claude 仍 passthrough."""
+    import json as _json
+    b = CursorBackend()
+    out = _json.loads(b.emit_context_injection("preCompact", "saved rules", {}))
+    assert out == {"user_message": "saved rules"}
+    empty = _json.loads(b.emit_context_injection("preCompact", "", {}))
+    assert empty == {}
+
+
+def test_cursor_subagent_start_additional_context():
+    """subagentStart 跟 sessionStart 一样走 snake_case additional_context."""
+    import json as _json
+    b = CursorBackend()
+    out = _json.loads(b.emit_context_injection(
+        "subagentStart", "sticky baseline", {},
+    ))
+    assert out == {"additional_context": "sticky baseline"}
+
+
+def test_cursor_subagent_stop_loop_limit(fake_home):
+    """subagentStop 跟 stop 一样带 loop_limit."""
+    b = CursorBackend()
+    entry = b.build_event_entry("subagent_stop", "subagentStop")
+    assert entry.get("loop_limit") == 10
 
 
 def test_cursor_emit_deny_top_level_permission_shape():

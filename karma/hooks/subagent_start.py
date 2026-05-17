@@ -39,9 +39,26 @@ def main() -> int:
     # pending_subagent_models，本 SubagentStart pop 队首写子 Agent state.model
     # 让按模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。FIFO 假设并行 Task
     # 触发顺序跟 PreToolUse 入队顺序一致（dogfooding 持续观察）。
-    from karma.hooks._payload import extract_session_id
+    from karma.hooks._payload import extract_session_id, extract_subagent_id
     session_id = extract_session_id(payload)
-    agent_id = payload.get("agent_id") or None
+    agent_id = extract_subagent_id(payload) or None
+    # Cursor subagentStart stdin 直接带 subagent_model — 不必等主 PreToolUse FIFO.
+    cursor_model = payload.get("subagent_model")
+    if agent_id and cursor_model:
+        try:
+            from karma import session_state
+
+            def _set_cursor_sub_model(state):
+                state.model = cursor_model
+
+            session_state.update_state(
+                session_id, _set_cursor_sub_model, agent_id=agent_id,
+            )
+        except Exception as e:
+            print(
+                f"karma SubagentStart: 写子 Agent model 失败 ({e})",
+                file=sys.stderr,
+            )
     if agent_id:
         try:
             # v0.9.8: 用 update_state 让两段 load+save 都跨进程并发安全。
@@ -87,7 +104,11 @@ def main() -> int:
 
     # v0.10.6 (Agent 2 F2.2 fix): 走 protocol_adapter.emit_context_injection
     from karma.backends.protocol_adapter import emit_context_injection
-    print(emit_context_injection("SubagentStart", "\n".join(lines), payload))
+    from karma.backends.protocol_adapter import detect_backend
+    event = (
+        "subagentStart" if detect_backend(payload) == "cursor" else "SubagentStart"
+    )
+    print(emit_context_injection(event, "\n".join(lines), payload))
     return 0
 
 

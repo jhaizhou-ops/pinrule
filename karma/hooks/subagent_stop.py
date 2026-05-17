@@ -46,8 +46,8 @@ def main() -> int:
         _passthrough()
         return 0
 
-    agent_id = payload.get("agent_id", "") or "unknown"
-    from karma.hooks._payload import extract_session_id
+    from karma.hooks._payload import extract_session_id, extract_subagent_id
+    agent_id = extract_subagent_id(payload) or "unknown"
     session_id = extract_session_id(payload)
 
     # v0.4.34 子 Agent 独立 state 销毁 — 子 Agent 完成 → 临时 state 自动销毁

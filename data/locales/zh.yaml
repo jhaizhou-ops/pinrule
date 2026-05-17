@@ -40,6 +40,9 @@ session_start.compact.tail: "compact 后默契容易在新 context 里淡化 —
 session_start.resume.title: "[karma — session 接力，回想一下跟用户的默契]"
 session_start.startup.title: "[karma — session 起手，跟用户的几条长期默契（source={source}）]"
 
+# ===== PreCompact (Cursor user_message) =====
+pre_compact.cursor_notice: "karma 已在上下文 compact 前把协作规则落盘。compact 后 SessionStart 会重新加载 — 请继续按这些默契行为。"
+
 # ===== SubagentStart =====
 subagent_start.title: "[karma — 你是父 session 派来的子 Agent，继承用户的几条长期默契]"
 subagent_start.tail: "跑任务时也按这些方向行为，主 Agent 会在你结束时收到摘要提醒。"

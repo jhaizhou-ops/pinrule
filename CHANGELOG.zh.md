@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.13.3] — 2026-05-17（patch — Cursor ↔ Claude hook 对齐, 8/8 wrapper）
+
 ### Cursor ↔ Claude hook 对齐 (8/8 wrapper)
 
 - `install-hooks --backend cursor` 现与 Claude 装同一套 8 个 wrapper: 新增 `preCompact` / `subagentStart` / `subagentStop`
@@ -13,6 +15,7 @@
 - `subagent_id` / `parent_conversation_id` 字段接入 `_payload` helper
 - Cursor `subagentStart` 直接读 `subagent_model`; `preCompact` 落盘后返 `user_message`
 - `subagentStop` 条目带 `loop_limit: 10`
+- Cursor install 时 wrapper 默认 `KARMA_HOME=~/.cursor/karma`
 
 ## [0.13.2] — 2026-05-17（minor — 砍 Gemini CLI backend，专注 Claude Code / Codex CLI / Cursor）
 

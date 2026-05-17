@@ -19,12 +19,22 @@ def extract_session_id(payload: dict) -> str:
     """跨 backend 提 session_id. fallback 链 fail-open 到 'default' 让 hook 跑通.
 
     Cursor 1.7+ stdin 用 `conversation_id` 而非 `session_id` — karma 不在这条
-    上失败, 让 hook 主逻辑能跑. 命中 'default' fallback 意味着 session_state
-    会归到同一 default bucket (turn count / drift marker 共享), 这是 backend
-    协议级 unknown 时的合理 graceful degradation.
+    上失败, 让 hook 主逻辑能跑. subagentStart 用 `parent_conversation_id` 指向
+    主会话. 命中 'default' fallback 意味着 session_state 会归到同一 default
+    bucket (turn count / drift marker 共享), 这是 backend 协议级 unknown 时的
+    合理 graceful degradation.
     """
     return (
         payload.get("session_id", "")
         or payload.get("conversation_id", "")
+        or payload.get("parent_conversation_id", "")
         or "default"
     )
+
+
+def extract_subagent_id(payload: dict) -> str:
+    """跨 backend 提子 Agent 实例 id.
+
+    Claude Code `agent_id`; Cursor `subagent_id` (https://cursor.com/docs/hooks).
+    """
+    return payload.get("agent_id", "") or payload.get("subagent_id", "") or ""

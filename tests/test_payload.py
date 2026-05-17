@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from karma.hooks._payload import extract_session_id
+from karma.hooks._payload import extract_session_id, extract_subagent_id
 
 
 def test_session_id_primary_path():
@@ -66,3 +66,26 @@ def test_cursor_real_payload_shape():
         "tool_input": {"command": "ls"},
     }
     assert extract_session_id(cursor_payload) == "abc-def-123"
+
+
+def test_parent_conversation_id_subagent_start():
+    """Cursor subagentStart 用 parent_conversation_id 指向主会话."""
+    assert extract_session_id({
+        "subagent_id": "sub-1",
+        "parent_conversation_id": "parent-conv",
+    }) == "parent-conv"
+
+
+def test_extract_subagent_id_claude():
+    assert extract_subagent_id({"agent_id": "agent-uuid"}) == "agent-uuid"
+
+
+def test_extract_subagent_id_cursor():
+    assert extract_subagent_id({"subagent_id": "sub-uuid"}) == "sub-uuid"
+
+
+def test_extract_subagent_id_prefers_agent_id():
+    assert extract_subagent_id({
+        "agent_id": "a",
+        "subagent_id": "s",
+    }) == "a"

@@ -10,7 +10,7 @@ Usage:
     karma sync-cursor-rules          刷新 ~/.cursor/rules/karma-sticky.mdc (Cursor 起手可见)
                                    自动配置 hooks（默认 claude-code 向后兼容）
                                    codex 会同时启用 features.hooks；
-                                   
+                                   gemini-cli 写 ~/.gemini/settings.json；
                                    all 装本机检测到的所有 AI 编程客户端
     karma install-skill [--force]  装 karma-rule Claude Code skill 到 ~/.claude/skills/
                                    (karma init 已自动跑一次, 老用户 / skill 升级时用)
@@ -65,8 +65,8 @@ EXAMPLE_RULES_ZH = _DATA_DIR / "rules.dev.example.zh.yaml"     # 中文
 EXAMPLE_RULES_MINIMAL_EN = _DATA_DIR / "rules.dev.minimal.example.yaml"
 EXAMPLE_RULES_MINIMAL_ZH = _DATA_DIR / "rules.dev.minimal.example.zh.yaml"
 EXAMPLE_CONFIG = _DATA_DIR / "config.example.yaml"
-# v0.5.16: karma skill source — Markdown source of truth; auto-installed raw to
-# Claude Code + Codex CLI on `karma init` (v0.13.2 dropped Gemini TOML conversion).
+# v0.5.16: karma skill source — Markdown source of truth; auto-installed to
+# all detected backends with format conversion (Markdown → TOML for Gemini commands path).
 _SKILLS_DIR = Path(__file__).parent.parent / "skills"
 KARMA_SKILL_SRC = _SKILLS_DIR / "karma" / "SKILL.md"
 
@@ -121,7 +121,7 @@ def _install_karma_skill_multi_backend(
     """装 karma skill 到所有 (或指定) detected backend.
 
     backend_filter: None / "all" → 所有 detected backend
-                    "claude-code" / "codex" / "cursor" → 单独装该 backend
+                    "claude-code" / "codex" / "gemini-cli" → 单独装该 backend
                     (不要求 backend 在本机已装 — 用户可能想预装等以后用客户端时生效)
 
     返回 [(backend_name, dest_path, changed, reason), ...] 让 caller 汇报.
@@ -154,7 +154,7 @@ def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
     flow:
     - karma init 已自动调一次, 已 init 老用户跑 karma install-skill 补装
     - skill 升级 (clarity audit 等) 用 --force 覆盖
-    - --backend <name> 单独装某家 (claude-code / codex / cursor)
+    - --backend <name> 单独装某家 (claude-code / codex / gemini-cli)
     """
     results = _install_karma_skill_multi_backend(force=force, backend_filter=backend)
 
@@ -245,7 +245,7 @@ def cmd_init(minimal: bool | None = None) -> int:
         override_flag = "--no-minimal" if minimal else "--minimal"
         print(f"自动选不对？强制覆盖：karma init {override_flag}")
 
-    # v0.5.16: 自动装 karma skill 到所有 backend (Claude Code / Codex / Cursor)
+    # v0.5.16: 自动装 karma skill 到所有 backend (Claude Code / Codex / Gemini)
     # 让 /karma <NL> 流程在装机的客户端开箱即用
     skill_results = _install_karma_skill_multi_backend(force=False, backend_filter="all")
     if skill_results and skill_results[0][0] == "source":
@@ -1200,12 +1200,20 @@ def _install_to_backend(backend) -> int:
     hooks_dir = backend.hooks_dir()
     hooks_dir.mkdir(parents=True, exist_ok=True)
     karma_python = sys.executable
+    karma_home_line = ""
+    if backend.name == "cursor":
+        karma_home_line = (
+            "import os\n"
+            "os.environ.setdefault(\"KARMA_HOME\", "
+            "os.path.expanduser(\"~/.cursor/karma\"))\n"
+        )
     for hook_basename in backend.hook_events().values():
         wrapper = hooks_dir / f"karma_{hook_basename}.py"
         wrapper.write_text(
             f"#!{karma_python}\n"
             f"# karma {hook_basename} hook wrapper (auto-generated)\n"
             f"# python: {karma_python}\n"
+            f"{karma_home_line}"
             f"import sys\n"
             f"sys.exit(__import__('karma.hooks.{hook_basename}', fromlist=['main']).main())\n"
         )

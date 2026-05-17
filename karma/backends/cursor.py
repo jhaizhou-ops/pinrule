@@ -7,7 +7,7 @@ Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude Code
 
 参考: https://cursor.com/docs/hooks (2026-05-17 fetch 确认 reality, 不 guess).
 
-跟 Claude Code / Codex 的关键差异:
+跟 Claude Code / Codex / Gemini 的关键差异:
 
 ① **每 turn 注入走 `beforeSubmitPrompt` → `user_prompt_submit`**. Cursor 官方
    schema 只文档化 `continue` / `user_message`, 但 third-party hooks 文档确认
@@ -25,7 +25,7 @@ Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude Code
 ③ **Stop hook 协议从根本不同**. Cursor `stop` 不接受 `{"decision": "block",
    "reason": ...}`, 接受 `{"followup_message": "..."}` 让 Agent auto-continue. 这正
    对应 karma keep-pushing 的「stop 时塞反思 prompt 让 Agent 继续推」语义 — Cursor
-   协议级天然适配, 比强制 fail-open 返 `{}` 更优雅.
+   协议级天然适配, 比 Gemini AfterAgent 没 block 概念回 `{}` fail-open 更优雅.
    `emit_stop_block` override 返 followup_message shape.
 
 ④ **Cursor 是 IDE 不是 CLI**. PATH 没有 `cursor` 命令是常态 (除非用户开了 Cursor.app
@@ -51,6 +51,7 @@ _CURSOR_TOOL_MAP: dict[str, str] = {
     "Shell": "Bash",       # Cursor Shell == Claude Bash
     "Read": "Read",         # 同名
     "Write": "Write",       # 同名 (但 Cursor 把 Edit 也归 Write — 见下方说明)
+    "Task": "Agent",        # Cursor Task == Claude Agent (子 Agent 派发)
     # 注: Cursor 没暴露 Edit 作为独立 tool, 文件修改都走 Write 或 afterFileEdit
     # event. karma 的 read_first check 看 Write 等同 Edit 语义 — 在主逻辑层一致.
 }
@@ -69,12 +70,16 @@ class CursorBackend(JsonHooksBackend):
     #
     # beforeSubmitPrompt → user_prompt_submit: Cursor 每 user turn 等价 Claude
     # UserPromptSubmit (turn 推进 + anchor 注入). sessionStart/postToolUse/stop 同前.
+    # 与 Claude Code 相同的 8 个 karma wrapper; 仅 native event 名不同 (camelCase).
     _HOOK_EVENTS: dict[str, str] = {
         "sessionStart": "session_start",
         "beforeSubmitPrompt": "user_prompt_submit",
         "preToolUse": "pre_tool_use",
         "postToolUse": "post_tool_use",
         "stop": "stop",
+        "preCompact": "pre_compact",
+        "subagentStart": "subagent_start",
+        "subagentStop": "subagent_stop",
     }
 
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
@@ -87,7 +92,7 @@ class CursorBackend(JsonHooksBackend):
         """
         wrapper = self.hooks_dir() / f"karma_{hook_name_lower}.py"
         entry: dict[str, Any] = {"command": f"{sys.executable} {wrapper}"}
-        if event_name == "stop":
+        if event_name in ("stop", "subagentStop"):
             entry["loop_limit"] = 10
         return entry
 
@@ -120,7 +125,7 @@ class CursorBackend(JsonHooksBackend):
     def emit_deny(self, reason: str, payload: dict) -> str:
         """Cursor preToolUse deny: 顶层 `permission: "deny"` + agent_message/user_message.
 
-        跟 Claude `hookSpecificOutput.permissionDecision`
+        跟 Claude `hookSpecificOutput.permissionDecision` 和 Gemini `decision: "deny"`
         都不同 — Cursor 官方文档 (https://cursor.com/docs/hooks) 明确指定:
             {"permission": "allow|deny|ask", "user_message": "...", "agent_message": "..."}
 
@@ -142,11 +147,16 @@ class CursorBackend(JsonHooksBackend):
     ) -> str:
         """Cursor context injection — event-specific output shape.
 
-        - sessionStart / postToolUse: native `additional_context` (snake_case).
+        - sessionStart / postToolUse / subagentStart: native `additional_context`.
         - beforeSubmitPrompt: third-party nested `hookSpecificOutput` (Claude
           UserPromptSubmit 映射); empty → `{"continue": true}` per native schema.
+        - preCompact: observational `user_message` only (no additional_context).
         """
         text = (additional_context or "").strip()
+        if event_name == "preCompact":
+            if not text:
+                return json.dumps({})
+            return json.dumps({"user_message": additional_context}, ensure_ascii=False)
         if event_name == "beforeSubmitPrompt":
             if not text:
                 return json.dumps({"continue": True})
@@ -165,7 +175,7 @@ class CursorBackend(JsonHooksBackend):
         让 Cursor 自动以这段文本作为 user 回复继续 Agent 循环. 这正映射 karma
         keep-pushing 的「Agent 想 stop 时塞反思 prompt 让继续推」语义.
 
-        相比强制 fail-open 返 {}, Cursor 这个
+        相比 Gemini AfterAgent 没 block 概念被迫返 {} fail-open, Cursor 这个
         协议天然适配 karma 干预 — block 不了但能 redirect 继续, 等效 karma 想要
         的「不让 Agent 草草收工」效果.
         """
@@ -200,7 +210,7 @@ class CursorBackend(JsonHooksBackend):
         """
         return [
             "",
-            "⚠️  Cursor 跟 Claude Code / Codex 不一样 — 只支持 project-scoped",
+            "⚠️  Cursor 跟 Claude Code / Codex / Gemini 不一样 — 只支持 project-scoped",
             "    skills (`.cursor/skills/` 在每个项目根目录), **没有 home-level global**.",
             "",
             "    影响: karma 核心能力 (sticky 规则注入 + 行为拦截) 完全可用. 但是",

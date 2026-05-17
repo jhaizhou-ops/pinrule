@@ -41,6 +41,9 @@ session_start.compact.tail: "After compact, agreements easily fade in new contex
 session_start.resume.title: "[karma — Session resumed, recalling agreement with the user]"
 session_start.startup.title: "[karma — Session start, your long-term agreement with the user (source={source})]"
 
+# ===== PreCompact (Cursor user_message) =====
+pre_compact.cursor_notice: "karma saved your collaboration rules to disk before context compact. After compact, SessionStart will reload them — keep following those agreements."
+
 # ===== SubagentStart =====
 subagent_start.title: "[karma — You're a sub-Agent sent by the parent session, inheriting the user's long-term agreements]"
 subagent_start.tail: "Behave per these directions when running tasks. The main Agent will receive a summary reminder when you finish."

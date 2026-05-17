@@ -50,6 +50,7 @@ _CURSOR_EVENT_NAMES = frozenset({
     "sessionStart", "sessionEnd",
     "preToolUse", "postToolUse", "postToolUseFailure",
     "beforeSubmitPrompt", "stop",
+    "preCompact", "subagentStart", "subagentStop",
     "beforeShellExecution", "afterShellExecution",
     "beforeMCPExecution", "afterMCPExecution",
     "beforeReadFile", "afterFileEdit",
