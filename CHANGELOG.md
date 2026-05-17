@@ -10,6 +10,31 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.15.1] — 2026-05-17 (patch — branding consistency + reproducible perf script + backend capability matrix)
+
+External 8.8/10 review (independent friend audit of v0.15.0) flagged 3 polish gaps. This patch closes all 3:
+
+### Branding consistency
+- `pyproject.toml` description: "for Claude Code" → "for Claude / Codex / Cursor" (matches current 3-backend positioning).
+- `pyproject.toml` keywords add `codex` / `cursor`.
+- All user-facing docs (README, PRD, ARCHITECTURE, CODEX_BACKEND, HOOK_CONFIGURATION_GUIDE, HOWTO, etc.) + code comments unified to brand-only "Claude / Codex / Cursor"; historical milestone tables in ARCHITECTURE.md preserved as record.
+- `ClaudeCodeBackend.display_name` "Claude Code" → "Claude" — CLI output immediately consistent.
+
+### Reproducible perf measurement
+- New `scripts/measure_perf.py` (~120 lines): users run on their own machine to verify README's "50-70ms hook latency" + "~2% token overhead" claims with their actual rules.yaml + machine.
+- Measures n=50 wall-clock samples per (backend × wrapper) for UserPromptSubmit + PreToolUse; computes anchor-chars / typical-turn-chars ballpark.
+- Author's M2 Mac sample: Claude UPS p50=40ms / PTU p50=57ms; Codex UPS p50=41ms / PTU p50=57ms; Cursor UPS p50=71ms / PTU p50=58ms. Anchor at median (1 violated rule) ≈ 5.2% raw chars → ~0.5% real after Anthropic prompt-cache 10x discount. Matches the friend's externally-reported 67ms.
+- README Performance row links the script for both `Hook latency` and `Token cost` rows.
+
+### Backend capability matrix
+- README + README.zh.md "Claude / Codex / Cursor native hook support" section now has an 8-row side-by-side capability matrix (hook count / session-start inject / real-time tool gate / Stop intervention / compact resilience / subagent coverage / `/karma <NL>` rule input / visibility fallback).
+- Shows the friend's stated concern — three backends use the strongest native surface each platform offers, not a "Claude protocol forced onto everyone" shape.
+- HOWTO install table no longer repeats "(CLI + desktop both adapted)" — declared once in intro line, omitted thereafter (user preference: don't repeat the same scope qualifier on every mention).
+
+### Internal
+- `scripts/measure_perf.py` deliberately not wired into pytest — it's a user-facing diagnostic, not a CI metric. CI still validates protocol correctness via `tests/` 834-test suite.
+- No production code paths changed; 834 tests stay green.
+
 ## [0.15.0] — 2026-05-17 (minor — Codex native hook surface and intervention semantics)
 
 ### Codex native-first support

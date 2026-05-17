@@ -6,6 +6,35 @@
 
 ## [Unreleased]
 
+## [0.15.1] — 2026-05-17（patch — 品牌一致性 + 可复现真测脚本 + 三端能力对照）
+
+外部独立评审 (朋友给 v0.15.0 打 8.8/10) 点出 3 个 polish 扣分点, 本 patch 全闭合:
+
+### 品牌名一致性
+
+- `pyproject.toml` description: "for Claude Code" → "for Claude / Codex / Cursor" (跟现在三端定位对齐).
+- `pyproject.toml` keywords 加 `codex` / `cursor`.
+- 全部对外文档 (README, PRD, ARCHITECTURE, CODEX_BACKEND, HOOK_CONFIGURATION_GUIDE, HOWTO 等) + 代码注释统一成 brand-only "Claude / Codex / Cursor"; ARCHITECTURE.md 历史 milestone 表保留 record 不动.
+- `ClaudeCodeBackend.display_name` "Claude Code" → "Claude" — CLI 输出立刻一致.
+
+### 真测可复现脚本
+
+- 新 `scripts/measure_perf.py` (~120 行): 用户在自己机器跑, 验 README "50-70ms hook latency" + "~2% token overhead" 这些数字, 用自己的 rules.yaml + 自己的硬件.
+- 每 (backend × wrapper) 跑 n=50 次 wall-clock 真测 UserPromptSubmit + PreToolUse; 算 anchor 字符 / 典型 turn 字符比 ballpark.
+- 作者 M2 Mac 实测样本: Claude UPS p50=40ms / PTU p50=57ms; Codex UPS p50=41ms / PTU p50=57ms; Cursor UPS p50=71ms / PTU p50=58ms. anchor median (1 违反) ≈ 5.2% raw chars → Anthropic prompt-cache 10x 折扣后 ~0.5% real. 跟朋友外部报的 67ms 落在同范围.
+- README Performance 表 `hook 延迟` 跟 `token 消耗` 两行都连到这脚本.
+
+### 三端能力对照表
+
+- README + README.zh.md "Claude / Codex / Cursor hook 原生支持" 段加 8 行三端 side-by-side 对照表 (hook 数 / 起手注入 / 工具调用前实时拦截 / Stop 干预 / compact 续命 / 子 Agent 覆盖 / `/karma <NL>` 加规则 / 可见性兜底).
+- 展示朋友提的关切: 三端用各自原生协议最强触达点, 不是 "把 Claude 协议套到别家".
+- HOWTO 装机表删 verbose "(CLI + desktop 都适配)" mention — 简介处声明一次就够了, 后续不重复 (用户偏好: 同 scope qualifier 不重复挂每个 mention).
+
+### 内部
+
+- `scripts/measure_perf.py` 故意不接 pytest — 它是 user-facing 诊断工具不是 CI 指标. CI 走 `tests/` 834-test 验协议正确性.
+- 没改 production code path; 834 tests 全绿.
+
 ## [0.15.0] — 2026-05-17（minor — Codex 原生 hook surface + 干预语义对齐）
 
 ### Codex native-first 支持
