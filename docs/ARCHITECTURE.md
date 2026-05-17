@@ -316,18 +316,32 @@ pinrule doctor                     # Check environment + all hook install status
 - `PINRULE_DEBUG=1` — `run_checks` exceptions print traceback to stderr (debug custom checks)
 - `PINRULE_DEBUG_TRACE=<path>` — Append trace line to file when Stop hook fires (verify Stop hook actually triggers; production keeps disabled)
 
-## State directory path (`PINRULE_HOME` env var)
+## True sandbox isolation (`PINRULE_HOME` env var)
 
-pinrule state defaults to `~/.pinrule/` (contains `rules.yaml` / `violations.jsonl` / `session-state/` / `config.yaml`). The `PINRULE_HOME` env var changes the path — useful for dry-run / CI / multi-profile isolation:
+v0.16.11 expanded `PINRULE_HOME` from "data dir only" to **true install-root sandbox** — everything anchors under the env path:
+
+| Anchor | Without `PINRULE_HOME` | With `PINRULE_HOME=/tmp/foo` |
+|---|---|---|
+| Data dir (rules.yaml / violations.jsonl / session-state/ / config.yaml) | `~/.pinrule/` | `/tmp/foo/.pinrule/` (via `pinrule_home()`) |
+| Hook wrapper install root | `~/.claude/`, `~/.codex/`, `~/.cursor/` | `/tmp/foo/.claude/`, `/tmp/foo/.codex/`, `/tmp/foo/.cursor/` (via `pinrule_install_root()`) |
+| settings.json entries | written to `~/.claude/settings.json` etc. | written to `/tmp/foo/.claude/settings.json` etc. |
+| Skill files (`SKILL.md`) | `~/.claude/skills/pinrule/`, `~/.codex/skills/pinrule/` | mirrored under `/tmp/foo/...` |
+| Cursor `.mdc` rules | `~/.cursor/rules/` | `/tmp/foo/.cursor/rules/` |
+
+This is the "true sandbox" path — `init` / `install-hooks` / `doctor` / `rule list` all confined. Use cases: friends trial without touching their machine, CI dry-run isolating pinrule entirely, multi-profile rule sets (`PINRULE_HOME=~/work` vs `~/play`).
 
 ```bash
-PINRULE_HOME=/tmp/pinrule-test pinrule init           # Doesn't touch ~/.pinrule/
-PINRULE_HOME=~/pinrule-profile-A pinrule rule list    # Multi-profile isolation
+PINRULE_HOME=/tmp/pinrule-trial pinrule init           # Everything under /tmp/pinrule-trial
+PINRULE_HOME=/tmp/pinrule-trial pinrule install-hooks  # Hook wrappers also sandboxed
+PINRULE_HOME=/tmp/pinrule-trial pinrule doctor         # Reads same sandbox
+rm -rf /tmp/pinrule-trial                              # Clean trial removal
 ```
 
-Note: paths freeze at module-level constant import time, so `PINRULE_HOME` must be set **before** launching the pinrule process. Hook-wrapper-invoked pinrule doesn't read this env (wrapper doesn't pass env), so actual usage primarily uses `~/.pinrule/`.
+**Two source-of-truth helpers** in `pinrule/paths.py`:
+- `pinrule_home()` — data dir (rules.yaml etc.). All 5 modules (rule / violations / session_state / config / cli) read this.
+- `pinrule_install_root()` — install root for hook wrappers + settings.json + skills. The 4 `_json_hooks.py` methods (`client_installed` / `hooks_dir` / `settings_path` / `settings_backup_path`) read this; Cursor backend's rules-dir method reads this.
 
-Single source of truth: `pinrule/paths.py:pinrule_home()` — all 5 modules (rule / violations / session_state / config / cli) use it to read env.
+Note: paths freeze at module-level constant import time, so `PINRULE_HOME` must be set **before** launching pinrule. Hook-wrapper-invoked pinrule inherits parent process env, so once the sandbox install is done the env is no longer required at runtime (wrapper path is already sandbox-internal).
 
 ## Performance budget
 
