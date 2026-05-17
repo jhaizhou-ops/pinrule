@@ -758,7 +758,7 @@ def cmd_reset_session() -> int:
 def _check_file_last_commit_ts(sticky_id: str, sticky_list) -> int | None:
     """查 sticky 对应 check 文件最新 git commit 时间戳（dogfooding fix 时间线用）。
 
-    用 sticky.yaml 的 violation_checks 字段反查 REGISTRY[func_name].__module__
+    用 rules.yaml 的 violation_checks 字段反查 REGISTRY[func_name].__module__
     → check 文件路径 → `git log -1 --format=%ct -- <path>`。
 
     返回 None 的情况：不在 pinrule 仓库 cwd / git 不可用 / sticky 没工程 check

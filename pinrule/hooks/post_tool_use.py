@@ -279,9 +279,9 @@ def _build_smart_reinject(session_id: str, state, payload: dict | None = None) -
     try:
         cfg = _load_config()
         window_turns = int(cfg.get("recent_violation_turns", 5))
-        # v0.4.35 阈值来源优先级：sticky.yaml 显式配置 > 按模型自适应 > DEFAULT 40K
+        # v0.4.35 阈值来源优先级：config.yaml 显式配置 > 按模型自适应 > DEFAULT 40K
         # (v0.9.0 把 DEFAULT 从 60K 收紧到 40K 时这条注释忘改, v0.10.5 修)
-        # 用户 sticky.yaml 给 reinject_every_n_tokens 数字 → 强制覆盖
+        # 用户 config.yaml 给 reinject_every_n_tokens 数字 → 强制覆盖
         # 没给 → 按 state.model 模型阈值（model_threshold 表）
         configured = cfg.get("reinject_every_n_tokens")
         if configured is not None:

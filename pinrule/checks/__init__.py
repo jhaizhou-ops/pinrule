@@ -5,7 +5,7 @@
 
 返回 None = 无违反；CheckHit = 违反详情。
 
-sticky.yaml 的 violation_checks 字段值对应 REGISTRY 的 key。
+rules.yaml 的 violation_checks 字段值对应 REGISTRY 的 key。
 """
 
 from __future__ import annotations

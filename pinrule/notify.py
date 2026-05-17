@@ -23,7 +23,7 @@ def _escape_for_osascript(s: str) -> str:
 
 
 def _sanitize_argv_text(s: str, max_len: int = 200) -> str:
-    """notify-send / msg 等命令行工具的参数清洗 — sticky.yaml 的
+    """notify-send / msg 等命令行工具的参数清洗 — rules.yaml 的
     violation_keywords 是用户自定义不可信输入，传 argv 时可能含 `--icon=...`
     类伪 flag 被 notifier 错误当 flag 处理。剥前导 `-`、合并换行、限长。
     """

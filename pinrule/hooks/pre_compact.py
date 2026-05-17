@@ -7,9 +7,9 @@ Claude Code 协议:
 设计（v0.4.29 升级 — 早期 stub 用 continue:false 想阻止 compact，错。compact 是
 Claude Code 保护机制，pinrule 不该干扰。改成纯落盘 + 注入 reminder）：
 
-- 落盘 sticky 完整状态到 `~/.claude/pinrule/pre_compact_snapshot.md`
-  保存：完整 sticky.yaml + 最近 5 turn 违反清单 + compact 触发时间 + session_id
-- 注入 additionalContext 让 Claude 看到「即将 compact，sticky 已落盘」
+- 落盘规则完整状态到 `~/.pinrule/pre_compact_snapshot.md`
+  保存：完整 rules.yaml + 最近 5 turn 违反清单 + compact 触发时间 + session_id
+- 注入 additionalContext 让 Claude 看到「即将 compact, 规则已落盘」
 - SessionStart(source=compact) 重起后会读这个 snapshot 加强提醒
 
 两端夹击 compact 失忆：PreCompact 落盘 + SessionStart 读盘。
