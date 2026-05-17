@@ -13,13 +13,13 @@
 
 ![pinrule demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
-> 5-scene animated SVG (~80s loop): **(1)** compact rule reminder injected on every user prompt, **(2)** real-time block on UI-stalling commands, **(3)** Agent shortcut attempt caught ("Let me just hardcode this case"), **(4)** Agent silent stop → nudge to keep pushing, **(5)** long-context accumulation → mid-conversation full rule reinject (auto-detects each model's decay point) — all real screencaps, no manual mocks.
+> 5-scene animated SVG (~20s loop): **(1)** compact anchor injected on every user prompt, **(2)** real-time block on UI-stalling commands, **(3)** Agent shortcut attempt caught ("Let me just hardcode this case"), **(4)** Agent silent stop → nudge to keep pushing, **(5)** long-context accumulation → mid-conversation full rule reinject (auto-detects each model's decay point) — all real screencaps, no manual mocks.
 
 Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. pinrule solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
 **Two sides of the same loop**:
 
-🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
+🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected as session-start baseline + compact per-turn anchor (id + first line + drift marker, ~490 tokens average) + auto-reinject on long-context decay; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
 ✨ **Say it in plain words → pinrule writes the rule.** Type `/pinrule <natural language>` in Claude / Codex (or `.cursor/skills/pinrule/` per-project for Cursor) and the pinrule skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. The `/pinrule` skill is installed by `pinrule install-skill` (Claude + Codex home-global; Cursor project-scoped, see post-install hint) — `pinrule init` runs this for you on first setup, hooks themselves go in via `pinrule install-hooks`.
 
@@ -47,7 +47,7 @@ Chinese + English auto-detected — open an issue if you'd like other languages 
 
 | Real pain | Failure scene | How pinrule solves |
 |---|---|---|
-| **"I said use long-term solutions, not patches" — 30 turns later the Agent patches again** | Turn 1: you say "use the cleanest solution," Agent answers "got it." Turn 50: "let me patch this quickly." Your preference got diluted by new content. | Pin 5-10 core directions at the prompt header on every turn — the Agent sees them first, not last |
+| **"I said use long-term solutions, not patches" — 30 turns later the Agent patches again** | Turn 1: you say "use the cleanest solution," Agent answers "got it." Turn 50: "let me patch this quickly." Your preference got diluted by new content. | Full rule baseline at session start + compact anchor (rule ids + drift markers) on every turn header — the Agent's first attention is on your directions, and any rule that drifted last turn gets marked so it self-corrects |
 | **"I said don't block the frontend — keep working while tests run" — Agent runs `sleep` anyway** | Agent runs `sleep 30`, UI blocks for 30s, you watch the progress bar — Agent never realized this is "stuck waiting" | Real-time block of `sleep` / `wait` / long tasks without background mode, hit → deny before tool runs |
 | **After compact the Agent compressed my preferences into vague words** | At 80K context, compact triggers; after SessionStart, Agent compresses "no patches" into "write clean code," intent lost | Auto-dump full rule state pre-compact; auto-reload + strong-inject post-compact restart |
 | **Long context accumulation → attention decay → Agent drifts** | At 60-80K accumulated context, headers get diluted — Agent isn't ignorant, attention decayed | Per-model adaptive threshold (different decay points per model), auto-reinject mid-conversation when accumulation hits threshold |
@@ -96,7 +96,7 @@ Steps:
 4. Run `pinrule doctor` to verify installation
 ```
 
-After install, the Agent shows a summary of default rules — you see at a glance which 5-7 rules are active. To modify any rule afterward, tell the Agent "remove pinrule rule X" / "change pinrule rule Y" — it knows to use the `/pinrule` skill.
+After install, the Agent shows a summary of default rules — you see at a glance which 7 rules are active (the default `data/rules.dev.example.yaml` / `.zh.yaml` templates). To modify any rule afterward, tell the Agent "remove pinrule rule X" / "change pinrule rule Y" — it knows to use the `/pinrule` skill.
 
 ### Per-client manual install commands
 
@@ -119,9 +119,9 @@ cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # Restore orig
 
 After install + restart, here's what you'll see pinrule doing automatically:
 
-### 1. Every prompt header injects full rules + drift markers
+### 1. Session-start baseline + compact anchor every turn (v0.9.0 injection architecture, ~73% token saving vs always-full)
 
-On every user prompt, your client prepends your 5-10 core directions plus a marker on any rule that drifted in the last response. The Agent reads them before anything else:
+**Once per session** (`SessionStart` hook), pinrule injects the full rule baseline — your 5-10 directions in full prose, each tagged with its `[rule-id]`. The Agent reads them at the conversation top:
 
 ```
 [pinrule — Your long-term agreement with the user]
@@ -129,11 +129,26 @@ You're collaborating with a real human user who listed several
 long-term priorities. This isn't rules and isn't a judgment — these
 are the collaborative agreements they hope to build with you.
 
-1. The user trusts you to dig into root causes...
-   〔Last response had drift on this one — let's realign this turn〕
-2. When sleep / wait / long tasks are running, the user is waiting...
-3. Your user is non-technical — they want comprehensible reports...
+1. [long-term-fundamental] The user trusts you to dig into root causes...
+2. [non-blocking-parallel] When sleep / wait / long tasks are running...
+3. [chinese-plain-no-jargon] Your user is non-technical — they want...
 ```
+
+**Every prompt after** (`UserPromptSubmit` hook), only a compact anchor goes in — rule ids + one-line gist + a marker on any rule that drifted in the last response. Most turns this is a tiny refresher, often empty when nothing drifted:
+
+```
+[pinrule — Long-term agreement reminder (compact; full preferences in session baseline)]
+
+1. [long-term-fundamental] Dig into root causes — pause and think
+   "what's the cleanest solution?" before patching
+   〔Last response had drift on this one — let's realign this turn〕
+2. [non-blocking-parallel] sleep / wait blocks — Agent should
+   run_in_background and pick up the next thing
+3. [chinese-plain-no-jargon] Non-technical user; swap jargon for
+   plain Chinese, save technical terms for their first use
+```
+
+Why split the two: the full baseline (~1.8K tokens) only loads once at session start; per-turn anchor averages ~490 tokens (often 0 when no rule drifted) — **net ~73% per-turn token saving** vs re-sending everything every turn.
 
 ### 2. Mid-conversation refresh when context accumulates
 
@@ -244,14 +259,14 @@ flowchart LR
     A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>audit history)]
 
-    R ==>|inject every turn| K
+    R ==>|full baseline once<br/>+ compact anchor per turn| K
     K ==>|prompt header| A
     A ==>|tool call / response| K
     K -.->|hit → deny + log| V
     V -.->|next-turn drift marker| K
 ```
 
-`rules.yaml` is pinrule's single core rule list — the only thing you maintain. pinrule auto-injects it into every prompt header.
+`rules.yaml` is pinrule's single core rule list — the only thing you maintain. pinrule injects the full baseline once at session start (~1.8K tokens) and a compact anchor on each subsequent prompt (rule ids + first line + drift markers, ~490 tokens average; long-context accumulation triggers a mid-conversation reinject at the model's decay point).
 pinrule's zero-network engineering scan reads Agent tool calls + Agent responses looking for signs of rule violation, then prompts / warns / blocks accordingly, and feeds detected drift back into the next turn's marker. No retrieval, no scoring, no LLM in the loop.
 
 pinrule isn't a linter, a scorer, or a retrieval system. It addresses four real but commonly-overlooked LLM collaboration problems:
@@ -282,7 +297,7 @@ pinrule installs at 8 hook positions (detailed below) — not just "inject once 
 |---|---|---|
 | **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
 | **Source code** | ~9.7K lines Python | Readable, modifiable, no magic |
-| **Quality gates** | lint / type-check / dead-code / **845 unit tests**, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
+| **Quality gates** | lint / type-check / dead-code / **854 unit tests**, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | typically 50-70ms (Python startup-bound, machine-dependent — author's M-series Mac ~49ms, 67ms reported on lower-end machines). Reproduce on your machine: `python scripts/measure_perf.py` | Well within AI client protocol budget of 200ms |
 | **Token cost** | 1.8K SessionStart baseline + per-turn anchor listing only session-violated rules + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood: ~2% of conversation context** (30 sessions measured: 60% of work sessions = 0 anchor token, median 1 violated rule per session) |
 | **Supported clients** | Claude / Codex / Cursor | Add a backend via [HOWTO](./pinrule/backends/HOWTO.md) |
@@ -310,7 +325,7 @@ flowchart TB
 
 | Hook position | Function + scenario | Pain point solved |
 |---|---|---|
-| **Every user prompt** (UserPromptSubmit) | Header injects full rules + drift markers | Agent forgets your preferences after long session |
+| **Every user prompt** (UserPromptSubmit) | Header injects compact anchor (rule ids + first line + drift markers); full baseline lives at SessionStart, not every-turn re-injected | Agent forgets your preferences after long session, without paying full-baseline token cost every turn |
 | **Before every tool call** (PreToolUse) | Keyword + engine-layer double-check; hit → deny | Agent wants to run sleep / commit --no-verify / bypass rules |
 | **After every tool call** (PostToolUse) | Track file read/edit/bash state + auto mid-conversation refresh when accumulation hits threshold | Long context accumulation → attention decay → Agent drifts |
 | **Agent stops generating** (Stop) | Terminal stderr ⚠️ + desktop notify + silent-stop reflective intervention + short-term intent talk detection | Agent finishes one wave and stops to ask, user gets interrupted repeatedly |
@@ -386,7 +401,7 @@ Run `pinrule doctor` to check:
 | **Memory systems** (mem0, Claude/ChatGPT memory) | Store *facts* about the user — preferences, history, profile traits | Agent *chooses* to query when relevant |
 | **pinrule** | Enforce *behaviors* you've already articulated as long-term directions | Hooks fire automatically on every prompt + before every tool call |
 
-Memory systems are good at "remember the user said X last week." pinrule is good at "the user's 7 core directions get *injected* every turn whether the Agent retrieves them or not — and violations get caught in real-time."
+Memory systems are good at "remember the user said X last week." pinrule is good at "the user's 7 core directions get *injected* at session start + reinforced via compact per-turn anchors whether the Agent retrieves them or not — and violations get caught in real-time."
 
 You can (and should) use both. Memory holds "user prefers TypeScript over JavaScript"; pinrule holds "this user's directional preferences are non-negotiable and enforced via hooks."
 
