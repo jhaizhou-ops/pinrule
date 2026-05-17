@@ -740,7 +740,10 @@ class CodexBackend(JsonHooksBackend):
             stripped = line.strip()
             if stripped.startswith("[hooks.state.") and stripped.endswith("]"):
                 raw_key = stripped[len("[hooks.state."):-1].strip()
-                if raw_key.startswith('"') and raw_key.endswith('"'):
+                # 兼容老 install 写的双引号 + v0.16.17+ Windows 跨平台单引号 literal
+                # (Windows path 含 `\U` 等 TOML 会当 Unicode escape 解析 fail).
+                if (raw_key.startswith('"') and raw_key.endswith('"')) or \
+                   (raw_key.startswith("'") and raw_key.endswith("'")):
                     raw_key = raw_key[1:-1]
                 if raw_key in trust_entries:
                     output.append(line)
@@ -768,7 +771,11 @@ class CodexBackend(JsonHooksBackend):
                 output.append("[hooks.state]")
                 output.append("")
             for key, value in missing.items():
-                output.append(f'[hooks.state."{key}"]')
+                # TOML literal string (单引号) — Windows path 含 `\U` / `\x` 等
+                # 在双引号字符串里会被当 Unicode/hex escape 解析 fail. 单引号
+                # literal 不做 escape, 跨平台干净. 假设 key (来自 settings 路径)
+                # 不含单引号 — pinrule wrapper path 不会有.
+                output.append(f"[hooks.state.'{key}']")
                 output.append("enabled = true")
                 output.append(f'trusted_hash = "{value["trusted_hash"]}"')
                 output.append("")
