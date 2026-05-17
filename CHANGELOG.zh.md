@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+## [0.13.4] — 2026-05-17（patch — Cursor backend test isolation: 沙箱 CI 用可配 `_CONFIG_DIR_NAME`）
+
+Cursor desktop Agent dogfood 跟进的小 test-isolation 修: 部分沙箱 CI 环境禁止 `mkdir ~/.cursor` (当 protected user-config 拦). 直接创建 backend 配置目录的测试现走 `cursor_test_config_dir` pytest fixture, monkeypatch `CursorBackend._CONFIG_DIR_NAME` 到沙箱安全名 (`cursor-karma-test`).
+
+无 production 行为变化 — Cursor 用户仍走 `~/.cursor/hooks.json`. 只 test setup 受影响. 806 pytest 全绿.
+
 ## [0.13.3] — 2026-05-17（patch — Cursor ↔ Claude hook 对齐, 8/8 wrapper）
 
 ### Cursor ↔ Claude hook 对齐 (8/8 wrapper)

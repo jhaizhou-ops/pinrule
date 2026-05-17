@@ -10,6 +10,12 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.13.4] — 2026-05-17 (patch — Cursor backend test isolation: configurable `_CONFIG_DIR_NAME` for sandboxed CI)
+
+Tiny test-isolation fix from Cursor desktop Agent's continued dogfood: some sandboxed CI environments forbid `mkdir ~/.cursor` (treated as protected user-config). Tests that create the backend's config dir directly now use a `cursor_test_config_dir` pytest fixture that monkeypatches `CursorBackend._CONFIG_DIR_NAME` to a sandbox-safe name (`cursor-karma-test`).
+
+No production behavior change — Cursor users still get `~/.cursor/hooks.json`. Only test setup affected. 806 pytest green.
+
 ## [0.13.3] — 2026-05-17 (patch — Cursor ↔ Claude hook parity, 8/8 wrappers)
 
 ### Cursor ↔ Claude hook parity (8/8 wrappers)
