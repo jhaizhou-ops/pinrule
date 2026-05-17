@@ -264,16 +264,16 @@ def test_cursor_has_no_user_prompt_submit_equivalent(fake_home):
     assert "session_start" in wrappers
 
 
-def test_cursor_event_entry_no_matcher_no_timeout(fake_home):
-    """Cursor hook entry 用基类默认 — 不加 matcher 不加 timeout."""
+def test_cursor_event_entry_native_flat_command(fake_home):
+    """Cursor hook entry 用 native flat `{command}` + stop 带 loop_limit."""
     b = CursorBackend()
     entry = b.build_event_entry("pre_tool_use", "preToolUse")
     assert "matcher" not in entry
-    hooks = entry["hooks"]
-    assert len(hooks) == 1
-    assert hooks[0]["type"] == "command"
-    assert "karma_pre_tool_use.py" in hooks[0]["command"]
-    assert "timeout" not in hooks[0]
+    assert "hooks" not in entry
+    assert "karma_pre_tool_use.py" in entry["command"]
+    assert "type" not in entry
+    stop_entry = b.build_event_entry("stop", "stop")
+    assert stop_entry.get("loop_limit") == 10
 
 
 def test_cursor_normalize_tool_name_shell_to_bash():

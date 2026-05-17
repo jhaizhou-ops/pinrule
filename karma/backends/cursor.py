@@ -17,13 +17,10 @@ Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude Code
    但 sessionStart `additional_context` 在 prompt cache + system message 里每 turn 都
    读得到, 跟 CLAUDE.md / .cursorrules 同等效.
 
-② **stdin payload 用 `conversation_id` 不是 `session_id`**. karma hook 入口
-   (karma/hooks/*.py) hardcode `payload.get("session_id")` — Cursor 装的 wrapper 在
-   读 payload 时这个 key 会 miss, 触发 fallback 到 `"default"` 字面. 这是 Cursor
-   backend 的真潜在 bug (跟 stop.py 的三路 fallback `transcript_path` /
-   `last_assistant_message` / `prompt_response` 同款问题), 通过 install + 真跑一遍
-   验证. 不在本文件 patch 通用层 — karma 设计是 hook 入口集中处理跨 backend 字段
-   fallback (rule #6 read_first: 改前先观测真行为).
+② **stdin payload 用 `conversation_id` 不是 `session_id`**. v0.12.1 起
+   `karma.hooks._payload.extract_session_id` 做 `session_id → conversation_id`
+   fallback; sessionStart 文档也写 `session_id` 同 `conversation_id`. 两者并存时
+   优先 `session_id`.
 
 ③ **Stop hook 协议从根本不同**. Cursor `stop` 不接受 `{"decision": "block",
    "reason": ...}`, 接受 `{"followup_message": "..."}` 让 Agent auto-continue. 这正
@@ -39,7 +36,9 @@ Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude Code
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+from typing import Any
 
 from karma.backends._json_hooks import JsonHooksBackend
 
@@ -77,6 +76,31 @@ class CursorBackend(JsonHooksBackend):
         "postToolUse": "post_tool_use",
         "stop": "stop",
     }
+
+    def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
+        """Cursor native hooks.json entry — flat `{command: ...}` not Claude nested.
+
+        Cursor docs (https://cursor.com/docs/hooks) use `version: 1` + per-event
+        `{command: "..."}` entries. Claude nested `{hooks:[{type,command}]}` works
+        via third-party import but native format is required for reliable load.
+        Use absolute `sys.executable` + wrapper path — user hooks cwd is `~/.cursor/`.
+        """
+        wrapper = self.hooks_dir() / f"karma_{hook_name_lower}.py"
+        entry: dict[str, Any] = {"command": f"{sys.executable} {wrapper}"}
+        if event_name == "stop":
+            entry["loop_limit"] = 10
+        return entry
+
+    def is_karma_entry(self, entry: dict) -> bool:
+        """Recognize karma in native flat entries and legacy Claude nested entries."""
+        if "karma_" in entry.get("command", ""):
+            return True
+        return super().is_karma_entry(entry)
+
+    def save_settings(self, data: dict) -> None:
+        """Ensure Cursor hooks.json has schema `version: 1`."""
+        data.setdefault("version", 1)
+        super().save_settings(data)
 
     def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
         """Cursor tool_name 归一化 — Shell → Bash."""

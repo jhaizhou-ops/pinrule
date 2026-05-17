@@ -6,6 +6,51 @@
 
 ## [Unreleased]
 
+## [0.12.3] — 2026-05-17（patch — Cursor backend native hooks.json schema 真 dogfood 修复）
+
+第一波 Cursor backend 端到端 dogfood 由 Cursor desktop Agent (Composer, Cursor 1.7+) 完成 — 跑了 5 个 event 验证, 拿真 `stdin` captures + IDE 行为观察反馈. P0 这波修, P1 (stop hook 需要 `transcript_path` 才能 fire keep-pushing) 单独 track.
+
+### P0 修复 — `install-hooks --backend cursor` 现在写 Cursor native schema
+
+v0.12.0 用 `JsonHooksBackend.build_event_entry` 默认实现, 产生 Claude **nested** shape `{"hooks": [{"type": "command", "command": "..."}]}`. Cursor 1.7+ 实际期望 **flat** shape, 按 [官方文档](https://cursor.com/docs/hooks):
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [{"command": "/path/to/python /path/to/karma_pre_tool_use.py"}],
+    "stop": [{"command": "...", "loop_limit": 10}]
+  }
+}
+```
+
+Cursor docs 注明 hooks 必须 native shape 才会 load — dogfood session **零 stdin captures** 直到把 config 改成 native 才开始 fire.
+
+`karma/backends/cursor.py` 现在 override:
+- `build_event_entry()` — 返 flat `{command: f"{sys.executable} {wrapper}"}`, stop event 加 `loop_limit: 10`
+- `save_settings()` — 设 `version: 1` schema marker
+- `is_karma_entry()` — 识别 flat (`command` 含 `karma_` 前缀) 跟 legacy Claude nested entries 两种
+
+### Contract test 松绑 (一个 test 从「必须含 nested hooks key」改成「必须含 karma_ wrapper 路径」)
+
+`tests/contract/test_backend_contract.py::test_build_event_entry_returns_dict_with_hooks_key` 是 v0.10.1 时代假设 — 当时 Claude / Codex / Gemini 三家都用 nested shape, 当成普适契约. Cursor dogfood 证明跨 backend shape 不是真 invariant. rename 成 `test_build_event_entry_returns_valid_entry`, 只验 dict + `karma_` wrapper 路径痕迹. backend-specific shape 留各自 backend test 文件里测.
+
+### v0.12.1 `conversation_id` fallback dogfood 确认有用
+
+Cursor `preToolUse` payload 用 `conversation_id` 不是 `session_id` (`sessionStart` payload 两者都有). `karma.hooks._payload.extract_session_id()` fallback 链按设计工作.
+
+### 老实说出未修项 (dogfood report 跟踪, 这波不修)
+
+1. **P1 — `stop` hook 需要 `transcript_path`** 才能 fire `keep_pushing_no_stop` check. Cursor docs 列的 `stop` 最小 stdin 只有 `{status, loop_count}` — 没 assistant 文本. karma keep-pushing 通过 `transcript_path` JSONL 读上一条 assistant message; 没这个字段返 `{}` 静默 passthrough. v0.12.4 文档化要求 + 考虑加 graceful skip 路径.
+2. **IDE 注入 `additional_context` 到新 Composer**: hook output ✓, 但 Cursor IDE 是否真注入到模型 context 需要 reload Cursor + 开新 Composer session 人工验. dogfood 同 thread 没法确认.
+3. **`stop` `followup_message` auto-continue**: hook output ✓, 但 Cursor IDE 真 auto-submit-next-turn 行为也需人工验.
+
+### 验证
+
+- 819 pytest 全绿, ruff 0, mypy 0
+- Cursor desktop Agent dogfood session 真 captures 存本地 `.dogfood/captures/` (gitignored, 含 user_email 等敏感字段)
+- 跟踪: dogfood agent 写的 GH issue
+
 ## [0.12.2] — 2026-05-17（patch — 砍 sticky.yaml legacy fallback，无 migration 需要）
 
 karma v2 pre-launch — 没有公开 v0.5.0 之前用户需要 migrate. `rule.py` 跟 `cli.py` 从 v0.5.0 (sticky→rule 改名时) 起一直带 `sticky.yaml` legacy fallback + `karma init` 自动迁移逻辑. v0.12.2 砍掉这块死代码.

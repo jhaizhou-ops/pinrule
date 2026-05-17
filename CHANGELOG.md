@@ -10,6 +10,51 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.12.3] — 2026-05-17 (patch — Cursor backend native hooks.json schema, real dogfood findings)
+
+First Cursor backend end-to-end dogfood by Cursor desktop Agent (Composer, Cursor 1.7+) ran 5-event validation and reported back with real `stdin` captures + IDE behavior observations. P0 fix in this release; P1 (stop hook needs `transcript_path` for keep-pushing) tracked separately.
+
+### P0 fix — `install-hooks --backend cursor` now writes Cursor native schema
+
+v0.12.0 used `JsonHooksBackend.build_event_entry` default which produces Claude **nested** shape `{"hooks": [{"type": "command", "command": "..."}]}`. Cursor 1.7+ actually expects **flat** shape per [official docs](https://cursor.com/docs/hooks):
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [{"command": "/path/to/python /path/to/karma_pre_tool_use.py"}],
+    "stop": [{"command": "...", "loop_limit": 10}]
+  }
+}
+```
+
+Cursor docs note hooks may not load until the user hand-fixes JSON to native shape — the dogfood session had **no stdin captures** until config was corrected.
+
+`karma/backends/cursor.py` now overrides:
+- `build_event_entry()` — returns flat `{command: f"{sys.executable} {wrapper}"}` with `loop_limit: 10` on `stop` event
+- `save_settings()` — sets `version: 1` schema marker
+- `is_karma_entry()` — recognizes both flat (`command` with `karma_` prefix) and legacy Claude nested entries
+
+### Contract test loosened (one test from "must have nested hooks key" to "must have karma_ wrapper path")
+
+`tests/contract/test_backend_contract.py::test_build_event_entry_returns_dict_with_hooks_key` was v0.10.1-era assumption from when Claude / Codex / Gemini all happened to use nested shape. Cursor dogfood proved cross-backend shape isn't a real invariant — renamed to `test_build_event_entry_returns_valid_entry` checking only dict + `karma_` wrapper path presence. backend-specific shape stays in each backend's own test file.
+
+### v0.12.1 `conversation_id` fallback confirmed in dogfood
+
+Cursor `preToolUse` payload uses `conversation_id` not `session_id` (`sessionStart` payload happens to have both). `karma.hooks._payload.extract_session_id()` fallback chain worked as designed.
+
+### Honest open items (tracked in dogfood report, not fixed here)
+
+1. **P1 — `stop` hook needs `transcript_path`** for `keep_pushing_no_stop` check to fire. Cursor docs minimal `stop` stdin is only `{status, loop_count}` — no assistant text. karma's keep-pushing reads last assistant message via `transcript_path` JSONL; without it returns `{}` (silent passthrough). Will document the requirement + consider graceful skip path in v0.12.4.
+2. **IDE injection of `additional_context` on new Composer**: hook output ✓, but whether Cursor IDE injects into model context requires a Cursor reload + new Composer session to eyeball-verify. dogfood couldn't confirm in same thread.
+3. **`stop` `followup_message` auto-continue**: hook output ✓, but real Cursor IDE auto-submit-next-turn behavior also needs human eyeball-verify.
+
+### Validation
+
+- 819 pytest green, ruff 0, mypy 0
+- Real Cursor desktop Agent dogfood session captures saved to local `.dogfood/captures/` (gitignored, contains user_email and other sensitive fields)
+- Issue tracking: see attached GH issue from dogfood agent
+
 ## [0.12.2] — 2026-05-17 (patch — drop sticky.yaml legacy fallback, no migration needed)
 
 karma v2 pre-launch — no public v0.5.0-or-earlier users to migrate. `rule.py` and `cli.py` carried legacy `sticky.yaml` fallback + `karma init` auto-migration logic since v0.5.0 (the sticky→rule rename). v0.12.2 deletes this dead weight.

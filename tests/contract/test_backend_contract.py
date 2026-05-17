@@ -135,15 +135,25 @@ def test_settings_path_under_config_dir(backend):
     )
 
 
-def test_build_event_entry_returns_dict_with_hooks_key(backend):
-    """build_event_entry 必须返回含 'hooks' key 的 dict, 'hooks' 是 list."""
+def test_build_event_entry_returns_valid_entry(backend):
+    """build_event_entry 必须返回 dict, 内含 backend-specific 协议 shape.
+
+    跨 backend shape 差异 (v0.12.3 Cursor dogfood 暴露):
+    - Claude / Codex / Gemini: nested `{"hooks": [{"type": "command", "command": "..."}]}`
+    - Cursor (native, https://cursor.com/docs/hooks): flat `{"command": "..."}`
+
+    Contract 只验 dict 且至少有 karma wrapper 路径痕迹 — 具体 shape 各 backend 自己测.
+    """
     events = backend.hook_events()
     first_event, first_basename = next(iter(events.items()))
     entry = backend.build_event_entry(first_basename, first_event)
     assert isinstance(entry, dict)
-    assert "hooks" in entry
-    assert isinstance(entry["hooks"], list)
-    assert len(entry["hooks"]) > 0
+    # 至少有一条路径里能找到 karma_ wrapper 前缀 (nested 或 flat shape 都 OK)
+    entry_str = str(entry)
+    assert "karma_" in entry_str, (
+        f"backend {backend.name!r} build_event_entry 返回 {entry!r} — "
+        f"没有 karma_ wrapper 路径痕迹 (uninstall 时 is_karma_entry 无法识别)"
+    )
 
 
 def test_is_karma_entry_recognizes_own_entry(backend):
