@@ -12,6 +12,16 @@ import sys
 from pathlib import Path
 
 
+def _normpath(p: str) -> str:
+    """跨平台 path normalize: Windows '\\tmp\\x' → '/tmp/x' 跟 expected 比较.
+
+    pinrule sandbox lockdown 测的是「path anchor 在 sandbox prefix」, 跟 slash
+    方向无关. 用 PurePath.as_posix() 让 Unix-style assert 在 Windows 也 work.
+    """
+    from pathlib import PurePath
+    return PurePath(p).as_posix()
+
+
 def _spawn_pinrule_check(env_override: dict[str, str], code: str) -> str:
     """Spawn 子进程读 pinrule 路径，返回 stdout。"""
     env = os.environ.copy()
@@ -41,7 +51,7 @@ def test_pinrule_home_override_via_env():
         {"PINRULE_HOME": "/tmp/pinrule-test-isolated"},
         "from pinrule.paths import pinrule_home; print(pinrule_home())",
     )
-    assert out == "/tmp/pinrule-test-isolated"
+    assert _normpath(out) == "/tmp/pinrule-test-isolated"
 
 
 def test_pinrule_home_propagates_to_all_modules():
@@ -63,11 +73,11 @@ print(PINRULE_DIR)
     )
     lines = out.splitlines()
     # v0.5.0 起 sticky.yaml → rules.yaml（向后兼容 fallback 还在）
-    assert lines[0] == "/tmp/pinrule-multi-mod/rules.yaml"
-    assert lines[1] == "/tmp/pinrule-multi-mod/violations.jsonl"
-    assert lines[2] == "/tmp/pinrule-multi-mod/session-state"
-    assert lines[3] == "/tmp/pinrule-multi-mod/config.yaml"
-    assert lines[4] == "/tmp/pinrule-multi-mod"
+    assert _normpath(lines[0]) == "/tmp/pinrule-multi-mod/rules.yaml"
+    assert _normpath(lines[1]) == "/tmp/pinrule-multi-mod/violations.jsonl"
+    assert _normpath(lines[2]) == "/tmp/pinrule-multi-mod/session-state"
+    assert _normpath(lines[3]) == "/tmp/pinrule-multi-mod/config.yaml"
+    assert _normpath(lines[4]) == "/tmp/pinrule-multi-mod"
 
 
 def test_pinrule_home_expanduser_tilde():
@@ -105,7 +115,7 @@ def test_pinrule_install_root_override_via_env():
         {"PINRULE_HOME": "/tmp/pinrule-install-root-test"},
         "from pinrule.paths import pinrule_install_root; print(pinrule_install_root())",
     )
-    assert out == "/tmp/pinrule-install-root-test"
+    assert _normpath(out) == "/tmp/pinrule-install-root-test"
 
 
 def test_claude_backend_paths_honor_sandbox():
@@ -121,9 +131,9 @@ print(b.settings_backup_path())
 """,
     )
     lines = out.splitlines()
-    assert lines[0] == "/tmp/pinrule-claude-sandbox/.claude/hooks"
-    assert lines[1] == "/tmp/pinrule-claude-sandbox/.claude/settings.json"
-    assert lines[2] == "/tmp/pinrule-claude-sandbox/.claude/settings.json.before-pinrule"
+    assert _normpath(lines[0]) == "/tmp/pinrule-claude-sandbox/.claude/hooks"
+    assert _normpath(lines[1]) == "/tmp/pinrule-claude-sandbox/.claude/settings.json"
+    assert _normpath(lines[2]) == "/tmp/pinrule-claude-sandbox/.claude/settings.json.before-pinrule"
 
 
 def test_codex_backend_paths_honor_sandbox():
@@ -138,8 +148,8 @@ print(b.settings_path())
 """,
     )
     lines = out.splitlines()
-    assert lines[0] == "/tmp/pinrule-codex-sandbox/.codex/hooks"
-    assert lines[1] == "/tmp/pinrule-codex-sandbox/.codex/hooks.json"
+    assert _normpath(lines[0]) == "/tmp/pinrule-codex-sandbox/.codex/hooks"
+    assert _normpath(lines[1]) == "/tmp/pinrule-codex-sandbox/.codex/hooks.json"
 
 
 def test_cursor_backend_paths_honor_sandbox():
@@ -156,10 +166,10 @@ print(cursor_rules_dir())
 """,
     )
     lines = out.splitlines()
-    assert lines[0] == "/tmp/pinrule-cursor-sandbox/.cursor/hooks"
-    assert lines[1] == "/tmp/pinrule-cursor-sandbox/.cursor/hooks.json"
+    assert _normpath(lines[0]) == "/tmp/pinrule-cursor-sandbox/.cursor/hooks"
+    assert _normpath(lines[1]) == "/tmp/pinrule-cursor-sandbox/.cursor/hooks.json"
     # cursor_rules_dir() 调 .resolve() 在 macOS 上把 /tmp 展成 /private/tmp
-    assert lines[2] == str(Path("/tmp/pinrule-cursor-sandbox/.cursor/rules").resolve())
+    assert _normpath(lines[2]) == _normpath(str(Path("/tmp/pinrule-cursor-sandbox/.cursor/rules").resolve()))
 
 
 def test_claude_backend_skill_install_target_honors_sandbox():
@@ -174,7 +184,7 @@ for dest, fmt in b.skill_install_targets("pinrule"):
     print(dest)
 """,
     )
-    assert out == "/tmp/pinrule-claude-skill-sandbox/.claude/skills/pinrule/SKILL.md"
+    assert _normpath(out) == "/tmp/pinrule-claude-skill-sandbox/.claude/skills/pinrule/SKILL.md"
 
 
 def test_codex_backend_skill_install_target_honors_sandbox():
@@ -188,7 +198,7 @@ for dest, fmt in b.skill_install_targets("pinrule"):
     print(dest)
 """,
     )
-    assert out == "/tmp/pinrule-codex-skill-sandbox/.agents/skills/pinrule/SKILL.md"
+    assert _normpath(out) == "/tmp/pinrule-codex-skill-sandbox/.agents/skills/pinrule/SKILL.md"
 
 
 def test_cursor_backend_skill_install_target_empty():
@@ -231,8 +241,11 @@ for p in paths:
     print(p)
 """,
     )
+    real_home_norm = _normpath(real_home)
     for line in out.splitlines():
-        assert not line.startswith(real_home + "/"), (
+        # 跨平台 normalize 后比较 — Windows backslash 也要 catch
+        line_norm = _normpath(line)
+        assert not line_norm.startswith(real_home_norm + "/"), (
             f"PINRULE_HOME sandbox 承诺破: {line} 仍 anchor 在真 home {real_home}"
         )
 
