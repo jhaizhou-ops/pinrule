@@ -295,18 +295,7 @@ flowchart TB
     PreC -.-> Start
 ```
 
-| Hook position | Function + scenario | Pain point solved |
-|---|---|---|
-| **Every user prompt** (UserPromptSubmit) | Header injects compact anchor (rule ids + first line + drift markers); full baseline lives at SessionStart, not every-turn re-injected | Agent forgets your preferences after long session, without paying full-baseline token cost every turn |
-| **Before every tool call** (PreToolUse) | Keyword + engine-layer double-check; hit → deny | Agent wants to run sleep / commit --no-verify / bypass rules |
-| **After every tool call** (PostToolUse) | Track file read/edit/bash state + auto mid-conversation refresh when accumulation hits threshold | Long context accumulation → attention decay → Agent drifts |
-| **Agent stops generating** (Stop) | Terminal stderr ⚠️ + desktop notify + silent-stop reflective intervention + short-term intent talk detection | Agent finishes one wave and stops to ask, user gets interrupted repeatedly |
-| **Every session start** (SessionStart) | Inject rule baseline at session start; on compact-restart, read snapshot for strong-inject | Rules don't get lost across sessions / across compacts |
-| **Before AI client compresses history** (PreCompact) | Dump full rule state to disk for SessionStart to re-read | After compact, Agent compresses rules into vague words |
-| **Subagent starts** (SubagentStart) | Subagent auto-inherits full rule set + writes independent monitoring state | Subagents running independent tasks leave monitoring gaps |
-| **Subagent ends** (SubagentStop) | Subagent temporary state auto-destroys, doesn't pollute main session | Multiple subagent spawns cause state accumulation, main session data gets confused |
-
-All hook outputs strictly comply with the AI client's official protocol schema — no UI error messages.
+All hook outputs strictly comply with the AI client's official protocol schema — no UI error messages. Per-backend event mapping in [ARCHITECTURE.md](./docs/ARCHITECTURE.md#backend-capability-matrix).
 
 ---
 

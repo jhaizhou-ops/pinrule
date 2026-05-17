@@ -296,18 +296,7 @@ flowchart TB
     PreC -.-> Start
 ```
 
-| Hook 位置 | 生效功能与场景 | 解决的痛点 |
-|---|---|---|
-| **每次用户提问时**（UserPromptSubmit）| 头部注入精简 anchor (规则 id + 第一行 + 偏离标记); 完整 baseline 在 SessionStart 起手注入一次, 不每 turn 重发 | Agent 长 session 后忘记你说过的偏好, 又不用每 turn 付完整 baseline 的 token 成本 |
-| **每次工具调用前**（PreToolUse）| 关键词 + 工程层双层检测，命中规则直接拒绝 | Agent 想跑 sleep / 想 commit --no-verify / 想绕过规则 |
-| **每次工具调用后**（PostToolUse）| 跟踪文件 read / edit / bash 状态 + 累积达阈值自动中段刷新规则 | 长 context 累积后注意力衰减，Agent 偏离原方向 |
-| **Agent 停止生成时**（Stop）| 终端 stderr ⚠️ 提醒 + 桌面通知 + 静默停止启发性反思干预 + 短期意图话术识别 | Agent 完成一波就停下问下一步，用户被反复打扰 |
-| **每次 session 起手**（SessionStart）| session 起手注入规则 baseline，compact 重起时读 snapshot 强注入 | 跨 session / 跨 compact 规则不丢失 |
-| **AI 客户端压缩历史前**（PreCompact）| 落盘完整规则状态 snapshot 给 SessionStart 重读 | compact 后 Agent 把规则压成模糊词忘了 |
-| **子 Agent 启动时**（SubagentStart）| 子 Agent 自动继承完整规则集 + 写独立监控状态 | 子 Agent 跑独立任务时漏出监管覆盖 |
-| **子 Agent 结束时**（SubagentStop）| 子 Agent 临时状态自动销毁，不污染主 session | 多次起子 Agent 后状态累积，主 session 数据混乱 |
-
-所有 hook 输出严格按 AI 客户端官方协议 schema — 不会被 UI 报错。
+所有 hook 输出严格按 AI 客户端官方协议 schema — 不会被 UI 报错。每家 backend 的 event 映射看 [ARCHITECTURE.zh.md](./docs/ARCHITECTURE.zh.md#三端能力对照)。
 
 ---
 
