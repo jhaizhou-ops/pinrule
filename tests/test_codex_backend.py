@@ -326,10 +326,13 @@ def test_codex_save_settings_pretrusts_only_pinrule_hooks(tmp_path, monkeypatch)
     state = config["hooks"]["state"]
     assert len(state) == 2
 
-    session_key = f"{fake_home}/.codex/hooks.json:session_start:1:0"
-    prompt_key = f"{fake_home}/.codex/hooks.json:user_prompt_submit:0:0"
-    session_cmd = hook_command_str(Path(f"{fake_home}/.codex/hooks/pinrule_session_start.py"))
-    prompt_cmd = hook_command_str(Path(f"{fake_home}/.codex/hooks/pinrule_user_prompt_submit.py"))
+    # 跨平台 key — codex 内部用 Path() str 化 (Windows backslash, Unix slash);
+    # 测试也用 backend 取的真路径而不是 hardcode forward-slash.
+    settings_path = b.settings_path()
+    session_key = f"{settings_path}:session_start:1:0"
+    prompt_key = f"{settings_path}:user_prompt_submit:0:0"
+    session_cmd = hook_command_str(b.hooks_dir() / "pinrule_session_start.py")
+    prompt_cmd = hook_command_str(b.hooks_dir() / "pinrule_user_prompt_submit.py")
     assert state[session_key] == {
         "enabled": True,
         "trusted_hash": codex_hook_trusted_hash("session_start", session_cmd, timeout=30),
@@ -396,14 +399,16 @@ def test_codex_post_install_message_deduplicates_shared_wrapper_paths(tmp_path, 
 
 
 def test_codex_hook_state_timeout_matches_codex_min_one_behavior(tmp_path, monkeypatch):
-    fake_home = _fake_home(tmp_path, monkeypatch)
+    _fake_home(tmp_path, monkeypatch)
     b = CodexBackend()
+    # 跨平台: command + key 都用 backend 真路径 (Windows backslash / Unix slash)
+    wrapper_path = b.hooks_dir() / "pinrule_post_tool_use.py"
     settings = {
         "hooks": {
             "PostToolUse": [{
                 "hooks": [{
                     "type": "command",
-                    "command": f"{fake_home}/.codex/hooks/pinrule_post_tool_use.py",
+                    "command": str(wrapper_path),
                     "timeout": 0,
                 }]
             }],
@@ -412,10 +417,10 @@ def test_codex_hook_state_timeout_matches_codex_min_one_behavior(tmp_path, monke
 
     state = b.codex_hook_state_entries(settings)
 
-    key = f"{fake_home}/.codex/hooks.json:post_tool_use:0:0"
+    key = f"{b.settings_path()}:post_tool_use:0:0"
     assert state[key]["trusted_hash"] == codex_hook_trusted_hash(
         "post_tool_use",
-        f"{fake_home}/.codex/hooks/pinrule_post_tool_use.py",
+        str(wrapper_path),
         timeout=1,
     )
 
