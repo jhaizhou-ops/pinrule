@@ -63,7 +63,7 @@ cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-Restart Claude Code / Codex CLI / Cursor — all hook positions + default rules take effect immediately.
+Restart Claude Code / Codex / Cursor (desktop and CLI both supported) — all hook positions + default rules take effect immediately.
 For custom rules, just type `/karma <natural-language rule>`.
 
 ### Or ask your AI client to install it
@@ -87,8 +87,8 @@ After install, the Agent shows a summary of default rules — you see at a glanc
 | Client | Install command | Note |
 |---|---|---|
 | Claude Code | `karma install-hooks` (default) | Takes effect immediately |
-| Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
-| Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Hooks fire on every IDE Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
+| Codex | `karma install-hooks --backend codex` | Works on Codex CLI + Codex desktop. Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
+| Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Works on Cursor IDE + Cursor CLI. Hooks fire on every Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
 
 ### Uninstall
 
@@ -271,7 +271,7 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Token cost** | 1.8K SessionStart baseline + per-turn anchor listing only session-violated rules + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood: ~2% of conversation context** (30 sessions measured: 60% of work sessions = 0 anchor token, median 1 violated rule per session) |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
-| **Supported clients** | Claude Code / Codex CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
+| **Supported clients** | Claude Code / Codex / Cursor (desktop and CLI both supported on all 3) | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
 | **User languages** | Chinese + English, extensible | All 7 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~7 small files, zero Python code |
 
 ---
@@ -346,7 +346,7 @@ Think of karma as sitting between `git` and a linter — it gives signals, you m
 <summary><b>Nothing happens after install?</b></summary>
 
 Run `karma doctor` to check:
-- Are all hook events ✓? (Claude Code 8 / Codex 4 / Cursor 5)
+- Are all hook events ✓? (Claude Code 8 / Codex 6 / Cursor 12)
 - Did rules load successfully?
 - Did session state directory generate new files?
 </details>
