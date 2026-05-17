@@ -28,7 +28,7 @@ Research source priority: ① Official docs ② Actually run client + trace hook
 | Hook config file path | `_CONFIG_DIR_NAME` + `_SETTINGS_FILENAME` | `".codex"` + `"hooks.json"` (auto-concatenated to `~/.codex/hooks.json`) |
 | Client command name (PATH detection) | `_CLIENT_CMD` | `"codex"` (detects via `command -v codex`) |
 | Backend registration name | `name` | `"codex"` |
-| User-visible name | `display_name` | `"Codex CLI"` |
+| User-visible name | `display_name` | `"Codex"` |
 | Hook event name mapping | `_HOOK_EVENTS` | `{"UserPromptSubmit": "user_prompt_submit", ...}` |
 | Whether matcher / timeout fields needed | override `build_event_entry` (optional) | Codex adds `timeout: 30` |
 | Whether enablement step needed | override `pre_install_setup` (optional) | Codex runs `codex features enable hooks` |
@@ -168,7 +168,7 @@ From `~/.vibe-island/bin/vibe-island-bridge` zsh script line 28, vibe-island's e
 | Client | Suspected config path | Status |
 |---|---|---|
 | Claude Code | `~/.claude/settings.json` | ✓ Since v0.1.0 |
-| Codex CLI | `~/.codex/hooks.json` | ✓ Since v0.3.0 |
+| Codex | `~/.codex/hooks.json` | ✓ Since v0.3.0 (CLI + desktop both adapted) |
 | Cursor | `~/.cursor/hooks.json` | ✓ Since v0.12.0 (Cursor 1.7+ required; `/karma` skill is project-scoped only — no global skills dir on Cursor) |
 | Factory | `~/.factory/settings.json` | Pending install + test |
 | Qoder | `~/.qoder/settings.json` | Pending install + test |

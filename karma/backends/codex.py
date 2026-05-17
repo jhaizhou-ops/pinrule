@@ -657,7 +657,7 @@ def _codex_hook_timeout(raw_timeout: Any) -> int:
 
 class CodexBackend(JsonHooksBackend):
     name = "codex"
-    display_name = "Codex CLI"
+    display_name = "Codex"
     _CONFIG_DIR_NAME = ".codex"
     _SETTINGS_FILENAME = "hooks.json"
     _CLIENT_CMD = "codex"

@@ -34,7 +34,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 | hook 配置文件路径 | `_CONFIG_DIR_NAME` + `_SETTINGS_FILENAME` | `".codex"` + `"hooks.json"`（自动拼成 `~/.codex/hooks.json`） |
 | 客户端命令名（PATH 检测） | `_CLIENT_CMD` | `"codex"`（检测 `command -v codex`） |
 | backend 注册名 | `name` | `"codex"` |
-| 用户可见名 | `display_name` | `"Codex CLI"` |
+| 用户可见名 | `display_name` | `"Codex"` |
 | hook event 名映射 | `_HOOK_EVENTS` | `{"UserPromptSubmit": "user_prompt_submit", ...}` |
 | 是否要 matcher / timeout 字段 | override `build_event_entry`（可选） | Codex 加 `timeout: 30` |
 | 是否要启用步骤 | override `pre_install_setup`（可选） | Codex 跑 `codex features enable hooks` |
@@ -181,7 +181,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 | 客户端 | 推测配置路径 | 状态 |
 |---|---|---|
 | Claude Code | `~/.claude/settings.json` | ✓ v0.1.0 起 |
-| Codex CLI | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
+| Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 (CLI + desktop 都适配) |
 | Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/karma` skill 仅 project-scoped — Cursor 没 home-level global skills 目录） |
 | Factory | `~/.factory/settings.json` | 待装 + 实测 |
 | Qoder | `~/.qoder/settings.json` | 待装 + 实测 |
