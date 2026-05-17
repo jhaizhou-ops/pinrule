@@ -6,6 +6,15 @@
 
 ## [Unreleased]
 
+## [0.16.3] — 2026-05-17（patch — demo SVG 按人类阅读速度重调, 约 20 秒）
+
+v0.16.2 修过头到 42 秒, 用户反馈"太长, 要考虑人类看 GIF 阅读速度". 重新调:
+- `demo-script.sh` banner `sleep 3` → `sleep 1.5` (banner 停 1.5s, 看清不拖沓), 单步间 `sleep 2` → `sleep 0.8`.
+- `regenerate-demo-svg.sh` `termtosvg -M 4000 -m 100` → `-M 1500 -m 100` (banner 最大 1.5s/帧, 打字 100ms/帧节奏感).
+- 最终 SVG `animation-duration: 19094ms` ≈ 19.1 秒总长 — 5 个 scene 每 ~4s, 看清不拖.
+
+人类可读 timing target: banner 1-1.5 秒看清, hook output 2-3 秒扫读, 总长约 20 秒.
+
 ## [0.16.2] — 2026-05-17（patch — demo SVG 真根因修, v0.16.1 还是 0.5 秒一闪而过）
 
 ### 真根因: termtosvg `-m`/`-M` 单位是**毫秒**, 不是秒

@@ -16,32 +16,32 @@
         }
     
             :root {
-                --animation-duration: 42508ms;
+                --animation-duration: 19114ms;
             }
 
             @keyframes roll {
                 0.000%{transform:translateY(0px)}
-7.173%{transform:translateY(-442px)}
-12.104%{transform:translateY(-884px)}
-16.846%{transform:translateY(-1326px)}
-23.955%{transform:translateY(-1768px)}
-28.877%{transform:translateY(-2210px)}
-33.620%{transform:translateY(-2652px)}
-40.722%{transform:translateY(-3094px)}
-45.467%{transform:translateY(-3536px)}
-54.877%{transform:translateY(-3978px)}
-61.967%{transform:translateY(-4420px)}
-66.715%{transform:translateY(-4862px)}
-76.124%{transform:translateY(-5304px)}
-83.220%{transform:translateY(-5746px)}
-87.995%{transform:translateY(-6188px)}
-92.886%{transform:translateY(-6630px)}
-97.648%{transform:translateY(-7072px)}
+7.848%{transform:translateY(-442px)}
+12.504%{transform:translateY(-884px)}
+16.757%{transform:translateY(-1326px)}
+24.605%{transform:translateY(-1768px)}
+29.298%{transform:translateY(-2210px)}
+33.572%{transform:translateY(-2652px)}
+41.420%{transform:translateY(-3094px)}
+45.684%{transform:translateY(-3536px)}
+53.531%{transform:translateY(-3978px)}
+61.379%{transform:translateY(-4420px)}
+65.695%{transform:translateY(-4862px)}
+73.543%{transform:translateY(-5304px)}
+81.391%{transform:translateY(-5746px)}
+85.754%{transform:translateY(-6188px)}
+90.457%{transform:translateY(-6630px)}
+94.768%{transform:translateY(-7072px)}
 100.000%{transform:translateY(-7072px)}
             }
 
             #screen_view {
-                animation-duration: 42508ms;
+                animation-duration: 19114ms;
                 animation-iteration-count:infinite;
                 animation-name:roll;
                 animation-timing-function: steps(1,end);

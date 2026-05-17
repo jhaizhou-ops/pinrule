@@ -10,6 +10,15 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.3] — 2026-05-17 (patch — demo SVG re-paced for human reading speed, ~20s)
+
+v0.16.2 over-corrected to 42s — user reported "too long, consider human reading speed for GIFs." Re-tuned:
+- `demo-script.sh` banner `sleep 3` → `sleep 1.5` (banner stays 1.5s, readable but not draggy), inter-step `sleep 2` → `sleep 0.8`.
+- `regenerate-demo-svg.sh` `termtosvg -M 4000 -m 100` → `-M 1500 -m 100` (max 1.5s/frame banner cap, 100ms/frame for typing animation).
+- Final SVG `animation-duration: 19094ms` ≈ 19.1s total — 5 scenes × ~4s each, scenes legible without dragging.
+
+Human-readable timing target: banner 1-1.5s read time, hook output 2-3s to scan, ~20s total.
+
 ## [0.16.2] — 2026-05-17 (patch — demo SVG real timing fix, was 0.5s flash)
 
 ### Root cause: termtosvg `-m`/`-M` units are milliseconds, not seconds

@@ -20,10 +20,12 @@ for lang in zh en; do
     --command "LANG_MODE=$lang bash scripts/demo-script.sh" \
     --overwrite --idle-time-limit 4
   echo "→ 渲染 $lang SVG..."
-  # termtosvg -m -M 单位是**毫秒** (不是秒). v0.16.1 老 `-M 6 -m 1` = max 6ms /
-  # min 1ms, 把 42s cast 压缩成 ~130ms 总长 — 用户看到的"一闪而过 0.5 秒".
-  # v0.16.2 修: -M 4000ms (banner 真停 4s 看清) / -m 100ms (逐字打字最小 100ms).
-  $TTSVG render /tmp/demo-$lang.cast assets/demo-$lang.svg -M 4000 -m 100
+  # termtosvg -m -M 单位是**毫秒** (不是秒). 历史教训:
+  #   - v0.16.1 老 `-M 6 -m 1` = max 6ms/min 1ms 把 42s cast 压成 130ms 一闪而过
+  #   - v0.16.2 改 `-M 4000 -m 100` 总长拉到 42s 又太长 (用户看不完)
+  #   - v0.16.3 调 -M 1500 = max 1.5s/帧 + demo-script sleep 也缩, target 20-30s
+  # 人类阅读速度: banner 1-1.5s 看清, hook output 2-3s 读完, 5 scene 约 25 秒.
+  $TTSVG render /tmp/demo-$lang.cast assets/demo-$lang.svg -M 1500 -m 100
 done
 
 echo
