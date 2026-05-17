@@ -134,23 +134,31 @@ def _handle_force_block(
         if n >= force_threshold and sid not in exempt_ids
         and sid in hit_sticky_ids  # 当前 turn 触发该规则才 force_block
     ]
-    if not over_threshold or state.stop_block_count >= block_max:
+    # 短路 (优化): 没超阈值的 rule 就不进 atomic check
+    if not over_threshold:
         return False
 
-    # v0.9.8: update_state 让 stop_block_count + 1 跨进程原子（多个 Stop hook
-    # 几乎同时跑时不丢 count 更新）。state 对象的 stop_block_count 会被 fn
-    # 更新到内存反映。
-    def _bump_block_count(s):
-        s.stop_block_count += 1
+    # v0.16.6 TOCTOU fix: 原子 check + bump 在 update_state lock 内. 之前
+    # `state.stop_block_count >= block_max` 在 lock 外, 多个 Stop hook 并发
+    # 时两个进程都各自读 count=1 → 都通过 check → 各 bump → 真 count=3 超 max=2.
+    # 修法: check + bump 合并 fn, fn 内 atomic, caller 看 count 真涨没决定是否打印 block.
+    old_count = state.stop_block_count
+    def _check_and_bump(s):
+        if s.stop_block_count < block_max:
+            s.stop_block_count += 1
+        # else: 已超 max, no-op (let caller see count didn't change)
     try:
         updated_state, _ = session_state.update_state(
-            state.session_id, _bump_block_count, agent_id=state.agent_id,
+            state.session_id, _check_and_bump, agent_id=state.agent_id,
         )
-        # 同步 state 内存对象给后续 reason 字串用
         state.stop_block_count = updated_state.stop_block_count
     except OSError:
-        # update_state 内部 save 失败 fallback 本地内存自增，不阻塞拦截
-        state.stop_block_count += 1
+        # update_state save 失败 fallback 内存自增 (race 风险但比卡用户好)
+        if state.stop_block_count < block_max:
+            state.stop_block_count += 1
+    # 真 bump 才打印 block; race 中其他进程已先 bump 到 max → 这次 no-op
+    if state.stop_block_count == old_count:
+        return False
     reason = (
         f"pinrule 强制干预：累积违反 {over_threshold} 共 {sum(counts_force[s] for s in over_threshold)} 次。"
         f"必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。"
@@ -184,20 +192,26 @@ def _handle_keep_pushing_block(
     except Exception:
         block_max = 2
 
-    if block_max <= 0 or state.stop_block_count >= block_max:
+    if block_max <= 0:
         return False
 
-    # v0.9.8: update_state 让 stop_block_count + 1 跨进程原子
-    def _bump_block_count(s):
-        s.stop_block_count += 1
+    # v0.16.6 TOCTOU fix (same pattern as _handle_force_block): atomic
+    # check + bump in update_state lock to prevent concurrent Stop hooks
+    # bumping past block_max.
+    old_count = state.stop_block_count
+    def _check_and_bump(s):
+        if s.stop_block_count < block_max:
+            s.stop_block_count += 1
     try:
         updated_state, _ = session_state.update_state(
-            state.session_id, _bump_block_count, agent_id=state.agent_id,
+            state.session_id, _check_and_bump, agent_id=state.agent_id,
         )
         state.stop_block_count = updated_state.stop_block_count
     except OSError:
-        # update_state 内部 save 失败 fallback 本地内存自增，不阻塞拦截
-        state.stop_block_count += 1
+        if state.stop_block_count < block_max:
+            state.stop_block_count += 1
+    if state.stop_block_count == old_count:
+        return False
     from pinrule.i18n import tr
     reason = tr(
         "stop.reason",
@@ -304,6 +318,20 @@ def audit_agent_response(
 
 
 def main() -> int:
+    try:
+        return _main_inner()
+    except Exception as e:
+        # v0.16.6 fail-open: 任何异常 → 输出空 passthrough, 不卡客户端 Stop event
+        # (Cursor 协议下 Stop 非 0 会 retry, Claude Code 不阻塞但 UI 噪声).
+        try:
+            print(json.dumps({}))
+        except Exception:
+            pass
+        print(f"pinrule Stop fail-open: {type(e).__name__}: {e}", file=sys.stderr)
+        return 0
+
+
+def _main_inner() -> int:
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as e:

@@ -85,7 +85,7 @@ schema 校验 5-10 条上限 + id 唯一性
 仍需事前确认：
 - `git push --force` / `git reset --hard` 已发布的 commit
 - gh repo archive / settings 修改
-- 数据销毁（`~/.claude/pinrule/` 清空）
+- 数据销毁（`~/.pinrule/` 清空）
 - 跨仓库改动
 
 ## 失败处理

@@ -59,14 +59,24 @@ Chinese + English auto-detected — open an issue if you'd like other languages 
 
 ## Zero-dependency pure engineering, 10-second install
 
+**One-liner (recommended)**:
+
+```bash
+pip install pinrule && pinrule init && pinrule install-hooks
+```
+
+Restart Claude / Codex / Cursor — all hook positions + default rules take effect immediately.
+For custom rules, just type `/pinrule <natural-language rule>`.
+
+<details>
+<summary>From source (dev / contributors)</summary>
+
 ```bash
 git clone https://github.com/jhaizhou-ops/pinrule.git ~/pinrule
 cd ~/pinrule && python -m venv .venv && .venv/bin/python -m pip install -e .
 .venv/bin/pinrule init && .venv/bin/pinrule install-hooks
 ```
-
-Restart Claude / Codex / Cursor — all hook positions + default rules take effect immediately.
-For custom rules, just type `/pinrule <natural-language rule>`.
+</details>
 
 ### Or ask your AI client to install it
 
@@ -75,11 +85,10 @@ Paste this to Claude / Codex / Cursor:
 ```
 Install pinrule (github.com/jhaizhou-ops/pinrule) — a lightweight hook system that keeps my core direction preferences from being lost in long tasks.
 Steps:
-1. git clone to ~/pinrule
-2. Create .venv and pip install -e .
-3. Run `pinrule init` to initialize the default rule template
-4. Run `pinrule install-hooks` to install for my current client
-5. Run `pinrule doctor` to verify installation
+1. pip install pinrule
+2. Run `pinrule init` to initialize the default rule template
+3. Run `pinrule install-hooks` to install for my current client
+4. Run `pinrule doctor` to verify installation
 ```
 
 After install, the Agent shows a summary of default rules — you see at a glance which 5-7 rules are active. To modify any rule afterward, tell the Agent "remove pinrule rule X" / "change pinrule rule Y" — it knows to use the `/pinrule` skill.
@@ -372,7 +381,7 @@ Run `pinrule doctor` to check:
 <details>
 <summary><b>Too many false positives, what to do?</b></summary>
 
-`pinrule audit` shows triggers marked "⚠️ possible false positive" — report to the author (GitHub Issue). Temporarily disable a rule: `pinrule rule remove <id>` or edit `~/.claude/pinrule/rules.yaml` and remove `violation_keywords` / `violation_checks` fields while keeping `preference`.
+`pinrule audit` shows triggers marked "⚠️ possible false positive" — report to the author (GitHub Issue). Temporarily disable a rule: `pinrule rule remove <id>` or edit `~/.pinrule/rules.yaml` and remove `violation_keywords` / `violation_checks` fields while keeping `preference`.
 </details>
 
 <details>
@@ -388,7 +397,7 @@ Run `pinrule doctor` to check:
 <details>
 <summary><b>Custom rule sets for non-development scenarios (writing / research / legal)?</b></summary>
 
-`pinrule init` defaults to "software development" scenario. For other scenarios, write `~/.claude/pinrule/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in `violation_checks` are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
+`pinrule init` defaults to "software development" scenario. For other scenarios, write `~/.pinrule/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in `violation_checks` are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
 </details>
 
 <details>
@@ -397,20 +406,20 @@ Run `pinrule doctor` to check:
 Just ask the Agent to copy `rules.yaml` over — no special tooling needed:
 
 ```
-mac:    cat ~/.claude/pinrule/rules.yaml
-linux:  "here's my pinrule rules.yaml, write it to ~/.claude/pinrule/rules.yaml"
+mac:    cat ~/.pinrule/rules.yaml
+linux:  "here's my pinrule rules.yaml, write it to ~/.pinrule/rules.yaml"
 linux:  pinrule doctor    # validate schema + rules count + violation_checks exist
 ```
 
 **Safe to sync** (user preference config):
-- `~/.claude/pinrule/rules.yaml` — your rule definitions
-- `~/.claude/pinrule/config.yaml` — your threshold tuning (if customized)
+- `~/.pinrule/rules.yaml` — your rule definitions
+- `~/.pinrule/config.yaml` — your threshold tuning (if customized)
 
 **Never sync** (runtime data, per-device):
-- `~/.claude/pinrule/violations.jsonl` — append-only per-device violation log
-- `~/.claude/pinrule/session-state/*.json` — runtime hook state
+- `~/.pinrule/violations.jsonl` — append-only per-device violation log
+- `~/.pinrule/session-state/*.json` — runtime hook state
 
-pinrule's cross-process atomicity protects same-machine concurrency, but **doesn't extend to cloud-synced folders** (iCloud / Dropbox / OneDrive). Putting `~/.claude/pinrule/` in a sync folder can corrupt runtime state across devices. If you use dotfiles repos / chezmoi / ansible, scope them to `rules.yaml` + `config.yaml` only.
+pinrule's cross-process atomicity protects same-machine concurrency, but **doesn't extend to cloud-synced folders** (iCloud / Dropbox / OneDrive). Putting `~/.pinrule/` in a sync folder can corrupt runtime state across devices. If you use dotfiles repos / chezmoi / ansible, scope them to `rules.yaml` + `config.yaml` only.
 </details>
 
 ---

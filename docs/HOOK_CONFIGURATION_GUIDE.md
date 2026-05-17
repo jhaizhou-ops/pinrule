@@ -5,12 +5,12 @@
 ## 快速开始
 
 ```bash
-pinrule init           # 创建 ~/.claude/pinrule/ + 复制规则模板
+pinrule init           # 创建 ~/.pinrule/ + 复制规则模板
 pinrule install-hooks  # 装 8 个 hook 到 settings.json
 pinrule doctor         # 验证装机
 ```
 
-装完重启 Claude，hook 立即生效。规则在 `~/.claude/pinrule/rules.yaml` — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
+装完重启 Claude，hook 立即生效。规则在 `~/.pinrule/rules.yaml` — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
 
 ---
 
@@ -34,11 +34,11 @@ pinrule doctor         # 验证装机
 ## 配置路径
 
 ```bash
-~/.claude/pinrule/rules.yaml           # 你的核心方向（手工编辑或 /pinrule skill）
-~/.claude/pinrule/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
-~/.claude/pinrule/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
-~/.claude/pinrule/session-state/       # 每个 session 一份 json（30 天自动清理）
-~/.claude/pinrule/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
+~/.pinrule/rules.yaml           # 你的核心方向（手工编辑或 /pinrule skill）
+~/.pinrule/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
+~/.pinrule/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
+~/.pinrule/session-state/       # 每个 session 一份 json（30 天自动清理）
+~/.pinrule/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
 ~/.claude/hooks/pinrule_*.py           # 8 个 hook wrapper（pinrule install-hooks 自动生成）
 ~/.claude/settings.json              # Claude 配置（pinrule 写入 hooks 段）
 ```
@@ -114,7 +114,7 @@ pinrule doctor         # 验证装机
 
 ### Q：自定义阈值怎么配？
 
-`~/.claude/pinrule/config.yaml`（不存在时走 `pinrule/config.py:DEFAULTS`）：
+`~/.pinrule/config.yaml`（不存在时走 `pinrule/config.py:DEFAULTS`）：
 
 ```yaml
 recent_violation_turns: 5         # 偏离标记窗口

@@ -2,7 +2,7 @@
 
 Usage:
     pinrule init [--minimal|--no-minimal]
-                                   创建 ~/.claude/pinrule/ + 复制 rules/config 模板
+                                   创建 ~/.pinrule/ + 复制 rules/config 模板
                                    默认按系统语言偏好自动选：中文 → 7 条完整；
                                    非中文/检测不到 → 5 条精简（砍 chinese_plain）
                                    --minimal / --no-minimal 强制覆盖
@@ -262,7 +262,7 @@ def _cleanup_legacy_karma() -> None:
 
 
 def cmd_init(minimal: bool | None = None) -> int:
-    """创建 ~/.claude/pinrule/ + 复制 sticky 模板 + config 模板。
+    """创建 ~/.pinrule/ + 复制 sticky 模板 + config 模板。
 
     minimal=None（默认）→ 自动按系统语言偏好选：中文用户 7 条完整含
     chinese_plain check；非中文 / 检测不到 → 5 条精简（砍 chinese_plain）。
@@ -1563,6 +1563,12 @@ def main(argv: list[str] | None = None) -> int:
 
     cmd = argv[0]
     args = argv[1:]
+
+    # v0.16.6: 子命令 --help / -h 真打 top-level help, 不再被吃当真命令执行
+    # (历史 footgun: `pinrule install-hooks --help` 会真装 hooks 不是打 help).
+    if "--help" in args or "-h" in args:
+        print(__doc__)
+        return 0
 
     if cmd == "init":
         # --minimal 强制 5 条；--no-minimal 强制 7 条；都不带 → None 自动按

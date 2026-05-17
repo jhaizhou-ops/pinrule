@@ -1,7 +1,7 @@
 """跨 hook 共享的 session 状态 — Read 历史 / Bash 测试结果 / Edit 累积。
 
 post_tool_use 写入，pre_tool_use / post_response 读取。
-存到 ~/.claude/pinrule/session-state/{session_id}.json。
+存到 ~/.pinrule/session-state/{session_id}.json。
 
 ## API 分层（v0.9.8 加 update_state 后）
 

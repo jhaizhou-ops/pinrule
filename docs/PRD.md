@@ -73,7 +73,7 @@ pinrule does only **"core direction persistence + violation detection"** — one
 
 ### F1. Core direction configuration ✅
 
-- User defines 5-10 entries in `~/.claude/pinrule/rules.yaml` (cap 10, over 12 refuses to load)
+- User defines 5-10 entries in `~/.pinrule/rules.yaml` (cap 10, over 12 refuses to load)
 - Fields: `id` / `preference` / `violation_keywords` / `violation_checks` (engine-layer check function name list)
 - pinrule CLI: `pinrule rule list / edit / remove`, `pinrule init`
 
@@ -191,7 +191,7 @@ Both categories live in `data/signals/user_stop_hints/{zh,en}.txt` (v0.8.0 exter
 
 - **Desktop notification** (`pinrule/notify.py`) — Cross-platform (macOS osascript / Linux notify-send / Windows msg), stop hook supplementary stderr-outside-view alerts when detecting violations
 - **Cumulative alerts on turn dimension** — Recent N turns with same rule violation ≥ M times → 🚨 severe notification (window / threshold configurable). By turn not human time — Agent attention drift accumulates by turn; user leaving for meetings vs. continuous operations is completely different Agent state
-- **Config system** (`pinrule/config.py` + `~/.claude/pinrule/config.yaml`) — All thresholds centrally adjustable (notify toggle / rotation / purge / escalate); fail open (file missing / field null uses DEFAULTS)
+- **Config system** (`pinrule/config.py` + `~/.pinrule/config.yaml`) — All thresholds centrally adjustable (notify toggle / rotation / purge / escalate); fail open (file missing / field null uses DEFAULTS)
 - **`pinrule doctor` shows current effective config** — Lets user see all current thresholds clearly
 
 ## Validation criteria (v0)

@@ -6,6 +6,26 @@
 
 ## [Unreleased]
 
+## [0.16.6] — 2026-05-17（patch — 两轮多 Agent 代码级审查 P0/P1 批 fix）
+
+两轮 8 个并行子 Agent 审查 8 视角 (engine check / backend / hook fail-open / rename 残留 / 测试覆盖 / 真用户旅程 / doc 一致性 / 隐藏 race+security) 共 ~75 findings. P0+P1 真 fix:
+
+### P0 (用户真撞)
+
+- **`CursorBackend.post_install_setup` → `post_install_message`** typo: 方法名跟 backend contract 不匹配, `cli.py` `getattr(backend, "post_install_message", ...)` 永远找不到, **Reload Cursor + sync rules 提示从不打印**. 合并进 `post_install_message`.
+- **`pinrule install-hooks --help` / `uninstall-hooks --help` / `rule --help` 真执行命令** (audit agent 自己机器读 help 时被装/卸了一遍 hooks). `main()` 现在 explicit handle `--help`/`-h` 在子命令任意位置.
+- **`~/.claude/pinrule/` → `~/.pinrule/` doc drift**: 5 处 user-facing doc (README 双语 + HOOK_CONFIGURATION_GUIDE + ARCHITECTURE + PRD + CLAUDE + SECURITY.zh.md + cli.py docstring) 还指 v0.14- 老路径. 用户照 doc 找 rules.yaml 找不到. 批量 sed 修.
+- **README 缺 `pip install pinrule`**: PyPI 从 v0.16.0 就上了但 README 只教 git clone, 新用户走慢路径. 加 `pip install pinrule && pinrule init && pinrule install-hooks` 当主推, git clone 折叠到 `<details>` 给贡献者.
+
+### P1 (真问题但优先级低)
+
+- **`stop_block_count` TOCTOU race**: `state.stop_block_count >= block_max` 检查在 `update_state` 锁外. 两个 Stop hook 并发各读 count=1, 各 bump → 真 count=3 max=2 — keep-pushing 防死循环被绕过 1 次. fix 把 check+bump 合进 `_check_and_bump` fn 锁内跑, caller 对比 old_count 判 真 bump 没. `_handle_force_block` + `_handle_keep_pushing_block` 都改.
+- **Hook 入口 fail-closed risk** (`_tool_gate.run_tool_gate` / `stop.main` / `user_prompt_submit.main`): 没外层 try/except, 任何异常 (`OSError` disk 满 / `PermissionError` `~/.pinrule/` 不可写 / `TypeError` payload 字段意外 shape) bubble 到 wrapper `sys.exit(非 0)` → 客户端 fail-closed, 卡用户 tool 调用 / prompt 提交. 每入口 wrap try/except Exception → fail-open passthrough + stderr 报错.
+
+### Audit 信噪比
+
+第 1 轮 4 视角 39 findings; 第 2 轮 4 视角 ~36 findings. 验后 ~6 P0 + ~3 P1 + ~12 中等 + 余下 noise/by-design. 跟 memory 期望吻合 (4 视角 round 出 ~17 真 finding; 本 session 7 release 累积 justify 2 round 深度).
+
 ## [0.16.5] — 2026-05-17（patch — 修 #12: karma daemon / pyc / CLI 入口 升级残留）
 
 [Issue #12 by @fyn1320068837-source](https://github.com/jhaizhou-ops/pinrule/issues/12) — rename 后第一个社区 bug. v0.15→v0.16 rename 删了源码但留下:

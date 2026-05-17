@@ -26,7 +26,28 @@ from pinrule.violations import Violation, append, detect
 
 
 def run_tool_gate(payload: dict) -> int:
-    """Run pinrule pre-tool checks; print allow/deny JSON to stdout."""
+    """Run pinrule pre-tool checks; print allow/deny JSON to stdout.
+
+    v0.16.6 fail-open wrap: 任何异常 (OSError disk full / TypeError 字段意外 shape /
+    PermissionError ~/.pinrule 不可写 等) → fail-open allow + return 0, 不让 hook
+    错误卡用户 tool 调用 (sticky #1 historical lesson: v0.9.14 update_state 漏 try
+    导致 fail-closed; 这次 wrap 整段防类似 future regression).
+    """
+    try:
+        return _run_tool_gate_inner(payload)
+    except Exception as e:
+        # fail-open: 打印 allow shape, 让客户端继续, 不卡用户
+        from pinrule.backends.protocol_adapter import emit_allow
+        try:
+            print(emit_allow(payload))
+        except Exception:
+            print("{}")  # 万一连 emit_allow 也炸, 裸 {} 兜底
+        print(f"pinrule run_tool_gate fail-open: {type(e).__name__}: {e}", file=sys.stderr)
+        return 0
+
+
+def _run_tool_gate_inner(payload: dict) -> int:
+    """真 gate logic — 被 run_tool_gate 外层 try wrap."""
     raw_tool_name = payload.get("tool_name", "")
     tool_name = normalize_tool_name(raw_tool_name, payload)
     raw_tool_input = payload.get("tool_input", {})

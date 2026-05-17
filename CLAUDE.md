@@ -85,7 +85,7 @@ Default to autonomous on these:
 Still need pre-approval:
 - `git push --force` / `git reset --hard` of published commits
 - gh repo archive / settings modifications
-- Data destruction (`~/.claude/pinrule/` clearing)
+- Data destruction (`~/.pinrule/` clearing)
 - Cross-repo changes
 
 ## Failure handling

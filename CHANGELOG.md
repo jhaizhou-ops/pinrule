@@ -10,6 +10,26 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.6] — 2026-05-17 (patch — 2-round multi-agent audit P0/P1 batch fix)
+
+Two rounds of 8 parallel sub-agent audits surfaced ~75 findings across 8 perspectives (engine checks / backends / hooks fail-open contract / rename residue / test coverage / user journey / doc consistency / hidden race + security). P0 + P1 critical fixes:
+
+### P0 (true bugs users hit)
+
+- **`CursorBackend.post_install_setup` → `post_install_message`** typo: method name didn't match `Backend` contract, `cli.py` `getattr(backend, "post_install_message", ...)` never found it, **Reload Cursor + sync rules hint never printed**. Merged into `post_install_message`.
+- **`pinrule install-hooks --help` / `uninstall-hooks --help` / `rule --help` ate `--help` and executed the real command** (audit agent's own machine got hooks re-installed + uninstalled while trying to read help). `main()` now handles `--help` / `-h` in any subcommand position explicitly.
+- **`~/.claude/pinrule/` → `~/.pinrule/` doc drift**: 5 user-facing docs (README EN/ZH + HOOK_CONFIGURATION_GUIDE + ARCHITECTURE + PRD + CLAUDE.md + SECURITY.zh.md + cli.py docstring) still pointed at the v0.14- legacy path. Users following docs would `cat ~/.claude/pinrule/rules.yaml` → file not found. Batch-fixed.
+- **README missing `pip install pinrule`**: PyPI publish since v0.16.0 but README only taught `git clone + pip install -e .`. New users went the slow path. Added one-liner `pip install pinrule && pinrule init && pinrule install-hooks` as primary install; git-clone path kept under `<details>` for contributors.
+
+### P1 (real but lower urgency)
+
+- **`stop_block_count` TOCTOU race**: `state.stop_block_count >= block_max` check was outside the `update_state` lock. Two concurrent Stop hooks could each read `count=1`, each bump → real count=3 with `block_max=2` — keep-pushing loop guard could be bypassed once per race. Fixed by moving check + bump into `_check_and_bump` fn that runs inside the lock, caller compares `old_count` vs `state.stop_block_count` to decide whether to print block. Applied to both `_handle_force_block` and `_handle_keep_pushing_block`.
+- **Hook entry fail-closed risk** (`_tool_gate.run_tool_gate` / `stop.main` / `user_prompt_submit.main`): no outer try/except meant any unexpected exception (`OSError` disk full / `PermissionError` on `~/.pinrule/` / `TypeError` from unexpected payload shape) would bubble to wrapper `sys.exit(non-zero)` → client fail-closed, blocking the user's tool call or prompt submission. Wrapped each entry in `try/except Exception` → fail-open passthrough + stderr message.
+
+### Audit signal-to-noise
+
+Round 1 (4 perspectives): 39 findings; Round 2 (4 new perspectives): ~36 findings. After verification: ~6 P0 + ~3 P1 + ~12 medium + rest noise/by-design. Tracks with memory's expectation (4-perspective rounds yield ~17 true findings; this session's 7 release accumulation justified 2-round depth).
+
 ## [0.16.5] — 2026-05-17 (patch — fix #12 karma daemon / pyc / CLI-entry migration residue)
 
 [Issue #12 by @fyn1320068837-source](https://github.com/jhaizhou-ops/pinrule/issues/12) — first community bug report after rename. v0.15→v0.16 rename deleted the source tree but left behind:

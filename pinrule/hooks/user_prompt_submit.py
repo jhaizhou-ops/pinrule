@@ -147,6 +147,20 @@ def _build_strong_reminder(
 
 def main() -> int:
     try:
+        return _main_inner()
+    except Exception as e:
+        # v0.16.6 fail-open: 任何异常 → passthrough, 不卡客户端 UserPromptSubmit
+        # (Cursor 协议下 beforeSubmitPrompt 非 0 = block prompt, 等于输入框失灵).
+        try:
+            _output_passthrough()
+        except Exception:
+            print(json.dumps({}))
+        print(f"pinrule UserPromptSubmit fail-open: {type(e).__name__}: {e}", file=sys.stderr)
+        return 0
+
+
+def _main_inner() -> int:
+    try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as e:
         print(f"pinrule UserPromptSubmit: 输入 JSON 解析失败 ({e})", file=sys.stderr)

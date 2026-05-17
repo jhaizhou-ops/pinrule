@@ -1,6 +1,6 @@
 """pinrule 配置系统 — 让用户调阈值不用改代码。
 
-读 ~/.claude/pinrule/config.yaml，缺失字段用 DEFAULTS。
+读 ~/.pinrule/config.yaml，缺失字段用 DEFAULTS。
 每次调用 load() 实时读（hook 进程 ephemeral，无 cache 担忧）。
 
 字段:

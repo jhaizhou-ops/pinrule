@@ -99,8 +99,13 @@ class CursorBackend(JsonHooksBackend):
         data.setdefault("version", 1)
         super().save_settings(data)
 
-    def post_install_setup(self) -> list[str]:
-        """Install 后同步 Cursor native rules + 提示 reload."""
+    def _sync_native_rules_and_reload_hint(self) -> list[str]:
+        """Install 后同步 Cursor native rules + 提示 reload (内部 helper).
+
+        v0.16.6 fix: 之前叫 post_install_setup 名字跟 backend contract 不匹配
+        (cli.py getattr 找 post_install_message), 永不被调到 → reload 提示丢.
+        现在改成 helper 函数, 由 post_install_message 真包含 + 调.
+        """
         from pinrule.cursor_rules_sync import sync_cursor_rules
 
         _written, logs = sync_cursor_rules(user=True)
@@ -194,13 +199,17 @@ class CursorBackend(JsonHooksBackend):
         return []
 
     def post_install_message(self) -> list[str]:
-        """Cursor 装完响亮告知 skill 协议限制 (project-scoped only).
+        """Cursor 装完: 同步 Cursor rules + reload 提示 + skill 协议限制告知.
+
+        v0.16.6 fix: 老 post_install_setup 方法名不在 backend contract, cli.py
+        getattr 找不到 → reload 提示永不打印. 现合并进 post_install_message.
 
         pinrule rule #4 loud-failure-with-evidence: Cursor 不支持 global skills 这件
         事如果埋 README 表格里, 用户会以为「装完 pinrule 跟 Claude 体验一样」,
         实际 /pinrule 自然语言加规则功能在 Cursor 0 触发. 在装完时打印响亮一段告知.
         """
-        return [
+        msgs = list(self._sync_native_rules_and_reload_hint())
+        msgs.extend([
             "",
             "⚠️  Cursor 跟 Claude / Codex / Gemini 不一样 — 只支持 project-scoped",
             "    skills (`.cursor/skills/` 在每个项目根目录), **没有 home-level global**.",
@@ -215,4 +224,5 @@ class CursorBackend(JsonHooksBackend):
             "    替代路径 (推荐): `pinrule rule add --from-yaml /tmp/rule.yaml` 直接",
             "    走 CLI 加规则, 不依赖 IDE skill 机制. pinrule 主流程通过 hooks.json",
             "    跑, 跟 skill 解耦.",
-        ]
+        ])
+        return msgs
