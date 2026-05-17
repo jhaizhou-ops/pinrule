@@ -8,8 +8,7 @@ v0.5.1 起双语发布. v0.1.0 – v0.4.x 早期历史只在本中文 CHANGELOG.
 
 ## [Unreleased]
 
-- **README 全 redesign** (双语, 参考 mem0 / aider / open-interpreter / continue 4 个高 star AI 工具 README 真 fetch 分析 pattern): 430+446 → 203+203 行. 砍 ToC、Two sides 段、Real problems 7 行表、Usage effects 6 H3 演示、多次自夸. 留: tagline + demo SVG + Karpathy 对比, 一行 Quick start, "What pinrule does" 3 bullet, mermaid 架构, "Not just another AI memory tool" 差异化表, per-client install, Tried-and-rejected, Honest boundaries, FAQ, Agent 证言 (移末尾), Mental model, Docs, 致敬.
-- PyPI metadata 精修: 包 description 跟 v0.16.14 slogan 对齐, keywords 加 `pinrule` / `claude-code` / `agent-rules`, 砍 `dogfooding`. 下次 release 上 PyPI.
+## [0.16.16] — 2026-05-17 — README 全 redesign (双语 203 行, 节奏对齐 aider / open-interpreter / mem0 标杆) + PyPI metadata 精修 (description 跟 slogan 对齐, keywords 砍 `dogfooding` 加 `pinrule` / `claude-code` / `agent-rules`).
 
 ## [0.16.x] — 2026-05-17 (当前)
 

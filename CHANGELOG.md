@@ -8,8 +8,7 @@ Releases from v0.5.1 onward publish bilingually. Earlier history (v0.1.0 – v0.
 
 ## [Unreleased]
 
-- **README redesign** (bilingual, paced to high-star AI-tool patterns after analyzing mem0 / aider / open-interpreter / continue): 430+446 → 203+203 lines. Cut ToC, "Two sides" section, "Real problems" 7-row table, "Usage effects" 6-H3 walkthrough, multi-pass self-praise. Kept hero tagline + demo SVG + Karpathy positioning, Quick start one-liner, "What pinrule does" 3 bullets, mermaid architecture, "Not just another AI memory tool" differentiation, per-client install, Tried-and-rejected, Honest boundaries, FAQ, Agent testimonials (moved to end), Mental model, Docs, Acknowledgments.
-- PyPI metadata polish: package description aligned with the v0.16.14 slogan + keywords add `pinrule` / `claude-code` / `agent-rules`, drop `dogfooding`. Ships on the next release.
+## [0.16.16] — 2026-05-17 — README full redesign (203 lines bilingual, paced to aider / open-interpreter / mem0 patterns) + PyPI metadata polish (description aligned with slogan, keywords drop `dogfooding`, add `pinrule` / `claude-code` / `agent-rules`).
 
 ## [0.16.x] — 2026-05-17 (current)
 
