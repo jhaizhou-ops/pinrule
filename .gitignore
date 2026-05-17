@@ -20,5 +20,9 @@ build/
 violations.jsonl
 stats.json
 
+# Cursor IDE dogfood 资产 (含真 stdin captures 可能有 user_email 等敏感字段)
+.cursor/
+.dogfood/
+
 # OS
 .DS_Store
