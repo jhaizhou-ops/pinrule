@@ -21,7 +21,7 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
-✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude Code + Codex CLI by `karma init` (Cursor is project-scoped, see post-install hint).
+✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude Code + Codex by `karma init` (Cursor is project-scoped, see post-install hint).
 
 Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
