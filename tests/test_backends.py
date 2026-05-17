@@ -23,6 +23,14 @@ def fake_home(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture
+def cursor_test_config_dir(fake_home, monkeypatch):
+    """Cursor backend 测试用非 `.cursor` 目录名 — 部分沙箱禁止 mkdir `.cursor`."""
+    dir_name = "cursor-karma-test"
+    monkeypatch.setattr(CursorBackend, "_CONFIG_DIR_NAME", dir_name)
+    return fake_home / dir_name
+
+
 def test_registry_has_three_backends():
     assert "claude-code" in REGISTRY
     assert "codex" in REGISTRY
@@ -343,16 +351,18 @@ def test_cursor_emit_stop_followup_message_not_decision_block():
     assert "decision" not in out
 
 
-def test_cursor_client_installed_falls_back_to_config_dir(fake_home, monkeypatch):
+def test_cursor_client_installed_falls_back_to_config_dir(
+    monkeypatch, cursor_test_config_dir,
+):
     """Cursor IDE 通常没 PATH 命令 (`cursor` 是可选 shell shim) — fallback
     检测 ~/.cursor 目录存在.
     """
     monkeypatch.setattr("shutil.which", lambda x: None)
     b = CursorBackend()
-    # 默认 fake_home 下没 .cursor 目录 → False
+    # 默认 fake_home 下没配置目录 → False
     assert b.client_installed() is False
     # 创建后 → True
-    (fake_home / ".cursor").mkdir()
+    cursor_test_config_dir.mkdir(parents=True)
     assert b.client_installed() is True
 
 
@@ -365,7 +375,7 @@ def test_cursor_is_karma_entry_recognizes_wrapper(fake_home):
     assert b.is_karma_entry(other_entry) is False
 
 
-def test_cursor_load_save_roundtrip(fake_home):
+def test_cursor_load_save_roundtrip(cursor_test_config_dir):
     b = CursorBackend()
     data = {"hooks": {"preToolUse": [{"hooks": [{"command": "/x", "type": "command"}]}]}}
     b.save_settings(data)
@@ -373,7 +383,7 @@ def test_cursor_load_save_roundtrip(fake_home):
     assert loaded == data
 
 
-def test_cursor_load_corrupted_raises(fake_home):
+def test_cursor_load_corrupted_raises(cursor_test_config_dir):
     """损坏的 hooks.json 抛 SettingsParseError 不静默返回 {}."""
     b = CursorBackend()
     p = b.settings_path()
