@@ -217,7 +217,7 @@ This is denser / more real / faster feedback than "install and observe for a wee
 
 pinrule = **universal hook framework** + **scenario rule sets**.
 
-Current `data/rules.dev.example.yaml` is the "**software development scenario**" preset — 7 rules all targeting attention drift while writing code (long-term solutions / non-blocking / plain Chinese / completion evidence / no testset feedback / no bypass detection / read before write). The 8 engine-layer violation_check functions (pytest / Edit / Write / Bash / bypass_pinrule / keep_pushing etc.) are also dev-scenario oriented.
+Current `data/rules.dev.example.yaml` / `.zh.yaml` are the "**software development scenario**" preset — 7 rules each, bilingual symmetry (v0.16.7) all targeting attention drift while writing code (long-term solutions / non-blocking parallel / plain language (EN, v0.16.8) or plain Chinese (zh) / completion evidence / no testset feedback / read before write / deep-fix not bypass). The 8 engine-layer violation_check functions (pytest / Edit / Write / Bash / bypass_pinrule / keep_pushing etc.) are also dev-scenario oriented.
 
 Other scenarios (writing / research / product / design / legal etc.) need different rule sets — users can customize rules.yaml, or community contributes presets. pinrule framework layer is cross-scenario universal.
 

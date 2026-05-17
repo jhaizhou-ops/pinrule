@@ -222,7 +222,7 @@ pinrule 的开发过程本身就是它最严酷的自用观察期：每次推进
 
 pinrule = **通用 hook 框架** + **场景规则集**。
 
-当前 `data/rules.dev.example.yaml` 是「**软件开发场景**」预设 — 7 条规则全部针对写代码时的注意力漂移（长期方案 / 不阻塞 / 直白中文 / 完成证据 / 不喂测试集 / 不绕开检测 / 先读再写）。工程层 8 个 violation_check 函数（pytest / Edit / Write / Bash / bypass_pinrule / keep_pushing 等）也偏开发场景。
+当前 `data/rules.dev.example.yaml` / `.zh.yaml` 是「**软件开发场景**」预设 — 每边 7 条规则, 双语对称 (v0.16.7) 全部针对写代码时的注意力漂移（长期方案 / 不阻塞并发 / 通俗语言（EN v0.16.8）或直白中文（zh） / 完成证据 / 不喂测试集 / 先读再写 / 深修不绕过）。工程层 8 个 violation_check 函数（pytest / Edit / Write / Bash / bypass_pinrule / keep_pushing 等）也偏开发场景。
 
 其他场景（写作 / 研究 / 产品 / 设计 / 法律等）需要不同的规则集 — 用户可自定义 `rules.yaml`，或社区贡献预设。pinrule 框架层跨场景通用。
 
