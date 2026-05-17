@@ -10,6 +10,14 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+### Cursor ↔ Claude hook parity (8/8 wrappers)
+
+- `install-hooks --backend cursor` now registers the same 8 karma wrappers as Claude Code: `preCompact`, `subagentStart`, `subagentStop` added alongside the existing five events
+- `Task` → `Agent` tool normalization so sub-agent model capture (`pending_subagent_models` FIFO) works on Cursor's Task tool
+- `subagent_id` / `parent_conversation_id` payload fields wired through `_payload` helpers (Claude uses `agent_id` / `session_id`)
+- `subagentStart` reads `subagent_model` directly when present (Cursor stdin); `preCompact` emits native `user_message` on Cursor after snapshot write
+- `subagentStop` hook entries get `loop_limit: 10` like `stop`
+
 ## [0.13.2] — 2026-05-17 (minor — drop Gemini CLI backend, focus on Claude Code / Codex CLI / Cursor)
 
 karma's supported clients trim from 4 to **3** focused on the most-used AI coding clients. Gemini CLI's installed base is small enough that maintaining 4-backend matrix (4× edge-case docs, 4× cross-backend audit cost, 4× per-release dogfood overhead) outweighed the user surface. v0.13.0+ launch-readiness positioning is **Claude Code + Codex CLI + Cursor**.
@@ -28,6 +36,14 @@ karma's supported clients trim from 4 to **3** focused on the most-used AI codin
 
 - Historical narrative in `CHANGELOG.zh.md`, `docs/HANDOFF.zh.md`, `docs/ARCHITECTURE.md/zh.md` v0.9.15+ / v0.10.x milestones where Gemini protocol audit produced cross-backend learnings (those learnings live on in the architecture even after Gemini support dropped)
 - A handful of `# v0.13.2 dropped Gemini` explainer comments in `cli.py` / `_base.py` / `protocol_adapter.py` so future maintainers reading the code see why the Gemini-shaped code path disappeared
+
+### Cursor parity (dogfood → ship)
+
+- `install-hooks --backend cursor` writes native `{version:1, hooks:{event:[{command}]}}` with absolute wrapper paths; `stop` entries include `loop_limit: 10`
+- `beforeSubmitPrompt → user_prompt_submit` for per-turn anchor injection; `emit_context_injection` uses nested `hookSpecificOutput` when non-empty
+- `karma sync-cursor-rules` + `~/.cursor/rules/karma-sticky.mdc` (`alwaysApply`) so sticky rules are model-visible at session start even when hook stdout injection is unreliable
+- `post_tool_use`: when `turn_count==0` on Cursor backend, reinject still runs on `tool_byte_seq` threshold (dogfood: UserPromptSubmit hook missing left reinject dead)
+- Cursor hook wrappers set `KARMA_HOME=~/.cursor/karma` by default
 
 ### Validation
 

@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+### Cursor ↔ Claude hook 对齐 (8/8 wrapper)
+
+- `install-hooks --backend cursor` 现与 Claude 装同一套 8 个 wrapper: 新增 `preCompact` / `subagentStart` / `subagentStop`
+- `Task` → `Agent` 归一化, 子 Agent model FIFO 在 Cursor Task 工具上生效
+- `subagent_id` / `parent_conversation_id` 字段接入 `_payload` helper
+- Cursor `subagentStart` 直接读 `subagent_model`; `preCompact` 落盘后返 `user_message`
+- `subagentStop` 条目带 `loop_limit: 10`
+
 ## [0.13.2] — 2026-05-17（minor — 砍 Gemini CLI backend，专注 Claude Code / Codex CLI / Cursor）
 
 karma 支持的客户端从 4 家收到 **3 家**，专注最常用的 AI 编程客户端. Gemini CLI 装机量小, 维护 4-backend 矩阵 (4× 边角文档, 4× cross-backend audit 成本, 4× 每 release dogfood overhead) 不划算. v0.13.0+ launch-readiness 定位 **Claude Code + Codex CLI + Cursor**.
@@ -24,6 +32,14 @@ karma 支持的客户端从 4 家收到 **3 家**，专注最常用的 AI 编程
 
 - `CHANGELOG.zh.md`, `docs/HANDOFF.zh.md`, `docs/ARCHITECTURE.md/zh.md` v0.9.15+ / v0.10.x milestone 历史叙述中 Gemini 协议 audit 产生的 cross-backend 教训 (那些教训仍在架构里, Gemini 砍后不影响)
 - 少数 `# v0.13.2 砍 Gemini` explainer 注释在 `cli.py` / `_base.py` / `protocol_adapter.py`, 让后续维护者读代码看到 Gemini-shape code path 为啥不见了
+
+### Cursor 对齐 (dogfood → 落地)
+
+- `install-hooks --backend cursor` 写原生 `{version:1, hooks:{event:[{command}]}}` 绝对路径; `stop` 带 `loop_limit: 10`
+- `beforeSubmitPrompt → user_prompt_submit` 每 turn anchor; 非空走 nested `hookSpecificOutput`
+- `karma sync-cursor-rules` + `~/.cursor/rules/karma-sticky.mdc` (`alwaysApply`) 作 hook 注入不可靠时的起手保险
+- `post_tool_use`: Cursor 且 `turn_count==0` 时仍按 `tool_byte_seq` 阈值 reinject
+- Cursor wrapper 默认 `KARMA_HOME=~/.cursor/karma`
 
 ### 验证
 
