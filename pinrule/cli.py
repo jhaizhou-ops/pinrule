@@ -12,10 +12,15 @@ Usage:
                                    codex 会同时启用 features.hooks
     pinrule sync-cursor-rules          刷新 ~/.cursor/rules/pinrule-sticky.mdc (Cursor 起手可见)
     pinrule sync-cursor-visibility   hook 之外: Claude skills 目录 + empty-window 项目 rules
-    pinrule install-skill [--force]  装 pinrule-rule Claude Code skill 到 ~/.claude/skills/
-                                   (pinrule init 已自动跑一次, 老用户 / skill 升级时用)
-                                   已存在且不同 → 写 .md.new 文件让用户对比, 不覆盖；
-                                   --force 强制覆盖（会丢用户对 skill 的本地改动）
+    pinrule install-skill [--force] [--backend claude-code|codex|cursor|all]
+                                   装 pinrule skill 到检测到的客户端
+                                   - Claude: ~/.claude/skills/pinrule/SKILL.md
+                                   - Codex:  ~/.agents/skills/pinrule/SKILL.md
+                                   - Cursor: 协议级限 project-scoped, 跳过 (装机时
+                                     post_install_message 告知怎么手工 cp 到目标项目)
+                                   pinrule init 已自动跑一次, 老用户 / skill 升级用本命令.
+                                   已存在且不同 → 写 .md.new 文件让用户对比, 不覆盖;
+                                   --force 强制覆盖 (会丢用户对 skill 的本地改动)
     pinrule uninstall-hooks [--backend ...]   移除 hook 配置
     pinrule uninstall                一键卸所有 backend（= uninstall-hooks --backend all）
     pinrule doctor                   检查环境 + hook 装机 + 当前生效 config
