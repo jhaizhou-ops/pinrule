@@ -452,7 +452,7 @@ Memory 系统擅长「记得用户上周说过 X」。pinrule 擅长「用户的
 
 两者一起用更好。Memory 装「这用户偏好 TypeScript 而不是 JavaScript」; pinrule 装「这用户的方向性偏好不让步, hook 强制执行」。
 
-pinrule 明确**不**跟 memory 系统竞争 — [尝试过和放弃的](#尝试过和放弃的pinrule-不做的) 段把这条锁成永久边界。
+pinrule 明确**不**跟 memory 系统竞争 — [试过但放弃的](#试过但放弃的pinrule-不做的事) 段把这条锁成永久边界。
 </details>
 
 <details>
