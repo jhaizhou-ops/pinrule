@@ -40,6 +40,7 @@ CODEX_NATIVE_HOOKS: list[NativeHookSpec] = [
     {"event": "SessionStart", "wrapper": "session_start", "role": "inject"},
     {"event": "UserPromptSubmit", "wrapper": "user_prompt_submit", "role": "inject"},
     {"event": "PreToolUse", "wrapper": "pre_tool_use", "role": "gate"},
+    {"event": "PermissionRequest", "wrapper": "pre_tool_use", "role": "gate"},
     {"event": "PostToolUse", "wrapper": "post_tool_use", "role": "inject"},
     {"event": "Stop", "wrapper": "stop", "role": "audit"},
 ]

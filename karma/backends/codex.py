@@ -8,7 +8,9 @@
 ⑤ normalize_tool_name 映射 apply_patch → Edit / exec_command → Bash
 ⑥ normalize_tool_input 解析 apply_patch envelope 字符串成 canonical Edit shape
    含 multi_file_targets（v0.10.0 把 envelope parser 从 protocol_adapter 搬过来）
-⑦ normalize_tool_input 识别 exec_command shell-as-Read，并兼容 desktop `cmd` 字段
+⑦ normalize_tool_input 识别 Codex native Bash / legacy exec_command shell-as-Read，
+   并兼容 desktop `cmd` 字段
+⑧ native hook surface 来自 native_capabilities.CODEX_HOOK_EVENTS（官方 6 events）
 
 参考：
 - 官方 hook 协议: https://developers.openai.com/codex/hooks
@@ -17,17 +19,23 @@
 - 真捕获的 apply_patch envelope 来自 codex 0.130 + GPT-5.5 session rollout
   (rollout-2026-05-16T13-51-47-...jsonl)
 
-ADR-001: PermissionRequest event 不接入 (2026-05-16)
-Codex 0.130 支持 PermissionRequest event (codex agent 申请运行需要审批的
-工具时 fire). karma 决策不接入:
+ADR-001: PermissionRequest event 改为接入 (2026-05-17, supersedes 2026-05-16)
+Codex hooks docs 当前 release surface 是 6 个 PascalCase event:
+SessionStart / PreToolUse / PermissionRequest / PostToolUse / UserPromptSubmit / Stop。
+v0.10.x 曾决定不接 PermissionRequest, 因为 karma 不想做第二套权限审批系统。
+v0.15.0 native-first refactor 改为安装这个 native event, 但只把它路由到现有
+pre_tool_use wrapper / _tool_gate, 不新增独立 check engine:
 
-- karma 已在 PreToolUse 层用 bypass_karma / testset / read_first 等 check
-  拦截危险操作, 跟 PermissionRequest 时机重叠
-- 双层拦截只增加假阳率, 不增加新拦截维度
-- karma 哲学是行为先验注入 + 工程层拦截, 不是权限审批系统
-  (跟 codex 自身 permission_mode 是不同维度)
-- 如果后续真需要 PermissionRequest 维度的拦截 (例如"危险 git 操作要 karma
-  二次确认"), 应该作为新独立 check 加入, 不是简单挂 PermissionRequest hook.
+- 命中 karma 规则: 用 Codex PermissionRequest 官方 shape
+  `{hookSpecificOutput: {hookEventName: "PermissionRequest",
+  decision: {behavior: "deny", message}}}` 拦截。
+- 未命中 karma 规则: 仍输出 `{}` fail-open，让 Codex 自己继续正常 permission
+  approval 流程；karma 不替用户自动 allow。
+- 仍不把 karma 定位成权限审批系统；PermissionRequest 只是 native gate surface
+  覆盖, 复用同一套行为规则检查。
+- 官方 generated schema 链接里可能出现 future pre/post compact 文件, 但 hooks
+  文档事件表未列 PreCompact / PostCompact / SessionEnd / SubagentStart, 所以本
+  backend 不安装这些未发布 event。
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from karma.backends._json_hooks import JsonHooksBackend
+from karma.backends.native_capabilities import CODEX_HOOK_EVENTS
 
 
 # Codex → karma canonical tool_name 映射
@@ -151,9 +160,10 @@ def _extract_codex_patch_text(raw_tool_input: Any) -> str:
     **Capture status (v0.10.5 honest scope, Agent 2 F5 fix)**:
     - ✅ Bare string (raw_tool_input is str): **真捕获** from codex 0.130 + GPT-5.5
       session rollout 2026-05-16 (rollout-2026-05-16T13-51-47-...jsonl)
-    - ⚠️ dict `input` key: 推测自 codex 文档 (Codex docs custom_tool_call.input
-      field) + session rollout 字段名 — **hook-level wrap 后真 shape 未捕获**
-    - ⚠️ dict `command` / `patch` / `diff` key: **纯推测**, 没文档没真捕获,
+    - ✅ dict `command` key: 官方 hooks docs 当前 native shape (Bash/apply_patch
+      use tool_input.command).
+    - ✅ dict `input` key: rollout custom_tool_call.input 字段名（历史兼容）.
+    - ⚠️ dict `patch` / `diff` key: **纯推测**, 没文档没真捕获,
       防御式留着以防 codex 0.131+ 改用这些字段名
 
     如果未捕获 key 真 fire, 函数会 print stderr warning 让用户响亮发现
@@ -164,14 +174,15 @@ def _extract_codex_patch_text(raw_tool_input: Any) -> str:
     if isinstance(raw_tool_input, str):
         return raw_tool_input
     if isinstance(raw_tool_input, dict):
-        # v0.10.5 (Agent 2 F5 fix): 未捕获 key (patch / command / diff) 真 fire 时
+        # v0.10.5 (Agent 2 F5 fix): 未捕获 key (patch / diff) 真 fire 时
         # stderr warning 让 codex 用户响亮发现 + 提 issue 反馈真 hook-level shape.
-        # `input` key 是真捕获过的不 warn.
+        # `command` / `input` key 是 docs / 真捕获过的不 warn.
         import sys as _sys
-        for key in ("input", "patch", "command", "diff"):
+        verified_keys = {"command", "input"}
+        for key in ("command", "input", "patch", "diff"):
             v = raw_tool_input.get(key)
             if isinstance(v, str) and v.strip():
-                if key != "input":
+                if key not in verified_keys:
                     print(
                         f"karma codex backend: warning — apply_patch 用了未捕获的 wrap "
                         f"key {key!r}, 防御式继续解析. 请把这种 case 报到 GitHub issue "
@@ -651,15 +662,11 @@ class CodexBackend(JsonHooksBackend):
     _SETTINGS_FILENAME = "hooks.json"
     _CLIENT_CMD = "codex"
 
-    # Codex 0.130 支持 6 个 hook event。karma 用 5 个跟 Claude Code baseline /
-    # tool / stop 流程对齐；PermissionRequest 暂不用。
-    _HOOK_EVENTS: dict[str, str] = {
-        "SessionStart": "session_start",
-        "UserPromptSubmit": "user_prompt_submit",
-        "PreToolUse": "pre_tool_use",
-        "PostToolUse": "post_tool_use",
-        "Stop": "stop",
-    }
+    # Native-first surface (see native_capabilities.CODEX_NATIVE_HOOKS).
+    # Codex docs use PascalCase event names. PermissionRequest reuses the same
+    # pre_tool_use wrapper / _tool_gate checks as PreToolUse, with Codex-specific
+    # deny output shape in emit_deny().
+    _HOOK_EVENTS: dict[str, str] = dict(CODEX_HOOK_EVENTS)
 
     def build_event_entry(self, hook_name_lower: str, event_name: str) -> dict:
         wrapper = self.hooks_dir() / f"karma_{hook_name_lower}.py"
@@ -838,15 +845,48 @@ class CodexBackend(JsonHooksBackend):
         return "{}"
 
     def emit_deny(self, reason: str, payload: dict) -> str:
-        """Codex PreToolUse 接受 hookSpecificOutput.permissionDecision:"deny"
-        shape (跟 Claude 一致, 真测试 2026-05-16 确认拦截工作). 但仍要带
-        additionalContext 字段防止 codex 在某些版本期望它在 deny shape 里.
+        """Codex gate deny output is event-specific.
+
+        PreToolUse 接受 hookSpecificOutput.permissionDecision:"deny" shape
+        (跟 Claude 一致, 真测试 2026-05-16 确认拦截工作).
+
+        PermissionRequest docs 使用 `decision.behavior` shape; 未命中时 emit_allow()
+        仍返回 `{}` fail-open, 不替用户自动审批。
         """
+        if payload.get("hook_event_name") == "PermissionRequest":
+            return json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "PermissionRequest",
+                    "decision": {
+                        "behavior": "deny",
+                        "message": reason,
+                    },
+                }
+            }, ensure_ascii=False)
         return json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
                 "permissionDecisionReason": reason,
+            }
+        }, ensure_ascii=False)
+
+    def emit_context_injection(
+        self, event_name: str, additional_context: str, payload: dict,
+    ) -> str:
+        """Codex native context injection.
+
+        Official hooks docs say SessionStart / UserPromptSubmit support
+        hookSpecificOutput.additionalContext, and PostToolUse supports the same
+        hook-specific additionalContext shape. Empty context should be a clean
+        `{}` passthrough rather than an empty developer-context envelope.
+        """
+        if not (additional_context or "").strip():
+            return "{}"
+        return json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": event_name,
+                "additionalContext": additional_context,
             }
         }, ensure_ascii=False)
 
@@ -862,11 +902,11 @@ class CodexBackend(JsonHooksBackend):
               "multi_file_targets": [{"op", "path"}...], # v0.10.0 canonical 多文件字段
             }
 
-        exec_command 只读 shell: 保留原 input，并补 read_file_paths 给通用层后续 record_read。
+        Bash / exec_command 只读 shell: 保留原 input，并补 read_file_paths 给通用层后续 record_read。
         其他非 apply_patch tool_call: passthrough 原 input。
         envelope 解析失败（malformed / 非 envelope 字符串）: passthrough 原 input。
         """
-        if raw_tool_name == "exec_command":
+        if raw_tool_name in {"exec_command", "Bash"}:
             if not isinstance(raw_tool_input, dict):
                 return raw_tool_input
             command = raw_tool_input.get("command")
@@ -921,9 +961,9 @@ class CodexBackend(JsonHooksBackend):
         算法给自己生成的 wrapper 写入 trusted_hash；这里仍提示用户如何核验。
         """
         hooks_dir = self.hooks_dir()
-        wrappers = [
+        wrappers = list(dict.fromkeys(
             f"karma_{basename}.py" for basename in self._HOOK_EVENTS.values()
-        ]
+        ))
         wrapper_paths = [str(hooks_dir / w) for w in wrappers]
 
         msg: list[str] = [
@@ -939,7 +979,8 @@ class CodexBackend(JsonHooksBackend):
             "▶ 复核（可选，30 秒）:",
             "  1. 启动 codex CLI: `codex`",
             "  2. 在 TUI 里输入: /hooks",
-            f"  3. 确认这 {len(wrapper_paths)} 个 wrapper 状态是 trusted/approved:",
+            f"  3. 确认这 {len(self._HOOK_EVENTS)} 个 event / {len(wrapper_paths)} 个 wrapper "
+            "状态是 trusted/approved:",
         ]
         for wp in wrapper_paths:
             msg.append(f"     ✓  {wp}")

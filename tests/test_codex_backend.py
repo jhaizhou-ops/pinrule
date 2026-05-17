@@ -37,8 +37,21 @@ def _normalize(raw_tool_input):
     return CodexBackend().normalize_tool_input("exec_command", raw_tool_input, {})
 
 
+def _normalize_bash(raw_tool_input):
+    return CodexBackend().normalize_tool_input("Bash", raw_tool_input, {})
+
+
 def test_exec_command_tail_command_key_extracts_read_file_path():
     out = _normalize({"command": "tail -n 20 /path/to/file.py"})
+    assert out == {
+        "command": "tail -n 20 /path/to/file.py",
+        "read_file_paths": ["/path/to/file.py"],
+    }
+
+
+def test_native_bash_tail_extracts_read_file_path():
+    """Codex hooks docs report shell calls as tool_name=Bash + tool_input.command."""
+    out = _normalize_bash({"command": "tail -n 20 /path/to/file.py"})
     assert out == {
         "command": "tail -n 20 /path/to/file.py",
         "read_file_paths": ["/path/to/file.py"],
@@ -61,6 +74,15 @@ def test_exec_command_cat_extracts_read_file_path():
 
 def test_exec_command_sed_i_marks_write_and_emits_write_file_paths():
     out = _normalize({"command": "sed -i 's/foo/bar/' /workspace/x.py"})
+    assert out == {
+        "command": "sed -i 's/foo/bar/' /workspace/x.py",
+        "is_write": True,
+        "write_file_paths": ["/workspace/x.py"],
+    }
+
+
+def test_native_bash_sed_i_emits_write_file_paths():
+    out = _normalize_bash({"command": "sed -i 's/foo/bar/' /workspace/x.py"})
     assert out == {
         "command": "sed -i 's/foo/bar/' /workspace/x.py",
         "is_write": True,
@@ -133,13 +155,59 @@ def test_codex_apply_patch_envelope_still_synthesizes_edit_shape():
     }
 
 
+def test_codex_apply_patch_native_command_field_synthesizes_edit_shape_without_warning(capsys):
+    """Codex hooks docs: apply_patch uses tool_input.command in native hook payload."""
+    out = CodexBackend().normalize_tool_input(
+        "apply_patch",
+        {"command": REAL_CODEX_SINGLE_FILE_ENVELOPE},
+        {},
+    )
+    assert out == {
+        "file_path": "/tmp/karma-codex-toy.py",
+        "new_string": REAL_CODEX_SINGLE_FILE_ENVELOPE,
+        "multi_file_targets": [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}],
+    }
+    captured = capsys.readouterr()
+    assert captured.err == ""
+
+
 def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
     out = CodexBackend().emit_allow({})
     assert out == "{}"
     assert json.loads(out) == {}
 
 
-def test_codex_emit_context_injection_shape_inherits_default():
+def test_codex_emit_deny_permission_request_shape():
+    out = CodexBackend().emit_deny(
+        "blocked by karma",
+        {"hook_event_name": "PermissionRequest"},
+    )
+    assert json.loads(out) == {
+        "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {
+                "behavior": "deny",
+                "message": "blocked by karma",
+            },
+        }
+    }
+
+
+def test_codex_emit_deny_pre_tool_use_shape_stays_permission_decision():
+    out = CodexBackend().emit_deny(
+        "blocked by karma",
+        {"hook_event_name": "PreToolUse"},
+    )
+    assert json.loads(out) == {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "blocked by karma",
+        }
+    }
+
+
+def test_codex_emit_context_injection_shape_is_native_hook_specific_output():
     out = CodexBackend().emit_context_injection("SessionStart", "karma context", {})
     assert json.loads(out) == {
         "hookSpecificOutput": {
@@ -149,7 +217,12 @@ def test_codex_emit_context_injection_shape_inherits_default():
     }
 
 
-def test_codex_emit_stop_block_shape_inherits_default():
+def test_codex_emit_context_injection_empty_returns_empty_dict():
+    out = CodexBackend().emit_context_injection("UserPromptSubmit", "", {})
+    assert json.loads(out) == {}
+
+
+def test_codex_emit_stop_block_shape_is_native_decision_block():
     out = CodexBackend().emit_stop_block("keep going", {})
     assert json.loads(out) == {"decision": "block", "reason": "keep going"}
 
@@ -157,7 +230,7 @@ def test_codex_emit_stop_block_shape_inherits_default():
 def test_module_docstring_contains_adr_001():
     assert codex_backend.__doc__
     assert "ADR-001" in codex_backend.__doc__
-    assert "PermissionRequest event 不接入" in codex_backend.__doc__
+    assert "PermissionRequest event 改为接入" in codex_backend.__doc__
 
 
 def test_exec_command_grep_without_recursive_flag_extracts_single_file_path():
@@ -265,6 +338,60 @@ def test_codex_save_settings_pretrusts_only_karma_hooks(tmp_path, monkeypatch):
     assert not any("vibe-island" in key for key in state)
 
 
+def test_codex_save_settings_pretrusts_all_native_events(tmp_path, monkeypatch):
+    """Codex native surface install must auto-trust every event, including
+    PermissionRequest, or users are back to one-by-one `/hooks` approval.
+    """
+    fake_home = _fake_home(tmp_path, monkeypatch)
+    b = CodexBackend()
+    settings = {
+        "hooks": {
+            event: [b.build_event_entry(wrapper, event)]
+            for event, wrapper in b.hook_events().items()
+        }
+    }
+
+    b.save_settings(settings)
+
+    config = tomllib.loads((fake_home / ".codex" / "config.toml").read_text(encoding="utf-8"))
+    state = config["hooks"]["state"]
+    assert len(state) == len(b.hook_events())
+    event_keys = {key.split(":")[-3] for key in state}
+    assert event_keys == {
+        "session_start",
+        "user_prompt_submit",
+        "pre_tool_use",
+        "permission_request",
+        "post_tool_use",
+        "stop",
+    }
+    assert all(entry["enabled"] is True for entry in state.values())
+    assert all(entry["trusted_hash"].startswith("sha256:") for entry in state.values())
+
+
+def test_codex_hook_events_preserve_full_native_surface_with_shared_wrapper():
+    """hook_events() is a native event map; installer handles wrapper de-dupe."""
+    events = CodexBackend().hook_events()
+    assert len(events) == 6
+    assert len(list(events.items())) == 6
+    values = list(events.values())
+    assert len(values) == 6
+    assert values.count("pre_tool_use") == 2
+    assert events["PreToolUse"] == "pre_tool_use"
+    assert events["PermissionRequest"] == "pre_tool_use"
+
+
+def test_codex_post_install_message_deduplicates_shared_wrapper_paths(tmp_path, monkeypatch):
+    """PermissionRequest and PreToolUse share one wrapper; user approval UX must
+    not ask people to inspect the same file twice.
+    """
+    fake_home = _fake_home(tmp_path, monkeypatch)
+    lines = CodexBackend().post_install_message()
+    wrapper_lines = [line for line in lines if str(fake_home / ".codex" / "hooks") in line]
+    assert len(wrapper_lines) == len(set(wrapper_lines))
+    assert sum("karma_pre_tool_use.py" in line for line in wrapper_lines) == 1
+
+
 def test_codex_hook_state_timeout_matches_codex_min_one_behavior(tmp_path, monkeypatch):
     fake_home = _fake_home(tmp_path, monkeypatch)
     b = CodexBackend()
@@ -343,3 +470,30 @@ def test_codex_exec_command_sed_i_records_canonical_write_path(tmp_path, monkeyp
     reloaded = session_state.load("codex-sed-write", base_dir=tmp_path)
     assert "/workspace/x.py" in reloaded.edit_files
     assert reloaded.last_edit_ts > 0
+
+
+def test_codex_native_bash_records_canonical_read_path(tmp_path, monkeypatch):
+    import io
+    import sys
+
+    from karma import session_state
+    from karma.hooks import post_tool_use
+
+    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    state = session_state.SessionState(session_id="codex-native-bash-read")
+    session_state.save(state, base_dir=tmp_path)
+
+    payload = {
+        "session_id": "codex-native-bash-read",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "tail -n 20 /workspace/x.py"},
+        "tool_response": "",
+    }
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    assert post_tool_use.main() == 0
+
+    reloaded = session_state.load("codex-native-bash-read", base_dir=tmp_path)
+    assert "/workspace/x.py" in reloaded.read_files

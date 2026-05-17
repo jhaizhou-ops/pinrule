@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-05-17（minor — Codex 原生 hook surface + 干预语义对齐）
+
+### Codex native-first 支持
+
+- Codex backend 现在按官方 Codex hooks docs 声明 release 版原生 hook 全集：`SessionStart`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, `Stop`。
+- `PermissionRequest` 现在安装并自动 trusted，但 karma **不变成权限审批系统**：命中规则时返回 Codex 原生 `decision.behavior="deny"`；未命中返回 `{}`，让 Codex 继续自己的正常审批弹窗，避免 karma 静默替用户 approve 升权请求。
+- `PreToolUse` 与 `PermissionRequest` 复用 `karma_pre_tool_use.py`；安装 UX 现在明确显示 6 个 native event / 5 个 wrapper 文件，不再重复生成/提示用户检查同一个 wrapper。
+- Codex 原生 `Bash` payload 现在走与历史 `exec_command` 相同的 shell-as-Read / shell-write 归一化：`tail file.py` 会记录 read，`sed -i file.py` 会记录 edit，覆盖 Codex CLI 与 desktop-shaped payload。
+- Codex 原生 `apply_patch` 的 `tool_input.command` 字段已按官方文档视为 verified input，不再触发旧的 speculative-key warning。
+- `CodexBackend` 明确实现 context injection：空 context 返回 `{}` passthrough；非空 context 用文档支持的 `hookSpecificOutput.additionalContext`。Stop 干预继续用 Codex 原生 `{"decision":"block","reason":...}`。
+- 自动 trust 覆盖 `[hooks.state]` 六个 native event，包括 `PermissionRequest`，保住 v0.10.2 开始的“不需要手工逐个 approve”体验。
+
+诚实边界：Codex docs 仍明确说 `PreToolUse` / `PostToolUse` 还不能拦所有 shell call，`WebSearch` 不覆盖，main-branch generated schemas 可能有当前 release 未支持的 future fields/events。karma 只安装 docs 当前 release 明确列出的 surface。
+
 ## [0.14.0] — 2026-05-17（minor — 共享 `~/.karma` + Cursor 原生能力收口）
 
 ### 共享规则库（各端共用）

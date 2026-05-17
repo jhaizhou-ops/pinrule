@@ -92,6 +92,61 @@ def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch
         not list((fake_home / ".codex" / "hooks").glob("karma_*.py"))
 
 
+def test_install_hooks_codex_native_surface_no_duplicate_wrapper_output(
+    fake_home, monkeypatch, capsys,
+):
+    """Codex installs 6 native events but only 5 wrapper files."""
+    from karma.backends import CodexBackend
+
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
+    monkeypatch.setattr(CodexBackend, "pre_install_setup", lambda self: ["Codex hooks ready"])
+
+    rc = cli.cmd_install_hooks(backend_name="codex")
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    generated = [line for line in out.splitlines() if "生成:" in line]
+    assert len(generated) == 5
+    assert sum("karma_pre_tool_use.py" in line for line in generated) == 1
+    assert "6 个 hook event" in out
+    assert "6 个 event / 5 个 wrapper" in out
+
+    settings = json.loads((fake_home / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+    assert set(settings["hooks"]) == {
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "Stop",
+    }
+    pre_cmd = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    perm_cmd = settings["hooks"]["PermissionRequest"][0]["hooks"][0]["command"]
+    assert pre_cmd == perm_cmd
+    assert pre_cmd.endswith("karma_pre_tool_use.py")
+
+    config_text = (fake_home / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert ":permission_request:0:0" in config_text
+
+
+def test_uninstall_hooks_codex_shared_wrapper_deleted_once(fake_home, monkeypatch, capsys):
+    """Codex uninstall should remove the shared pre_tool_use wrapper once cleanly."""
+    from karma.backends import CodexBackend
+
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
+    monkeypatch.setattr(CodexBackend, "pre_install_setup", lambda self: ["Codex hooks ready"])
+
+    assert cli.cmd_install_hooks(backend_name="codex") == 0
+    capsys.readouterr()
+
+    assert cli.cmd_uninstall_hooks(backend_name="codex") == 0
+
+    out = capsys.readouterr().out
+    deleted = [line for line in out.splitlines() if "删除:" in line]
+    assert sum("karma_pre_tool_use.py" in line for line in deleted) == 1
+    assert not (fake_home / ".codex" / "hooks" / "karma_pre_tool_use.py").exists()
+
+
 def test_uninstall_all_backend_iterates_each_installed(fake_home, monkeypatch):
     """`--backend all` 卸装应对每个检测到的 backend 各跑一遍卸装流程。"""
     from karma.backends import ClaudeCodeBackend, CodexBackend
@@ -541,6 +596,41 @@ def test_doctor_cursor_flat_hook_entry_detected(fake_home, monkeypatch, capsys):
     assert "preToolUse: ✓" in out or "preToolUse: ✓" in out.replace(" ", "")
     assert "beforeSubmitPrompt: ✓" in out
     assert "未引用" not in out.split("[cursor]")[-1][:800]
+
+
+def test_doctor_codex_native_surface_trust_message_no_stale_manual_approval_copy(
+    fake_home, monkeypatch, capsys,
+):
+    """Codex doctor copy must match auto-trust + 6 native events / 5 wrappers."""
+    from karma.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
+
+    monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
+
+    b = CodexBackend()
+    hooks_dir = b.hooks_dir()
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    for basename in b.hook_events().values():
+        w = hooks_dir / f"karma_{basename}.py"
+        w.write_text("#!/bin/sh\n", encoding="utf-8")
+        w.chmod(0o755)
+
+    settings = {"hooks": {}}
+    for event_name, basename in b.hook_events().items():
+        settings["hooks"][event_name] = [b.build_event_entry(basename, event_name)]
+    b.save_settings(settings)
+
+    _patch_rules_path(monkeypatch, fake_home)
+    rc = cli.cmd_doctor()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "PermissionRequest: ✓" in out
+    assert "6 个 event / 5 个 wrapper" in out
+    assert "trusted_hash 已写入" in out
+    assert "检查这 4 个 wrapper 状态" not in out
+    assert "没 approved 的逐个 approve" not in out
 
 
 # ---- v0.5.16 karma install-skill / karma init 多 backend skill 装机 ----

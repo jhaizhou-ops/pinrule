@@ -122,6 +122,56 @@ def test_codex_event_entry_no_matcher(fake_home):
     assert hooks[0].get("timeout") == 30
 
 
+def test_codex_native_hook_surface_matches_docs_full_list(fake_home):
+    """Codex hooks docs list 6 PascalCase native events; karma installs all 6.
+
+    Reality check 2026-05-17: https://developers.openai.com/codex/hooks lists
+    SessionStart / PreToolUse / PermissionRequest / PostToolUse /
+    UserPromptSubmit / Stop as the released hook events. Generated schema links
+    may contain future pre/post compact files, but the docs event table is the
+    install surface.
+    """
+    from karma.backends.native_capabilities import CODEX_HOOK_EVENTS, CODEX_NATIVE_HOOKS
+
+    docs_events = {
+        "SessionStart",
+        "PreToolUse",
+        "PermissionRequest",
+        "PostToolUse",
+        "UserPromptSubmit",
+        "Stop",
+    }
+    assert {spec["event"] for spec in CODEX_NATIVE_HOOKS} == docs_events
+    assert set(CodexBackend().hook_events()) == docs_events
+    assert CodexBackend().hook_events() == CODEX_HOOK_EVENTS
+    assert all(event[:1].isupper() for event in CodexBackend().hook_events())
+
+
+def test_codex_permission_request_maps_to_tool_gate_wrapper(fake_home):
+    """PermissionRequest is a native codex gate and reuses karma's pre tool gate.
+
+    v0.15.0 changes the old ADR-001 decision: native-first means the event is
+    installed, but no new check engine is invented; it routes to the same
+    pre_tool_use wrapper as PreToolUse.
+    """
+    events = CodexBackend().hook_events()
+    assert events["PreToolUse"] == "pre_tool_use"
+    assert events["PermissionRequest"] == "pre_tool_use"
+
+
+def test_codex_install_writes_permission_request_entry(fake_home):
+    """install-style settings include PermissionRequest with the shared wrapper."""
+    b = CodexBackend()
+    entry = b.build_event_entry(
+        b.hook_events()["PermissionRequest"],
+        "PermissionRequest",
+    )
+    hook = entry["hooks"][0]
+    assert hook["type"] == "command"
+    assert hook["timeout"] == 30
+    assert "karma_pre_tool_use.py" in hook["command"]
+
+
 def test_codex_load_save_roundtrip(fake_home):
     b = CodexBackend()
     data = {"hooks": {"UserPromptSubmit": [{"hooks": [{"command": "/x", "type": "command"}]}]}}
@@ -167,6 +217,30 @@ def test_codex_is_karma_entry_recognizes_wrapper(fake_home):
     other_entry = {"hooks": [{"type": "command", "command": "/x/vibe-island"}]}
     assert b.is_karma_entry(karma_entry) is True
     assert b.is_karma_entry(other_entry) is False
+
+
+def test_codex_trust_state_covers_permission_request(fake_home):
+    """auto-trust state must include the newly installed PermissionRequest event."""
+    b = CodexBackend()
+    command = str(b.hooks_dir() / "karma_pre_tool_use.py")
+    settings = {
+        "hooks": {
+            "PermissionRequest": [{
+                "hooks": [{
+                    "type": "command",
+                    "command": command,
+                    "timeout": 30,
+                }]
+            }]
+        }
+    }
+    states = b.codex_hook_state_entries(settings)
+    assert len(states) == 1
+    key, value = next(iter(states.items()))
+    assert ":permission_request:" in key
+    assert value["enabled"] is True
+    assert isinstance(value["trusted_hash"], str)
+    assert value["trusted_hash"].startswith("sha256:")
 
 
 # ---- detect_installed_backends ----
