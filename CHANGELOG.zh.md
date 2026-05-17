@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.16.7] — 2026-05-17（patch — 双语 default 对称 + round-2 fixture sandbox）
+
+### 双语 default 对称
+
+用户原话: "双语肯定是要自适配的" — 不只语言, rule count 也得对等. v0.16.7 前:
+- 中文用户 → 7 条 zh 模板 (full)
+- 非中文用户 → **5 条 en 模板 (minimal)** ← 不对称
+
+英文用户拿到的功能比中文用户少 — chinese-plain 砍掉合理, 但 **同时** no-testset 跟 deep-fix 也砍了, 双语体验不平等. v0.16.7: 中英文 default 都装 **7 条 full localized**. 5 条 minimal 留给显式 `--minimal` flag.
+
+### Round-2 fixture sandbox (从 [Unreleased] 入版本)
+
+`tests/test_cli.py::fake_home` 加 `sys.prefix` mock + `CursorBackend.client_installed=False`. 不 mock 的话, `_cleanup_legacy_karma()` (v0.16.5 加) 跑测试时**真 unlink 老开发机 `.venv/bin/karma`**. 真 bug.
+
 ## [0.16.6] — 2026-05-17（patch — 两轮多 Agent 代码级审查 P0/P1 批 fix）
 
 两轮 8 个并行子 Agent 审查 8 视角 (engine check / backend / hook fail-open / rename 残留 / 测试覆盖 / 真用户旅程 / doc 一致性 / 隐藏 race+security) 共 ~75 findings. P0+P1 真 fix:

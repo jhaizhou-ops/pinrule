@@ -3,9 +3,9 @@
 Usage:
     pinrule init [--minimal|--no-minimal]
                                    创建 ~/.pinrule/ + 复制 rules/config 模板
-                                   默认按系统语言偏好自动选：中文 → 7 条完整；
-                                   非中文/检测不到 → 5 条精简（砍 chinese_plain）
-                                   --minimal / --no-minimal 强制覆盖
+                                   默认按系统语言偏好选 zh/en localized 模板 (都 7 条对称).
+                                   --minimal 强制装 5 条 cross-scenario universal (砍
+                                   chinese-plain / no-testset); --no-minimal 强制 7 条.
     pinrule install-hooks [--backend claude-code|codex|cursor|all]
                                    默认 'all' (v0.16.1+) — 装本机检测到的所有客户端
                                    --backend <name> 单独装某家
@@ -276,17 +276,19 @@ def cmd_init(minimal: bool | None = None) -> int:
 
     auto_chose = ""
     if minimal is None:
-        # Auto-select by system locale (cross-platform: macOS defaults /
-        # Linux $LANG / Windows GetUserDefaultUILanguage / POSIX fallback)
+        # v0.16.7: 双语对称 default — 中文跟英文用户都 default 装 full 7 条
+        # (template 自己按 locale 选 zh/en, 但 rule count 对称). 老逻辑非中文
+        # 用户只装 5 条 minimal, 英文用户拿到的功能比中文用户少, 不对等. 用户
+        # 原话: "双语肯定是要自适配的" — 不只语言, rule set 也该对等.
+        # `--minimal` flag 仍可显式装 5 条 cross-scenario universal.
         from pinrule.locale_detect import detect_user_language, is_chinese_user
         lang = detect_user_language()
+        minimal = False  # 对称 default: 7 条
         if is_chinese_user():
-            minimal = False
-            auto_chose = f"(detected locale {lang!r} → installing full 7 rules with chinese_plain)"
+            auto_chose = f"(detected locale {lang!r} → installing full 7 rules zh-localized with chinese-plain)"
         else:
-            minimal = True
             lang_label = lang or "unknown"
-            auto_chose = f"(detected locale {lang_label!r} → installing minimal 5 rules)"
+            auto_chose = f"(detected locale {lang_label!r} → installing full 7 rules en-localized; remove chinese-plain-no-jargon if not Chinese)"
 
     # v0.5.0 i18n: select template by system locale (zh / en)
     template = _select_rule_template(minimal)

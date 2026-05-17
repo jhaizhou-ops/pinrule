@@ -10,7 +10,19 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
-- **test fixture sandbox fix**: `tests/test_cli.py::fake_home` now monkeypatches `sys.prefix` + sets `CursorBackend.client_installed=False`. Previous fixture didn't isolate `_cleanup_legacy_karma()`'s `Path(sys.prefix)/bin/karma` + `repo_root/src/karma` paths — pytest could really `unlink` an old dev-machine `.venv/bin/karma`. Audit-finding from round 2.
+## [0.16.7] — 2026-05-17 (patch — bilingual default symmetry + round-2 fixture sandbox)
+
+### Bilingual default symmetry
+
+User feedback: "双语肯定是要自适配的" — bilingual must be self-adaptive, *both* in language and rule count. Pre-v0.16.7 behavior:
+- Chinese user → 7 rules zh-localized (full)
+- Non-Chinese user → **5 rules en-localized (minimal)** ← asymmetric
+
+English users got less functionality than Chinese users — chinese-plain-no-jargon dropped (correct, but **also** no-testset and the default 7th rule dropped, making the bilingual experience uneven). v0.16.7: both languages default to **full 7 rules localized**. The 5-rule minimal is still available via explicit `--minimal` flag.
+
+### Round-2 fixture sandbox (carried from [Unreleased])
+
+`tests/test_cli.py::fake_home` now monkeypatches `sys.prefix` + sets `CursorBackend.client_installed=False`. Without this, `_cleanup_legacy_karma()` (added v0.16.5) could **actually `unlink` an old dev-machine `.venv/bin/karma`** during `pytest`. Real bug, not a hypothetical.
 
 ## [0.16.6] — 2026-05-17 (patch — 2-round multi-agent audit P0/P1 batch fix)
 

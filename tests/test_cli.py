@@ -260,8 +260,10 @@ def test_init_auto_chinese_user_installs_7_sticky(fake_home, capsys):
     assert "zh" in out and ("完整" in out or "full" in out)
 
 
-def test_init_auto_non_chinese_user_installs_5_sticky(fake_home, capsys):
-    """minimal=None + 系统语言非中文 → 自动装 5 条精简（砍 chinese_plain）。"""
+def test_init_auto_non_chinese_user_installs_full_en(fake_home, capsys):
+    """v0.16.7: minimal=None + 系统语言非中文 → 自动装 en 模板 7 条 full
+    (跟中文 user 对称, 都拿等价 rule set). 老行为 5 条 minimal 已废.
+    用户原话: 'pinrule 双语肯定是要自适配的' — 不只语言, rule count 也对等."""
     import pinrule.rule
     import pinrule.locale_detect
     monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
@@ -270,16 +272,19 @@ def test_init_auto_non_chinese_user_installs_5_sticky(fake_home, capsys):
         with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
             with unittest.mock.patch.object(pinrule.locale_detect, "detect_user_language",
                                             return_value="en"):
-                rc = cli.cmd_init(minimal=None)
+                with unittest.mock.patch.object(pinrule.locale_detect, "is_chinese_user",
+                                                return_value=False):
+                    rc = cli.cmd_init(minimal=None)
     assert rc == 0
     sticky_list = pinrule.rule.load(monkeypatch_path)
-    assert len(sticky_list) == 5
+    assert len(sticky_list) == 7
     out = capsys.readouterr().out
-    assert "en" in out and ("精简" in out or "minimal" in out)
+    assert "en" in out and ("full 7" in out or "7 rules" in out)
 
 
-def test_init_auto_unknown_locale_fallback_to_minimal(fake_home, capsys):
-    """minimal=None + 检测不到（容器 / CI / 异常）→ fallback 5 条精简（最安全）。"""
+def test_init_auto_unknown_locale_installs_full_en(fake_home, capsys):
+    """v0.16.7: minimal=None + 检测不到 locale → fallback en 模板 7 条 full
+    (跟中文 user default 对称). 老行为 5 条 minimal 已废 — 见 cli.py:277-292."""
     import pinrule.rule
     import pinrule.locale_detect
     monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
@@ -291,7 +296,7 @@ def test_init_auto_unknown_locale_fallback_to_minimal(fake_home, capsys):
                 rc = cli.cmd_init(minimal=None)
     assert rc == 0
     sticky_list = pinrule.rule.load(monkeypatch_path)
-    assert len(sticky_list) == 5
+    assert len(sticky_list) == 7
 
 
 def test_install_hooks_creates_wrappers(fake_home, capsys):
