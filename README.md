@@ -342,6 +342,7 @@ Several ideas looked attractive but failed in practice. Recorded here so the sam
 | **Blocking compact** | Compact is the client's protection mechanism — karma shouldn't fight it. PreCompact dump + SessionStart re-read bridges the gap instead |
 | **"Must follow X / Fix immediately / Don't repeat" warning wording** | Activates defense or workaround-seeking. The collaborative-agreement rephrase changes the first reaction to "let me align" — the biggest single lever for actual compliance |
 | **Hardcoded numeric thresholds in `suggested_fix`** | "34% < 40%" gets optimized by padding Chinese characters instead of fixing readability. Goal descriptions ("readable without looking up words") avoid the gaming |
+| **Reshipping karma as an MCP server** | karma works because hooks are *enforced* by the client (UserPromptSubmit fires whether the Agent likes it or not). MCP servers expose tools the Agent *chooses* to call — in long-session attention decay, the Agent doesn't proactively query "what rules apply here," it drifts first and gets corrected by hooks. MCP-only would lose the core enforcement guarantee. Plus the supposed "10x audience expansion" doesn't hold: Claude Desktop / Codex Desktop / Cursor Desktop all already use karma via inherited hooks (Claude Desktop ships an embedded Claude Code runtime sharing `~/.claude/settings.json`); the actual MCP-only delta is ChatGPT Desktop chat (wrong domain) and Windsurf (small audience) |
 
 ---
 

@@ -363,6 +363,7 @@ session_state_max_age_days: 30    # session 状态自动清理周期
 | **阻止 compact** | compact 是客户端的保护机制，karma 不该跟它对抗 — 用 PreCompact 落盘 + SessionStart 重读跨过去 |
 | **「请始终遵守 / 立即按 fix / 不要再犯」类警示词** | 激活的是防御反应或找绕过路径。「合作默契」改写让 Agent 第一反应变成「让我对齐」— 这是真正影响遵循率的单一最关键改动 |
 | **`suggested_fix` 写死数字阈值** | 看到「34% < 40%」LLM 会去优化数字（凑中文字数）而不优化可读性。改成目标描述（「读完不用查词」）避免被对着数字打补丁 |
+| **改造成 MCP server** | karma 能 work 在于 hooks 由客户端**强制触发** (UserPromptSubmit fire 不看 Agent 心情). MCP server 暴露工具让 Agent **主动调** — 但长 session 衰减时 Agent 根本不会主动 query「我现在该遵循什么规则」, 它会**先漂移**再被 hooks 拦. MCP-only 会失去强制干预这个核心. 而且朋友说的「扩大十倍用户」前提也不成立: Claude Desktop / Codex Desktop / Cursor Desktop 都已经走继承的 hooks 覆盖 (Claude Desktop 内嵌 Claude Code runtime, 共享 `~/.claude/settings.json`); MCP-only 真新增的就 ChatGPT Desktop 聊天 (场景不匹配) + Windsurf (用户量小) |
 
 ---
 
