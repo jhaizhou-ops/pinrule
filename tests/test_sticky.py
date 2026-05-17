@@ -169,13 +169,14 @@ def test_format_for_injection_empty_list() -> None:
 
 
 def test_format_anchor_only_basic() -> None:
-    """v0.9.0: 精简 anchor format — id + 第一行 preference (不含详细 preference)。"""
+    """v0.13.0: anchor 只列 violated rule (id + 第一行 preference, 无 marker 自动加)."""
     from karma.rule import format_anchor_only
     rules = [
         Rule(id="r1", preference="方向 1 的核心一句\n  详细说明 (anchor 不该含此行)"),
         Rule(id="r2", preference="方向 2 的核心"),
     ]
-    out = format_anchor_only(rules)
+    # v0.13.0: 必须传 violated_rule_ids 才有 anchor 输出
+    out = format_anchor_only(rules, violated_rule_ids={"r1", "r2"})
     assert "[karma" in out
     assert "精简版" in out  # anchor 头部含「精简版」说明
     # 含规则 id (跟 format_for_injection 不同 — anchor 必须带 id)
@@ -189,10 +190,10 @@ def test_format_anchor_only_basic() -> None:
 
 
 def test_format_anchor_only_marks_recent_violation() -> None:
-    """v0.9.0: 偏离回顾标记跟 format_for_injection 一致。"""
+    """v0.13.0: anchor 里全是 violated rule 自动加 drift marker."""
     from karma.rule import format_anchor_only
     rules = [Rule(id="r1", preference="方向 1")]
-    out = format_anchor_only(rules, recent_violations={"r1": 12345})
+    out = format_anchor_only(rules, violated_rule_ids={"r1": 12345})
     assert "偏离" in out
     assert "对齐" in out
 

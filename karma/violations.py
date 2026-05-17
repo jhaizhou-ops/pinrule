@@ -327,6 +327,37 @@ def recent_turns(
     return out
 
 
+def session_violations(
+    session_id: str,
+    path: Path | None = None,
+    tail_lines: int = 5000,
+) -> dict[str, int]:
+    """返回本 session **全程累积**违反过的 rule_id → 最近 turn dict (v0.13.0).
+
+    跟 recent_turns 区别: 没 turn window 限制, session 起始到现在所有违反都算入.
+    用于 UserPromptSubmit anchor v0.13.0 改造 — 只在 anchor 里列本 session 内
+    真正违反过的规则, 不再每 turn 全列 sticky id list (那部分 sessionStart
+    baseline 已覆盖, 全列是 prompt-cache 累积 token 浪费).
+
+    tail_lines 给 5000 因 long session 累积 violation 可能多 (500-turn dogfood
+    累积 100+ violation 真实场景), 比 recent_turns 的 500 大一个数量级.
+    """
+    if path is None:
+        path = DEFAULT_PATH
+    out: dict[str, int] = {}
+    for d in _scan_tail_jsonl(path, tail_lines):
+        if d.get("session_id") != session_id:
+            continue
+        sid = _extract_rule_id(d)
+        if not sid:
+            continue
+        turn = _extract_turn(d)
+        if turn is None:
+            continue
+        out[sid] = max(out.get(sid, 0), turn)
+    return out
+
+
 def count_recent_turns(
     session_id: str,
     current_turn: int,

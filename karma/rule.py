@@ -163,30 +163,40 @@ def format_for_injection(
 
 def format_anchor_only(
     rule_list: list[Rule],
-    recent_violations: dict[str, int] | None = None,
+    violated_rule_ids: dict[str, int] | set[str] | None = None,
 ) -> str:
-    """渲染 rule 列表为**精简** anchor 文本（id + 第一行 preference）— v0.9.0 加。
+    """渲染 anchor — v0.13.0: 只列本 session 累积违反过的 rule.
 
-    用于 UserPromptSubmit 每 turn 注入 — 只提示规则名跟核心方向一句话，
-    完整 preference 由 SessionStart baseline 提供（每 session 一次注入进
-    conversation history 持续可见）。
+    历史 v0.9.0 - v0.12.x: 每 turn 全列 sticky id list (~490 token), 跟
+    sessionStart baseline (1.8K) 重复. Prompt-cache 角度 100 turn 累积 raw
+    ~2.47M token (effective 1 折 ~290K), 占总 API input 10-15%.
 
-    Token 节省: ~1817 (完整) → ~383 (精简)，每 turn 节省 ~80%。
+    v0.13.0: 只列 violated_rule_ids 出现过的 rule. 典型 dogfood 累积 3-5 条
+    违反规则, anchor 从 ~490 → ~150 token/turn (~70% 节省). 无累积违反返 ""
+    走 passthrough (~10% turn 0 token). sticky id list 完全交 sessionStart
+    baseline + PostToolUse 中段重注入双层 anti-attention-decay.
 
-    recent_violations: rule_id → 最近违反时间戳。出现的规则加偏离回顾标记。
+    violated_rule_ids 接受 dict[rule_id → turn] (recent_turns / session_violations
+    返回值) 或 set[rule_id] — 都按 set 行为.
     """
     if not rule_list:
         return ""
-    recent_violations = recent_violations or {}
+    violated_set = set(violated_rule_ids or [])
+    if not violated_set:
+        return ""  # session 没累积违反 → passthrough, 不注入 anchor
+    # 只 list 违反过的 rule, 保持 rule_list 原顺序
+    violated_rules = [r for r in rule_list if r.id in violated_set]
+    if not violated_rules:
+        return ""  # rule_list 变了 (用户删 rule) 违反对应 rule 不在 → passthrough
     lines = [
         tr("anchor.header.title"),
         tr("anchor.header.line"),
         "",
     ]
     drift_marker = tr("inject.drift_marker")
-    for i, r in enumerate(rule_list, 1):
-        marker = drift_marker if r.id in recent_violations else ""
+    for i, r in enumerate(violated_rules, 1):
         first_line = r.preference.strip().split("\n")[0]
-        lines.append(f"{i}. [{r.id}] {first_line}{marker}")
+        # v0.13.0 anchor 里全是 violated rule, 全加 drift marker
+        lines.append(f"{i}. [{r.id}] {first_line}{drift_marker}")
     lines.append("")
     return "\n".join(lines)

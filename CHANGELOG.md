@@ -10,6 +10,40 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-05-17 (minor — anchor optimization, ~10× token cost reduction)
+
+**User-visible**: karma token cost drops from **10-15% of API input** (v0.12.x) to **1-3%** in typical engineering sessions; long-session context window occupation from 25% to ~5-10%. The optimization is real-cost — anchor token savings carry through Anthropic prompt caching at 10% rate as well.
+
+### What changed in the anchor mechanic
+
+**v0.9.0 - v0.12.x design**: Every `UserPromptSubmit` turn injected an anchor listing **all 10 sticky rule IDs** (~490 tokens/turn). Since Anthropic Messages API is stateless and Claude Code re-sends the full conversation history on every turn, each anchor stayed in history and accumulated as ∑ summation: 100-turn session = 2.47M raw tokens (effective ~290K with prompt caching).
+
+**v0.13.0 design** (proposed by user during cost-mechanic discussion): anchor only lists rules **violated this session**. Rule IDs that haven't been violated stay implicit — they're already covered by SessionStart baseline + PostToolUse mid-session reinject. Typical dogfood accumulates 3-5 violated rules over a session → anchor ~150 tokens/turn. Sessions with zero violations → anchor returns empty string (full passthrough, 0 added tokens).
+
+### API changes
+
+- `karma.rule.format_anchor_only(rule_list, violated_rule_ids)` — kwarg renamed from `recent_violations` to `violated_rule_ids`, accepts dict[rule_id → turn] (from `session_violations()`) or set[rule_id]. Returns `""` when no violated rules accumulate (UserPromptSubmit hook then passthroughs).
+- New: `karma.violations.session_violations(session_id)` — returns full-session accumulated `rule_id → latest_turn` dict (no turn window cap; complements `recent_turns()` for the 5-turn window case).
+- `karma/hooks/user_prompt_submit.py` calls `session_violations()` instead of `recent_turns()`.
+
+### Test changes
+
+- `tests/test_rule_format.py` anchor tests rewritten: empty case still returns `""`; new tests for "no violations → passthrough", "violated rule not in rule_list → passthrough", "only violated rules listed", dict-vs-set parametrization. Drift marker auto-applies to every anchor line (since all anchor lines are violated rules now).
+- `tests/test_sticky.py` 2 anchor tests updated to pass `violated_rule_ids` parameter.
+- `tests/test_hooks.py::test_user_prompt_submit_passthrough_when_no_violations` (renamed) verifies v0.13.0 passthrough behavior.
+
+### Anti-attention-decay still covered (no regression)
+
+The cost reduction does not weaken karma's anti-decay defense:
+- **SessionStart baseline** (~1.8K, injected once at session start + after compact) — visible in conversation history top, model sees full rule baseline on every turn re-read.
+- **PostToolUse mid-session reinject** (~1.8K) — triggered when context accumulates past model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K), refreshes full baseline at the exact attention-decay point.
+- **UserPromptSubmit anchor** (v0.13.0: only violated rules) — drift marker signal for rules the Agent has recently strayed on. The expensive "remind the model of unviolated rules every turn" mechanic was found redundant given the two above already cover it.
+
+### Validation
+
+- 822 pytest green, ruff 0, mypy 0
+- Real-world impact will be measured during continued dogfood; published numbers (1-3% typical, 5-10% long context) are calculated from the math, not measured per-session (which requires turn-by-turn Anthropic token billing audit).
+
 ## [0.12.3] — 2026-05-17 (patch — Cursor backend native hooks.json schema, real dogfood findings)
 
 First Cursor backend end-to-end dogfood by Cursor desktop Agent (Composer, Cursor 1.7+) ran 5-event validation and reported back with real `stdin` captures + IDE behavior observations. P0 fix in this release; P1 (stop hook needs `transcript_path` for keep-pushing) tracked separately.

@@ -6,6 +6,40 @@
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-05-17（minor — anchor 优化，~10x token 成本降低）
+
+**用户能感知**: karma token 成本从 **10-15% API input** (v0.12.x) 降到典型工程 session **1-3%**; 长 session context window 占用从 25% 降到 ~5-10%. 优化是真账单降低 — anchor token 节省也会跟着 Anthropic prompt caching 1 折一起传递.
+
+### anchor 机制怎么改
+
+**v0.9.0 - v0.12.x 设计**: 每个 `UserPromptSubmit` turn 注入 anchor 列**全部 10 条 sticky rule id** (~490 token/turn). 由于 Anthropic Messages API 无状态, Claude Code 每 turn 都 send 完整 conversation history, 每个 anchor 留在 history 里跟着累积 ∑ 求和: 100 turn session = raw 2.47M token (prompt caching 后 effective ~290K).
+
+**v0.13.0 设计** (用户在 token 成本机制讨论时直接提的方案): anchor 只列**本 session 违反过的规则**. 没违反的规则隐式不出现 — sessionStart baseline + PostToolUse 中段重注入已经覆盖. 典型 dogfood session 累积 3-5 条违反规则 → anchor ~150 token/turn. 没违反的 session → anchor 返空字符串 (整 hook passthrough, 0 token).
+
+### API 变化
+
+- `karma.rule.format_anchor_only(rule_list, violated_rule_ids)` — kwarg 从 `recent_violations` 改成 `violated_rule_ids`, 接受 dict[rule_id → turn] (`session_violations()` 返回值) 或 set[rule_id]. 没累积违反时返 `""` (UserPromptSubmit hook 就走 passthrough).
+- 新增: `karma.violations.session_violations(session_id)` — 返回 session 全程累积 `rule_id → 最近 turn` dict (没 turn 窗口限制; 跟 `recent_turns()` 的 5 turn 窗口互补).
+- `karma/hooks/user_prompt_submit.py` 调 `session_violations()` 替代 `recent_turns()`.
+
+### 测试变化
+
+- `tests/test_rule_format.py` anchor 测试重写: 空 case 仍返 `""`; 新加 "没违反 → passthrough", "违反 rule 不在 rule_list → passthrough", "只列违反的 rule", dict-vs-set 参数化测试. drift marker 自动加到 anchor 每一行 (因为 v0.13.0 anchor 里全是违反过的 rule).
+- `tests/test_sticky.py` 2 个 anchor 测试更新传 `violated_rule_ids` 参数.
+- `tests/test_hooks.py::test_user_prompt_submit_passthrough_when_no_violations` (rename 后) 验证 v0.13.0 passthrough 行为.
+
+### Anti-attention-decay 防线仍在 (无 regression)
+
+成本降低不削弱 karma 的 anti-decay 防线:
+- **SessionStart baseline** (~1.8K, session 起手 + compact 后重起注入一次) — 在 conversation history 顶部可见, 模型每 turn re-read 都能看到完整规则 baseline.
+- **PostToolUse 中段重注入** (~1.8K) — context 累积达模型衰减拐点 (Opus 60K / Sonnet 40K / Haiku 30K) 触发, 在 attention 真衰减点重锚 baseline.
+- **UserPromptSubmit anchor** (v0.13.0: 只列违反过的规则) — drift marker 信号, 给 Agent 最近偏离过的规则. "每 turn 提醒没违反的规则" 这块开销被发现冗余 (上面两层已经覆盖).
+
+### 验证
+
+- 822 pytest 全绿, ruff 0, mypy 0
+- 真实世界影响后续 dogfood 持续测量; 已公布数字 (典型 1-3%, 长 session context 5-10%) 是按机制算的, 不是按 session 实测 (实测需要 turn-by-turn Anthropic token 账单 audit).
+
 ## [0.12.3] — 2026-05-17（patch — Cursor backend native hooks.json schema 真 dogfood 修复）
 
 第一波 Cursor backend 端到端 dogfood 由 Cursor desktop Agent (Composer, Cursor 1.7+) 完成 — 跑了 5 个 event 验证, 拿真 `stdin` captures + IDE 行为观察反馈. P0 这波修, P1 (stop hook 需要 `transcript_path` 才能 fire keep-pushing) 单独 track.

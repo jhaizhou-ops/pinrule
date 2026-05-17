@@ -16,7 +16,6 @@ import sys
 from karma import session_state
 from karma.session_state import purge_old_states
 from karma.rule import RuleConfigError, format_anchor_only, load
-from karma.violations import recent, recent_turns
 
 
 def _output_passthrough() -> None:
@@ -211,23 +210,13 @@ def main() -> int:
         _output_passthrough()
         return 0
 
-    # 偏离回顾标记 — 按 turn 距离查最近违反（不是人类时钟）
-    # 默认 5 turn 内违反过的规则标偏离回顾。窗口可配。
-    try:
-        from karma.config import load as _load_config
-        cfg = _load_config()
-        window_turns = int(cfg.get("recent_violation_turns", 5))
-    except Exception:
-        window_turns = 5
-    if current_turn > 0:
-        recent_v = recent_turns(session_id, current_turn, window_turns=window_turns)
-    else:
-        recent_v = recent()  # 早期 fallback 用人类时钟（首次 install 没 turn 计数）
-    # v0.9.0: 每 turn 注入**精简 anchor**（id + 第一行 + 偏离回顾标记），
-    # 完整 preference 由 SessionStart baseline 一次注入进 history 持续可见。
-    # 长 session 累积达模型阈值（Opus 60K / Sonnet 40K / Haiku 30K）后
-    # PostToolUse 中段全量补一次抗稀释。
-    additional_context = format_anchor_only(sticky_list, recent_v)
+    # v0.13.0: anchor 只列本 session 累积违反过的 rule (不再全列 sticky id).
+    # 没累积违反 → 返 "" passthrough. sticky id list 完全交 sessionStart
+    # baseline + PostToolUse 中段重注入双层 anti-decay 覆盖.
+    # 历史: v0.9.0-v0.12.x 每 turn 全列, prompt-cache 累积占总 input 10-15%.
+    from karma.violations import session_violations as _session_violations
+    violated = _session_violations(session_id)
+    additional_context = format_anchor_only(sticky_list, violated)
 
     # 强提醒 fallback：跑上一 response 通过所有规则的 violation_checks (拆 helper: v0.8.3)
     transcript_path = payload.get("transcript_path", "")

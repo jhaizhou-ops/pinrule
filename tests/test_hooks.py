@@ -35,7 +35,13 @@ def test_user_prompt_submit_no_sticky_passthrough(monkeypatch, tmp_path, capsys)
     assert out == {}
 
 
-def test_user_prompt_submit_injects_sticky_as_context(monkeypatch, tmp_path, capsys):
+def test_user_prompt_submit_passthrough_when_no_violations(monkeypatch, tmp_path, capsys):
+    """v0.13.0: session 累积没违反 → anchor 空 → 整 hook passthrough 不注入.
+
+    历史 (v0.9.0-v0.12.x): 每 turn 注入 sticky id list. v0.13.0 改成只在累积
+    违反时注入 anchor (token ~10x 节省). 没违反时 hook 返空 dict, sticky 信息
+    由 sessionStart baseline 一次性注入 + PostToolUse 中段重注入抗 decay 覆盖.
+    """
     _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "test-rule", "preference": "用长期方案", "violation_keywords": ["补丁"]},
     ])
@@ -45,11 +51,14 @@ def test_user_prompt_submit_injects_sticky_as_context(monkeypatch, tmp_path, cap
     captured = capsys.readouterr()
     assert rc == 0
     out = json.loads(captured.out)
-    hso = out["hookSpecificOutput"]
-    assert hso["hookEventName"] == "UserPromptSubmit"
-    ctx = hso["additionalContext"]
-    assert "[karma" in ctx and "默契" in ctx  # 2026-05-15 合作默契语气包装
-    assert "用长期方案" in ctx
+    # 没累积违反 → passthrough (空 dict 或无 hookSpecificOutput / 无 additionalContext)
+    if "hookSpecificOutput" in out:
+        # 如果含 envelope, additionalContext 必须为空 (UserPromptSubmit anchor 空)
+        ctx = out["hookSpecificOutput"].get("additionalContext", "")
+        assert ctx == "", (
+            f"v0.13.0: 无 violation 累积时 anchor 应为空, 实际 {ctx!r}"
+        )
+    # 否则就是顶层空 dict — 同样 OK
 
 
 def test_user_prompt_submit_handles_bad_yaml(monkeypatch, tmp_path, capsys):
