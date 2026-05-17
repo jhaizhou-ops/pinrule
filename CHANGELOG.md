@@ -10,6 +10,18 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.4] — 2026-05-17 (patch — demo SVG real content fixes + release-finalize PyPI verify)
+
+User reported demo SVG had **silent failures** behind the timing fix:
+- Scene 1 (anchor injection) showed empty output — root cause: `user_prompt_submit` hook v0.13.0+ emits "compact anchor" listing **only session-accumulated violations**; a fresh demo session has zero violations → anchor empty (by design). Demo was showing the wrong hook for the "inject at session start" scene. Fixed by switching scene 1 to `session_start` hook which emits the **full baseline** (~435 chars).
+- Scene 2 long `permissionDecisionReason` wrapped poorly in terminal 80-col mid-sentence ("for"). Fixed with `textwrap.wrap(line, width=72)` so wrap happens at word boundaries.
+- Scenes 3/4 showed no pinrule output — root cause: `demo-script.sh` referenced `$FIX_LONGTERM=/tmp/pinrule-demo-fixtures/short-term-talk.jsonl` but **never copied fixtures there**. `stop.py` got `transcript_path` pointing to a missing file, returned silently. Fixed by `cp scripts/demo-fixtures/*.jsonl /tmp/pinrule-demo-fixtures/` in demo setup.
+- Ending banner: added `sleep 3` so users can read the closing line.
+
+### release-finalize PyPI verify
+
+`scripts/release-finalize.sh` now `curl pypi.org/pypi/pinrule/json` after the tag+release step, comparing the live version to the released version. Past incident (v0.16.2): `twine upload` returned `403 Forbidden` on stderr, my grep filter dropped it, GitHub release said "released" but PyPI never accepted upload. The verify step catches that silent miss.
+
 ## [0.16.3] — 2026-05-17 (patch — demo SVG re-paced for human reading speed, ~20s)
 
 v0.16.2 over-corrected to 42s — user reported "too long, consider human reading speed for GIFs." Re-tuned:

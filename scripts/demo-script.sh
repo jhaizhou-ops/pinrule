@@ -14,8 +14,8 @@ PY=.venv/bin/python
 if [ "$LANG_MODE" = "en" ]; then
     export PINRULE_LOCALE=en
     export PINRULE_HOME="${PINRULE_HOME:-/tmp/pinrule-demo-en-home}"
-    T1="Scene 1/5 — Inject rules at every prompt header"
-    T1S="(UserPromptSubmit hook → ~490 token anchor)"
+    T1="Scene 1/5 — Inject full rule baseline at session start"
+    T1S="(SessionStart hook → full sticky baseline ~435 chars)"
     T2="Scene 2/5 — Real-time block of sleep 30"
     T2S="(PreToolUse hook → non-blocking-parallel)"
     T3="Scene 3/5 — Catch short-term intent in Agent response"
@@ -31,8 +31,8 @@ if [ "$LANG_MODE" = "en" ]; then
 else
     export PINRULE_LOCALE=zh
     export PINRULE_HOME="${PINRULE_HOME:-/tmp/pinrule-demo-zh-home}"
-    T1="场景 1/5 — 每条 prompt 头部注入规则"
-    T1S="(UserPromptSubmit hook → ~490 token 精简 anchor)"
+    T1="场景 1/5 — session 起手注入完整规则 baseline"
+    T1S="(SessionStart hook → 全量 sticky baseline ~435 字符)"
     T2="场景 2/5 — sleep 30 实时拦截"
     T2S="(PreToolUse hook → non-blocking-parallel)"
     T3="场景 3/5 — Agent 回应短期话术拦截"
@@ -47,19 +47,25 @@ else
     FIX_SILENT=/tmp/pinrule-demo-fixtures/silent-stop.jsonl
 fi
 
-# Setup: copy rules fixture 到 demo PINRULE_HOME (否则 reinject smart 检测因
-# 无 rules.yaml 早 return, scene 5 输出空 {})
-mkdir -p "$PINRULE_HOME"
+# Setup: 1) rules fixture → PINRULE_HOME, 2) transcript fixtures → /tmp/pinrule-demo-fixtures/
+# (历史 bug: /tmp/pinrule-demo-fixtures/ 不存在 → scene 3/4 stop.py 读不到 transcript → 0 输出.
+# 历史 bug: scene 5 无 rules.yaml → smart_reinject 早 return.)
+mkdir -p "$PINRULE_HOME/session-state"
 RULES_FIX="scripts/demo-fixtures/rules-$LANG_MODE.yaml"
 [ -f "$RULES_FIX" ] && cp "$RULES_FIX" "$PINRULE_HOME/rules.yaml"
+mkdir -p /tmp/pinrule-demo-fixtures
+cp scripts/demo-fixtures/*.jsonl /tmp/pinrule-demo-fixtures/ 2>/dev/null
 
-# Scene 1: 头部注入 (UserPromptSubmit)
+# Scene 1: session 起手注入完整 baseline (SessionStart hook).
+# Note: user_prompt_submit hook v0.13.0+ 输出"精简 anchor" 只列累积违反过的 rule
+# (新 session 0 违反 → anchor 空). session_start hook 起手注入**全量** baseline 是
+# 给 Agent 看到完整 sticky list 的真触发点 — 这正是 demo 该展示的初印象.
 banner "$T1" "$T1S"
-echo '$ echo {prompt} | pinrule_user_prompt_submit.py'
+echo '$ echo {session start} | pinrule_session_start.py'
 sleep 0.8
-echo '{"session_id":"sc1","prompt":"hi","transcript_path":"/dev/null","cwd":"/Users/jhz/pinrule"}' \
-  | $PY pinrule/hooks/user_prompt_submit.py 2>/dev/null \
-  | $PY -c "import json,sys; d=json.load(sys.stdin); print(d.get('hookSpecificOutput',{}).get('additionalContext','')[:550])"
+echo '{"session_id":"sc1","source":"startup","cwd":"/Users/jhz/pinrule"}' \
+  | $PY pinrule/hooks/session_start.py 2>/dev/null \
+  | $PY -c "import json,sys; d=json.load(sys.stdin); ac=d.get('hookSpecificOutput',{}).get('additionalContext',''); print(ac[:500])"
 sleep 0.8
 
 # Scene 2: sleep 30 拦 (PreToolUse) — 解析 JSON 显示真换行 reason
@@ -69,13 +75,15 @@ sleep 0.8
 echo '{"session_id":"sc2","tool_name":"Bash","tool_input":{"command":"sleep 30"}}' \
   | $PY pinrule/hooks/pre_tool_use.py 2>/dev/null \
   | $PY -c "
-import json,sys
+import json, sys, textwrap
 d=json.load(sys.stdin)
 out = d.get('hookSpecificOutput',{})
 print(f\"  permissionDecision: {out.get('permissionDecision','')}\")
 print()
-for line in out.get('permissionDecisionReason','').split('\\n')[:5]:
-    print(f\"  {line}\")
+# 按 76 col wrap 长 reason 行 — terminal 80col auto-wrap 在中文里换行不优雅
+for raw in out.get('permissionDecisionReason','').split('\\n')[:4]:
+    for w in textwrap.wrap(raw, width=72) or ['']:
+        print(f'  {w}')
 "
 sleep 0.8
 
@@ -126,5 +134,6 @@ echo '{"session_id":"sc5","tool_name":"Read","tool_input":{"file_path":"/tmp/foo
 rm -f "$SESSDIR/sc5.json" "$SESSDIR/sc5.json.lock"
 sleep 0.8
 
+# Ending banner 真留 3 秒看清结束语
 banner "$TE" "$TES"
-sleep 0.8
+sleep 3

@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.16.4] — 2026-05-17（patch — demo SVG 真内容修 + release-finalize PyPI verify）
+
+用户反馈 demo SVG 速度修了但还有**真内容 silent failure**:
+- Scene 1 anchor 注入空 — 真根因: `user_prompt_submit` hook v0.13.0+ 输出"精简 anchor"只列**累积违反过的 rule**, 新 demo session 0 违反 → anchor 空 (这是 design). Demo 展示错了 hook. 改用 `session_start` hook 输出**全量 baseline** (~435 字符), 这才是"起手注入"该展示的真触发.
+- Scene 2 长 reason 在 80 列 terminal 中文换行不优雅 ("for" 中段折断). `textwrap.wrap(line, width=72)` 按词边界优雅 wrap.
+- Scene 3/4 pinrule 0 输出 — 真根因: `demo-script.sh` 用 `$FIX_LONGTERM=/tmp/pinrule-demo-fixtures/short-term-talk.jsonl` 但**没 cp fixture 文件**到这里. `stop.py` `transcript_path` 指向不存在的文件, 静默返空. fix: `cp scripts/demo-fixtures/*.jsonl /tmp/pinrule-demo-fixtures/` 在 demo setup.
+- ending banner: 加 `sleep 3` 让用户看清结束语.
+
+### release-finalize PyPI verify
+
+`scripts/release-finalize.sh` 现在 tag+release 后 `curl pypi.org/pypi/pinrule/json` verify 真版本号在线. 历史事故 (v0.16.2): twine upload `403 Forbidden` 出 stderr, 我 grep filter 漏了, GitHub release 报"真发布" 但 PyPI 没上. verify 这步抓到那种 silent miss.
+
 ## [0.16.3] — 2026-05-17（patch — demo SVG 按人类阅读速度重调, 约 20 秒）
 
 v0.16.2 修过头到 42 秒, 用户反馈"太长, 要考虑人类看 GIF 阅读速度". 重新调:
