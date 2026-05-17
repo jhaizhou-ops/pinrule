@@ -415,6 +415,23 @@ Run `pinrule doctor` to check:
 </details>
 
 <details>
+<summary><b>How is pinrule different from mem0 / Claude's built-in memory?</b></summary>
+
+**Different jobs, not competitors**:
+
+| Tool | Job | When it fires |
+|---|---|---|
+| **Memory systems** (mem0, Claude/ChatGPT memory) | Store *facts* about the user — preferences, history, profile traits | Agent *chooses* to query when relevant |
+| **pinrule** | Enforce *behaviors* you've already articulated as long-term directions | Hooks fire automatically on every prompt + before every tool call |
+
+Memory systems are good at "remember the user said X last week." pinrule is good at "the user's 7 core directions get *injected* every turn whether the Agent retrieves them or not — and violations get caught in real-time."
+
+You can (and should) use both. Memory holds "user prefers TypeScript over JavaScript"; pinrule holds "this user's directional preferences are non-negotiable and enforced via hooks."
+
+pinrule explicitly does **not** compete with memory systems — the [Tried and rejected](#tried-and-rejected-what-pinrule-doesnt-do) section locks this in as a permanent boundary.
+</details>
+
+<details>
 <summary><b>Custom rule sets for non-development scenarios (writing / research / legal)?</b></summary>
 
 `pinrule init` defaults to "software development" scenario. For other scenarios, write `~/.pinrule/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in `violation_checks` are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
