@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import tomllib
 
-from pathlib import Path
-
 from pinrule.backends import codex as codex_backend
 from pinrule.backends._json_hooks import hook_command_str
 from pinrule.backends.codex import CodexBackend, codex_hook_trusted_hash

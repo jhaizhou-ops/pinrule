@@ -21,14 +21,6 @@ from pathlib import Path
 
 import pytest
 
-# Windows 上 os.path.abspath() 把 Unix-style `/x/foo.py` 解释成 `<drive>:\x\foo.py`
-# (真 Windows path 语义). 这两个 normalize 测试用 Unix abs path 字面跟 expected
-# 比较, Windows 不适用 — Python stdlib 跨平台行为不是 pinrule 自己代码.
-WINDOWS_UNIX_PATH_NORMALIZE = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="测试用 Unix-style /x/y.py 字面, Windows abspath 真行为不同 (stdlib, 非 pinrule)",
-)
-
 from pinrule.session_state import (
     SessionState,
     _normalize_path,
@@ -38,6 +30,14 @@ from pinrule.session_state import (
     read_state,
     save,
     update_state,
+)
+
+# Windows 上 os.path.abspath() 把 Unix-style `/x/foo.py` 解释成 `<drive>:\x\foo.py`
+# (真 Windows path 语义). 那两个 normalize 测试用 Unix abs path 字面跟 expected
+# 比较, Windows 不适用 — Python stdlib 跨平台行为不是 pinrule 自己代码.
+WINDOWS_UNIX_PATH_NORMALIZE = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="测试用 Unix-style /x/y.py 字面, Windows abspath 真行为不同 (stdlib, 非 pinrule)",
 )
 
 
