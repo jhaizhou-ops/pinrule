@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+- **朋友外部 review 6 点全修 (8.8/10)**:
+  - **Slogan 改硬** (双语): EN "Keeps your AI from forgetting your rules in long tasks" → "Pin the 5-10 rules your AI must not drift from during long tasks"; 中 "让 AI 在长任务里不忘掉你的规则" → "把 5-10 条最重要的协作规则钉住，让 AI 长任务里别漂". "Pin / 钉住 / 别漂" 锁住 pinrule 独特定位, 不再读起来像 generic memory 系统.
+  - **支持范围说稳** (双语): "Claude / Codex / Cursor — 三家 desktop 跟 CLI 两种形态都适配" 太满 — 容易被抓 (Claude Desktop / Codex Desktop / Cursor Agent 边界细节). 改成 "Claude / Codex / Cursor agent runtimes, CLI 跟 desktop 覆盖跟该客户端 hook runtime 本身有关 — 看下面 backend capability matrix". 不替每家平台 desktop/CLI 承诺细节, 把判断权交给 matrix.
+  - **uninstall 命令去 `.venv/bin/`** (双语): 既然主推 `pip install pinrule`, 卸载提示也得跟 pip path 一致. 现在 `pinrule uninstall-hooks`.
+  - **`/pinrule` skill 装机边界讲清楚** (双语): 之前一句话 "Auto-installed on Claude + Codex by `pinrule init`" 让 `init` / `install-hooks` / `install-skill` 边界含糊. 现在明说: skill 走 `install-skill`, hook 走 `install-hooks`, `init` 第一次起手帮你跑两个.
+  - **zh README 示例病句修**: L130 demo 引用的还是 v0.16.9 前旧版 `"跟你协作的是一位这位用户"` (重复「一位+这位」). 真注入文 v0.16.9 早就修了, README 示例段漂移没跟上. 改成 `"跟你协作的这位用户，列出了几条长期最看重的方向。"`.
+  - **`PINRULE_HOME` sandbox 承诺测试守护** (新加 6 个测试 — 朋友标的"大雷"): README/ARCHITECTURE 写"全部装到 sandbox, 真 `~/.claude` 等一字节不动"是硬承诺. 之前测只覆盖 `pinrule_home()` (数据目录), `pinrule_install_root()` (hook wrapper / settings.json / skill / Cursor rules 的根) 全无测试 — 一旦 backend 某 path 漏走 install_root 直接 Path.home(), 承诺就成虚假宣传. 新加 `tests/test_paths.py` 6 个测试 lockdown: Claude/Codex/Cursor 3 家 backend 的 hooks_dir/settings/backup/rules-dir 在 PINRULE_HOME 下全 anchor 在 sandbox, 加 `test_real_home_untouched_when_sandbox_active` 兜底 — 任一 backend path 泄漏到真 home 就响亮 fail. **851 测全过 (845 + 6 新)**.
+- **HOOK_CONFIGURATION_GUIDE Codex 路径精修** (双语): 写了 `~/.codex/config.toml` 是 hook entries 路径, 真路径是 `~/.codex/hooks.json` (config.toml 只放 trusted_hash). 双语 + "关掉 hook" Q 都修.
 - **ARCHITECTURE `PINRULE_HOME` 段落 refresh** (双语): 原停在 v0.15.x "只管数据目录" 描述, 改成 5 行表格覆盖所有锚点 (数据目录 / hook wrapper / settings.json / skill / Cursor rules), 显式区分 `pinrule_home()` 跟 `pinrule_install_root()` 两个 helper. README 故意**不**讲这个 — sandbox 是 power-user 功能, 用户偶然发现比放主页更显高级.
 - **PRD scenario positioning 段同步** (双语): "7 条默认规则" 段停在 v0.16.7 前. 更新为反映双语对称 (v0.16.7) + EN `plain-language-no-jargon` 重命名 (v0.16.8) + `deep-fix-not-bypass` 正式名.
 - **HOOK_CONFIGURATION_GUIDE 双语化**: 原文件按 `.md` 命名但内容全中文, 跟我们 README/ARCHITECTURE/PRD 用 `.md` 表示 EN 的惯例不一致. 重命名为 `HOOK_CONFIGURATION_GUIDE.zh.md`, 新写 EN 版 (人翻不机翻), 双语都含 multi-backend 表 (Claude 8 / Codex 6 / Cursor 12)、每 backend hook 路径、`PINRULE_HOME` sandbox 注脚、三家协议官方 URL.
