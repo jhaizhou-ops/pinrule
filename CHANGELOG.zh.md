@@ -6,6 +6,24 @@
 
 ## [Unreleased]
 
+## [0.16.12] — 2026-05-17（patch — `pinrule init` reinstall 检测真根因 + verbose reasons）
+
+Round-2 audit P1 #4: 用户报"doctor 全 ✓ 但 `pinrule init` 还重装 hooks". 真根因 = **两套 detection 不一致**.
+
+| Check | `_backend_hooks_incomplete` (init 自动 reinstall 触发) | `cmd_doctor` (用户看的 ✓) |
+|---|---|---|
+| `wrapper.exists()` 文件存在 | ✓ | ✓ |
+| `os.access(wrapper, X_OK)` 可执行位 | ❌ 没查 | ✓ 查了 |
+| settings.json hook entry 存在 | ✓ | ✓ |
+
+Doctor 查可执行位, init 没查. 所以 wrapper 丢了 `+x` 时 doctor 显示 ✓ 但 init 静默 reinstall.
+
+修法:
+- 抽 `_backend_hooks_missing_reasons(backend)` 返 list `<event>: <reason>`; `_backend_hooks_incomplete` 变薄壳. 两个都查 `os.access(X_OK)` 跟 doctor 一致.
+- `_auto_install_hooks_for_detected_clients` 真 print **具体原因**再 reinstall (之前只 "hook 未装全" 没说啥). 现 user 看 `[cursor] 2 处不齐: - preToolUse: wrapper not executable / - stop: hooks.json entry missing` 真懂 reinstall 为啥触发.
+
+测试: 834 passing. 本机三家全装齐 → 0 reasons 真不 reinstall.
+
 ## [0.16.11] — 2026-05-17（patch — `PINRULE_HOME` 真 sandbox 隔离）
 
 Round-3 audit P0 finding: `PINRULE_HOME` 之前是**半 sandbox** — 数据 (`rules.yaml` / `violations.jsonl` / `session-state/`) 听 env 隔离了, 但 hook 装机 (`~/.claude/settings.json` / `~/.cursor/hooks.json` / Claude skills / Cursor rules) 还摸真用户主目录. 朋友设 `PINRULE_HOME=/tmp/foo` 想干净试一下, 结果 pinrule 偷偷动了 `~/.cursor/rules/pinrule-sticky.mdc` 等真生产文件.

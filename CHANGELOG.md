@@ -10,6 +10,24 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.12] — 2026-05-17 (patch — `pinrule init` reinstall detection root cause + verbose reasons)
+
+Round-2 audit P1 #4: user reported "doctor shows ✓ but `pinrule init` still re-runs install-hooks." Root cause: two detection functions disagreed.
+
+| Check | `_backend_hooks_incomplete` (init's auto-reinstall trigger) | `cmd_doctor` (what user sees as ✓) |
+|---|---|---|
+| `wrapper.exists()` | ✓ | ✓ |
+| `os.access(wrapper, X_OK)` executable bit | ❌ skipped | ✓ checked |
+| settings.json hook entry exists | ✓ | ✓ |
+
+Doctor checked the executable bit; init didn't. So a wrapper that lost `+x` would show ✓ in doctor but trigger silent reinstall during init.
+
+Fix:
+- Extracted `_backend_hooks_missing_reasons(backend)` returning a list of `<event>: <reason>` for incomplete coverage; `_backend_hooks_incomplete` is now a thin wrapper. Both now check `os.access(X_OK)`, matching doctor.
+- `_auto_install_hooks_for_detected_clients` prints **the actual reasons** before reinstalling (was: just "hook 未装全" with no specifics). User now sees `[cursor] 2 处不齐: - preToolUse: wrapper not executable / - stop: hooks.json entry missing` and understands why reinstall fired.
+
+Tests: 834 passing. Verified locally with all-installed state → 0 reasons reported, no auto-reinstall.
+
 ## [0.16.11] — 2026-05-17 (patch — `PINRULE_HOME` true sandbox isolation)
 
 Round-3 audit P0 finding: `PINRULE_HOME` was a half-sandbox. Data files (`rules.yaml` / `violations.jsonl` / `session-state/`) honored it, but hook installation (`~/.claude/settings.json` / `~/.cursor/hooks.json` / Claude skills / Cursor rules) still touched the real user home directory. Friends running `PINRULE_HOME=/tmp/foo pinrule init` for a clean test saw pinrule silently modify `~/.cursor/rules/pinrule-sticky.mdc` and other production files.

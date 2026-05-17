@@ -1131,33 +1131,73 @@ def _unique_hook_basenames(backend) -> list[str]:
     return list(dict.fromkeys(backend.hook_events().values()))
 
 
-def _backend_hooks_incomplete(backend) -> bool:
-    """Missing wrapper or settings entry for any expected hook event."""
+def _backend_hooks_missing_reasons(backend) -> list[str]:
+    """Return list of `<event>: <reason>` for any incomplete hook coverage.
+
+    Empty list = backend fully installed. v0.16.12: also checks `os.access(X_OK)`
+    so detection matches `cmd_doctor` (round-2 audit P1 #4 root cause — init
+    silently re-installed hooks while doctor showed ✓ because doctor checked
+    executable bit but `_backend_hooks_incomplete` didn't).
+    """
+    reasons: list[str] = []
     if not backend.client_installed():
-        return False
+        return reasons
     try:
         settings = backend.load_settings()
-    except Exception:
-        return True
+    except Exception as e:
+        reasons.append(f"load_settings failed: {e}")
+        return reasons
     hooks = settings.get("hooks", {})
     for event_name, hook_basename in backend.hook_events().items():
         wrapper = backend.hooks_dir() / f"pinrule_{hook_basename}.py"
         if not wrapper.exists():
-            return True
+            reasons.append(f"{event_name}: wrapper missing ({wrapper.name})")
+            continue
+        if not os.access(wrapper, os.X_OK):
+            reasons.append(f"{event_name}: wrapper not executable ({wrapper.name})")
+            continue
         if not _pinrule_hook_entry_covers_event(
             backend, hooks, event_name, hook_basename,
         ):
-            return True
-    return False
+            reasons.append(f"{event_name}: {backend.settings_path().name} entry missing")
+    return reasons
+
+
+def _backend_hooks_incomplete(backend) -> bool:
+    """Missing wrapper or settings entry for any expected hook event.
+
+    Thin wrapper over `_backend_hooks_missing_reasons` for back-compat callers.
+    """
+    if not backend.client_installed():
+        return False
+    return bool(_backend_hooks_missing_reasons(backend))
 
 
 def _auto_install_hooks_for_detected_clients() -> None:
-    """init 末尾：已装客户端 hook 不齐则 idempotent 跑 install-hooks all."""
+    """init 末尾：已装客户端 hook 不齐则 idempotent 跑 install-hooks all.
+
+    v0.16.12: 打印**每 backend 真缺啥** 让 user 看到 reinstall 理由 (round-2
+    audit P1 #4: 之前只 print "hook 未装全" 不说缺啥, user doctor 看 ✓ 不懂
+    为啥 init 还要 reinstall).
+    """
     from pinrule.backends import REGISTRY
 
-    if not any(_backend_hooks_incomplete(b) for b in REGISTRY.values()):
+    incomplete_by_backend = {
+        b: _backend_hooks_missing_reasons(b)
+        for b in REGISTRY.values()
+        if b.client_installed()
+    }
+    incomplete_by_backend = {b: r for b, r in incomplete_by_backend.items() if r}
+    if not incomplete_by_backend:
         return
-    print("\n→ 检测到 hook 未装全，自动 install-hooks --backend all（功能与 Claude 对齐）…")
+    print("\n→ 检测到 hook 未装全, 真缺:")
+    for backend, reasons in incomplete_by_backend.items():
+        print(f"    [{backend.name}] {len(reasons)} 处不齐:")
+        for reason in reasons[:5]:  # 限 5 条避免刷屏
+            print(f"      - {reason}")
+        if len(reasons) > 5:
+            print(f"      ... +{len(reasons) - 5} more")
+    print("→ 自动 install-hooks --backend all (功能与 Claude 对齐)…")
     cmd_install_hooks("all")
 
 
