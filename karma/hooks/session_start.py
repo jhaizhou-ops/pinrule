@@ -57,7 +57,8 @@ def main() -> int:
     # 历史 v0.4.36 这里只看 payload.model — v0.10.4 升级为统一函数支持 Codex.
     from karma.model_threshold import model_from_payload
     payload_model = model_from_payload(payload)
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
     if payload_model:
         try:
             # v0.9.8: update_state 跨进程并发安全（之前直接 load+save 在多

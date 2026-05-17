@@ -196,7 +196,8 @@ def main() -> int:
     # 即使 rules 为空也要推进, 否则空 rules 用户的所有 model-aware reinject 阈值 +
     # turn-based 违反窗口都失效. 上一版顺序错: 没 rules 就早 return, model 永远
     # 没写进 state. CI clean home 永远捕不到 model.
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
     current_turn, state = _advance_turn_state(session_id, payload)
 
     try:

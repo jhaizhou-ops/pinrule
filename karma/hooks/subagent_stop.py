@@ -47,7 +47,8 @@ def main() -> int:
         return 0
 
     agent_id = payload.get("agent_id", "") or "unknown"
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
 
     # v0.4.34 子 Agent 独立 state 销毁 — 子 Agent 完成 → 临时 state 自动销毁
     # （用户「彼此互不干扰 + 临时独立 + 自动销毁」原则）

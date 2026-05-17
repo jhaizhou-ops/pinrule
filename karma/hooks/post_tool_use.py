@@ -76,7 +76,8 @@ def main() -> int:
             pass
 
 
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
     # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state 文件
     agent_id = payload.get("agent_id") or None
     # v0.9.15 cross-backend: tool_name 归一化到 karma canonical（Claude 风格） —

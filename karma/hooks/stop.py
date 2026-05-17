@@ -263,7 +263,8 @@ def main() -> int:
         except OSError:
             pass
 
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
     # 跨 backend payload 字段适配 — 优先「直传 message」字段，fallback transcript
     # - Codex Stop: last_assistant_message
     # - Gemini AfterAgent: prompt_response

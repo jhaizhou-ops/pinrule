@@ -39,7 +39,8 @@ def main() -> int:
     # pending_subagent_models，本 SubagentStart pop 队首写子 Agent state.model
     # 让按模型阈值（Opus 80K / Sonnet 60K / Haiku 30K）。FIFO 假设并行 Task
     # 触发顺序跟 PreToolUse 入队顺序一致（dogfooding 持续观察）。
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
     agent_id = payload.get("agent_id") or None
     if agent_id:
         try:

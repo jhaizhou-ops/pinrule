@@ -74,7 +74,8 @@ def main() -> int:
     tool_input = normalize_tool_input(raw_tool_name, raw_tool_input, payload)
     if not isinstance(tool_input, dict):
         tool_input = {}
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
     # v0.4.34 子 Agent 独立架构：agent_id 区分主/子 Agent
     # 主 Agent payload 没 agent_id 字段；子 Agent (Task tool 启动) payload 含 uuid
     agent_id = payload.get("agent_id") or None

@@ -47,7 +47,8 @@ def main() -> int:
         return 0
 
     trigger = payload.get("trigger", "")  # manual / auto
-    session_id = payload.get("session_id", "") or "default"
+    from karma.hooks._payload import extract_session_id
+    session_id = extract_session_id(payload)
 
     try:
         rule_list = load_sticky()
