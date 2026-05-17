@@ -19,7 +19,7 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 >
 **Two sides of the same loop**:
 
-🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected as session-start baseline + compact per-turn anchor + auto-reinject on long-context decay; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
+🛡️ **Pin your rules → Agent stays aligned.** Real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
 ✨ **Say it in plain words → pinrule writes the rule.** Type `/pinrule <natural language>` in Claude / Codex (or `.cursor/skills/pinrule/` per-project for Cursor) and the pinrule skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`.
 
@@ -29,7 +29,7 @@ Chinese + English auto-detected — open an issue if you'd like other languages 
 
 ---
 
-**Table of contents**: [Agents' honest take](#agents-honest-take) · [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/pinrule` natural-language rule input](#pinrule-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [Hook support](#claude--codex--cursor-native-hook-support) · [What pinrule doesn't do](#tried-and-rejected-what-pinrule-doesnt-do) · [Honest boundaries](#honest-tool-boundaries) · [FAQ](#faq) · [Mental model](#mental-model) · [Docs](#documentation)
+**Table of contents**: [Agents' honest take](#agents-honest-take) · [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it fits together](#how-it-fits-together) · [`/pinrule` natural-language rule input](#pinrule-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [Hook support](#claude--codex--cursor-native-hook-support) · [What pinrule doesn't do](#tried-and-rejected-what-pinrule-doesnt-do) · [Honest boundaries](#honest-tool-boundaries) · [FAQ](#faq) · [Mental model](#mental-model) · [Docs](#documentation)
 
 ---
 
@@ -243,46 +243,23 @@ Agent (pinrule skill walks 7 steps automatically):
 
 ---
 
-## Why it works
-
-System architecture at a glance:
+## How it fits together
 
 ```mermaid
 flowchart LR
     R[(rules.yaml<br/>5-10 core directions)]
-    K[pinrule engine<br/>regex + counting<br/>zero LLM, ~50-70ms]
+    K[pinrule engine<br/>regex + counting]
     A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>audit history)]
 
-    R ==>|full baseline once<br/>+ compact anchor per turn| K
+    R ==> K
     K ==>|prompt header| A
     A ==>|tool call / response| K
     K -.->|hit → deny + log| V
     V -.->|next-turn drift marker| K
 ```
 
-`rules.yaml` is pinrule's single core rule list — the only thing you maintain. pinrule injects the full baseline once at session start (~1.8K tokens) and a compact anchor on each subsequent prompt (rule ids + first line + drift markers, ~490 tokens average; long-context accumulation triggers a mid-conversation reinject at the model's decay point).
-pinrule's zero-network engineering scan reads Agent tool calls + Agent responses looking for signs of rule violation, then prompts / warns / blocks accordingly, and feeds detected drift back into the next turn's marker. No retrieval, no scoring, no LLM in the loop.
-
-pinrule isn't a linter, a scorer, or a retrieval system. It addresses four real but commonly-overlooked LLM collaboration problems:
-
-### 1. Long-context attention decay is real
-
-Modern LLMs decay later than early ones, but they still decay. Rules at the conversation top get diluted by everything that came after, and after dozens of turns the Agent isn't ignoring them — its attention has just moved on. pinrule re-injects at the exact context length each model's decay starts.
-
-### 2. Each conversation "re-forgets" everything
-
-Every AI client works by re-sending the full context to the model on each turn — the model doesn't persistently remember anything between turns. Your stated preferences have to be re-sent every time. pinrule does that for you, so you don't have to repeat yourself.
-
-### 3. "Collaborative agreement" tone reads differently than "rule system" tone
-
-When an LLM sees warnings like "you must always follow X" or "⚠️ violation," the first reaction is to defend or to look for a workaround — that wording activates a "being scolded" frame.
-
-pinrule rephrases rules as "the human user you're working with hopes…" — the Agent reads it as an agreement to honor, not a verdict to escape. In sustained self-use, this is the single change that moves the needle most on whether reminders actually get internalized.
-
-### 4. Hook coverage has no blind spots
-
-pinrule installs at 8 hook positions (detailed below) — not just "inject once at conversation start." Before / after every tool call, subagent start / stop, pre / post compact, silent Agent stop — every drift opportunity has a targeted injection or check.
+`rules.yaml` is the only thing you maintain. The engine reads it, injects at the right hook points, and watches Agent traffic for drift — no retrieval, no scoring, no LLM in the loop.
 
 ---
 

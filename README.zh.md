@@ -19,7 +19,7 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 >
 **同一闭环的两面**：
 
-🛡️ **钉住规则 → Agent 对齐。** 5-10 条核心方向 session 起手注入完整 baseline + 每 turn 精简 anchor + 长 context 累积达拐点自动 reinject; 工具调用前实时拦截; 跨 compact / 跨 locale / 跨 backend 都不丢。
+🛡️ **钉住规则 → Agent 对齐。** 工具调用前实时拦截; 跨 compact / 跨 locale / 跨 backend 都不丢。
 
 ✨ **大白话告诉 pinrule → pinrule 替你写规则。** 在 Claude / Codex / Cursor 输 `/pinrule <自然语言>`，pinrule skill 把你的意图改写成校验过的「协作默契」语气，预览注入效果，跟你确认后写入 `rules.yaml`。
 
@@ -29,7 +29,7 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 
 ---
 
-**目录**：[Agent 现身说法](#agent-现身说法) · [痛点](#你遇到的问题) · [10 秒上手](#0-依赖纯工程10-秒上手) · [`/pinrule` 自然语言录入规则](#pinrule-自然语言--agent-替你写规则) · [使用效果](#使用效果) · [原理](#为什么有效) · [性能](#性能) · [hook 原生支持](#claude--codex--cursor-hook-原生支持) · [pinrule 不做的事](#试过但放弃的pinrule-不做的事) · [诚实边界](#诚实的工具边界) · [FAQ](#faq) · [心智模型](#心智模型) · [文档导航](#文档导航)
+**目录**：[Agent 现身说法](#agent-现身说法) · [痛点](#你遇到的问题) · [10 秒上手](#0-依赖纯工程10-秒上手) · [`/pinrule` 自然语言录入规则](#pinrule-自然语言--agent-替你写规则) · [使用效果](#使用效果) · [整体结构](#整体结构) · [性能](#性能) · [hook 原生支持](#claude--codex--cursor-hook-原生支持) · [pinrule 不做的事](#试过但放弃的pinrule-不做的事) · [诚实边界](#诚实的工具边界) · [FAQ](#faq) · [心智模型](#心智模型) · [文档导航](#文档导航)
 
 ---
 
@@ -244,46 +244,23 @@ Agent（pinrule skill 自动走 7 步）：
 
 ---
 
-## 为什么有效
-
-系统架构一图看清:
+## 整体结构
 
 ```mermaid
 flowchart LR
     R[(rules.yaml<br/>5-10 条核心方向)]
-    K[pinrule 引擎<br/>regex + 计数<br/>零 LLM, ~50-70ms]
+    K[pinrule 引擎<br/>regex + 计数]
     A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>违反历史)]
 
-    R ==>|起手注入完整 baseline<br/>+ 每 turn 精简 anchor| K
+    R ==> K
     K ==>|prompt 头部| A
     A ==>|tool 调用 / 回应| K
     K -.->|命中 → deny + log| V
     V -.->|下 turn 偏离标记| K
 ```
 
-`rules.yaml` 是 pinrule 唯一核心的规则列表. session 起手 pinrule 注入完整 baseline 一次 (~1.8K token), 之后每条 prompt 只注入精简 anchor (规则 id + 第一行 + 偏离标记, 平均 ~490 token; 长 context 累积达模型衰减拐点时中段补一次完整 reinject).
-Pinrule 自动工程化 0 联网扫 Agent 工具调用 + Agent 回应的文字找违反规则的迹象并提示 / 警告 / 拦截, 还将把检测到的漂移反馈到下 turn 的偏离标记. 没 retrieval, 没 scoring, 整个循环没 LLM.
-
-pinrule 不是 lint、不是评分、不是搜索召回。它解决的是 4 个实际但常被忽视的 LLM 协作问题：
-
-### 1. 长 context 注意力衰减是存在的
-
-当代大模型衰减拐点比早期模型晚，但仍然存在。规则放在对话顶部，几十轮后会被新内容稀释 — Agent 不是不知道，是注意力转移了。pinrule 在每个模型衰减开始的精确 context 长度补一次提醒。
-
-### 2. 每次对话都「重新失忆」
-
-每个 AI 客户端的工作机制是「把所有上下文重新发给模型」— 模型不持续记住任何东西。你说过的偏好每次都得重新送进去。pinrule 自动做这件事，不用你重复说。
-
-### 3. 「合作默契」语气比「规则系统」激活的反应不一样
-
-LLM 看到「请始终遵守 X」「⚠️ 上次违反」类警示词时，第一反应是防御性自证或找借口绕过 — 因为这激活的是「我做错事被骂」的心理。
-
-pinrule 把规则改写成「跟你协作的这位用户希望...」语气 — Agent 读到的不是判决而是默契约定，第一反应从「让我辩解」变成「让我对齐」。这是长期自用中最能影响提醒被真正内化的单一改动。
-
-### 4. hook 覆盖没有死角
-
-pinrule 装机后在 8 个 hook 位置都有监管（详见下一章）— 不是「对话开始注入一次」就完。tool 调用前后 / 子 Agent 启停 / compact 前后 / 静默停止 — 每一个可能漂移的时刻都有针对性的注入或检查。
+`rules.yaml` 是你唯一维护的东西. 引擎读它, 在合适的 hook 点注入, 看着 Agent 的输出找漂移 — 没 retrieval, 没 scoring, 整个循环没 LLM.
 
 ---
 
