@@ -115,6 +115,29 @@ cd ~/pinrule && python -m venv .venv && .venv/bin/python -m pip install -e .
 cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # 恢复原 settings
 ```
 
+### 不动主机的试用 — `PINRULE_HOME` sandbox
+
+```bash
+# 全部装到 /tmp — 真实 ~/.claude / ~/.cursor / ~/.codex 一个字节不改
+PINRULE_HOME=/tmp/pinrule-trial pinrule init
+PINRULE_HOME=/tmp/pinrule-trial pinrule install-hooks
+PINRULE_HOME=/tmp/pinrule-trial pinrule doctor
+
+# 试完直接干净撤场:
+rm -rf /tmp/pinrule-trial
+```
+
+设了 `PINRULE_HOME`, pinrule 把**所有东西**都装到这个目录下 — rules.yaml,
+违规日志, hook wrapper, settings.json 入口, skill 文件, Cursor rules 全部包含.
+适合:
+
+- **朋友试用 pinrule**: 对他的工作机零风险
+- **CI / dry-run**: PR build 把 pinrule 完全隔离
+- **多 profile**: `PINRULE_HOME=~/work` 跟 `PINRULE_HOME=~/play` 维护两套独立规则
+
+没设 `PINRULE_HOME` 时, pinrule 用标准 `~/.pinrule/` 数据目录 + `~/.claude/` 等
+hook 位置 (生产默认行为 — 100% 不变).
+
 ---
 
 ## 使用效果
