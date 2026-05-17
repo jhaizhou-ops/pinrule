@@ -541,7 +541,9 @@ def purge_old_states(max_age_days: int = 30, base_dir: Path | None = None) -> in
     cutoff = time.time() - max_age_days * 86400
     deleted = 0
     try:
-        files = list(base.glob("*.json"))
+        # v0.16.9: 也清 .json.lock — _state_lock 创的 lock 文件之前永不删,
+        # 长跑用户 session-state 目录累积 30 天 stale lock files.
+        files = list(base.glob("*.json")) + list(base.glob("*.json.lock"))
     except OSError:
         return 0
     for p in files:
@@ -585,5 +587,14 @@ def save(state: SessionState, base_dir: Path | None = None) -> None:
     # tmp 名加 pid + nanosecond 避免并发 PostToolUse 同 session 写冲突
     import os
     tmp = p.parent / f"{p.stem}.{os.getpid()}.{time.time_ns()}.json.tmp"
-    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, p)
+    # v0.16.9: tmp.write_text 抛异常 (disk full / permission) 时 tmp 文件残留 —
+    # 之前长跑会累积 .json.tmp 垃圾. 现 try/finally 清.
+    try:
+        tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, p)
+    except Exception:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise

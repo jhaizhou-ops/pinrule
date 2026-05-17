@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [0.16.9] — 2026-05-17（patch — round-3 audit medium findings 批 fix）
+
+第 3 轮 audit medium 级 5 个 findings 一波打包修:
+
+- **zh.yaml `inject.header.line1` 中文病句**: `"跟你协作的是一位这位用户"` 一位+这位重复 → `"跟你协作的这位用户"`. 中文用户每个 prompt 头部都看到这句.
+- **`check.non_blocking.cursor_timeout.{trigger,fix}` i18n key 两 locale 都缺**: `non_blocking.py:108-126` 真调 `tr()` 但 `en.yaml` / `zh.yaml` 都没这两 key — Cursor 用户撞 Shell timeout ≥ 30s 命中拦截**真看到 raw key 字面** 当 violation 文本. 中英都加.
+- **`.json.lock` 文件永不清**: `_state_lock` 创 lock file; `purge_old_states` 只 glob `*.json` 不清 `.json.lock`, `~/.pinrule/session-state/` 累积 30 天 stale lock files. 现两个都 glob.
+- **`tr()` format 失败 silent**: `.format(**fmt)` 抛 `KeyError`/`IndexError` 时静默返不插值原文 — 违反 loud-failure. 现 stderr 写 warning, pytest / CLI debug 能看到.
+- **`save()` tmp 文件异常残留**: `tmp.write_text(...)` 抛异常 (disk 满 / 权限) 时 tmp 文件残留 session-state, 长跑累积. 现 `try/finally` unlink tmp 再 re-raise.
+
+测试: 834 passed.
+
 ## [0.16.8] — 2026-05-17（patch — EN 模板 chinese-plain → plain-language 真本地化）
 
 v0.16.7 双语对称之后用户继续 follow up: "英文的 Chinese-plain 那条可以设置成减少黑话，多用通俗易懂的文字表达，第一次使用的技术语言配一个例子". 之前 EN 模板还字面装 `chinese-plain-no-jargon` — 给英文用户装一条"把黑话翻译成中文"的规则显然不合适.

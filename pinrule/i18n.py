@@ -91,7 +91,14 @@ def tr(key: str, lang: str | None = None, **fmt: Any) -> str:
     if fmt:
         try:
             return str(val).format(**fmt)
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as e:
+            # v0.16.9: 之前 silent 吞 — 违反 loud-failure. 现 stderr 输出
+            # warning, hook 进程 stderr Claude 看不见但 pytest / CLI debug 能看到.
+            import sys as _sys
+            _sys.stderr.write(
+                f"pinrule i18n: tr({key!r}) .format(**{list(fmt.keys())}) 失败 "
+                f"({type(e).__name__}: {e}), 返回原文未插值\n"
+            )
             return str(val)
     return str(val)
 

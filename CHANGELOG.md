@@ -10,6 +10,18 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.9] — 2026-05-17 (patch — round-3 audit medium findings batch fix)
+
+5 medium findings from round-3 audit, batch-fixed in one go:
+
+- **zh.yaml `inject.header.line1` Chinese phrasing**: `"跟你协作的是一位这位用户"` (literally "the one this user collaborating with you") → `"跟你协作的这位用户"`. Chinese users see this banner on every prompt header.
+- **`check.non_blocking.cursor_timeout.{trigger,fix}` i18n keys missing in both locales**: `non_blocking.py:108-126` calls `tr()` for these keys but neither `en.yaml` nor `zh.yaml` had them — Cursor users hitting Shell timeout ≥ 30s saw the raw key literal as the violation message. Added bilingual entries.
+- **`.json.lock` files never cleaned**: `_state_lock` creates lock files; `purge_old_states` only globbed `*.json`, leaving 30-day-stale lock files in `~/.pinrule/session-state/`. Now globs both.
+- **`tr()` format failures silent**: `KeyError` / `IndexError` during `.format(**fmt)` returned the unformatted template silently — violated loud-failure. Now writes a stderr warning so pytest / CLI debug catches it.
+- **`save()` tmp file leak on write exception**: if `tmp.write_text(...)` raised (disk full / permission), the tmp file lingered in session-state. Now `try/finally` unlinks tmp before re-raising.
+
+Tests: 834 passing.
+
 ## [0.16.8] — 2026-05-17 (patch — EN rule chinese-plain → plain-language localized)
 
 User feedback follow-up after v0.16.7 bilingual symmetry: "英文的 Chinese-plain 那条可以设置成减少黑话，多用通俗易懂的文字表达，第一次使用的技术语言配一个例子". The English template was still shipping `chinese-plain-no-jargon` literally — a rule about "translate jargon into Chinese" obviously doesn't fit an English user.

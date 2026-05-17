@@ -5,7 +5,7 @@
 
 # ===== 规则 baseline 头部 (format_for_injection) =====
 inject.header.title: "[pinrule — 你跟用户的长期默契]"
-inject.header.line1: "跟你协作的是一位这位用户，他列出了几条长期最看重的方向。"
+inject.header.line1: "跟你协作的这位用户列出了几条长期最看重的方向。"
 inject.header.line2: "这不是规则也不是审判 — 是他希望跟你建立的协作默契。"
 anchor.header.title: "[pinrule — 长期默契提示（精简版，完整 preference 见 session 起手注入）]"
 anchor.header.line: "本 turn 提醒一下规则名跟核心方向一句话，详细 preference 已在 session 起手注入过。"
@@ -117,6 +117,8 @@ check.non_blocking.long_task.trigger: "长任务不带 run_in_background: {cmd!r
 check.non_blocking.mcp_await.trigger: "Cursor MCP 长轮询 ({tool}): block_until_ms ≥ 30s"
 check.non_blocking.mcp_await.fix: "不要在 Await/MCP 上轮询 30s+。Shell 任务用 run_in_background=True，或缩短 block_until_ms 并继续推进其他工作。"
 check.non_blocking.mcp_long_poll.fix: "缩短 block_until_ms，或改用后台 Shell + 通知，不要长时间同步等 MCP。"
+check.non_blocking.cursor_timeout.trigger: "Cursor Shell 同步 timeout ≥ 30s: {ms}ms"
+check.non_blocking.cursor_timeout.fix: "Cursor Shell 同步 timeout {ms}ms 会卡 Agent 30s+。把 timeout 降到 30000ms 以下, 或者改用 run_in_background=True 让任务后台跑你继续推进下一步。"
 
 # evidence (3 处)
 check.evidence.commit.trigger: "git commit 前最近 session 内无测试通过证据"
