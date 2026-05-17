@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-05-17（patch — install-hooks 默认 'all' + demo SVG 重新生成慢动画 + scene 5 真 trigger）
+
+### `pinrule install-hooks` 默认改 'all'
+
+- `pinrule install-hooks` (不带 `--backend`) 默认装本机检测到的所有客户端 (Claude / Codex / Cursor).
+- 老 default `claude-code` 让 Codex/Cursor 用户敲 `pinrule install-hooks` 以为装了实际 0 触发 — silent gap.
+- 跟用户 mental model (装 pinrule = 三家全 cover) 一致. `pinrule uninstall-hooks` 同步改 default 'all' 对称.
+- `--backend claude-code` / `--backend codex` / `--backend cursor` 仍可单独装某家.
+
+### README demo SVG 重生成
+
+- `scripts/demo-script.sh` 每 scene `sleep 1` → `sleep 2` + banner 停留 1s → 3s, 解决用户反馈 "页面一闪而过看不清".
+- **scene 5 真根因 fix**: demo PINRULE_HOME 没 `rules.yaml` → `_build_smart_reinject` 检测 `not sticky_list` 早 return → scene 5 输出空 `{}`. 加 `cp scripts/demo-fixtures/rules-$LANG_MODE.yaml $PINRULE_HOME/rules.yaml`. 现 scene 5 真输出 385 字符 reinject banner.
+
 ## [0.16.0] — 2026-05-17（minor — **karma 改名 pinrule** + 干净 brand, 不背 karma legacy 包袱）
 
 ### 为啥改名

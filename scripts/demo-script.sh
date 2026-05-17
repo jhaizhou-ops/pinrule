@@ -6,7 +6,7 @@ banner() {
     echo "  $1"
     echo "  $2"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    sleep 1
+    sleep 3
 }
 
 PY=.venv/bin/python
@@ -47,19 +47,25 @@ else
     FIX_SILENT=/tmp/pinrule-demo-fixtures/silent-stop.jsonl
 fi
 
+# Setup: copy rules fixture 到 demo PINRULE_HOME (否则 reinject smart 检测因
+# 无 rules.yaml 早 return, scene 5 输出空 {})
+mkdir -p "$PINRULE_HOME"
+RULES_FIX="scripts/demo-fixtures/rules-$LANG_MODE.yaml"
+[ -f "$RULES_FIX" ] && cp "$RULES_FIX" "$PINRULE_HOME/rules.yaml"
+
 # Scene 1: 头部注入 (UserPromptSubmit)
 banner "$T1" "$T1S"
 echo '$ echo {prompt} | pinrule_user_prompt_submit.py'
-sleep 1
+sleep 2
 echo '{"session_id":"sc1","prompt":"hi","transcript_path":"/dev/null","cwd":"/Users/jhz/pinrule"}' \
   | $PY pinrule/hooks/user_prompt_submit.py 2>/dev/null \
   | $PY -c "import json,sys; d=json.load(sys.stdin); print(d.get('hookSpecificOutput',{}).get('additionalContext','')[:550])"
-sleep 1
+sleep 2
 
 # Scene 2: sleep 30 拦 (PreToolUse) — 解析 JSON 显示真换行 reason
 banner "$T2" "$T2S"
 echo '$ echo {tool=Bash, command=sleep 30} | pinrule_pre_tool_use.py'
-sleep 1
+sleep 2
 echo '{"session_id":"sc2","tool_name":"Bash","tool_input":{"command":"sleep 30"}}' \
   | $PY pinrule/hooks/pre_tool_use.py 2>/dev/null \
   | $PY -c "
@@ -71,7 +77,7 @@ print()
 for line in out.get('permissionDecisionReason','').split('\\n')[:5]:
     print(f\"  {line}\")
 "
-sleep 1
+sleep 2
 
 # Scene 3: long-term response-level 拦
 banner "$T3" "$T3S"
@@ -80,12 +86,12 @@ if [ "$LANG_MODE" = "en" ]; then
 else
     echo '$ # Agent 说: "我先硬编码这个 case 让 CI 过"'
 fi
-sleep 1
+sleep 2
 echo '$ pinrule_stop.py reads transcript, scans response'
-sleep 1
+sleep 2
 echo "{\"session_id\":\"sc3\",\"transcript_path\":\"$FIX_LONGTERM\",\"cwd\":\"/Users/jhz/pinrule\"}" \
   | $PY pinrule/hooks/stop.py 2>&1 1>/dev/null | head -2
-sleep 1
+sleep 2
 
 # Scene 4: keep-pushing nudge
 banner "$T4" "$T4S"
@@ -94,12 +100,12 @@ if [ "$LANG_MODE" = "en" ]; then
 else
     echo '$ # Agent 说: "任务已经完成了。"  (纯陈述无下一步)'
 fi
-sleep 1
+sleep 2
 echo '$ pinrule_stop.py reads transcript, scans response'
-sleep 1
+sleep 2
 echo "{\"session_id\":\"sc4\",\"transcript_path\":\"$FIX_SILENT\",\"cwd\":\"/Users/jhz/pinrule\"}" \
   | $PY pinrule/hooks/stop.py 2>&1 1>/dev/null | head -2
-sleep 1
+sleep 2
 
 # Scene 5: PostToolUse 中段 reinject
 banner "$T5" "$T5S"
@@ -108,17 +114,17 @@ if [ "$LANG_MODE" = "en" ]; then
 else
     echo '$ # session state: tool_byte_seq=62000 (已过 Opus 60K 衰减拐点)'
 fi
-sleep 1
+sleep 2
 SESSDIR="$PINRULE_HOME/session-state"
 mkdir -p "$SESSDIR"
 echo '{"session_id":"sc5","read_files":[],"edit_files":[],"recent_bash":[],"last_test_pass_ts":0.0,"last_edit_ts":0.0,"pending_bg_tasks":[],"turn_count":50,"stop_block_count":0,"tool_byte_seq":62000,"last_reinject_byte_seq":0,"model":"claude-opus-4","pending_subagent_models":[]}' > "$SESSDIR/sc5.json"
 echo '$ echo {tool=Read} | pinrule_post_tool_use.py'
-sleep 1
+sleep 2
 echo '{"session_id":"sc5","tool_name":"Read","tool_input":{"file_path":"/tmp/foo.py"},"tool_response":{"content":"x"}}' \
   | $PY pinrule/hooks/post_tool_use.py 2>/dev/null \
   | $PY -c "import json,sys; d=json.load(sys.stdin); ac=d.get('hookSpecificOutput',{}).get('additionalContext',''); print(ac[:450] + ('...' if len(ac) > 450 else ''))"
 rm -f "$SESSDIR/sc5.json" "$SESSDIR/sc5.json.lock"
-sleep 1
+sleep 2
 
 banner "$TE" "$TES"
-sleep 1
+sleep 2

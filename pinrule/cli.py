@@ -7,12 +7,11 @@ Usage:
                                    非中文/检测不到 → 5 条精简（砍 chinese_plain）
                                    --minimal / --no-minimal 强制覆盖
     pinrule install-hooks [--backend claude-code|codex|cursor|all]
+                                   默认 'all' (v0.16.1+) — 装本机检测到的所有客户端
+                                   --backend <name> 单独装某家
+                                   codex 会同时启用 features.hooks
     pinrule sync-cursor-rules          刷新 ~/.cursor/rules/pinrule-sticky.mdc (Cursor 起手可见)
     pinrule sync-cursor-visibility   hook 之外: Claude skills 目录 + empty-window 项目 rules
-                                   自动配置 hooks（默认 claude-code 向后兼容）
-                                   codex 会同时启用 features.hooks；
-                                   gemini-cli 写 ~/.gemini/settings.json；
-                                   all 装本机检测到的所有 AI 编程客户端
     pinrule install-skill [--force]  装 pinrule-rule Claude Code skill 到 ~/.claude/skills/
                                    (pinrule init 已自动跑一次, 老用户 / skill 升级时用)
                                    已存在且不同 → 写 .md.new 文件让用户对比, 不覆盖；
@@ -1373,13 +1372,14 @@ def cmd_sync_cursor_rules() -> int:
     return 0
 
 
-def cmd_install_hooks(backend_name: str = "claude-code") -> int:
+def cmd_install_hooks(backend_name: str = "all") -> int:
     """生成 wrapper + 自动写客户端配置（idempotent + 备份 + 保留他人 hook）。
 
     backend_name:
-      - "claude-code"（默认，向后兼容）：装 Claude Code
-      - "codex": 装 Codex CLI
-      - "all": 装本机所有检测到的客户端
+      - "all"（默认 v0.16.1+）：装本机检测到的所有客户端 (Claude / Codex / Cursor)
+      - "claude-code": 只装 Claude
+      - "codex": 只装 Codex
+      - "cursor": 只装 Cursor
     """
     from pinrule.backends import REGISTRY, detect_installed_backends
 
@@ -1450,8 +1450,8 @@ def _uninstall_from_backend(backend) -> int:
     return 0
 
 
-def cmd_uninstall_hooks(backend_name: str = "claude-code") -> int:
-    """卸 pinrule hook（默认 claude-code 向后兼容；--backend codex/all 同 install）。"""
+def cmd_uninstall_hooks(backend_name: str = "all") -> int:
+    """卸 pinrule hook（默认 'all' v0.16.1+ — 跟 install 对称）。"""
     from pinrule.backends import REGISTRY, detect_installed_backends
 
     if backend_name == "all":
@@ -1469,16 +1469,18 @@ def cmd_uninstall_hooks(backend_name: str = "claude-code") -> int:
 
 
 def _parse_backend_arg(args: list[str]) -> str:
-    """从 CLI args 解析 --backend <name>，默认 'claude-code' 向后兼容。
+    """从 CLI args 解析 --backend <name>，默认 'all' (v0.16.1+ — 三家全装).
 
-    支持 '--backend codex' / '--backend claude-code' / '--backend all'。
-    位置参数（不带 --backend）一律不识别为 backend 名。
+    支持 '--backend codex' / '--backend claude-code' / '--backend cursor' / '--backend all'。
+    不带 --backend 默认 'all' 装本机检测到的所有客户端 — 跟用户 mental model
+    (装 pinrule 就是三家全 cover) 一致, 避免 silent gap (老 default 'claude-code'
+    导致 Codex/Cursor 用户敲 `pinrule install-hooks` 以为装好实际 0 触发).
     """
     if "--backend" not in args:
-        return "claude-code"
+        return "all"
     idx = args.index("--backend")
     if idx + 1 >= len(args):
-        return "claude-code"
+        return "all"
     return args[idx + 1]
 
 
