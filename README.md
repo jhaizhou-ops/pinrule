@@ -79,21 +79,21 @@ Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable d
 
 | | |
 |---|---|
-| **Runtime deps** | Zero (just PyYAML) |
-| **Hook latency** | ~50-70ms (machine-bound; reproduce via `scripts/measure_perf.py`) |
-| **Token overhead** | ~2% of conversation context in real dogfood (60% of work sessions = 0 anchor tokens) |
-| **Tests** | [854 unit, green on 4-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu+macos × py3.11+3.12) |
+| **External deps** | 0 (only PyYAML, a Python-standard library) |
+| **Hook latency** | ~50-70ms typical (machine-bound; reproduce via `scripts/measure_perf.py`) |
+| **Token overhead** | ~2% of conversation context in real dogfood (methodology: [docs/EVALUATION.md](./docs/EVALUATION.md)) |
+| **Tests** | 800+ unit tests, [green on 4-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu + macOS × Python 3.11 / 3.12) |
 | **Supported clients** | Claude / Codex / Cursor — [add a backend](./pinrule/backends/HOWTO.md) |
 
 ---
 
 ## Per-client install + uninstall
 
-| Client | Command |
-|---|---|
-| Claude (default) | `pinrule install-hooks` |
-| Codex | `pinrule install-hooks --backend codex` |
-| Cursor 1.7+ | `pinrule install-hooks --backend cursor` |
+| Client | Command | Note |
+|---|---|---|
+| Claude (default) | `pinrule install-hooks` | — |
+| Codex | `pinrule install-hooks --backend codex` | — |
+| Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `/pinrule` skill is project-scoped only |
 
 ```bash
 pinrule uninstall-hooks                                          # remove
@@ -181,6 +181,7 @@ The 7 default rules in `data/rules.dev.example.yaml` are pain points from self-u
 - [PRD.md](./docs/PRD.md) — product requirements + scenario positioning
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — hook protocol, 8 check implementations, sandbox model
 - [HOOK_CONFIGURATION_GUIDE.md](./docs/HOOK_CONFIGURATION_GUIDE.md) — per-hook lifecycle + tunable thresholds
+- [EVALUATION.md](./docs/EVALUATION.md) — methodology behind performance numbers (hook latency, token overhead)
 - [CHANGELOG.md](./CHANGELOG.md) — release notes (grouped by minor version)
 - [CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary
 - [CLAUDE.md](./CLAUDE.md) — project charter for Claude collaboration
