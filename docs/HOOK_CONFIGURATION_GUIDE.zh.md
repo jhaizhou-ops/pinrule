@@ -163,4 +163,7 @@ session_state_max_age_days: 30    # session 状态自动清理周期
 
 ---
 
-**官方协议参考**：https://code.claude.com/docs/en/hooks
+**官方协议参考**：
+- Claude: https://code.claude.com/docs/en/hooks
+- Codex: https://developers.openai.com/codex/hooks
+- Cursor: https://cursor.com/docs/agent/hooks
