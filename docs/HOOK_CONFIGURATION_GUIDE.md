@@ -1,16 +1,22 @@
 # pinrule Hook 配置指南
 
-`pinrule install-hooks` 把 8 个 hook 写进 Claude `~/.claude/settings.json`。本指南说明每个 hook 做什么、什么时候触发、你能看到什么。
+`pinrule install-hooks` 把 hook 写进对应 AI 客户端的配置文件。本指南以 Claude 为例（8 个 hook 全覆盖最完整），Codex / Cursor 用相同命令切 `--backend`，hook 业务逻辑同源，仅 native event 数 + 写入路径不同。
+
+| Backend | install 命令 | 写入位置 | Native event 数 |
+|---|---|---|---|
+| Claude（默认） | `pinrule install-hooks` | `~/.claude/settings.json` | 8 |
+| Codex CLI | `pinrule install-hooks --backend codex` | `~/.codex/config.toml` | 6 |
+| Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `~/.cursor/hooks.json` | 12 |
 
 ## 快速开始
 
 ```bash
-pinrule init           # 创建 ~/.pinrule/ + 复制规则模板
-pinrule install-hooks  # 装 8 个 hook 到 settings.json
-pinrule doctor         # 验证装机
+pinrule init                                       # 创建 ~/.pinrule/ + 复制规则模板
+pinrule install-hooks                              # 默认 Claude（也可加 --backend codex/cursor 或 all）
+pinrule doctor                                     # 验证装机（自动扫所有装机的 backend）
 ```
 
-装完重启 Claude，hook 立即生效。规则在 `~/.pinrule/rules.yaml` — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
+装完重启 AI 客户端，hook 立即生效。规则在 `~/.pinrule/rules.yaml`（跨 backend 共享） — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
 
 ---
 
@@ -33,15 +39,33 @@ pinrule doctor         # 验证装机
 
 ## 配置路径
 
+**跨 backend 共享**（用户级数据）：
+
 ```bash
 ~/.pinrule/rules.yaml           # 你的核心方向（手工编辑或 /pinrule skill）
 ~/.pinrule/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
 ~/.pinrule/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
 ~/.pinrule/session-state/       # 每个 session 一份 json（30 天自动清理）
 ~/.pinrule/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
-~/.claude/hooks/pinrule_*.py           # 8 个 hook wrapper（pinrule install-hooks 自动生成）
-~/.claude/settings.json              # Claude 配置（pinrule 写入 hooks 段）
 ```
+
+**每个 backend 各自的 hook wrapper + settings**：
+
+```bash
+# Claude
+~/.claude/hooks/pinrule_*.py          # 8 个 hook wrapper（install-hooks 自动生成）
+~/.claude/settings.json               # Claude 配置（pinrule 写入 hooks 段）
+
+# Codex CLI
+~/.codex/hooks/pinrule_*.py           # 6 个 hook wrapper
+~/.codex/config.toml                  # Codex 配置（pinrule 写入 [hooks.*] 段 + trusted_hash）
+
+# Cursor 1.7+
+~/.cursor/hooks/pinrule_*.py          # 12 个 hook wrapper（含 4 个独立 gate）
+~/.cursor/hooks.json                  # Cursor 配置（pinrule 写入 hooks 段）
+```
+
+> 设了 `PINRULE_HOME` 环境变量 → 上面所有路径都 anchor 在 `$PINRULE_HOME/` 下（真 sandbox 隔离，v0.16.11+）。试用 / CI / 多 profile 都用这个。
 
 ---
 
@@ -103,8 +127,8 @@ pinrule doctor         # 验证装机
 ### Q：能关掉某个 hook 吗？
 
 能。两种方式：
-- `pinrule uninstall-hooks` 拆掉全部
-- 手工编辑 `~/.claude/settings.json`，在 `hooks` 段删 / 注释掉对应 event
+- `pinrule uninstall-hooks`（也接 `--backend` 拆指定 backend，或 `all`）
+- 手工编辑对应 backend 的 settings 文件（`~/.claude/settings.json` / `~/.codex/config.toml` / `~/.cursor/hooks.json`），在 hooks 段删 / 注释掉对应 event
 
 但建议先用一周看效果。
 
