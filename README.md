@@ -9,7 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/karma?label=release)](https://github.com/jhaizhou-ops/karma/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/karma)](https://github.com/jhaizhou-ops/karma/commits/main)
 
-> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, ~50-70ms hook latency.**
+> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, ~50-70ms hook latency, ~2% token overhead in typical dogfood.**
 
 ![karma demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
@@ -300,7 +300,8 @@ karma installs at 8 hook positions (detailed below) — not just "inject once at
 | **Source code** | ~8.6K lines Python | Readable, modifiable, no magic |
 | **Quality gates** | lint / type-check / dead-code / 775 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
 | **Hook latency** | typically 50-70ms (Python startup-bound, machine-dependent — author's M-series Mac ~49ms, 67ms reported on lower-end machines) | Well within AI client protocol budget of 200ms |
-| **Token cost (cumulative)** | 1.8K SessionStart baseline (one-time, re-sent every turn) + per-turn anchor **only lists rules violated this session** (v0.13.0+; empty session = 0 anchor) + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood (30 sessions post-v0.13.0): 60% of work sessions = 0 anchor (clean drift, full passthrough); ~40% with violations save 45-80% vs v0.12.x; median accumulated violated rules per session = 1 (ship-time projection assumed 3-5 — actual is much lower).** sessionStart baseline + PostToolUse mid-session reinject cover anti-decay; anchor focuses purely on drift signal |
+| **Token cost (cumulative)** | 1.8K SessionStart baseline (one-time, re-sent every turn) + per-turn anchor **only lists rules violated this session** (v0.13.0+; empty session = 0 anchor) + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **~2% of conversation context in typical dogfood** (30 sessions real measured: 60% clean = 0 anchor token, median 1 violated rule). Outlier: maintainer sessions hitting many sticky rules can reach ~10% (ceiling — typical user 1-3%). v0.13.0 cuts cumulative anchor cost 45-80% vs v0.12.x's "list all sticky every turn" |
+| **API input bill share** | SessionStart prefix + per-turn **new** anchor/catalog; earlier prefix mostly **prompt cache reads (~10% of input price on Anthropic)** | **~1–3%** typical engineering session; drift-heavy or Cursor per-turn id catalog **~2–4%**; v0.12 listed all ids every turn **~10–15%** (mechanism estimate, not invoice reconciliation). **Context window** fill at end of long session is a separate metric (~4–6%) |
 | **Disk usage** | < 10MB | Config + violation history + session state |
 | **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
 | **Supported clients** | Claude Code / Codex CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
