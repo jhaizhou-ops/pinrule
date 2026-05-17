@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-05-17（patch — Cursor dogfood 跟进: beforeSubmitPrompt mapping + transcript 要求）
+
+两件 Cursor desktop Agent dogfood 跟进事一波带走.
+
+### Cursor `beforeSubmitPrompt` 复用作 UserPromptSubmit 等价
+
+v0.12.0 docstring 写过 Cursor "没 UserPromptSubmit 等价 — `beforeSubmitPrompt` 只能 block 不能注入 `additional_context`". Cursor desktop Agent dogfood **证明这是错的**: Cursor `beforeSubmitPrompt` 真接受 `additional_context` 输出, 行为是每 turn 注入点. `_HOOK_EVENTS` 现在 map `beforeSubmitPrompt → user_prompt_submit`, karma 每 turn anchor (v0.13.0: 只列违反过的规则) 在 Cursor 也起作用.
+
+Cursor 跟 Claude Code / Codex / Gemini 在每 turn 规则可见性上现 parity, 不再是 Cursor 独家限制.
+
+### `post_install_message` 响亮告知 response-level check 需启用 transcript
+
+Cursor `stop` hook 最小 stdin 只 `{status, loop_count}` — 不含 assistant 文本. karma response-level check (`keep_pushing_no_stop` / `chinese_plain_no_jargon` / `long_term_response_level` / `loud_failure_with_evidence`) 需上一条 assistant message 才能跑, 没 `transcript_path` 静默 passthrough.
+
+代码路径本已 graceful (不 crash 不假阳), 缺的是老实告诉用户. `cursor.py:post_install_message` 加响亮 block 告知 Cursor 用户: 启用 Cursor Settings → Agent → transcripts 让 response-level check 起作用; 不启用不影响 pre-tool 拦截 / sticky 注入 / context refresh 等主功能.
+
 ## [0.13.0] — 2026-05-17（minor — anchor 优化，~10x token 成本降低）
 
 **用户能感知**: karma token 成本从 **10-15% API input** (v0.12.x) 降到典型工程 session **1-3%**; 长 session context window 占用从 25% 降到 ~5-10%. 优化是真账单降低 — anchor token 节省也会跟着 Anthropic prompt caching 1 折一起传递.

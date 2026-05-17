@@ -39,10 +39,8 @@ def test_backends_all_have_4_common_karma_wrappers():
     """4 个 CLI-like backend 都有 pre_tool_use / post_tool_use / stop 通用 wrapper.
 
     historical 4 commons = {user_prompt_submit, pre_tool_use, post_tool_use, stop}.
-    Cursor 协议层没 UserPromptSubmit 等价 (beforeSubmitPrompt 只能 block 不能注入
-    additional_context), 改用 sessionStart 一次性注入 + postToolUse 中段重注入. 所以
-    Cursor 的「baseline 注入入口」是 session_start 而非 user_prompt_submit. 用
-    {pre_tool_use, post_tool_use, stop} 作为真跨 backend 通用最小集.
+    Cursor v0.12.2+ 用 beforeSubmitPrompt → user_prompt_submit 作每 turn 注入;
+    session_start 仍是 session 起手 baseline. 用 {pre, post, stop} 作跨 backend 最小集.
 
     v0.4.28: Claude Code 额外有 session_start wrapper, v0.12.0 Cursor 也用 session_start.
     """
@@ -254,14 +252,12 @@ def test_cursor_event_names_are_camelcase(fake_home):
     assert "SessionStart" not in events
 
 
-def test_cursor_has_no_user_prompt_submit_equivalent(fake_home):
-    """Cursor 协议没 UserPromptSubmit 等价 — beforeSubmitPrompt 只能 block
-    不能注入 additional_context. baseline 注入走 sessionStart.
-    """
+def test_cursor_maps_before_submit_to_user_prompt_submit(fake_home):
+    """v0.12.2: beforeSubmitPrompt 复用 user_prompt_submit wrapper (每 turn 注入)."""
     b = CursorBackend()
-    wrappers = set(b.hook_events().values())
-    assert "user_prompt_submit" not in wrappers
-    assert "session_start" in wrappers
+    events = b.hook_events()
+    assert events.get("beforeSubmitPrompt") == "user_prompt_submit"
+    assert "session_start" in events.values()
 
 
 def test_cursor_event_entry_native_flat_command(fake_home):
@@ -312,9 +308,7 @@ def test_cursor_emit_allow_top_level_permission_shape():
 
 
 def test_cursor_emit_context_injection_snake_case_key():
-    """Cursor sessionStart / postToolUse 用 snake_case `additional_context`,
-    不是 Claude camelCase `additionalContext`.
-    """
+    """Cursor sessionStart / postToolUse 用 snake_case `additional_context`."""
     import json as _json
     b = CursorBackend()
     out = _json.loads(b.emit_context_injection(
@@ -323,6 +317,19 @@ def test_cursor_emit_context_injection_snake_case_key():
     assert out == {"additional_context": "you are sticky baseline"}
     assert "additionalContext" not in out
     assert "hookSpecificOutput" not in out
+
+
+def test_cursor_emit_context_injection_before_submit_nested():
+    """beforeSubmitPrompt 走 third-party nested additionalContext; 空则 continue."""
+    import json as _json
+    b = CursorBackend()
+    empty = _json.loads(b.emit_context_injection("beforeSubmitPrompt", "", {}))
+    assert empty == {"continue": True}
+    nested = _json.loads(b.emit_context_injection(
+        "beforeSubmitPrompt", "anchor text", {},
+    ))
+    assert nested["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+    assert nested["hookSpecificOutput"]["additionalContext"] == "anchor text"
 
 
 def test_cursor_emit_stop_followup_message_not_decision_block():

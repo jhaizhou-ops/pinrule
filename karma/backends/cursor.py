@@ -9,13 +9,13 @@ Cursor 1.7+ (2025-10 release) 引入 hooks 协议, 字段 schema 跟 Claude Code
 
 跟 Claude Code / Codex / Gemini 的关键差异:
 
-① **没有 UserPromptSubmit 等价 hook**. Cursor `beforeSubmitPrompt` 只能 `{"continue":
-   false}` 阻断提交, **不允许注入 additional_context**. karma 通过 `sessionStart`
-   一次注入 sticky baseline (跟 Claude Code v0.4.28 SessionStart 模式同) + `postToolUse`
-   中段重注入抗稀释 (跟 Claude PostToolUse byte_seq 同) 来替代 every-turn header inject
-   能力. 实测含义: Cursor 用户每个 user message header **不会**重出现 sticky rules,
-   但 sessionStart `additional_context` 在 prompt cache + system message 里每 turn 都
-   读得到, 跟 CLAUDE.md / .cursorrules 同等效.
+① **每 turn 注入走 `beforeSubmitPrompt` → `user_prompt_submit`**. Cursor 官方
+   schema 只文档化 `continue` / `user_message`, 但 third-party hooks 文档确认
+   Claude `UserPromptSubmit` 映射到 `beforeSubmitPrompt` 且 **nested
+   `hookSpecificOutput.additionalContext` 可用**. karma v0.12.2+ 装此 hook +
+   `emit_context_injection` 对 beforeSubmitPrompt 走 nested shape. 另同步
+   `~/.cursor/rules/karma-sticky.mdc` (`alwaysApply`) 作模型起手可见的保险层
+   (dogfood: hook sessionStart stdout 有、模型起手自检无; Cursor Rules 起手有).
 
 ② **stdin payload 用 `conversation_id` 不是 `session_id`**. v0.12.1 起
    `karma.hooks._payload.extract_session_id` 做 `session_id → conversation_id`
@@ -67,11 +67,11 @@ class CursorBackend(JsonHooksBackend):
     # 套用 Claude Code 的 PascalCase. wrapper basename 保持 karma 内部规范让
     # hook 入口模块 (karma/hooks/*.py) 跨 backend 完全复用.
     #
-    # **协议级缺失**: 没有 UserPromptSubmit 等价 — beforeSubmitPrompt 只能 block
-    # 不能注入 additional_context. karma 走 sessionStart 一次注入 + postToolUse
-    # 中段重注入两路替代 (参考 v0.4.28 Claude Code SessionStart 模式).
+    # beforeSubmitPrompt → user_prompt_submit: Cursor 每 user turn 等价 Claude
+    # UserPromptSubmit (turn 推进 + anchor 注入). sessionStart/postToolUse/stop 同前.
     _HOOK_EVENTS: dict[str, str] = {
         "sessionStart": "session_start",
+        "beforeSubmitPrompt": "user_prompt_submit",
         "preToolUse": "pre_tool_use",
         "postToolUse": "post_tool_use",
         "stop": "stop",
@@ -102,6 +102,17 @@ class CursorBackend(JsonHooksBackend):
         data.setdefault("version", 1)
         super().save_settings(data)
 
+    def post_install_setup(self) -> list[str]:
+        """Install 后同步 Cursor native rules + 提示 reload."""
+        from karma.cursor_rules_sync import sync_cursor_rules
+
+        _written, logs = sync_cursor_rules(user=True)
+        logs.append(
+            "  → 改 rules 后跑 `karma sync-cursor-rules` 刷新 .mdc;"
+            " Reload Cursor window 让 hooks.json 生效."
+        )
+        return logs
+
     def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
         """Cursor tool_name 归一化 — Shell → Bash."""
         return _CURSOR_TOOL_MAP.get(raw_tool_name, raw_tool_name)
@@ -129,14 +140,22 @@ class CursorBackend(JsonHooksBackend):
     def emit_context_injection(
         self, event_name: str, additional_context: str, payload: dict,
     ) -> str:
-        """Cursor sessionStart / postToolUse 用 snake_case `additional_context`
-        (Claude Code 是 camelCase `additionalContext`).
+        """Cursor context injection — event-specific output shape.
 
-        sessionStart 文档 schema: `{"env": {...}, "additional_context": "..."}`
-        postToolUse 文档 schema: `{"updated_mcp_tool_output": {...}, "additional_context": "..."}`
-
-        两个 event 都用同 key, 直接顶层返不需要 hookSpecificOutput envelope.
+        - sessionStart / postToolUse: native `additional_context` (snake_case).
+        - beforeSubmitPrompt: third-party nested `hookSpecificOutput` (Claude
+          UserPromptSubmit 映射); empty → `{"continue": true}` per native schema.
         """
+        text = (additional_context or "").strip()
+        if event_name == "beforeSubmitPrompt":
+            if not text:
+                return json.dumps({"continue": True})
+            return json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": additional_context,
+                }
+            }, ensure_ascii=False)
         return json.dumps({"additional_context": additional_context}, ensure_ascii=False)
 
     def emit_stop_block(self, reason: str, payload: dict) -> str:

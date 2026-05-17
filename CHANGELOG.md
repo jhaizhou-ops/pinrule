@@ -10,6 +10,22 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-05-17 (patch — Cursor dogfood follow-ups: beforeSubmitPrompt mapping + transcript requirement)
+
+Two Cursor desktop Agent dogfood follow-ups landed in this patch.
+
+### Cursor `beforeSubmitPrompt` reused as UserPromptSubmit equivalent
+
+v0.12.0 docstring claimed Cursor "has no UserPromptSubmit equivalent — `beforeSubmitPrompt` can only block, not inject `additional_context`". Cursor desktop Agent dogfood **proved this wrong**: Cursor's `beforeSubmitPrompt` does accept `additional_context` output and behaves as a per-turn injection point. `_HOOK_EVENTS` now maps `beforeSubmitPrompt → user_prompt_submit` so karma's per-turn anchor (v0.13.0: only violated rules) reaches Cursor too.
+
+This restores Cursor parity with Claude Code / Codex / Gemini on per-turn rule visibility — no longer a Cursor-specific limitation.
+
+### `post_install_message` flags response-level check transcript requirement
+
+Cursor `stop` hook minimal stdin is `{status, loop_count}` only — no assistant text. karma response-level checks (`keep_pushing_no_stop` / `chinese_plain_no_jargon` / `long_term_response_level` / `loud_failure_with_evidence`) need last assistant message, so they silently passthrough without `transcript_path`.
+
+Code path was already graceful (no crash, no false fire) — gap was honest user communication. `cursor.py:post_install_message` now prints a loud block telling Cursor users: enable transcripts in Cursor Settings → Agent to make response-level checks work; without transcripts only pre-tool intercept / sticky injection / context refresh main features run.
+
 ## [0.13.0] — 2026-05-17 (minor — anchor optimization, ~10× token cost reduction)
 
 **User-visible**: karma token cost drops from **10-15% of API input** (v0.12.x) to **1-3%** in typical engineering sessions; long-session context window occupation from 25% to ~5-10%. The optimization is real-cost — anchor token savings carry through Anthropic prompt caching at 10% rate as well.
