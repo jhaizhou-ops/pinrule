@@ -27,9 +27,10 @@ def cursor_rules_dir(user: bool = True, project_root: Path | None = None) -> Pat
     return None
 
 
-def build_mdc_content(rule_text: str) -> str:
+def build_mdc_content(rule_text: str, *, id_catalog: str = "") -> str:
     """Wrap karma injection text as Cursor always-on rule file."""
-    body = rule_text.strip()
+    parts = [p.strip() for p in (id_catalog, rule_text) if p and p.strip()]
+    body = "\n\n".join(parts)
     if not body:
         return ""
     return (
@@ -48,7 +49,12 @@ def sync_cursor_rules(
     project_root: Path | None = None,
 ) -> tuple[list[Path], list[str]]:
     """Write karma rules to Cursor `.mdc` file(s). Returns (paths_written, log_lines)."""
-    from karma.rule import RuleConfigError, format_for_injection, load
+    from karma.rule import (
+        RuleConfigError,
+        format_for_injection,
+        format_rule_id_catalog,
+        load,
+    )
 
     logs: list[str] = []
     written: list[Path] = []
@@ -62,7 +68,8 @@ def sync_cursor_rules(
         return [], ["⚠ 跳过 Cursor rules 同步: rules 为空"]
 
     rule_text = format_for_injection(sticky_list)
-    mdc = build_mdc_content(rule_text)
+    catalog = format_rule_id_catalog(sticky_list)
+    mdc = build_mdc_content(rule_text, id_catalog=catalog)
     if not mdc:
         return [], ["⚠ 跳过 Cursor rules 同步: 渲染结果为空"]
 

@@ -29,6 +29,6 @@ def test_sync_cursor_rules_writes_user_dir(monkeypatch, tmp_path):
     assert written[0].name == "karma-sticky.mdc"
     assert written[0].parent == rules_dir
     content = written[0].read_text(encoding="utf-8")
-    assert "test-rule" not in content  # format_for_injection uses preference text not id
+    assert "`test-rule`" in content
     assert "Do the right thing." in content
     assert any("同步 Cursor rule" in line for line in logs)

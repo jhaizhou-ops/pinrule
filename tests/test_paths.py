@@ -26,12 +26,13 @@ def _spawn_karma_check(env_override: dict[str, str], code: str) -> str:
 
 
 def test_karma_home_default_when_env_not_set():
-    """没 KARMA_HOME env → 默认 ~/.claude/karma/。"""
+    """没 KARMA_HOME env → 默认 ~/.karma/（v0.14.0 共享目录）。"""
     out = _spawn_karma_check(
-        {"KARMA_HOME": ""},  # 显式清空，子进程读不到
+        {},
+        "import os; os.environ.pop('KARMA_HOME', None); "
         "from karma.paths import karma_home; print(karma_home())",
     )
-    assert out.endswith(".claude/karma"), f"默认应该是 ~/.claude/karma/，实际: {out!r}"
+    assert out.endswith(".karma"), f"默认应该是 ~/.karma/，实际: {out!r}"
 
 
 def test_karma_home_override_via_env():

@@ -382,5 +382,6 @@ def test_rules_yaml_now_in_state_path_set():
     """v0.6.0 BREAKING 把 sticky.yaml 改名 rules.yaml — bypass 检测要拦两者。"""
     from karma.checks.bypass_karma import _build_state_path_re
     pat = _build_state_path_re()
+    assert pat.search("echo '...' > ~/.karma/rules.yaml")
     assert pat.search("echo '...' > ~/.claude/karma/rules.yaml")
     assert pat.search("echo '...' > ~/.claude/karma/sticky.yaml"), "兼容老用户路径"

@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-05-17（minor — 共享 `~/.karma` + Cursor 原生能力收口）
+
+### 共享规则库（各端共用）
+
+- 默认 `KARMA_HOME` 改为 `~/.karma/`（与客户端无关）。Claude / Cursor / Codex hooks 读同一份 `rules.yaml`，避免 `~/.cursor/karma` 与 `~/.claude/karma` 双源注入。
+- `karma init` 在 `~/.karma` 为空时，从 `~/.claude/karma/` 自动迁移。
+- `karma doctor` 检测仍存在的 legacy 第二份 `rules.yaml` 并告警。
+- 去掉 Cursor wrapper 里写死的 `KARMA_HOME=~/.cursor/karma`。
+
+### Cursor 原生支持（v0.14 功能收口）
+
+- **12 个 hook 事件**：含 `beforeShellExecution` / `beforeMCPExecution` / `beforeReadFile` / `afterAgentResponse` 等。
+- 共享 `_tool_gate.py`；`beforeMCPExecution` 拦截长 `Await`。
+- `karma sync-cursor-visibility`：写入 `karma-rules-catalog` skill + `.mdc`（Composer 常不把 hook stdout 放进 `<rules>`）。
+- `format_for_injection` 每行带 `[rule-id]`；Cursor 每轮 `beforeSubmitPrompt` 注入 id 目录。
+- `python -m karma`；`scripts/cursor-install-local.sh` 一键装机。
+
 ## [0.13.6] — 2026-05-17（patch — Cursor 与 Claude 功能对齐）
 
 ### Cursor 功能对齐 (不只注册 hook)

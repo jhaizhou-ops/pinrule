@@ -209,6 +209,96 @@ def _handle_keep_pushing_block(
     return True
 
 
+def audit_agent_response(
+    payload: dict,
+    response: str,
+    last_user_prompt: str = "",
+    *,
+    allow_stop_interventions: bool = True,
+) -> int:
+    """Response-level checks — shared by Stop and Cursor afterAgentResponse."""
+    from karma.hooks._payload import extract_session_id, extract_subagent_id
+    session_id = extract_session_id(payload)
+    agent_id = extract_subagent_id(payload) or None
+
+    try:
+        sticky_list = load()
+    except RuleConfigError as e:
+        print(f"karma: {e}", file=sys.stderr)
+        return 0
+
+    if not sticky_list or not (response or "").strip():
+        return 0
+
+    try:
+        state, _ = session_state.update_state(
+            session_id,
+            lambda s: s.catchup_pending_bg(),
+            agent_id=agent_id,
+        )
+    except Exception as e:
+        print(
+            f"karma response audit: catchup_pending_bg 失败 fallback ({e})",
+            file=sys.stderr,
+        )
+        state = session_state.load(session_id, agent_id=agent_id)
+
+    check_hits = []
+    for s in sticky_list:
+        if not s.violation_checks:
+            continue
+        hits = run_checks(
+            s.violation_checks,
+            response=response,
+            user_prompt=last_user_prompt,
+            session_state=state,
+            rule_id=s.id,
+        )
+        check_hits.extend(hits)
+
+    keyword_violations = detect(
+        response, sticky_list, session_id=session_id,
+        turn=state.turn_count, agent_id=agent_id,
+    )
+
+    if not check_hits and not keyword_violations:
+        return 0
+
+    all_records: list[Violation] = []
+    for h in check_hits:
+        all_records.append(Violation(
+            ts=int(time.time()), session_id=session_id, rule_id=h.rule_id,
+            trigger=h.trigger, snippet=h.snippet, turn=state.turn_count,
+            agent_id=agent_id,
+            trigger_key=h.trigger_key,
+        ))
+    seen_ids = {h.rule_id for h in check_hits}
+    for v in keyword_violations:
+        if v.rule_id not in seen_ids:
+            all_records.append(v)
+    if all_records:
+        append(all_records)
+
+    hit_sticky_ids = {h.rule_id for h in check_hits} | {
+        v.rule_id for v in keyword_violations if v.rule_id not in seen_ids
+    }
+
+    _emit_notifications(
+        check_hits, keyword_violations, seen_ids, hit_sticky_ids, state, session_id,
+    )
+
+    if not allow_stop_interventions:
+        return 0
+
+    if _handle_force_block(state, sticky_list, hit_sticky_ids, session_id, payload):
+        return 0
+
+    if _handle_keep_pushing_block(check_hits, keyword_violations, state, payload):
+        return 0
+
+    return 0
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -251,101 +341,13 @@ def main() -> int:
         or _read_last_user_prompt(payload.get("transcript_path", ""))
     )
 
-    try:
-        sticky_list = load()
-    except RuleConfigError as e:
-        print(f"karma: {e}", file=sys.stderr)
+    if not response:
         print(json.dumps({}))
         return 0
 
-    if not sticky_list or not response:
-        print(json.dumps({}))
-        return 0
-
-    # v0.4.34 子 Agent 独立架构：agent_id 路由到独立 state（Stop hook 也支持 agent_id）
-    agent_id = extract_subagent_id(payload) or None
-    # v0.10.5 (Agent 1 F1.2 fix): Stop hook 跟 Pre/PostToolUse / UserPromptSubmit
-    # 一样要 catchup_pending_bg — 之前 stop.py 漏这一步, 让最后一个 PostToolUse
-    # 之后才完成的 bg pytest (启动: `pytest tests/ > /tmp/log &`) last_test_pass_ts
-    # 不推 → evidence check 看 has_recent_test_pass()=False → 完成词被错算
-    # loud-failure 拦. 同 v0.9.13 C1 family (load+modify+save 路径).
-    # 套 try/except 跟 pre_tool_use 一致, 失败 fallback 裸 load 不阻塞 Stop hook.
-    try:
-        state, _ = session_state.update_state(
-            session_id,
-            lambda s: s.catchup_pending_bg(),
-            agent_id=agent_id,
-        )
-    except Exception as e:
-        print(f"karma Stop: catchup_pending_bg 失败 fallback 裸 load ({e})", file=sys.stderr)
-        state = session_state.load(session_id, agent_id=agent_id)
-
-    check_hits = []
-    for s in sticky_list:
-        if not s.violation_checks:
-            continue
-        hits = run_checks(
-            s.violation_checks,
-            response=response,
-            user_prompt=last_user_prompt,
-            session_state=state,
-            rule_id=s.id,
-        )
-        check_hits.extend(hits)
-
-    keyword_violations = detect(
-        response, sticky_list, session_id=session_id,
-        turn=state.turn_count, agent_id=agent_id,
+    audit_agent_response(
+        payload, response, last_user_prompt, allow_stop_interventions=True,
     )
-
-    if not check_hits and not keyword_violations:
-        print(json.dumps({}))
-        return 0
-
-    # 写违反
-    all_records: list[Violation] = []
-    for h in check_hits:
-        all_records.append(Violation(
-            ts=int(time.time()), session_id=session_id, rule_id=h.rule_id,
-            trigger=h.trigger, snippet=h.snippet, turn=state.turn_count,
-            agent_id=agent_id,
-            trigger_key=h.trigger_key,  # v0.5.7: locale-agnostic 分组 key
-        ))
-    seen_ids = {h.rule_id for h in check_hits}
-    for v in keyword_violations:
-        if v.rule_id not in seen_ids:
-            all_records.append(v)
-    if all_records:
-        append(all_records)
-
-    # 当前 turn 触发的 rule_id 集合 — 用于 force_block 原因 fix:
-    # 只惩罚「当前 turn 触发 + 历史累积超阈值」的规则；fix 原因后不再触发
-    # 不该被历史累积反复 force_block (否则 Agent 没法靠「修根因」解除卡死)
-    hit_sticky_ids = {h.rule_id for h in check_hits} | {
-        v.rule_id for v in keyword_violations if v.rule_id not in seen_ids
-    }
-
-    # stderr ⚠️ 通知 + 桌面通知 + 累积告警升级 (拆 helper: v0.8.3)
-    _emit_notifications(
-        check_hits, keyword_violations, seen_ids, hit_sticky_ids, state, session_id,
-    )
-
-    # 机制 1: 累积强制 block — 累积违反超阈值 → decision=block 强制查根因
-    if _handle_force_block(state, sticky_list, hit_sticky_ids, session_id, payload):
-        return 0
-
-    # 机制 2: keep-pushing 干预 — Agent 沉默式停下时让继续生成
-    if _handle_keep_pushing_block(check_hits, keyword_violations, state, payload):
-        return 0
-
-    # 2026-05-15 原因 fix：Stop hook 协议**不支持 hookSpecificOutput**
-    # （schema 仅 PreToolUse / UserPromptSubmit / PostToolUse / PostToolBatch 支持）
-    # 之前 v0.4.x 输出 hookSpecificOutput.additionalContext → 被 Claude Code
-    # 报「Expected schema」错误日志，且 Agent 看不到（Stop 后已停）。
-    #
-    # 摘要已通过 stderr ⚠️ 通知（第 178 行）+ violations.jsonl 落盘 + 桌面通知 +
-    # 下次 UserPromptSubmit sticky 注入的偏离标记 — 不需要 Stop hook 再 echo
-    # 一遍违反摘要。无干预原因 → passthrough。
     print(json.dumps({}))
     return 0
 

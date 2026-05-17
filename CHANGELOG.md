@@ -10,6 +10,23 @@ Documents karma's important version changes. Versioning follows [SemVer](https:/
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-05-17 (minor — shared `~/.karma` home + Cursor native surface)
+
+### Shared rules library (all backends)
+
+- Default `KARMA_HOME` is now `~/.karma/` (client-neutral). Claude / Cursor / Codex hooks all read the same `rules.yaml` — no more split `~/.cursor/karma` vs `~/.claude/karma` dual-injection hazard.
+- `karma init` migrates existing `~/.claude/karma/` → `~/.karma/` when the new directory is empty.
+- `karma doctor` warns if legacy `~/.claude/karma` or `~/.cursor/karma` still has a separate `rules.yaml`.
+- Removed Cursor-only `KARMA_HOME=~/.cursor/karma` from hook wrappers.
+
+### Cursor native support (feature-complete for v0.14)
+
+- **12 hook events**: `beforeSubmitPrompt`, `sessionStart`, `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeMCPExecution`, `beforeReadFile`, `afterAgentResponse`, `stop`, `preCompact`, `subagentStart`, `subagentStop`.
+- Shared tool gate (`_tool_gate.py`) for `preToolUse` / shell / MCP paths; blocks long `Await` via `beforeMCPExecution`.
+- `karma sync-cursor-visibility`: `~/.claude/skills/karma-rules-catalog/` + `.mdc` rules (Composer often does not surface hook stdout in `<rules>`).
+- `format_for_injection` prefixes each line with `[rule-id]`; Cursor `beforeSubmitPrompt` injects id catalog every turn.
+- `python -m karma` entrypoint; `scripts/cursor-install-local.sh` one-shot install.
+
 ## [0.13.6] — 2026-05-17 (patch — Cursor functional parity with Claude)
 
 ### Cursor functional parity (not just hook registration)

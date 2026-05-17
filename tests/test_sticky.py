@@ -148,9 +148,9 @@ def test_format_for_injection_basic() -> None:
     # 2026-05-15 重写：合作默契语气取代「规则系统」包装
     assert "[karma" in out
     assert "默契" in out  # 头部合作语气关键字
-    assert "1. 方向 1" in out
+    assert "1. [r1] 方向 1" in out
     assert "   细节" in out  # 多行缩进
-    assert "2. 方向 2" in out
+    assert "2. [r2] 方向 2" in out
 
 
 def test_format_for_injection_marks_recent_violation() -> None:
