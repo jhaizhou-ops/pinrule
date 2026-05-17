@@ -65,19 +65,28 @@ class JsonHooksBackend:
     _HOOK_EVENTS: dict[str, str] = {}
 
     def client_installed(self) -> bool:
-        """检测客户端：命令在 PATH 或 ~/<config_dir> 存在。"""
+        """检测客户端：命令在 PATH 或 <install_root>/<config_dir> 存在。
+
+        v0.16.11: install_root 走 pinrule_install_root() — PINRULE_HOME 设了时
+        真 sandbox 检测 sandbox 内 dir 而不是用户主目录 (避免 sandbox 模式下
+        误以为客户端没装).
+        """
+        from pinrule.paths import pinrule_install_root
         if self._CLIENT_CMD and shutil.which(self._CLIENT_CMD):
             return True
-        return (Path.home() / self._CONFIG_DIR_NAME).exists()
+        return (pinrule_install_root() / self._CONFIG_DIR_NAME).exists()
 
     def hooks_dir(self) -> Path:
-        return Path.home() / self._CONFIG_DIR_NAME / "hooks"
+        from pinrule.paths import pinrule_install_root
+        return pinrule_install_root() / self._CONFIG_DIR_NAME / "hooks"
 
     def settings_path(self) -> Path:
-        return Path.home() / self._CONFIG_DIR_NAME / self._SETTINGS_FILENAME
+        from pinrule.paths import pinrule_install_root
+        return pinrule_install_root() / self._CONFIG_DIR_NAME / self._SETTINGS_FILENAME
 
     def settings_backup_path(self) -> Path:
-        return Path.home() / self._CONFIG_DIR_NAME / f"{self._SETTINGS_FILENAME}.before-pinrule"
+        from pinrule.paths import pinrule_install_root
+        return pinrule_install_root() / self._CONFIG_DIR_NAME / f"{self._SETTINGS_FILENAME}.before-pinrule"
 
     def hook_events(self) -> dict[str, str]:
         return dict(self._HOOK_EVENTS)

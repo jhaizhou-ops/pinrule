@@ -1319,7 +1319,8 @@ def cmd_doctor() -> int:
                 trusted_ok = False
                 try:
                     import tomllib as _tomllib
-                    config_path = Path.home() / ".codex" / "config.toml"
+                    from pinrule.paths import pinrule_install_root as _pir
+                    config_path = _pir() / ".codex" / "config.toml"
                     config = _tomllib.loads(config_path.read_text(encoding="utf-8"))
                     state = config.get("hooks", {}).get("state", {})
                     trusted_ok = bool(trust_entries) and all(

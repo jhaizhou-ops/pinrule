@@ -6,6 +6,23 @@
 
 ## [Unreleased]
 
+## [0.16.11] — 2026-05-17（patch — `PINRULE_HOME` 真 sandbox 隔离）
+
+Round-3 audit P0 finding: `PINRULE_HOME` 之前是**半 sandbox** — 数据 (`rules.yaml` / `violations.jsonl` / `session-state/`) 听 env 隔离了, 但 hook 装机 (`~/.claude/settings.json` / `~/.cursor/hooks.json` / Claude skills / Cursor rules) 还摸真用户主目录. 朋友设 `PINRULE_HOME=/tmp/foo` 想干净试一下, 结果 pinrule 偷偷动了 `~/.cursor/rules/pinrule-sticky.mdc` 等真生产文件.
+
+修法: paths.py 新加 `pinrule_install_root()` helper:
+- 没设 `PINRULE_HOME` → `Path.home()` (production 行为 100% 不变)
+- 设了 `PINRULE_HOME` → 该路径作 install root (hook / skill / Cursor rules / Codex trust state 都归在 sandbox 内)
+
+改了 9 处 hardcoded `Path.home()`: `backends/_json_hooks.py` (4 — `client_installed` / `hooks_dir` / `settings_path` / `settings_backup_path`), `backends/claude_code.py` (skill), `backends/codex.py` (3 — trust state config / skill / hooks-feature detection), `cursor_rules_sync.py` (user rules dir), `cursor_visibility.py` (2 — Claude skills catalog / empty-window project rules), `cli.py` (Codex config trust 读).
+
+真测过: `PINRULE_HOME=/tmp/foo` 时 `Claude hooks_dir = /tmp/foo/.claude/hooks` (不是 `~/.claude/hooks`); 没设时 install root = `~/` (不变). 834 tests passing.
+
+解锁场景:
+- **干净试用**: 朋友 `PINRULE_HOME=/tmp/trial pinrule init && pinrule install-hooks` 不动真机器
+- **CI / dry-run**: PR build 完全隔离 pinrule
+- **多 profile**: work / personal 各自 PINRULE_HOME
+
 ## [0.16.10] — 2026-05-17（patch — 再修 4 个 audit finding: trigger_key / catchup loud / unknowncmd / fixture 真 sandbox）
 
 用户问"都修了吗?" 真盘点后还有 4 个 quick win 真该修的, 现在做:

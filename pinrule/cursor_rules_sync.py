@@ -23,7 +23,8 @@ def cursor_rules_dir(user: bool = True, project_root: Path | None = None) -> Pat
     if project_root is not None:
         return (project_root / ".cursor" / "rules").resolve()
     if user:
-        return (Path.home() / ".cursor" / "rules").resolve()
+        from pinrule.paths import pinrule_install_root
+        return (pinrule_install_root() / ".cursor" / "rules").resolve()
     return None
 
 

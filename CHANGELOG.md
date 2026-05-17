@@ -10,6 +10,23 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.11] — 2026-05-17 (patch — `PINRULE_HOME` true sandbox isolation)
+
+Round-3 audit P0 finding: `PINRULE_HOME` was a half-sandbox. Data files (`rules.yaml` / `violations.jsonl` / `session-state/`) honored it, but hook installation (`~/.claude/settings.json` / `~/.cursor/hooks.json` / Claude skills / Cursor rules) still touched the real user home directory. Friends running `PINRULE_HOME=/tmp/foo pinrule init` for a clean test saw pinrule silently modify `~/.cursor/rules/pinrule-sticky.mdc` and other production files.
+
+Fix: new `pinrule_install_root()` helper in `paths.py`:
+- Without `PINRULE_HOME` → `Path.home()` (production behavior unchanged)
+- With `PINRULE_HOME` → that path (everything anchors under it: hooks, skills, Cursor rules, Codex config trust state)
+
+Updated 9 hardcoded `Path.home()` callsites in `backends/_json_hooks.py` (4 — `client_installed` / `hooks_dir` / `settings_path` / `settings_backup_path`), `backends/claude_code.py` (skill), `backends/codex.py` (3 — trust state config / skill / hooks-feature detection), `cursor_rules_sync.py` (user rules dir), `cursor_visibility.py` (2 — Claude skills catalog / empty-window project rules), `cli.py` (Codex config trust read).
+
+Test verified: `PINRULE_HOME=/tmp/foo` makes `Claude hooks_dir = /tmp/foo/.claude/hooks` (not `~/.claude/hooks`); without `PINRULE_HOME`, install root = `~/` (unchanged). 834 tests pass.
+
+Use cases this unblocks:
+- **Clean trial**: friends try pinrule via `PINRULE_HOME=/tmp/trial pinrule init && pinrule install-hooks` without touching real machine state
+- **CI / dry-run**: PR builds isolate pinrule entirely
+- **Multi-profile**: work / personal profiles each in their own `PINRULE_HOME`
+
 ## [0.16.10] — 2026-05-17 (patch — 4 more audit findings: trigger_key / catchup loud / unknowncmd / fixture true sandbox)
 
 Honest check after user asked "都修了吗?": still 4 more audit findings were quick wins worth doing. Now done:

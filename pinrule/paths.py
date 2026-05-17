@@ -27,8 +27,31 @@ SHARED_PINRULE_HOME = Path.home() / ".pinrule"
 
 
 def pinrule_home() -> Path:
-    """pinrule 状态根目录。`PINRULE_HOME` env 可 override；否则 `~/.pinrule/`。"""
+    """pinrule 状态根目录 (data: rules.yaml / violations / session-state).
+
+    `PINRULE_HOME` env 可 override; 否则 `~/.pinrule/`.
+    """
     env = os.environ.get("PINRULE_HOME")
     if env:
         return Path(env).expanduser()
     return SHARED_PINRULE_HOME
+
+
+def pinrule_install_root() -> Path:
+    """install root: hook wrapper / skill / backend settings.json 装哪.
+
+    v0.16.11: 实现真 sandbox — 设 `PINRULE_HOME` 时, hook 装机也归到 sandbox 内,
+    不再偷偷动用户主目录 (round-3 audit 视角 12 #1+#4 真根因 fix).
+
+    - 设了 `PINRULE_HOME=/tmp/foo` → install root = `/tmp/foo/`,
+      backend hooks 装 `/tmp/foo/.claude/hooks/...`, skill 装 `/tmp/foo/.claude/skills/...`
+    - 没设 → install root = `Path.home()`, 老 production 行为 100% 不变
+
+    跟 `pinrule_home()` 区别: `pinrule_home()` 是数据 dir (default ~/.pinrule/),
+    `pinrule_install_root()` 是装机 root (default ~/). 没设 PINRULE_HOME 时
+    两个返不同路径, 设了 PINRULE_HOME 时**两个返同一个根** (整 sandbox).
+    """
+    env = os.environ.get("PINRULE_HOME")
+    if env:
+        return Path(env).expanduser()
+    return Path.home()

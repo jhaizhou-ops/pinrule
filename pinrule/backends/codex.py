@@ -722,7 +722,8 @@ class CodexBackend(JsonHooksBackend):
         If Codex changes the hash algorithm, hooks fall back to "modified" or
         "untrusted" rather than silently trusting arbitrary commands.
         """
-        config_path = Path.home() / ".codex" / "config.toml"
+        from pinrule.paths import pinrule_install_root
+        config_path = pinrule_install_root() / ".codex" / "config.toml"
         trust_entries = self.codex_hook_state_entries(settings)
         if not trust_entries:
             return []
@@ -950,7 +951,8 @@ class CodexBackend(JsonHooksBackend):
         注意路径是 ~/.agents/ 不是 ~/.codex/ — 这是 OpenAI 的设计 (跟 Anthropic 共享
         `.agents/skills/` 命名空间). 触发: /skills menu 或 $skill_name inline 或 auto.
         """
-        return [(Path.home() / ".agents" / "skills" / skill_name / "SKILL.md", "markdown")]
+        from pinrule.paths import pinrule_install_root
+        return [(pinrule_install_root() / ".agents" / "skills" / skill_name / "SKILL.md", "markdown")]
 
     def post_install_message(self) -> list[str]:
         """Codex 0.130+ hook 需要 trusted_hash 才会运行。
@@ -996,7 +998,8 @@ class CodexBackend(JsonHooksBackend):
 
     def _is_hooks_feature_enabled(self) -> bool:
         """读 ~/.codex/config.toml 看 [features] hooks 是不是 true。fail open 当未启用。"""
-        config_path = Path.home() / ".codex" / "config.toml"
+        from pinrule.paths import pinrule_install_root
+        config_path = pinrule_install_root() / ".codex" / "config.toml"
         if not config_path.exists():
             return False
         try:

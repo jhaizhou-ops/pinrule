@@ -63,7 +63,8 @@ def sync_claude_skills_catalog(*, pinrule_home: Path | None = None) -> tuple[Pat
         return None, ["⚠ 跳过 skills catalog: rules 为空"]
 
     rule_ids = [r.id for r in sticky]
-    dest_dir = Path.home() / ".claude" / "skills" / _SKILL_DIR
+    from pinrule.paths import pinrule_install_root
+    dest_dir = pinrule_install_root() / ".claude" / "skills" / _SKILL_DIR
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / _SKILL_FILENAME
     dest.write_text(
@@ -78,7 +79,8 @@ def sync_claude_skills_catalog(*, pinrule_home: Path | None = None) -> tuple[Pat
 def sync_empty_window_project_rules(mdc_content: str) -> list[str]:
     """Write rules into Cursor virtual workspace storage (empty-window dogfood)."""
     logs: list[str] = []
-    base = Path.home() / ".cursor" / "projects" / "empty-window" / ".cursor" / "rules"
+    from pinrule.paths import pinrule_install_root
+    base = pinrule_install_root() / ".cursor" / "projects" / "empty-window" / ".cursor" / "rules"
     try:
         base.mkdir(parents=True, exist_ok=True)
         dest = base / "pinrule-sticky.mdc"
