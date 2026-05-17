@@ -6,6 +6,22 @@
 
 ## [Unreleased]
 
+## [0.16.5] — 2026-05-17（patch — 修 #12: karma daemon / pyc / CLI 入口 升级残留）
+
+[Issue #12 by @fyn1320068837-source](https://github.com/jhaizhou-ops/pinrule/issues/12) — rename 后第一个社区 bug. v0.15→v0.16 rename 删了源码但留下:
+1. 跑着的 `karma.daemon.server` 进程 (通过 `__pycache__/*.pyc` 续命)
+2. `.venv/bin/karma` 老 CLI entry (`ModuleNotFoundError`)
+3. `src/karma/__pycache__/*.pyc` 孤儿 .pyc
+4. `~/.karma/daemon.{err,log,sock}` daemon 产物 — `daemon.err` reporter 机器涨到 24MB. 因为老 daemon `Path("")` cwd 兜底解析到 `/`, 写 `/.karma` (macOS root 只读) 持续报 OSError.
+
+Fix: 新 `_cleanup_legacy_karma()` 在 `pinrule init` 跟 `pinrule install-hooks` 起手跑. idempotent:
+- `pgrep -f karma.daemon.server` → `kill -9` 老 daemon
+- 删 `.venv/bin/karma` 老 entry
+- 删 `src/karma/` 孤儿源码目录 (若存在)
+- 提示 `~/.karma/daemon.*` 残留 (不擅自删 — 可能含历史 violation 数据)
+
+dev 机器模拟坏状态 (`echo > .venv/bin/karma`) 真测 cleanup 真清掉. 834 tests 仍全过.
+
 ## [0.16.4] — 2026-05-17（patch — demo SVG 真内容修 + release-finalize PyPI verify）
 
 用户反馈 demo SVG 速度修了但还有**真内容 silent failure**:

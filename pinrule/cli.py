@@ -195,6 +195,72 @@ def cmd_install_skill(force: bool = False, backend: str | None = None) -> int:
     return 0
 
 
+def _cleanup_legacy_karma() -> None:
+    """清掉 v0.15→v0.16 rename 残留 — 老 karma daemon / .pyc / 旧 CLI entry.
+
+    Issue #12 真根因 (fyn1320068837-source 报): v0.16 rename karma→pinrule 时:
+    1. 旧 `karma.daemon.server` 进程通过 .pyc 继续跑
+    2. `.venv/bin/karma` 老 entry 还在但 import karma 已 broken
+    3. `src/karma/__pycache__/*.pyc` 残留让 daemon 重启也能跑
+    4. `~/.karma/daemon.{sock,err,log}` 持续被写, daemon.err 24MB
+
+    这个函数 idempotent: 每次 init / install-hooks 起手自动跑, 检测到才提示 + 清.
+    """
+    import subprocess
+
+    actions = []
+
+    # 1) 检测 + kill 老 karma daemon 进程
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "karma.daemon.server"],
+            capture_output=True, text=True, timeout=2,
+        )
+        pids = [p for p in result.stdout.strip().split() if p]
+        for pid in pids:
+            try:
+                subprocess.run(["kill", "-9", pid], timeout=2, check=False)
+                actions.append(f"  ✓ 杀掉老 karma daemon (PID {pid})")
+            except Exception:
+                actions.append(f"  ⚠ 老 karma daemon (PID {pid}) 杀不掉, 手动 `kill -9 {pid}`")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass  # pgrep 缺 / 超时 — 跳过
+
+    # 2) 删 .venv/bin/karma 老 entry (新 entry 是 pinrule)
+    legacy_entry = Path(sys.prefix) / "bin" / "karma"
+    if legacy_entry.exists():
+        try:
+            legacy_entry.unlink()
+            actions.append(f"  ✓ 删老 CLI entry: {legacy_entry}")
+        except OSError:
+            actions.append(f"  ⚠ 老 entry {legacy_entry} 删不掉, 手动 `rm {legacy_entry}`")
+
+    # 3) 删 src 树外的 karma 残留 __pycache__/*.pyc (现仓的 pinrule/__pycache__/bypass_karma.cpython-*.pyc 保留 — 它属 pinrule 不是老 karma)
+    repo_root = Path(__file__).resolve().parent.parent
+    src_karma = repo_root / "src" / "karma"
+    if src_karma.exists():
+        try:
+            import shutil
+            shutil.rmtree(src_karma)
+            actions.append(f"  ✓ 删老源码残留: {src_karma}")
+        except OSError as e:
+            actions.append(f"  ⚠ {src_karma} 删不掉: {e}")
+
+    # 4) 提示 ~/.karma daemon 产物 (不擅自删, 让 user 决定 — 可能含历史 violations)
+    home_karma = Path.home() / ".karma"
+    daemon_files = list(home_karma.glob("daemon.*")) if home_karma.exists() else []
+    if daemon_files:
+        actions.append(
+            f"  ⚠ ~/.karma/ 还有 {len(daemon_files)} 个 daemon.* 文件 (老 daemon 残留产物);"
+            f" 老 daemon 已 kill, 现在安全 rm: `rm ~/.karma/daemon.*`"
+        )
+
+    if actions:
+        print("\n→ 检测到 karma → pinrule 升级残留, 清理:")
+        for line in actions:
+            print(line)
+
+
 def cmd_init(minimal: bool | None = None) -> int:
     """创建 ~/.claude/pinrule/ + 复制 sticky 模板 + config 模板。
 
@@ -205,6 +271,7 @@ def cmd_init(minimal: bool | None = None) -> int:
     跨平台检测见 `pinrule/locale_detect.py`（macOS 用 defaults read AppleLanguages,
     Linux 用 $LANG / $LC_ALL）。跟 VS Code / Slack 等 app 安装时自动选语言做法一致。
     """
+    _cleanup_legacy_karma()  # v0.16.5+: kill 老 daemon + 删 src/karma + .venv/bin/karma
     PINRULE_DIR.mkdir(parents=True, exist_ok=True)
 
     auto_chose = ""
@@ -1381,6 +1448,7 @@ def cmd_install_hooks(backend_name: str = "all") -> int:
       - "codex": 只装 Codex
       - "cursor": 只装 Cursor
     """
+    _cleanup_legacy_karma()  # v0.16.5+: 双保险 (user 跳过 init 直接 install-hooks 时也 cleanup)
     from pinrule.backends import REGISTRY, detect_installed_backends
 
     if backend_name == "all":

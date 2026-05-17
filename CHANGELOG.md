@@ -10,6 +10,22 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.5] — 2026-05-17 (patch — fix #12 karma daemon / pyc / CLI-entry migration residue)
+
+[Issue #12 by @fyn1320068837-source](https://github.com/jhaizhou-ops/pinrule/issues/12) — first community bug report after rename. v0.15→v0.16 rename deleted the source tree but left behind:
+1. Running `karma.daemon.server` processes (kept alive by `.pyc` files in `__pycache__`).
+2. `.venv/bin/karma` legacy CLI entry (now broken with `ModuleNotFoundError`).
+3. `src/karma/__pycache__/*.pyc` orphan compiled files.
+4. `~/.karma/daemon.{err,log,sock}` daemon products — `daemon.err` grew to 24MB at the reporter's machine because the legacy daemon's `Path("")` cwd fallback resolved to `/`, then tried writing `/.karma` (macOS root is read-only).
+
+Fix: new `_cleanup_legacy_karma()` runs at the start of `pinrule init` and `pinrule install-hooks`. Idempotent:
+- `pgrep -f karma.daemon.server` → `kill -9` any running legacy daemon
+- delete `.venv/bin/karma` legacy entry
+- delete `src/karma/` orphan source directory if it exists
+- detect + warn about `~/.karma/daemon.*` residue (don't auto-delete — may contain user history)
+
+Verified by simulating the broken state on dev machine (`echo > .venv/bin/karma`) and confirming the cleanup function detects + removes it. Tests still 834 passing.
+
 ## [0.16.4] — 2026-05-17 (patch — demo SVG real content fixes + release-finalize PyPI verify)
 
 User reported demo SVG had **silent failures** behind the timing fix:
