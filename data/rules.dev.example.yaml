@@ -9,9 +9,8 @@
 # Cap: 10 rules (over 12 hook refuses to load)
 #
 # ⚠️ Not every rule fits every user — pick by scenario:
-#   - Rule 3 chinese-plain-no-jargon: applies to **Chinese users**. English-native
-#     users should `pinrule rule remove chinese-plain-no-jargon` to avoid persistent
-#     false positives.
+#   - Rule 3 plain-language-no-jargon: cross-user useful (reduce jargon,
+#     first-use example). Drop only if you actively *want* heavy terminology.
 #   - Rule 5 no-testset-no-future-leakage: applies to **ML / data / evaluation**
 #     scenarios. General backend / frontend / tooling development can remove it.
 #   - Other 5 rules (long-term / non-blocking / loud-failure / deep-fix /
@@ -84,20 +83,20 @@
   # must stop and let user intervene" — exempt from cumulative force_block.
   force_block_exempt: true
 
-- id: chinese-plain-no-jargon
+- id: plain-language-no-jargon
   preference: |
-    The user you're collaborating with is non-technical and only reads
-    Chinese — they want comprehensible reports. Replace "precision /
-    supervisor / dispatcher / mutex" with "精度 / 调度器 / 分发器 /
-    互斥锁" so they don't have to look up words.
-    Real technical proper nouns (project names / paper terms / industry
-    acronyms) keep, but add a Chinese short explanation on first occurrence.
-    Use analogies for complex concepts — shows you understand better than
-    stacking jargon.
-  # Note: this rule applies to **Chinese users**. English-native users should
-  # remove this rule via `pinrule rule remove chinese-plain-no-jargon`.
-  # Engine-layer monitoring temporarily off (only header injection reminder);
-  # to enable engine check: add violation_checks: [chinese_plain_no_jargon]
+    Cut the jargon. The user collaborating with you wants reports they can
+    follow without looking things up. Default to plain everyday English.
+    When a technical term genuinely earns its place (project names, paper
+    terms, established industry acronyms), keep it — but on first
+    appearance, follow with a 5-15 word explanation or one concrete example
+    (e.g. "TOCTOU race — read-then-act with no lock, so a second process
+    can sneak in between"). Reach for analogies over stacked terminology;
+    showing you can ground a concept in something familiar tells the user
+    you actually understand it, not just that you've memorized the word.
+  # Engine-layer monitoring is intentionally off for English (writing-style
+  # rules are best as preference-only reminders, not regex enforcement —
+  # see memory `feedback-language-preference-no-engine`).
   violation_keywords: []
   violation_checks: []
 

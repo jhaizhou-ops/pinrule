@@ -10,6 +10,17 @@ Documents pinrule's important version changes. Versioning follows [SemVer](https
 
 ## [Unreleased]
 
+## [0.16.8] — 2026-05-17 (patch — EN rule chinese-plain → plain-language localized)
+
+User feedback follow-up after v0.16.7 bilingual symmetry: "英文的 Chinese-plain 那条可以设置成减少黑话，多用通俗易懂的文字表达，第一次使用的技术语言配一个例子". The English template was still shipping `chinese-plain-no-jargon` literally — a rule about "translate jargon into Chinese" obviously doesn't fit an English user.
+
+EN template now ships **`plain-language-no-jargon`**:
+- Default to plain everyday English; cut unnecessary jargon
+- When a technical term genuinely earns its place, follow it with a 5-15 word explanation or one concrete example on first appearance (e.g. "TOCTOU race — read-then-act with no lock, so a second process can sneak in between")
+- Reach for analogies over stacked terminology
+
+ZH template keeps `chinese-plain-no-jargon` (translate jargon → Chinese 精度 / 调度器 etc.). Both stay preference-only (no engine check) per `feedback-language-preference-no-engine` memory.
+
 ## [0.16.7] — 2026-05-17 (patch — bilingual default symmetry + round-2 fixture sandbox)
 
 ### Bilingual default symmetry

@@ -94,7 +94,9 @@ def test_load_real_example() -> None:
     expected = {
         "long-term-fundamental",
         "non-blocking-parallel",
-        "chinese-plain-no-jargon",
+        # v0.16.8: EN 模板 chinese-plain → plain-language (英文化 "reduce jargon,
+        # first-use example" 等价 rule, 不再要求英文用户 remove). ZH 模板仍叫 chinese-plain.
+        "plain-language-no-jargon",
         "loud-failure-with-evidence",
         "no-testset-no-future-leakage",
         "deep-fix-not-bypass",  # M4 末加 — 监管 Agent 绕开 pinrule 的元层规则
@@ -102,9 +104,9 @@ def test_load_real_example() -> None:
     }
     assert ids == expected
     # 每条原则上都有对应 violation_checks，例外见下
-    # chinese-plain-no-jargon (2026-05-15) 工程监督层用户授权撤掉 —
-    # 保留 preference 文本提醒，不强制工程检测（容易执行 + 犯错代价小）
-    soft_only = {"chinese-plain-no-jargon"}
+    # plain-language-no-jargon (v0.16.8) 工程监督层用户授权撤掉 —
+    # 保留 preference 文本提醒，不强制工程检测 (memory feedback-language-preference-no-engine)
+    soft_only = {"plain-language-no-jargon"}
     for s in sticky:
         if s.id in soft_only:
             continue

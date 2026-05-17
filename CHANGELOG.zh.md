@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.16.8] — 2026-05-17（patch — EN 模板 chinese-plain → plain-language 真本地化）
+
+v0.16.7 双语对称之后用户继续 follow up: "英文的 Chinese-plain 那条可以设置成减少黑话，多用通俗易懂的文字表达，第一次使用的技术语言配一个例子". 之前 EN 模板还字面装 `chinese-plain-no-jargon` — 给英文用户装一条"把黑话翻译成中文"的规则显然不合适.
+
+EN 模板现装 **`plain-language-no-jargon`**:
+- default 用通俗英文, 砍不必要黑话
+- 真该用的技术名词第一次出现配 5-15 字解释或一个具体例子 (例: "TOCTOU race — read-then-act 没锁, 第二个进程能插中间").
+- 用类比, 别堆术语
+
+ZH 模板保留 `chinese-plain-no-jargon` (把黑话翻成中文 精度 / 调度器 等). 两边都 preference-only 不加 engine check (按 memory `feedback-language-preference-no-engine`).
+
 ## [0.16.7] — 2026-05-17（patch — 双语 default 对称 + round-2 fixture sandbox）
 
 ### 双语 default 对称
