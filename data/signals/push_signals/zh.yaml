@@ -1,4 +1,4 @@
-# karma 信号：Agent response 末尾「推进信号」字眼（中文）
+# pinrule 信号：Agent response 末尾「推进信号」字眼（中文）
 # 命中 → 豁免 keep_pushing 反思（Agent 已明确表达下一步计划）
 #
 # 中文 cartesian 结构 (主语 + 副词 + 动词):「我接下来 + 做 X」「立刻 + 开始 Y」

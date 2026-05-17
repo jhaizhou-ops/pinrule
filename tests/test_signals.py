@@ -1,4 +1,4 @@
-"""karma.signals i18n 信号加载器测试 (v0.8.0)。
+"""pinrule.signals i18n 信号加载器测试 (v0.8.0)。
 
 确保:
 1. .txt 文件按目录正确加载 (signal_name → phrases tuple)
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from karma.signals import compile_alternation, load_patterns, load_phrases, reset_cache
+from pinrule.signals import compile_alternation, load_patterns, load_phrases, reset_cache
 
 
 def setup_function():
@@ -230,8 +230,8 @@ def test_completion_words_english_phrases():
 
 def test_completion_words_used_by_evidence_check():
     """v0.8.2 集成: evidence check 用 _COMPLETION_RE 识别完成声称。"""
-    from karma.checks import REGISTRY
-    from karma.session_state import SessionState
+    from pinrule.checks import REGISTRY
+    from pinrule.session_state import SessionState
     fn = REGISTRY["loud_failure_with_evidence"]
     state = SessionState(session_id="s1")
     # 完成词 + 代码 action context + 无证据 → 拦

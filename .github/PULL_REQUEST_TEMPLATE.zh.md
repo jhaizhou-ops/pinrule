@@ -4,12 +4,12 @@
 
 ## 驱动场景
 
-karma 验证标准是「作者 / 用户能讲出 3 个具体案例」— 这个 PR 解决的场景是什么？
+pinrule 验证标准是「作者 / 用户能讲出 3 个具体案例」— 这个 PR 解决的场景是什么？
 
 ## 验证证据
 
 - [ ] 测试全过：`pytest tests/ -q`
-- [ ] 静态检查清干净：`ruff check karma/ tests/ && mypy karma/ tests/ && vulture karma/ --min-confidence 80`
+- [ ] 静态检查清干净：`ruff check pinrule/ tests/ && mypy pinrule/ tests/ && vulture pinrule/ --min-confidence 80`
 - [ ] manual run 验证 hook 行为（如果改了 hook）
 - [ ] 如果加规则模板 / check 函数，加对应测试
 
@@ -23,4 +23,4 @@ karma 验证标准是「作者 / 用户能讲出 3 个具体案例」— 这个 
 ## 相关
 
 - 关联 issue: #
-- 相关版本: （从 `karma --version` 看）
+- 相关版本: （从 `pinrule --version` 看）

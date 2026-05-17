@@ -1,4 +1,4 @@
-# karma signal: user's last prompt contains an explicit "stop" hint (English)
+# pinrule signal: user's last prompt contains an explicit "stop" hint (English)
 # Hit → whole-turn exemption from the keep_pushing reflection nudge
 # (rule #8 exception: user has explicitly said they're done)
 

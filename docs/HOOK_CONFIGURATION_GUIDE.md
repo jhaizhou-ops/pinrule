@@ -1,16 +1,16 @@
-# karma Hook 配置指南
+# pinrule Hook 配置指南
 
-`karma install-hooks` 把 8 个 hook 写进 Claude `~/.claude/settings.json`。本指南说明每个 hook 做什么、什么时候触发、你能看到什么。
+`pinrule install-hooks` 把 8 个 hook 写进 Claude `~/.claude/settings.json`。本指南说明每个 hook 做什么、什么时候触发、你能看到什么。
 
 ## 快速开始
 
 ```bash
-karma init           # 创建 ~/.claude/karma/ + 复制规则模板
-karma install-hooks  # 装 8 个 hook 到 settings.json
-karma doctor         # 验证装机
+pinrule init           # 创建 ~/.claude/pinrule/ + 复制规则模板
+pinrule install-hooks  # 装 8 个 hook 到 settings.json
+pinrule doctor         # 验证装机
 ```
 
-装完重启 Claude，hook 立即生效。规则在 `~/.claude/karma/rules.yaml` — 用 `karma rule edit` 编辑，或 `/karma <自然语言>` 让 skill 替你写。
+装完重启 Claude，hook 立即生效。规则在 `~/.claude/pinrule/rules.yaml` — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
 
 ---
 
@@ -34,13 +34,13 @@ karma doctor         # 验证装机
 ## 配置路径
 
 ```bash
-~/.claude/karma/rules.yaml           # 你的核心方向（手工编辑或 /karma skill）
-~/.claude/karma/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
-~/.claude/karma/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
-~/.claude/karma/session-state/       # 每个 session 一份 json（30 天自动清理）
-~/.claude/karma/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
-~/.claude/hooks/karma_*.py           # 8 个 hook wrapper（karma install-hooks 自动生成）
-~/.claude/settings.json              # Claude 配置（karma 写入 hooks 段）
+~/.claude/pinrule/rules.yaml           # 你的核心方向（手工编辑或 /pinrule skill）
+~/.claude/pinrule/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
+~/.claude/pinrule/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
+~/.claude/pinrule/session-state/       # 每个 session 一份 json（30 天自动清理）
+~/.claude/pinrule/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
+~/.claude/hooks/pinrule_*.py           # 8 个 hook wrapper（pinrule install-hooks 自动生成）
+~/.claude/settings.json              # Claude 配置（pinrule 写入 hooks 段）
 ```
 
 ---
@@ -84,7 +84,7 @@ karma doctor         # 验证装机
 2. **Stop hook** 检测到静默停止 → 输出 `decision=block` + 启发继续提示
 3. Agent 看到提示后接着推进下一步
 4. Safeguard：单 turn 内累积 block ≥ 2 次（`stop_block_max_per_turn` 可调）后让 Agent 停下，防死循环
-5. 任务真饱和时 Agent 明说卡在哪 → karma 不再推
+5. 任务真饱和时 Agent 明说卡在哪 → pinrule 不再推
 
 **结果**：Agent 完成一波后立刻找下个推进点继续，不再「下一步做什么」反复问。
 
@@ -98,12 +98,12 @@ karma doctor         # 验证装机
 - 修 `rules.yaml`（调整规则措辞 / keyword / engine check）
 - 明确告诉 Agent「绕一下先跑」（用户授权的例外）
 
-如果你认为是 karma 误拦（假阳），跑 `karma audit` 看「⚠️ 可能假阳」标记，欢迎提 issue。
+如果你认为是 pinrule 误拦（假阳），跑 `pinrule audit` 看「⚠️ 可能假阳」标记，欢迎提 issue。
 
 ### Q：能关掉某个 hook 吗？
 
 能。两种方式：
-- `karma uninstall-hooks` 拆掉全部
+- `pinrule uninstall-hooks` 拆掉全部
 - 手工编辑 `~/.claude/settings.json`，在 `hooks` 段删 / 注释掉对应 event
 
 但建议先用一周看效果。
@@ -114,7 +114,7 @@ karma doctor         # 验证装机
 
 ### Q：自定义阈值怎么配？
 
-`~/.claude/karma/config.yaml`（不存在时走 `karma/config.py:DEFAULTS`）：
+`~/.claude/pinrule/config.yaml`（不存在时走 `pinrule/config.py:DEFAULTS`）：
 
 ```yaml
 recent_violation_turns: 5         # 偏离标记窗口
@@ -123,7 +123,7 @@ force_block_threshold: 5          # 累积强制查根因阈值
 session_state_max_age_days: 30    # session 状态自动清理周期
 ```
 
-`karma doctor` 会显示当前生效的所有阈值。
+`pinrule doctor` 会显示当前生效的所有阈值。
 
 ---
 

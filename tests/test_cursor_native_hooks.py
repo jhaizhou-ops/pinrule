@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
-from karma.hooks import before_mcp_execution, before_shell_execution
+from pinrule.hooks import before_mcp_execution, before_shell_execution
 
 
 @pytest.fixture
 def empty_rules(monkeypatch):
-    monkeypatch.setattr("karma.hooks._tool_gate.load", lambda: [])
+    monkeypatch.setattr("pinrule.hooks._tool_gate.load", lambda: [])
 
 
 def test_before_shell_execution_adapts_command_to_shell_gate(empty_rules, monkeypatch):
@@ -24,7 +24,7 @@ def test_before_shell_execution_adapts_command_to_shell_gate(empty_rules, monkey
         return 0
 
     monkeypatch.setattr(
-        "karma.hooks.before_shell_execution.run_tool_gate", fake_gate,
+        "pinrule.hooks.before_shell_execution.run_tool_gate", fake_gate,
     )
     stdin = json.dumps({"command": "sleep 60", "cwd": "/tmp", "conversation_id": "c1"})
     with patch("sys.stdin", StringIO(stdin)):
@@ -34,7 +34,7 @@ def test_before_shell_execution_adapts_command_to_shell_gate(empty_rules, monkey
 
 
 def test_before_mcp_execution_blocks_long_await(empty_rules, monkeypatch):
-    monkeypatch.setattr("karma.hooks._tool_gate.load", lambda: [])
+    monkeypatch.setattr("pinrule.hooks._tool_gate.load", lambda: [])
     stdin = json.dumps({
         "tool_name": "Await",
         "tool_input": {"task_id": "x", "block_until_ms": 60000},

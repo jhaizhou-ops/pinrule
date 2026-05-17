@@ -1,10 +1,10 @@
-# karma — 项目协作宪章
+# pinrule — 项目协作宪章
 
 **[🇬🇧 English](./CLAUDE.md) · [🇨🇳 中文（当前）](./CLAUDE.zh.md)**
 
 ## 一句话定位
 
-karma 让用户最看重的几条方向，在 Agent 长任务里不被遗忘。
+pinrule 让用户最看重的几条方向，在 Agent 长任务里不被遗忘。
 
 ## 严格边界（不可破）
 
@@ -22,17 +22,17 @@ karma 让用户最看重的几条方向，在 Agent 长任务里不被遗忘。
 
 ### 1. 不针对当前用户作弊
 
-karma 靠作者自用验证。为了让信号保持诚实，**绝不**为了短期顺手做这些：
+pinrule 靠作者自用验证。为了让信号保持诚实，**绝不**为了短期顺手做这些：
 - 把作者特定的规则写进默认模板
 - 把作者实测的违反词硬编码进 hook
 - 用作者的 session 数据训练任何东西
 
-karma 的所有「默认」必须**跨用户合理** — 在 CLAUDE.md / Anthropic best practice 级别的通用程度上。
+pinrule 的所有「默认」必须**跨用户合理** — 在 CLAUDE.md / Anthropic best practice 级别的通用程度上。
 
 ### 2. 永远从「我作为用户」视角设计
 
 每个改动问自己：
-- 一个第一次装 karma 的用户能 5 分钟上手吗？
+- 一个第一次装 pinrule 的用户能 5 分钟上手吗？
 - yaml 配置直白吗？需要看 docs 才懂吗？
 - 第一次违反检测能让用户「啊原来如此」吗？
 
@@ -40,9 +40,9 @@ karma 的所有「默认」必须**跨用户合理** — 在 CLAUDE.md / Anthrop
 
 ### 3. 验证 > 精度数字
 
-karma v1 沉迷追精度数字（67% 精度等），导致优化方向跑偏。
+pinrule v1 沉迷追精度数字（67% 精度等），导致优化方向跑偏。
 
-karma 的验证标准是**作者自用一周后能不能讲出 3 个具体案例**：
+pinrule 的验证标准是**作者自用一周后能不能讲出 3 个具体案例**：
 - 「某次长任务中我没说话 Agent 自己提醒了 X」
 - 「某次 compact 后 Agent 还记得 Y」
 - 「某次 Agent 想 Z 我看到 ⚠️ 提示就纠正了」
@@ -85,12 +85,12 @@ schema 校验 5-10 条上限 + id 唯一性
 仍需事前确认：
 - `git push --force` / `git reset --hard` 已发布的 commit
 - gh repo archive / settings 修改
-- 数据销毁（`~/.claude/karma/` 清空）
+- 数据销毁（`~/.claude/pinrule/` 清空）
 - 跨仓库改动
 
 ## 失败处理
 
-karma 第一原则是**诚实**：
+pinrule 第一原则是**诚实**：
 
 - hook 没生效 → 明说，不伪装
 - check 漏了真违反 → 记下来，不掩盖

@@ -2,13 +2,58 @@
 
 **[🇬🇧 English (current)](./CHANGELOG.md) · [🇨🇳 中文](./CHANGELOG.zh.md)**
 
-Documents karma's important version changes. Versioning follows [SemVer](https://semver.org/).
+Documents pinrule's important version changes. Versioning follows [SemVer](https://semver.org/).
 
 > 📝 **English changelog status**: historical release notes (v0.1.0 through v0.5.0) are in Chinese-only ([CHANGELOG.zh.md](./CHANGELOG.zh.md)). Releases from v0.5.1 onward publish bilingually in both files.
 >
 > The Chinese version is comprehensive (2300+ lines covering every release's design rationale, root-cause analysis, and "wrong diagnosis lessons"). Backfilling the pre-v0.5.1 English history is a separate documentation effort, not part of the i18n refactor (which is fully complete — see [docs/REFACTOR_PLAN_RULE_AND_I18N.md](./docs/REFACTOR_PLAN_RULE_AND_I18N.md)).
 
 ## [Unreleased]
+
+## [0.16.0] — 2026-05-17 (minor — **renamed karma → pinrule** + fresh brand, no legacy karma carry-over)
+
+### Why rename
+
+karma v1 was designed as a reward/karma scoring system — that's where the name came from. v2 (which is what this repo is) dropped scoring entirely and rebuilt as "sticky directional preferences + enforced hook injection." The name `karma` keeps signaling "there's a reward/RL system here" (CLAUDE.md L26 itself explicitly **rejects** scoring) — name and reality drifted apart.
+
+External 8.8/10 review of v0.15.0 didn't flag the name, but during follow-up `pip install karma` was found to land on `Niels Madan / karma 0.1dev` PyPI squat (not us). Rename to `pinrule` fixes both: ① name and reality 1:1 ("pin sticky rules; Agent obeys"), ② full namespace clean (`pip install pinrule` + `github.com/pinrule` + `pinrule.com` + `pinrule.io` all checked free at 2026-05-17).
+
+### Breaking changes (clean break, no auto-migrate)
+
+- **Python distribution name**: `karma` → `pinrule`. `pip install karma-rules`-style alias **not** shipped — fresh brand only.
+- **Import path**: `import karma` → `import pinrule`.
+- **CLI command**: `karma init` → `pinrule init` (all 16+ subcommands renamed).
+- **Hook wrapper basenames**: `karma_session_start.py` → `pinrule_session_start.py` (etc).
+- **State home directory**: `~/.karma/` → `~/.pinrule/`.
+- **Environment variable**: `KARMA_HOME` → `PINRULE_HOME`.
+- **Engine check**: `bypass_karma` → `bypass_pinrule` (rule yaml `violation_checks:` field).
+- **Legacy migration paths removed**: `~/.claude/karma` / `~/.cursor/karma` auto-migration logic deleted in `paths.py` — v0.16.0 is fresh brand, doesn't inherit karma legacy.
+
+### Migration for existing karma users
+
+```bash
+# 1. Move state directory (if you had ~/.karma/)
+mv ~/.karma ~/.pinrule
+
+# 2. Uninstall karma hooks from each client's settings.json
+karma uninstall-hooks  # (using old karma CLI, before upgrading)
+
+# 3. Reinstall pinrule
+git pull && pip install -e .
+pinrule install-hooks
+```
+
+If you don't have ~/.karma/ yet (fresh install on this machine), just go:
+```bash
+git pull && pip install -e .
+pinrule init && pinrule install-hooks
+```
+
+### Internal
+
+- 155 files renamed via batch script + manual cleanup of corner cases (paths.py legacy logic, test fixtures, bypass detection regex).
+- 834 tests still pass (one trusted_hash test updated since wrapper basename changed → new SHA256).
+- `pinrule/`, `skills/pinrule/`, `tests/test_bypass_pinrule.py` all renamed via `git mv` (history preserved).
 
 ## [0.15.1] — 2026-05-17 (patch — branding consistency + reproducible perf script + backend capability matrix)
 
@@ -27,7 +72,7 @@ External 8.8/10 review (independent friend audit of v0.15.0) flagged 3 polish ga
 - README Performance row links the script for both `Hook latency` and `Token cost` rows.
 
 ### Backend capability matrix
-- README + README.zh.md "Claude / Codex / Cursor native hook support" section now has an 8-row side-by-side capability matrix (hook count / session-start inject / real-time tool gate / Stop intervention / compact resilience / subagent coverage / `/karma <NL>` rule input / visibility fallback).
+- README + README.zh.md "Claude / Codex / Cursor native hook support" section now has an 8-row side-by-side capability matrix (hook count / session-start inject / real-time tool gate / Stop intervention / compact resilience / subagent coverage / `/pinrule <NL>` rule input / visibility fallback).
 - Shows the friend's stated concern — three backends use the strongest native surface each platform offers, not a "Claude protocol forced onto everyone" shape.
 - HOWTO install table no longer repeats "(CLI + desktop both adapted)" — declared once in intro line, omitted thereafter (user preference: don't repeat the same scope qualifier on every mention).
 
@@ -40,64 +85,64 @@ External 8.8/10 review (independent friend audit of v0.15.0) flagged 3 polish ga
 ### Codex native-first support
 
 - Codex backend now declares the released native hook surface from the official Codex hooks docs: `SessionStart`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, `Stop`.
-- `PermissionRequest` is installed and auto-trusted, but karma does **not** become a permission approval system: rule hits return Codex-native `decision.behavior="deny"`; no-hit returns `{}` so Codex keeps its normal approval prompt. This avoids silently auto-approving escalations.
-- `PreToolUse` and `PermissionRequest` share `karma_pre_tool_use.py`; installer UX now shows 6 native events / 5 wrapper files and no longer prints or asks users to inspect the shared wrapper twice.
+- `PermissionRequest` is installed and auto-trusted, but pinrule does **not** become a permission approval system: rule hits return Codex-native `decision.behavior="deny"`; no-hit returns `{}` so Codex keeps its normal approval prompt. This avoids silently auto-approving escalations.
+- `PreToolUse` and `PermissionRequest` share `pinrule_pre_tool_use.py`; installer UX now shows 6 native events / 5 wrapper files and no longer prints or asks users to inspect the shared wrapper twice.
 - Codex native `Bash` payloads now receive the same shell-as-Read / shell-write normalization as legacy `exec_command`, so `tail file.py` records reads and `sed -i file.py` records edits in both Codex CLI and desktop-shaped payloads.
 - Codex native `apply_patch` `tool_input.command` is treated as verified, documented input and no longer emits the old speculative-key warning.
 - Codex context injection is explicit in `CodexBackend`: empty context returns `{}` passthrough; non-empty context uses the documented `hookSpecificOutput.additionalContext` shape. Stop intervention remains native `{"decision":"block","reason":...}`.
 - Auto-trust verification covers all 6 native events in `[hooks.state]`, including `PermissionRequest`, preserving the no-manual-approval onboarding shipped in v0.10.2.
 
-Honest scope: Codex docs still say `PreToolUse` / `PostToolUse` do not intercept all shell calls yet, `WebSearch` is not covered, and main-branch generated schemas may include future fields/events not in the current release. karma only installs the documented release surface.
+Honest scope: Codex docs still say `PreToolUse` / `PostToolUse` do not intercept all shell calls yet, `WebSearch` is not covered, and main-branch generated schemas may include future fields/events not in the current release. pinrule only installs the documented release surface.
 
-## [0.14.0] — 2026-05-17 (minor — shared `~/.karma` home + Cursor native surface)
+## [0.14.0] — 2026-05-17 (minor — shared `~/.pinrule` home + Cursor native surface)
 
 ### Shared rules library (all backends)
 
-- Default `KARMA_HOME` is now `~/.karma/` (client-neutral). Claude / Cursor / Codex hooks all read the same `rules.yaml` — no more split `~/.cursor/karma` vs `~/.claude/karma` dual-injection hazard.
-- `karma init` migrates existing `~/.claude/karma/` → `~/.karma/` when the new directory is empty.
-- `karma doctor` warns if legacy `~/.claude/karma` or `~/.cursor/karma` still has a separate `rules.yaml`.
-- Removed Cursor-only `KARMA_HOME=~/.cursor/karma` from hook wrappers.
+- Default `PINRULE_HOME` is now `~/.pinrule/` (client-neutral). Claude / Cursor / Codex hooks all read the same `rules.yaml` — no more split `~/.cursor/pinrule` vs `~/.claude/pinrule` dual-injection hazard.
+- `pinrule init` migrates existing `~/.claude/pinrule/` → `~/.pinrule/` when the new directory is empty.
+- `pinrule doctor` warns if legacy `~/.claude/pinrule` or `~/.cursor/pinrule` still has a separate `rules.yaml`.
+- Removed Cursor-only `PINRULE_HOME=~/.cursor/pinrule` from hook wrappers.
 
 ### Cursor native support (feature-complete for v0.14)
 
 - **12 hook events**: `beforeSubmitPrompt`, `sessionStart`, `preToolUse`, `postToolUse`, `beforeShellExecution`, `beforeMCPExecution`, `beforeReadFile`, `afterAgentResponse`, `stop`, `preCompact`, `subagentStart`, `subagentStop`.
 - Shared tool gate (`_tool_gate.py`) for `preToolUse` / shell / MCP paths; blocks long `Await` via `beforeMCPExecution`.
-- `karma sync-cursor-visibility`: `~/.claude/skills/karma-rules-catalog/` + `.mdc` rules (Composer often does not surface hook stdout in `<rules>`).
+- `pinrule sync-cursor-visibility`: `~/.claude/skills/pinrule-rules-catalog/` + `.mdc` rules (Composer often does not surface hook stdout in `<rules>`).
 - `format_for_injection` prefixes each line with `[rule-id]`; Cursor `beforeSubmitPrompt` injects id catalog every turn.
-- `python -m karma` entrypoint; `scripts/cursor-install-local.sh` one-shot install.
+- `python -m pinrule` entrypoint; `scripts/cursor-install-local.sh` one-shot install.
 
 ## [0.13.6] — 2026-05-17 (patch — Cursor functional parity with Claude)
 
 ### Cursor functional parity (not just hook registration)
 
 - Transcript reader accepts Cursor `role` JSONL (Claude uses `type`) — **Stop** / **UserPromptSubmit** response-level checks (`keep_pushing`, `loud_failure_with_evidence`, strong reminder) work on Cursor transcripts
-- `karma doctor` recognizes Cursor native flat `{command}` hook entries (was false ✗ before)
-- `karma init` auto-runs `install-hooks --backend all` when any detected client is missing hooks; syncs `karma-sticky.mdc` when Cursor is present
+- `pinrule doctor` recognizes Cursor native flat `{command}` hook entries (was false ✗ before)
+- `pinrule init` auto-runs `install-hooks --backend all` when any detected client is missing hooks; syncs `pinrule-sticky.mdc` when Cursor is present
 - Hooks pass through `hook_event_name` for `sessionStart` / `postToolUse`; `pre_tool_use` / `stop` use `extract_subagent_id`
 
 ## [0.13.3] — 2026-05-17 (patch — Cursor ↔ Claude hook parity, 8/8 wrappers)
 
 ### Cursor ↔ Claude hook parity (8/8 wrappers)
 
-- `install-hooks --backend cursor` now registers the same 8 karma wrappers as Claude Code: `preCompact`, `subagentStart`, `subagentStop` added alongside the existing five events
+- `install-hooks --backend cursor` now registers the same 8 pinrule wrappers as Claude Code: `preCompact`, `subagentStart`, `subagentStop` added alongside the existing five events
 - `Task` → `Agent` tool normalization so sub-agent model capture (`pending_subagent_models` FIFO) works on Cursor's Task tool
 - `subagent_id` / `parent_conversation_id` payload fields wired through `_payload` helpers (Claude uses `agent_id` / `session_id`)
 - `subagentStart` reads `subagent_model` directly when present (Cursor stdin); `preCompact` emits native `user_message` on Cursor after snapshot write
 - `subagentStop` hook entries get `loop_limit: 10` like `stop`
-- Cursor hook wrappers set `KARMA_HOME=~/.cursor/karma` on install
+- Cursor hook wrappers set `PINRULE_HOME=~/.cursor/pinrule` on install
 
 ## [0.13.2] — 2026-05-17 (minor — drop Gemini CLI backend, focus on Claude Code / Codex CLI / Cursor)
 
-karma's supported clients trim from 4 to **3** focused on the most-used AI coding clients. Gemini CLI's installed base is small enough that maintaining 4-backend matrix (4× edge-case docs, 4× cross-backend audit cost, 4× per-release dogfood overhead) outweighed the user surface. v0.13.0+ launch-readiness positioning is **Claude Code + Codex CLI + Cursor**.
+pinrule's supported clients trim from 4 to **3** focused on the most-used AI coding clients. Gemini CLI's installed base is small enough that maintaining 4-backend matrix (4× edge-case docs, 4× cross-backend audit cost, 4× per-release dogfood overhead) outweighed the user surface. v0.13.0+ launch-readiness positioning is **Claude Code + Codex CLI + Cursor**.
 
 ### What's removed
 
-- `karma/backends/gemini_cli.py` — entire backend file deleted
-- `karma/skill_packaging.py` — Gemini-only Markdown → TOML conversion helper (used only by Gemini commands path), entire module deleted
+- `pinrule/backends/gemini_cli.py` — entire backend file deleted
+- `pinrule/skill_packaging.py` — Gemini-only Markdown → TOML conversion helper (used only by Gemini commands path), entire module deleted
 - `protocol_adapter._GEMINI_EVENT_NAMES` + Gemini detection branch in `detect_backend()`
-- `REGISTRY["gemini-cli"]` from `karma.backends.REGISTRY`
+- `REGISTRY["gemini-cli"]` from `pinrule.backends.REGISTRY`
 - All Gemini-specific tests across `test_backends.py` / `test_protocol_adapter.py` / `test_hooks.py` / `test_cli.py` / `test_payload.py`
-- All `karma install-hooks --backend gemini-cli` and `~/.gemini/...` user-facing doc mentions across README / PRD / SECURITY / HOWTO (en + zh)
+- All `pinrule install-hooks --backend gemini-cli` and `~/.gemini/...` user-facing doc mentions across README / PRD / SECURITY / HOWTO (en + zh)
 - GH repo description updated to drop Gemini from supported clients line
 
 ### What's kept
@@ -109,17 +154,17 @@ karma's supported clients trim from 4 to **3** focused on the most-used AI codin
 
 - `install-hooks --backend cursor` writes native `{version:1, hooks:{event:[{command}]}}` with absolute wrapper paths; `stop` entries include `loop_limit: 10`
 - `beforeSubmitPrompt → user_prompt_submit` for per-turn anchor injection; `emit_context_injection` uses nested `hookSpecificOutput` when non-empty
-- `karma sync-cursor-rules` + `~/.cursor/rules/karma-sticky.mdc` (`alwaysApply`) so sticky rules are model-visible at session start even when hook stdout injection is unreliable
+- `pinrule sync-cursor-rules` + `~/.cursor/rules/pinrule-sticky.mdc` (`alwaysApply`) so sticky rules are model-visible at session start even when hook stdout injection is unreliable
 - `post_tool_use`: when `turn_count==0` on Cursor backend, reinject still runs on `tool_byte_seq` threshold (dogfood: UserPromptSubmit hook missing left reinject dead)
-- Cursor hook wrappers set `KARMA_HOME=~/.cursor/karma` by default
+- Cursor hook wrappers set `PINRULE_HOME=~/.cursor/pinrule` by default
 
 ### Validation
 
 - 798 pytest green (down from 824 — Gemini-specific tests removed), ruff 0, mypy 0
 - backend matrix now: Claude Code (8 hook events), Codex CLI (4 hook events), Cursor (5 hook events). All three pass full contract test
-- end-to-end manual: `karma install-hooks --backend gemini-cli` returns "unknown backend" error (intended); `karma doctor` no longer reports Gemini skill status
+- end-to-end manual: `pinrule install-hooks --backend gemini-cli` returns "unknown backend" error (intended); `pinrule doctor` no longer reports Gemini skill status
 
-If you're an existing Gemini CLI user: stick with v0.13.1 — the last release where Gemini backend is fully maintained. Future Gemini support would need to come back via the same contributor-PR pattern as Codex (a Gemini-side maintainer takes ownership of `karma/backends/gemini_cli.py`).
+If you're an existing Gemini CLI user: stick with v0.13.1 — the last release where Gemini backend is fully maintained. Future Gemini support would need to come back via the same contributor-PR pattern as Codex (a Gemini-side maintainer takes ownership of `pinrule/backends/gemini_cli.py`).
 
 ## [0.13.1] — 2026-05-17 (patch — Cursor dogfood follow-ups: beforeSubmitPrompt mapping + transcript requirement)
 
@@ -127,19 +172,19 @@ Two Cursor desktop Agent dogfood follow-ups landed in this patch.
 
 ### Cursor `beforeSubmitPrompt` reused as UserPromptSubmit equivalent
 
-v0.12.0 docstring claimed Cursor "has no UserPromptSubmit equivalent — `beforeSubmitPrompt` can only block, not inject `additional_context`". Cursor desktop Agent dogfood **proved this wrong**: Cursor's `beforeSubmitPrompt` does accept `additional_context` output and behaves as a per-turn injection point. `_HOOK_EVENTS` now maps `beforeSubmitPrompt → user_prompt_submit` so karma's per-turn anchor (v0.13.0: only violated rules) reaches Cursor too.
+v0.12.0 docstring claimed Cursor "has no UserPromptSubmit equivalent — `beforeSubmitPrompt` can only block, not inject `additional_context`". Cursor desktop Agent dogfood **proved this wrong**: Cursor's `beforeSubmitPrompt` does accept `additional_context` output and behaves as a per-turn injection point. `_HOOK_EVENTS` now maps `beforeSubmitPrompt → user_prompt_submit` so pinrule's per-turn anchor (v0.13.0: only violated rules) reaches Cursor too.
 
 This restores Cursor parity with Claude Code / Codex / Gemini on per-turn rule visibility — no longer a Cursor-specific limitation.
 
 ### `post_install_message` flags response-level check transcript requirement
 
-Cursor `stop` hook minimal stdin is `{status, loop_count}` only — no assistant text. karma response-level checks (`keep_pushing_no_stop` / `chinese_plain_no_jargon` / `long_term_response_level` / `loud_failure_with_evidence`) need last assistant message, so they silently passthrough without `transcript_path`.
+Cursor `stop` hook minimal stdin is `{status, loop_count}` only — no assistant text. pinrule response-level checks (`keep_pushing_no_stop` / `chinese_plain_no_jargon` / `long_term_response_level` / `loud_failure_with_evidence`) need last assistant message, so they silently passthrough without `transcript_path`.
 
 Code path was already graceful (no crash, no false fire) — gap was honest user communication. `cursor.py:post_install_message` now prints a loud block telling Cursor users: enable transcripts in Cursor Settings → Agent to make response-level checks work; without transcripts only pre-tool intercept / sticky injection / context refresh main features run.
 
 ## [0.13.0] — 2026-05-17 (minor — anchor optimization, ~10× token cost reduction)
 
-**User-visible**: karma token cost drops from **10-15% of API input** (v0.12.x) to **1-3%** in typical engineering sessions; long-session context window occupation from 25% to ~5-10%. The optimization is real-cost — anchor token savings carry through Anthropic prompt caching at 10% rate as well.
+**User-visible**: pinrule token cost drops from **10-15% of API input** (v0.12.x) to **1-3%** in typical engineering sessions; long-session context window occupation from 25% to ~5-10%. The optimization is real-cost — anchor token savings carry through Anthropic prompt caching at 10% rate as well.
 
 ### What changed in the anchor mechanic
 
@@ -149,9 +194,9 @@ Code path was already graceful (no crash, no false fire) — gap was honest user
 
 ### API changes
 
-- `karma.rule.format_anchor_only(rule_list, violated_rule_ids)` — kwarg renamed from `recent_violations` to `violated_rule_ids`, accepts dict[rule_id → turn] (from `session_violations()`) or set[rule_id]. Returns `""` when no violated rules accumulate (UserPromptSubmit hook then passthroughs).
-- New: `karma.violations.session_violations(session_id)` — returns full-session accumulated `rule_id → latest_turn` dict (no turn window cap; complements `recent_turns()` for the 5-turn window case).
-- `karma/hooks/user_prompt_submit.py` calls `session_violations()` instead of `recent_turns()`.
+- `pinrule.rule.format_anchor_only(rule_list, violated_rule_ids)` — kwarg renamed from `recent_violations` to `violated_rule_ids`, accepts dict[rule_id → turn] (from `session_violations()`) or set[rule_id]. Returns `""` when no violated rules accumulate (UserPromptSubmit hook then passthroughs).
+- New: `pinrule.violations.session_violations(session_id)` — returns full-session accumulated `rule_id → latest_turn` dict (no turn window cap; complements `recent_turns()` for the 5-turn window case).
+- `pinrule/hooks/user_prompt_submit.py` calls `session_violations()` instead of `recent_turns()`.
 
 ### Test changes
 
@@ -161,7 +206,7 @@ Code path was already graceful (no crash, no false fire) — gap was honest user
 
 ### Anti-attention-decay still covered (no regression)
 
-The cost reduction does not weaken karma's anti-decay defense:
+The cost reduction does not weaken pinrule's anti-decay defense:
 - **SessionStart baseline** (~1.8K, injected once at session start + after compact) — visible in conversation history top, model sees full rule baseline on every turn re-read.
 - **PostToolUse mid-session reinject** (~1.8K) — triggered when context accumulates past model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K), refreshes full baseline at the exact attention-decay point.
 - **UserPromptSubmit anchor** (v0.13.0: only violated rules) — drift marker signal for rules the Agent has recently strayed on. The expensive "remind the model of unviolated rules every turn" mechanic was found redundant given the two above already cover it.
@@ -183,7 +228,7 @@ v0.12.0 used `JsonHooksBackend.build_event_entry` default which produces Claude 
 {
   "version": 1,
   "hooks": {
-    "preToolUse": [{"command": "/path/to/python /path/to/karma_pre_tool_use.py"}],
+    "preToolUse": [{"command": "/path/to/python /path/to/pinrule_pre_tool_use.py"}],
     "stop": [{"command": "...", "loop_limit": 10}]
   }
 }
@@ -191,22 +236,22 @@ v0.12.0 used `JsonHooksBackend.build_event_entry` default which produces Claude 
 
 Cursor docs note hooks may not load until the user hand-fixes JSON to native shape — the dogfood session had **no stdin captures** until config was corrected.
 
-`karma/backends/cursor.py` now overrides:
+`pinrule/backends/cursor.py` now overrides:
 - `build_event_entry()` — returns flat `{command: f"{sys.executable} {wrapper}"}` with `loop_limit: 10` on `stop` event
 - `save_settings()` — sets `version: 1` schema marker
-- `is_karma_entry()` — recognizes both flat (`command` with `karma_` prefix) and legacy Claude nested entries
+- `is_pinrule_entry()` — recognizes both flat (`command` with `pinrule_` prefix) and legacy Claude nested entries
 
-### Contract test loosened (one test from "must have nested hooks key" to "must have karma_ wrapper path")
+### Contract test loosened (one test from "must have nested hooks key" to "must have pinrule_ wrapper path")
 
-`tests/contract/test_backend_contract.py::test_build_event_entry_returns_dict_with_hooks_key` was v0.10.1-era assumption from when Claude / Codex / Gemini all happened to use nested shape. Cursor dogfood proved cross-backend shape isn't a real invariant — renamed to `test_build_event_entry_returns_valid_entry` checking only dict + `karma_` wrapper path presence. backend-specific shape stays in each backend's own test file.
+`tests/contract/test_backend_contract.py::test_build_event_entry_returns_dict_with_hooks_key` was v0.10.1-era assumption from when Claude / Codex / Gemini all happened to use nested shape. Cursor dogfood proved cross-backend shape isn't a real invariant — renamed to `test_build_event_entry_returns_valid_entry` checking only dict + `pinrule_` wrapper path presence. backend-specific shape stays in each backend's own test file.
 
 ### v0.12.1 `conversation_id` fallback confirmed in dogfood
 
-Cursor `preToolUse` payload uses `conversation_id` not `session_id` (`sessionStart` payload happens to have both). `karma.hooks._payload.extract_session_id()` fallback chain worked as designed.
+Cursor `preToolUse` payload uses `conversation_id` not `session_id` (`sessionStart` payload happens to have both). `pinrule.hooks._payload.extract_session_id()` fallback chain worked as designed.
 
 ### Honest open items (tracked in dogfood report, not fixed here)
 
-1. **P1 — `stop` hook needs `transcript_path`** for `keep_pushing_no_stop` check to fire. Cursor docs minimal `stop` stdin is only `{status, loop_count}` — no assistant text. karma's keep-pushing reads last assistant message via `transcript_path` JSONL; without it returns `{}` (silent passthrough). Will document the requirement + consider graceful skip path in v0.12.4.
+1. **P1 — `stop` hook needs `transcript_path`** for `keep_pushing_no_stop` check to fire. Cursor docs minimal `stop` stdin is only `{status, loop_count}` — no assistant text. pinrule's keep-pushing reads last assistant message via `transcript_path` JSONL; without it returns `{}` (silent passthrough). Will document the requirement + consider graceful skip path in v0.12.4.
 2. **IDE injection of `additional_context` on new Composer**: hook output ✓, but whether Cursor IDE injects into model context requires a Cursor reload + new Composer session to eyeball-verify. dogfood couldn't confirm in same thread.
 3. **`stop` `followup_message` auto-continue**: hook output ✓, but real Cursor IDE auto-submit-next-turn behavior also needs human eyeball-verify.
 
@@ -218,46 +263,46 @@ Cursor `preToolUse` payload uses `conversation_id` not `session_id` (`sessionSta
 
 ## [0.12.2] — 2026-05-17 (patch — drop sticky.yaml legacy fallback, no migration needed)
 
-karma v2 pre-launch — no public v0.5.0-or-earlier users to migrate. `rule.py` and `cli.py` carried legacy `sticky.yaml` fallback + `karma init` auto-migration logic since v0.5.0 (the sticky→rule rename). v0.12.2 deletes this dead weight.
+pinrule v2 pre-launch — no public v0.5.0-or-earlier users to migrate. `rule.py` and `cli.py` carried legacy `sticky.yaml` fallback + `pinrule init` auto-migration logic since v0.5.0 (the sticky→rule rename). v0.12.2 deletes this dead weight.
 
 ### What's gone
 
-- `rule.py`: `_LEGACY_STICKY_PATH` constant + `_resolve_default_path()` fallback function + deprecation stderr warning. `DEFAULT_PATH = karma_home() / "rules.yaml"` is now a one-liner.
+- `rule.py`: `_LEGACY_STICKY_PATH` constant + `_resolve_default_path()` fallback function + deprecation stderr warning. `DEFAULT_PATH = pinrule_home() / "rules.yaml"` is now a one-liner.
 - `cli.py:cmd_init`: 12-line migration block (lines 228-240) detecting + copying + backing up `sticky.yaml → rules.yaml`. The block had a latent bug (Task #40) — `rules_path.name == "rules.yaml"` condition never fired because `_resolve_default_path()` resolved `RULES_PATH` to sticky.yaml when the legacy file existed. Cleanup kills both the dead branch and the bug.
 - `backends/cursor.py:post_install_message`: changed "或手工编辑 sticky.yaml" → "或手工编辑 rules.yaml" (the only user-facing message still mentioning sticky.yaml).
 
 ### What's kept
 
-- Developer comments referencing sticky.yaml history (`#` comments in `bypass_karma.py` / `description_context.py` / etc.) — historical context for future maintainers reading the code, not user-facing.
-- `bypass_karma` check still matches `.claude/karma` path fragment (catches accidental edits to any karma state file regardless of name), so `cp ~/.claude/karma/sticky.yaml ~/backup/` style bypass attempts stay flagged.
+- Developer comments referencing sticky.yaml history (`#` comments in `bypass_pinrule.py` / `description_context.py` / etc.) — historical context for future maintainers reading the code, not user-facing.
+- `bypass_pinrule` check still matches `.claude/pinrule` path fragment (catches accidental edits to any pinrule state file regardless of name), so `cp ~/.claude/pinrule/sticky.yaml ~/backup/` style bypass attempts stay flagged.
 
 ### Validation
 
 - pytest 819 tests green (test fixtures using `tmp_path / "sticky.yaml"` are pure string literals, decoupled from production path resolution — they still pass without change)
-- ruff 0 issues, mypy karma/ + mypy tests/ 0 errors
+- ruff 0 issues, mypy pinrule/ + mypy tests/ 0 errors
 - Closes Task #40 (init migration condition bug — dead code can't have bugs)
 
 ## [0.12.0] — 2026-05-17 (minor — Cursor backend support, 4th AI client supported)
 
-karma now installs into **Cursor IDE 1.7+** (released 2025-10) alongside Claude Code / Codex CLI / Gemini CLI. `karma install-hooks --backend cursor` writes 4 hook entries to `~/.cursor/hooks.json` covering the full karma rule-injection + violation-block lifecycle.
+pinrule now installs into **Cursor IDE 1.7+** (released 2025-10) alongside Claude Code / Codex CLI / Gemini CLI. `pinrule install-hooks --backend cursor` writes 4 hook entries to `~/.cursor/hooks.json` covering the full pinrule rule-injection + violation-block lifecycle.
 
 ### Cursor protocol adaptation
 
-Cursor's hooks protocol (https://cursor.com/docs/hooks) is structurally similar to Claude Code's but diverges in shape on every output. `karma/backends/cursor.py` adapts:
+Cursor's hooks protocol (https://cursor.com/docs/hooks) is structurally similar to Claude Code's but diverges in shape on every output. `pinrule/backends/cursor.py` adapts:
 
-| Concern | Cursor protocol | karma adapter |
+| Concern | Cursor protocol | pinrule adapter |
 |---|---|---|
 | Event name casing | camelCase lowercase (`preToolUse`, `sessionStart`) | `_HOOK_EVENTS` dict literal — written into `hooks.json` exactly as Cursor expects |
-| Tool name canonicalization | `Shell` (not `Bash`) | `normalize_tool_name()` maps `Shell` → `Bash` so karma checks see canonical form |
+| Tool name canonicalization | `Shell` (not `Bash`) | `normalize_tool_name()` maps `Shell` → `Bash` so pinrule checks see canonical form |
 | PreToolUse deny shape | top-level `{"permission": "deny", "user_message": ..., "agent_message": ...}` | `emit_deny()` returns the top-level permission shape |
 | Context injection key | snake_case `additional_context` (not Claude camelCase `additionalContext`) | `emit_context_injection()` returns snake_case for both `sessionStart` and `postToolUse` |
-| Stop hook block | no `decision: block` — uses `{"followup_message": "..."}` for auto-continue | `emit_stop_block()` returns followup_message shape, which **maps naturally** to karma keep-pushing reflection nudge |
+| Stop hook block | no `decision: block` — uses `{"followup_message": "..."}` for auto-continue | `emit_stop_block()` returns followup_message shape, which **maps naturally** to pinrule keep-pushing reflection nudge |
 
 ### Two protocol limitations called out honestly
 
-**No UserPromptSubmit equivalent.** Cursor's `beforeSubmitPrompt` can only block, not inject `additional_context`. karma falls back to `sessionStart` (one-time baseline inject) + `postToolUse.additional_context` mid-session reinjection. Behavioral impact: Cursor users won't see karma sticky rules reappear in every user message header; they live in prompt cache + system message instead.
+**No UserPromptSubmit equivalent.** Cursor's `beforeSubmitPrompt` can only block, not inject `additional_context`. pinrule falls back to `sessionStart` (one-time baseline inject) + `postToolUse.additional_context` mid-session reinjection. Behavioral impact: Cursor users won't see pinrule sticky rules reappear in every user message header; they live in prompt cache + system message instead.
 
-**No global skills directory.** Per https://cursor.com/help/customization/skills — Cursor only supports `.cursor/skills/` per-project. `CursorBackend.skill_install_targets()` returns `[]` and `post_install_message()` prints loud guidance: copy `skills/karma/SKILL.md` per project, or use `karma rule add --from-yaml` CLI (CLI unaffected).
+**No global skills directory.** Per https://cursor.com/help/customization/skills — Cursor only supports `.cursor/skills/` per-project. `CursorBackend.skill_install_targets()` returns `[]` and `post_install_message()` prints loud guidance: copy `skills/pinrule/SKILL.md` per project, or use `pinrule rule add --from-yaml` CLI (CLI unaffected).
 
 ### Backend registry expanded + 16 tests
 
@@ -275,7 +320,7 @@ User-visible improvements coming from a single session of intensive iteration wi
 
 ### English users finally get English hook output
 
-`pre_tool_use.py` + `stop.py` were hardcoding Chinese-only message templates (`"karma 拦截：违反"` / `"Agent 违反"` / `"建议："` etc.) — `KARMA_LOCALE=en` had no effect on them, so English users saw mixed-language deny reasons. Now all hook output templates route through `tr()` + 6 new locale keys in both zh/en:
+`pre_tool_use.py` + `stop.py` were hardcoding Chinese-only message templates (`"pinrule 拦截：违反"` / `"Agent 违反"` / `"建议："` etc.) — `PINRULE_LOCALE=en` had no effect on them, so English users saw mixed-language deny reasons. Now all hook output templates route through `tr()` + 6 new locale keys in both zh/en:
 - `hook.pre_tool_use.deny_engine_reason` / `deny_keyword_reason`
 - `hook.stop.violation_line` / `suggestion_line` / `keyword_line`
 
@@ -289,13 +334,13 @@ v0.11.0 only added Chinese phrasing patterns. English-speaking Agents (including
 
 4 new lockdown tests including a false-positive defense ("short-term patches won't work, dig the root cause" must pass through).
 
-### PR [#7](https://github.com/jhaizhou-ops/karma/pull/7) by @fyn1320068837-source — 153 new tests covering 6 untested modules
+### PR [#7](https://github.com/jhaizhou-ops/pinrule/pull/7) by @fyn1320068837-source — 153 new tests covering 6 untested modules
 
 First loyal user's third contribution (after #1 and #2). Coverage audit identified 6 modules with no direct unit tests:
 
 | File | Tests | Gap filled |
 |---|---|---|
-| `test_run_checks.py` | 12 | `run_checks()` dispatch: unknown names silently skipped, exceptions fail-open, `KARMA_DEBUG` stderr, multiple hits ordered, kwargs forwarding |
+| `test_run_checks.py` | 12 | `run_checks()` dispatch: unknown names silently skipped, exceptions fail-open, `PINRULE_DEBUG` stderr, multiple hits ordered, kwargs forwarding |
 | `test_rule_format.py` | 20 | `format_for_injection` / `format_anchor_only`: empty rules, numbered lists, drift markers, multi-line indentation, zh locale header |
 | `test_i18n.py` | 30 | `tr()` fallback chain, `{placeholder}` interpolation, missing kwarg survives, 18 core keys verified in both zh and en |
 | `test_session_state_atomic.py` | 37 | `update_state` atomicity + rollback on fn exception, `_normalize_path`, redirect target parsing, bg task pending/catchup |
@@ -304,9 +349,9 @@ First loyal user's third contribution (after #1 and #2). Coverage audit identifi
 
 Total test count 622 → **781** (153 PR-added + 6 v0.11.4 lockdowns). Post-merge maintainer follow-ups: ruff F401 (2 unused imports) + E741 (7 ambiguous `l` → `ln`) cleanup, mypy `tests/` fix (`list[dict]` → `list` accepting `Any|None`).
 
-### README issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) 5-point overhaul
+### README issue [#8](https://github.com/jhaizhou-ops/pinrule/issues/8) 5-point overhaul
 
-- **#1 demo GIF**: Added bilingual animated SVGs `assets/demo-en.svg` (27K English) + `assets/demo-zh.svg` (34K Chinese). 5-scene narrative with banner separators + slow pacing: (1) UserPromptSubmit rule header injection, (2) PreToolUse `sleep 30` block, (3) Stop response-level short-term intent catch (v0.11.0), (4) Stop keep-pushing nudge, (5) PostToolUse mid-conversation reinject at Opus 60K threshold. Generated via non-interactive `asciinema rec --command` + `termtosvg render` (both pure Python tools, no TTY needed). Independent `KARMA_HOME` per locale to ensure English demo shows English rules.
+- **#1 demo GIF**: Added bilingual animated SVGs `assets/demo-en.svg` (27K English) + `assets/demo-zh.svg` (34K Chinese). 5-scene narrative with banner separators + slow pacing: (1) UserPromptSubmit rule header injection, (2) PreToolUse `sleep 30` block, (3) Stop response-level short-term intent catch (v0.11.0), (4) Stop keep-pushing nudge, (5) PostToolUse mid-conversation reinject at Opus 60K threshold. Generated via non-interactive `asciinema rec --command` + `termtosvg render` (both pure Python tools, no TTY needed). Independent `PINRULE_HOME` per locale to ensure English demo shows English rules.
 - **#2 outdated numbers**: tests 460 → 775, source `~5.5K lines` → `~8.6K lines`.
 - **#3 architecture diagram**: Two Mermaid flowcharts — system data flow at "Why it works" section + hook lifecycle timeline at "8 hook positions" section. GitHub web auto-renders.
 - **#4 tagline**: One-line punch above intro: "Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, < 60ms."
@@ -314,7 +359,7 @@ Total test count 622 → **781** (153 PR-added + 6 v0.11.4 lockdowns). Post-merg
 
 ### "Agents' honest take" section in README
 
-New top-level section (above "Real problems") with Claude (Opus 4.7) + Codex (GPT 5.5) self-evaluations of working with karma. First-person social proof from the very Agents karma is built to guide. Bilingual.
+New top-level section (above "Real problems") with Claude (Opus 4.7) + Codex (GPT 5.5) self-evaluations of working with pinrule. First-person social proof from the very Agents pinrule is built to guide. Bilingual.
 
 ### Branch protection on `main`
 
@@ -326,28 +371,28 @@ v0.11.x narrative prose (78 lines across v0.11.3 / v0.11.2 / v0.11.1 / v0.11.0 +
 
 ### Gate
 
-- **781/781 tests** passing under both `KARMA_LOCALE=zh` and `KARMA_LOCALE=en` (was 622)
-- All 5 gates: pytest / ruff / mypy `karma/` + `tests/` / wheel build / CI 4 matrix
+- **781/781 tests** passing under both `PINRULE_LOCALE=zh` and `PINRULE_LOCALE=en` (was 622)
+- All 5 gates: pytest / ruff / mypy `pinrule/` + `tests/` / wheel build / CI 4 matrix
 - Memory accumulated this session: `feedback-dont-defer-doable-now` (5 borrow-excuse incidents → "Verify before defer"), `feedback-loud-failure-pre-push-ci-check` (local gates must equal CI gates), `feedback-review-pr-then-switch-back` (5th race + command-chain branch verification), `feedback-language-preference-no-engine` (style preferences only need preference injection)
 
 ### Meta-pattern: first loyal user feedback loop
 
-Issue [#8](https://github.com/jhaizhou-ops/karma/issues/8) had 5 valid points; maintainer initial response punted 3 of them ("TTY needed for GIF" / "wait for PR merge" / "ASCII timeline is enough"). User pushed back three times until each excuse was Verified-Before-Deferred. Outcome: every excuse turned out to be solvable in 5 minutes (`pip install asciinema termtosvg` + `--command` non-interactive mode + KARMA_HOME isolation). Memory `feedback-dont-defer-doable-now` is the lesson distilled.
+Issue [#8](https://github.com/jhaizhou-ops/pinrule/issues/8) had 5 valid points; maintainer initial response punted 3 of them ("TTY needed for GIF" / "wait for PR merge" / "ASCII timeline is enough"). User pushed back three times until each excuse was Verified-Before-Deferred. Outcome: every excuse turned out to be solvable in 5 minutes (`pip install asciinema termtosvg` + `--command` non-interactive mode + PINRULE_HOME isolation). Memory `feedback-dont-defer-doable-now` is the lesson distilled.
 
-## [0.11.3] — 2026-05-16 (minor — `karma audit --days N` time-window filter: dogfood-driven decisions stop being diluted by stale data)
+## [0.11.3] — 2026-05-16 (minor — `pinrule audit --days N` time-window filter: dogfood-driven decisions stop being diluted by stale data)
 
 ### What was added
 
-`karma audit` (including `--by-check`) gains a `--days N` option. Only counts violations from the last N days so dogfood-driven decisions can focus on a fresh window effect rather than getting drowned in old data.
+`pinrule audit` (including `--by-check`) gains a `--days N` option. Only counts violations from the last N days so dogfood-driven decisions can focus on a fresh window effect rather than getting drowned in old data.
 
-**Why**: After shipping v0.11.0 long_term response-level + v0.11.1 deep_fix L3, the goal was to see real engine effectiveness — but `karma audit --by-check` defaults to full-history aggregation (including v0.5.x-era data), so new patterns' real hits get swamped. v0.11.3 gives a clean fresh-window view.
+**Why**: After shipping v0.11.0 long_term response-level + v0.11.1 deep_fix L3, the goal was to see real engine effectiveness — but `pinrule audit --by-check` defaults to full-history aggregation (including v0.5.x-era data), so new patterns' real hits get swamped. v0.11.3 gives a clean fresh-window view.
 
 ### Usage
 
 ```bash
-karma audit --by-check --days 1        # last 24 hours
-karma audit --by-check --days 7        # last 1 week
-karma audit --days 30 --format md      # last 1 month, markdown table
+pinrule audit --by-check --days 1        # last 24 hours
+pinrule audit --by-check --days 7        # last 1 week
+pinrule audit --days 30 --format md      # last 1 month, markdown table
 ```
 
 Behavior without `--days` is unchanged (full `violations.jsonl` aggregation).
@@ -374,7 +419,7 @@ Honest disclosure: v0.10.6 + v0.11.0 + v0.11.1 + README + ARCH — 5 consecutive
 
 ### True root cause
 
-`user_prompt_submit.main()` was hitting `_output_passthrough; return 0` early when `sticky_list` was empty — completely skipping `_advance_turn_state`. But model tracking + `turn_count` is **karma system-level telemetry**, independent of whether the user has any rules installed. The local machine passed because the developer's home has a legacy `sticky.yaml`; CI on a clean runner always has empty rules → model never gets recorded.
+`user_prompt_submit.main()` was hitting `_output_passthrough; return 0` early when `sticky_list` was empty — completely skipping `_advance_turn_state`. But model tracking + `turn_count` is **pinrule system-level telemetry**, independent of whether the user has any rules installed. The local machine passed because the developer's home has a legacy `sticky.yaml`; CI on a clean runner always has empty rules → model never gets recorded.
 
 Not introduced by codex PR #6, not introduced by v0.10.6 `protocol_adapter`. The deeper design mistake was ordering — `_advance_turn_state` was placed after the `sticky_list` check instead of before.
 
@@ -385,7 +430,7 @@ Move `_advance_turn_state` ahead of `sticky_list` loading. Regardless of whether
 ### Regression lockdown
 
 `test_user_prompt_submit_writes_payload_model_to_state` strengthened:
-- `monkeypatch.setattr("karma.hooks.user_prompt_submit.load", lambda: [])` — explicitly simulates empty rules
+- `monkeypatch.setattr("pinrule.hooks.user_prompt_submit.load", lambda: [])` — explicitly simulates empty rules
 - Added `assert state.turn_count == 1` — locks "turn must advance too, not just model"
 
 ### Gate
@@ -396,11 +441,11 @@ Move `_advance_turn_state` ahead of `sticky_list` loading. Regardless of whether
 
 ## [0.11.1] — 2026-05-16 (patch — `deep-fix-not-bypass` L3 timing pattern: editing an unread file right after a test failure now gets blocked)
 
-User-flagged #1 priority: the rule the user values most is `deep-fix-not-bypass` (no-shortcut, dig deep). v0.11.1 adds an L3 timing engine pattern to this rule, alongside the existing L1 (Bash literals bypassing karma state).
+User-flagged #1 priority: the rule the user values most is `deep-fix-not-bypass` (no-shortcut, dig deep). v0.11.1 adds an L3 timing engine pattern to this rule, alongside the existing L1 (Bash literals bypassing pinrule state).
 
 ### What was added
 
-**New detection path** (in `karma/checks/bypass_karma.py`, reusing rule_id `deep-fix-not-bypass`):
+**New detection path** (in `pinrule/checks/bypass_pinrule.py`, reusing rule_id `deep-fix-not-bypass`):
 - On pre_tool_use Edit, inspect `session_state.recent_bash[-1]`
 - If the previous Bash was a test command (`is_test_cmd=True`) and **failed** (`output_failed=True`)
 - And the file currently being Edited has **never been Read this session** (`not session_state.has_read(fp)`)
@@ -451,7 +496,7 @@ v0.10.x keyword (rules.yaml `violation_keywords`) still backstops single literal
 
 ### `check()` signature extension
 
-`long_term.check()` gains a `response: str = ""` parameter. The Stop hook passes the response when invoking the check (Stop hook is karma's only window onto Agent's full-turn output). The old tool_input path (Bash/Write/Edit) is unchanged.
+`long_term.check()` gains a `response: str = ""` parameter. The Stop hook passes the response when invoking the check (Stop hook is pinrule's only window onto Agent's full-turn output). The old tool_input path (Bash/Write/Edit) is unchanged.
 
 ### Test coverage
 
@@ -494,7 +539,7 @@ v0.10.5 audit sweep deferred 3 structural findings; v0.10.6 closes them.
 
 ### Backend Protocol expanded 6 → 8 contract methods
 
-`karma/backends/_base.py:Backend` adds:
+`pinrule/backends/_base.py:Backend` adds:
 - `emit_context_injection(event_name, additional_context, payload) -> str`
 - `emit_stop_block(reason, payload) -> str`
 
@@ -524,7 +569,7 @@ Fixes Agent 2 F3: `stop.py` force_block + keep_pushing_block paths previously di
 
 ### Cross-perspective audit pattern fully closed for v0.10.x
 
-All 18 findings from v0.10.5 audit sweep now addressed: 10 in v0.10.5 + 3 in v0.10.6 + 5 had been Agent 2 minors already shipped within v0.10.5. **6 consecutive v0.10.x releases (v0.10.0 → v0.10.6) constitute a complete backend ownership-split + cross-platform parity cycle**: architecture (v0.10.0) → codex 3 PRs (v0.10.1-3) → karma maintainer parity push (v0.10.4) → audit sweep (v0.10.5) → structural close (v0.10.6).
+All 18 findings from v0.10.5 audit sweep now addressed: 10 in v0.10.5 + 3 in v0.10.6 + 5 had been Agent 2 minors already shipped within v0.10.5. **6 consecutive v0.10.x releases (v0.10.0 → v0.10.6) constitute a complete backend ownership-split + cross-platform parity cycle**: architecture (v0.10.0) → codex 3 PRs (v0.10.1-3) → pinrule maintainer parity push (v0.10.4) → audit sweep (v0.10.5) → structural close (v0.10.6).
 
 ## [0.10.5] — 2026-05-16 (minor — 4-perspective cross-audit sweep: 10 findings fixed across docs / functional / state / boundary)
 
@@ -533,27 +578,27 @@ User triggered 4-perspective cross-audit (3 Claude parallel agents + dogfooding 
 ### Fixed in v0.10.5
 
 **Critical docs corrections** (Agent 3 F3.1 + F3.2):
-- README FAQ "Codex needs manual /hooks approval" contradicted main table's "auto-trust takes effect immediately" (v0.10.2). Both languages corrected to: "wrappers are auto-trusted by `karma install-hooks --backend codex`; if `/hooks` shows 'modified', Codex changed hash algorithm — re-approve + file issue."
+- README FAQ "Codex needs manual /hooks approval" contradicted main table's "auto-trust takes effect immediately" (v0.10.2). Both languages corrected to: "wrappers are auto-trusted by `pinrule install-hooks --backend codex`; if `/hooks` shows 'modified', Codex changed hash algorithm — re-approve + file issue."
 - `docs/CODEX_BACKEND.md` TODO list 4/5 items were already shipped (v0.10.1 PR #3 / v0.10.2 PR #4 / v0.10.3 PR #5) but still listed as "planned" — misled future contributors. Split into "Completed (v0.10.x)" + "Remaining" sections both languages.
 
 **Functional bug** (Agent 2 F4):
-- `karma/hooks/post_tool_use.py` now consumes canonical `tool_input.write_file_paths` (backend-neutral, parallel to existing `read_file_paths`). Any backend's `normalize_tool_input` emitting this list triggers `state.record_edit(path)` per path → `last_edit_ts` advances. Fixes codex `sed -i /workspace/src/x.py` not being seen by `evidence.check` (false-pass on completion words). Integration test `test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts` locks it. **codex backend follow-up needed (TODO 7 in CODEX_BACKEND.md)**: codex.normalize_tool_input currently sets `is_write: True` for `sed -i` but doesn't emit `write_file_paths` — karma-side wiring is forward-compatible; codex CLI maintainer should add the field next PR.
+- `pinrule/hooks/post_tool_use.py` now consumes canonical `tool_input.write_file_paths` (backend-neutral, parallel to existing `read_file_paths`). Any backend's `normalize_tool_input` emitting this list triggers `state.record_edit(path)` per path → `last_edit_ts` advances. Fixes codex `sed -i /workspace/src/x.py` not being seen by `evidence.check` (false-pass on completion words). Integration test `test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts` locks it. **codex backend follow-up needed (TODO 7 in CODEX_BACKEND.md)**: codex.normalize_tool_input currently sets `is_write: True` for `sed -i` but doesn't emit `write_file_paths` — pinrule-side wiring is forward-compatible; codex CLI maintainer should add the field next PR.
 
 **Boundary leak fix** (Agent 2 F1):
-- `karma/backends/protocol_adapter.py` removed two `codex` literal fallbacks (`from karma.backends.codex import _CODEX_TOOL_MAP` + `REGISTRY["codex"].normalize_tool_input(...)` force-route on `raw_tool_name == "apply_patch"`). `detect_backend()` now routes correctly via `sys.argv[0]` `/.codex/` literal detection — fallbacks were vestigial and violated v0.10.0 "dispatch layer has no backend literals" design self-statement. Tests updated to mock `sys.argv` instead of relying on fallback.
+- `pinrule/backends/protocol_adapter.py` removed two `codex` literal fallbacks (`from pinrule.backends.codex import _CODEX_TOOL_MAP` + `REGISTRY["codex"].normalize_tool_input(...)` force-route on `raw_tool_name == "apply_patch"`). `detect_backend()` now routes correctly via `sys.argv[0]` `/.codex/` literal detection — fallbacks were vestigial and violated v0.10.0 "dispatch layer has no backend literals" design self-statement. Tests updated to mock `sys.argv` instead of relying on fallback.
 - Removed v0.9.16 back-compat re-export `parse_apply_patch_envelope` from protocol_adapter — tests now import from codex.py directly.
 
 **State / off-by-one** (Agent 1 F1.1 + F1.2 + F1.3):
-- `karma/hooks/pre_compact.py` fallback math fix: `current_turn=999999` + `window=5` produced cutoff `999995` matching only turns 999995-999999 (never real session turns 1-100) → `recent_violation_turns` was always empty when `state.turn_count=0`, breaking the compact-resilience "most recent 5 turn violations" section in pre_compact_snapshot.md. Fallback path now reads ts-dimension `recent(window_sec=24h)` directly.
-- `karma/hooks/stop.py` now calls `catchup_pending_bg()` via `update_state(try/except + fail-open fallback)`, matching Pre/PostToolUse and UserPromptSubmit pattern. Fixes window-edge case where a bg pytest finishing after the last PostToolUse but before Stop hook fires wasn't recorded → `evidence.check` saw stale `has_recent_test_pass=False` → false-positive loud-failure block on completion words.
-- `karma/hooks/user_prompt_submit.py` strong_reminder now writes Violation `turn=current_turn - 1` not `current_turn` — strong_reminder scans the **previous** turn's assistant response; turn_count was already advanced N → N+1 before strong_reminder runs.
+- `pinrule/hooks/pre_compact.py` fallback math fix: `current_turn=999999` + `window=5` produced cutoff `999995` matching only turns 999995-999999 (never real session turns 1-100) → `recent_violation_turns` was always empty when `state.turn_count=0`, breaking the compact-resilience "most recent 5 turn violations" section in pre_compact_snapshot.md. Fallback path now reads ts-dimension `recent(window_sec=24h)` directly.
+- `pinrule/hooks/stop.py` now calls `catchup_pending_bg()` via `update_state(try/except + fail-open fallback)`, matching Pre/PostToolUse and UserPromptSubmit pattern. Fixes window-edge case where a bg pytest finishing after the last PostToolUse but before Stop hook fires wasn't recorded → `evidence.check` saw stale `has_recent_test_pass=False` → false-positive loud-failure block on completion words.
+- `pinrule/hooks/user_prompt_submit.py` strong_reminder now writes Violation `turn=current_turn - 1` not `current_turn` — strong_reminder scans the **previous** turn's assistant response; turn_count was already advanced N → N+1 before strong_reminder runs.
 
 **Minor regex / docstring corrections** (Agent 1 F1.4 + F1.5 + Agent 3 F3.4 + Agent 2 F5 + F6):
-- `karma/checks/chinese_plain.py:_PATH_LITERAL_RE` changed `\w` (Unicode-aware by default in Python re) to explicit `[a-zA-Z0-9./\-_]` ASCII char class. Original ate Chinese path segments (`/桌面/某目录/文件.py` whole-path stripped) reducing the Chinese-ratio denominator → false-positive `chinese-plain` blocks for Chinese users with Chinese paths.
-- `karma/hooks/post_tool_use.py` comment said `DEFAULT 60K` but `DEFAULT_THRESHOLD = 40_000` since v0.9.0 — corrected.
-- `karma/model_threshold.py` module docstring listed v0.4.35 thresholds (Opus 80K / Sonnet 60K / Haiku 30K) but actual `_MODEL_THRESHOLDS` is v0.9.0 + v0.10.4 (Opus 60K / Sonnet 40K / Haiku 30K + 11 OpenAI/Codex entries). Docstring updated to current truth.
-- `karma/backends/codex.py:_extract_codex_patch_text` now docstring-flags which wrap keys are real-captured (`input` only) vs speculative (`patch` / `command` / `diff`) and prints stderr warning when a speculative key is actually hit — rule #4 loud-failure-with-evidence + invites users to file issue + real payload capture so the function can be tightened.
-- `karma/model_threshold.py:extract_model_from_transcript` docstring clarifies it's Claude-Code-specific (regex assumes Claude transcript jsonl shape); other backends should use `payload.model` via `model_from_payload`, not fall through to this.
+- `pinrule/checks/chinese_plain.py:_PATH_LITERAL_RE` changed `\w` (Unicode-aware by default in Python re) to explicit `[a-zA-Z0-9./\-_]` ASCII char class. Original ate Chinese path segments (`/桌面/某目录/文件.py` whole-path stripped) reducing the Chinese-ratio denominator → false-positive `chinese-plain` blocks for Chinese users with Chinese paths.
+- `pinrule/hooks/post_tool_use.py` comment said `DEFAULT 60K` but `DEFAULT_THRESHOLD = 40_000` since v0.9.0 — corrected.
+- `pinrule/model_threshold.py` module docstring listed v0.4.35 thresholds (Opus 80K / Sonnet 60K / Haiku 30K) but actual `_MODEL_THRESHOLDS` is v0.9.0 + v0.10.4 (Opus 60K / Sonnet 40K / Haiku 30K + 11 OpenAI/Codex entries). Docstring updated to current truth.
+- `pinrule/backends/codex.py:_extract_codex_patch_text` now docstring-flags which wrap keys are real-captured (`input` only) vs speculative (`patch` / `command` / `diff`) and prints stderr warning when a speculative key is actually hit — rule #4 loud-failure-with-evidence + invites users to file issue + real payload capture so the function can be tightened.
+- `pinrule/model_threshold.py:extract_model_from_transcript` docstring clarifies it's Claude-Code-specific (regex assumes Claude transcript jsonl shape); other backends should use `payload.model` via `model_from_payload`, not fall through to this.
 
 **Signal wordlist drift fix + lockdown** (Agent 3 F3.5 + F3.6):
 - `data/signals/agent_saturation/en.txt` added 12 entries for dual coverage with zh.txt's `系列收官` / `明天接力` / `下次接力` families — was 40 zh / 28 en = 30% drift (matched v0.9.13 D1 threshold). Now 40 zh / 42 en = 5% drift.
@@ -570,7 +615,7 @@ User triggered 4-perspective cross-audit (3 Claude parallel agents + dogfooding 
 
 3 structural findings (require backend contract method additions, larger PR than v0.10.5 scope):
 - F2.2 `emit_context_injection(event, additional_context, payload)` contract — 4 ContextInjection hooks currently print Claude `hookSpecificOutput` shape directly, never going through `protocol_adapter.emit_*` routing. Codex SessionStart/UserPromptSubmit shape acceptance untested (v0.9.15 same pattern bit us).
-- F2.3 `emit_stop_block(reason, payload)` contract — `stop.py` direct-prints `{decision: "block", reason}` without backend dispatch. Codex Stop hook acceptance unverified. karma's strongest intervention (force_block) potentially silent-failing on codex.
+- F2.3 `emit_stop_block(reason, payload)` contract — `stop.py` direct-prints `{decision: "block", reason}` without backend dispatch. Codex Stop hook acceptance unverified. pinrule's strongest intervention (force_block) potentially silent-failing on codex.
 - F3.3 3-hook integration tests for `model_from_payload` wiring.
 
 ### Verification
@@ -580,19 +625,19 @@ User triggered 4-perspective cross-audit (3 Claude parallel agents + dogfooding 
 
 ## [0.10.4] — 2026-05-16 (minor — prefer codex payload model + OpenAI/Codex threshold table for cross-platform attention adaptation)
 
-karma's mid-turn reinject + model-adaptive thresholds were Claude-specific. Codex agents using karma got DEFAULT 40K threshold for `gpt-5.5` (1M-context flagship) — too tight, disrupting expression. v0.10.4 closes this gap with two changes:
+pinrule's mid-turn reinject + model-adaptive thresholds were Claude-specific. Codex agents using pinrule got DEFAULT 40K threshold for `gpt-5.5` (1M-context flagship) — too tight, disrupting expression. v0.10.4 closes this gap with two changes:
 
 ### Unified `model_from_payload(payload)` — payload.model first, transcript fallback
 
-Codex official [hooks docs](https://developers.openai.com/codex/hooks) state every command hook stdin contains the `model` field (active model slug) — and explicitly warn that `transcript_path` format **is not a stable hook interface**. Previously karma's user_prompt_submit and post_tool_use hooks went straight to `extract_model_from_transcript()` (v0.4.39 Claude-protocol-limitation workaround), missing the stable codex signal.
+Codex official [hooks docs](https://developers.openai.com/codex/hooks) state every command hook stdin contains the `model` field (active model slug) — and explicitly warn that `transcript_path` format **is not a stable hook interface**. Previously pinrule's user_prompt_submit and post_tool_use hooks went straight to `extract_model_from_transcript()` (v0.4.39 Claude-protocol-limitation workaround), missing the stable codex signal.
 
-New `karma/model_threshold.py:model_from_payload(payload)` unifies the lookup:
+New `pinrule/model_threshold.py:model_from_payload(payload)` unifies the lookup:
 1. `payload.model` first (skip `<synthetic>` per existing convention)
 2. `extract_model_from_transcript(payload.transcript_path)` fallback
 
 **Claude behavior unchanged**: most Claude hook events (except SessionStart) don't have `model` field, so they naturally fall through to transcript path.
 
-**Codex behavior upgraded**: every codex hook payload carries fresh model slug (including post-`/model` switch). karma now detects mid-session model changes the same hook it happens — `gpt-5.5` agents get 120K threshold immediately instead of waiting for transcript-scan fallback.
+**Codex behavior upgraded**: every codex hook payload carries fresh model slug (including post-`/model` switch). pinrule now detects mid-session model changes the same hook it happens — `gpt-5.5` agents get 120K threshold immediately instead of waiting for transcript-scan fallback.
 
 Wired into all 3 hooks: `session_start.py` / `user_prompt_submit.py` / `post_tool_use.py`.
 
@@ -600,7 +645,7 @@ Wired into all 3 hooks: `session_start.py` / `user_prompt_submit.py` / `post_too
 
 `_MODEL_THRESHOLDS` extended with 11 OpenAI/Codex model entries based on official context windows + attention decay heuristics:
 
-| Model | Context window | karma threshold | Rationale |
+| Model | Context window | pinrule threshold | Rationale |
 |---|---|---|---|
 | gpt-5.5 | 1,050,000 | 120K | ~12% context reinject cadence for 1M flagships |
 | gpt-5.4 | 400K | 120K | same flagship tier |
@@ -617,9 +662,9 @@ Claude model entries unchanged: `opus → 60K / sonnet → 40K / haiku → 30K`.
 
 Per Codex hooks API limitations (verified in v0.10.2/v0.10.3 research):
 
-- **`PreCompact` not hookable** — Codex 0.130 hook API has no PreCompact event. Codex platform internally has `enable_request_compression` feature flag but it's not surfaced as a lifecycle event. karma can't snapshot pre-compact rule state on codex like it does on Claude.
-- **`SubagentStart` / `SubagentStop` not hookable** — Codex platform has `enable_fanout` / `child_agents_md` feature flags (under development) but no hook events for them. karma can't isolate sub-agent state on codex like it does on Claude Task tool.
-- **`PermissionRequest` not integrated** (ADR-001 in codex.py, v0.10.3): karma already covers risky-action interception at PreToolUse layer via `bypass_karma` / `testset` / `read_first` checks. PermissionRequest as a second pass adds FP rate without new dimension.
+- **`PreCompact` not hookable** — Codex 0.130 hook API has no PreCompact event. Codex platform internally has `enable_request_compression` feature flag but it's not surfaced as a lifecycle event. pinrule can't snapshot pre-compact rule state on codex like it does on Claude.
+- **`SubagentStart` / `SubagentStop` not hookable** — Codex platform has `enable_fanout` / `child_agents_md` feature flags (under development) but no hook events for them. pinrule can't isolate sub-agent state on codex like it does on Claude Task tool.
+- **`PermissionRequest` not integrated** (ADR-001 in codex.py, v0.10.3): pinrule already covers risky-action interception at PreToolUse layer via `bypass_pinrule` / `testset` / `read_first` checks. PermissionRequest as a second pass adds FP rate without new dimension.
 
 Mid-turn reinject (the v0.10.4 target) is the cross-platform substitute — works on both Claude and Codex.
 
@@ -643,7 +688,7 @@ Constraints: only single pipe `|`, only read-only commands on both sides, no `xa
 
 Real evidence: codex agents in 2026-05-16 sessions commonly use `head N | tail M` to read file slices instead of single `tail` calls — these now properly register as Read, no false-positive `read_first` denial on subsequent `apply_patch`.
 
-### karma — user_stop_hints category 3 "collaborative waiting/pause"
+### pinrule — user_stop_hints category 3 "collaborative waiting/pause"
 
 Real-world signal from 2026-05-16 dogfooding session: while collaborating with Codex CLI as a contributor backend, user accumulated 100+ keep_pushing false-positive triggers because phrases like `等候即可` / `不着急赶工` / `先等等, 等 codex 那边出 PR` weren't covered by `user_stop_hints` wordlist (only had cat-1 tired/dismissive + cat-2 satisfied/confirmation).
 
@@ -672,23 +717,23 @@ Wording corrected to precise: "codex hook API doesn't expose these events" inste
 
 ## [0.10.2] — 2026-05-16 (minor — codex closes the gap to Claude Code parity: SessionStart + exec_command→Bash + auto-trust onboarding)
 
-**Second codex-owned PR merged**: [#4](https://github.com/jhaizhou-ops/karma/pull/4) by Codex CLI itself. Codex backend gains 3 capabilities (SessionStart event, exec_command→Bash normalization, auto-trust hooks) closing the major v0.10.1 gaps. Concrete coverage table at the bottom of this section — only PreCompact + SubagentStart/Stop remain not covered because Codex's 6 hook events don't expose those lifecycle moments to third-party hooks (Codex platform internally has the concepts via `enable_request_compression` and `enable_fanout` feature flags, but they're not hookable). Doc clarification post-v0.10.2 (the earlier "codex has no equivalent concepts" wording was incorrect — Codex has the concepts, the hook API just doesn't surface them).
+**Second codex-owned PR merged**: [#4](https://github.com/jhaizhou-ops/pinrule/pull/4) by Codex CLI itself. Codex backend gains 3 capabilities (SessionStart event, exec_command→Bash normalization, auto-trust hooks) closing the major v0.10.1 gaps. Concrete coverage table at the bottom of this section — only PreCompact + SubagentStart/Stop remain not covered because Codex's 6 hook events don't expose those lifecycle moments to third-party hooks (Codex platform internally has the concepts via `enable_request_compression` and `enable_fanout` feature flags, but they're not hookable). Doc clarification post-v0.10.2 (the earlier "codex has no equivalent concepts" wording was incorrect — Codex has the concepts, the hook API just doesn't surface them).
 
 ### Codex SessionStart event integration (Task A)
 
-Codex 0.130 supports SessionStart event but karma's codex backend v0.10.1 had it missing from `_HOOK_EVENTS` — meaning codex agents got no sticky baseline injection at session start (had to wait for UserPromptSubmit per-turn anchors to accumulate). v0.10.2 closes this:
+Codex 0.130 supports SessionStart event but pinrule's codex backend v0.10.1 had it missing from `_HOOK_EVENTS` — meaning codex agents got no sticky baseline injection at session start (had to wait for UserPromptSubmit per-turn anchors to accumulate). v0.10.2 closes this:
 
 - Real captured codex SessionStart payload (PR #4 evidence):
   ```json
-  {"session_id":"019e2fcc-...","transcript_path":"...","cwd":"/Users/jhz/karma","hook_event_name":"SessionStart","model":"gpt-5.5","permission_mode":"default","source":"startup"}
+  {"session_id":"019e2fcc-...","transcript_path":"...","cwd":"/Users/jhz/pinrule","hook_event_name":"SessionStart","model":"gpt-5.5","permission_mode":"default","source":"startup"}
   ```
-- Fields fully compatible with Claude's SessionStart shape — karma generic `session_start.py` works out-of-the-box, no normalization needed
+- Fields fully compatible with Claude's SessionStart shape — pinrule generic `session_start.py` works out-of-the-box, no normalization needed
 - Subtle finding: Codex doesn't fire SessionStart at TUI startup, fires before first user prompt — still functionally correct
-- `karma/backends/codex.py:_HOOK_EVENTS` now lists 5 events (up from 4): `SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop`. Codex 0.130 supports 6; karma uses 5 (PermissionRequest still skipped, no karma use case).
+- `pinrule/backends/codex.py:_HOOK_EVENTS` now lists 5 events (up from 4): `SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop`. Codex 0.130 supports 6; pinrule uses 5 (PermissionRequest still skipped, no pinrule use case).
 
 ### exec_command → Bash normalization (Task B)
 
-Codex CLI runs all shell via `exec_command` tool name. v0.10.1 only mapped `apply_patch → Edit`, leaving codex shell calls invisible to karma's Bash-aware checks (`bypass_karma` / `record_bash` / `is_long_task`). v0.10.2:
+Codex CLI runs all shell via `exec_command` tool name. v0.10.1 only mapped `apply_patch → Edit`, leaving codex shell calls invisible to pinrule's Bash-aware checks (`bypass_pinrule` / `record_bash` / `is_long_task`). v0.10.2:
 
 - `_CODEX_TOOL_MAP` adds `"exec_command": "Bash"`
 - `normalize_tool_input` for `exec_command` now copies `cmd` (Codex Desktop / rollout shape) into canonical `command` field so generic `post_tool_use.py` `state.record_bash(cmd, ...)` works
@@ -696,11 +741,11 @@ Codex CLI runs all shell via `exec_command` tool name. v0.10.1 only mapped `appl
 
 ### Bonus — Codex `/hooks` auto-trust (Task C)
 
-**The single biggest onboarding UX improvement in karma's history**. v0.10.0 documented Codex 0.130+ requirement that each hook be manually approved in TUI `/hooks` command. Codex CLI's PR #4 went one level deeper: implemented `CodexBackend.trust_karma_hooks()` that mirrors Codex's own `trusted_hash` derivation algorithm and writes `[hooks.state]` entries to `~/.codex/config.toml` automatically during `karma install-hooks --backend codex`. Result: **manual `/hooks` approval step eliminated**.
+**The single biggest onboarding UX improvement in pinrule's history**. v0.10.0 documented Codex 0.130+ requirement that each hook be manually approved in TUI `/hooks` command. Codex CLI's PR #4 went one level deeper: implemented `CodexBackend.trust_pinrule_hooks()` that mirrors Codex's own `trusted_hash` derivation algorithm and writes `[hooks.state]` entries to `~/.codex/config.toml` automatically during `pinrule install-hooks --backend codex`. Result: **manual `/hooks` approval step eliminated**.
 
-**Safety**: The trust writer only ever generates entries for karma's own wrappers (verified via `is_karma_entry` — same predicate karma uses for uninstall idempotency). Non-karma hooks (vibe-island bridge, user's custom hooks) are never touched. If Codex changes its hash algorithm in a future version, karma's hashes will fall back to "modified" in `/hooks` instead of silent-trust drift.
+**Safety**: The trust writer only ever generates entries for pinrule's own wrappers (verified via `is_pinrule_entry` — same predicate pinrule uses for uninstall idempotency). Non-pinrule hooks (vibe-island bridge, user's custom hooks) are never touched. If Codex changes its hash algorithm in a future version, pinrule's hashes will fall back to "modified" in `/hooks` instead of silent-trust drift.
 
-`post_install_message()` text rewritten: was "⚠️ CRITICAL — manual /hooks approval required", now "Codex hook 状态 — karma 已写 trusted_hash, 复核可选". README codex alert box flipped from "must manually approve" to "auto-trust, takes effect immediately".
+`post_install_message()` text rewritten: was "⚠️ CRITICAL — manual /hooks approval required", now "Codex hook 状态 — pinrule 已写 trusted_hash, 复核可选". README codex alert box flipped from "must manually approve" to "auto-trust, takes effect immediately".
 
 ### Codex backend capability table after v0.10.2
 
@@ -714,16 +759,16 @@ Codex CLI runs all shell via `exec_command` tool name. v0.10.1 only mapped `appl
 | apply_patch / Edit detection | ✅ | ✅ (envelope parser) | parity |
 | shell-as-Read detection | N/A (has Read tool) | ✅ (v0.10.1) | codex-specific advantage |
 | Auto-trust hooks | N/A | ✅ (v0.10.2 trusted_hash writer) | codex-specific |
-| PreCompact / SubagentStart/Stop | ✅ | ❌ (codex hook API doesn't expose these events) | not blocked at karma layer — Codex platform internally has `enable_request_compression` (stable=true, internal context compaction) and `enable_fanout` / `child_agents_md` (under development, sub-agent features), but Codex's 6 hook events (SessionStart/PreToolUse/PermissionRequest/PostToolUse/UserPromptSubmit/Stop) don't surface compaction or sub-agent dispatch as hookable lifecycle events. Will revisit when Codex exposes them. |
-| PermissionRequest | N/A | not used | karma has no use case |
+| PreCompact / SubagentStart/Stop | ✅ | ❌ (codex hook API doesn't expose these events) | not blocked at pinrule layer — Codex platform internally has `enable_request_compression` (stable=true, internal context compaction) and `enable_fanout` / `child_agents_md` (under development, sub-agent features), but Codex's 6 hook events (SessionStart/PreToolUse/PermissionRequest/PostToolUse/UserPromptSubmit/Stop) don't surface compaction or sub-agent dispatch as hookable lifecycle events. Will revisit when Codex exposes them. |
+| PermissionRequest | N/A | not used | pinrule has no use case |
 
-### karma maintainer-side counterpart (this commit)
+### pinrule maintainer-side counterpart (this commit)
 
 Per ownership boundary (codex can't touch README / CHANGELOG / HANDOFF / ARCHITECTURE):
 
 - README.md + README.zh.md codex install table + alert box rewritten from "manual approval required" to "auto-trust takes effect immediately"
 - CHANGELOG + HANDOFF + ARCHITECTURE bilingual v0.10.2 entries
-- Generic `karma/hooks/session_start.py` confirmed handles codex SessionStart payload without changes (compatible field names)
+- Generic `pinrule/hooks/session_start.py` confirmed handles codex SessionStart payload without changes (compatible field names)
 
 ### Verification
 
@@ -733,11 +778,11 @@ Per ownership boundary (codex can't touch README / CHANGELOG / HANDOFF / ARCHITE
 
 ### Meta-pattern — second consecutive successful codex PR
 
-v0.10.0 ownership split is now proven over 2 consecutive PRs. Codex CLI's contribution velocity is fast (real-world session captures as evidence, comprehensive test coverage, even bonus features like auto-trust beyond the explicit ask). karma maintainer's role is now stable: review for boundary discipline + maintain GitHub-facing docs + sync general-layer code where backend changes need it. **Cross-platform AI Agent backend collaboration model validated**.
+v0.10.0 ownership split is now proven over 2 consecutive PRs. Codex CLI's contribution velocity is fast (real-world session captures as evidence, comprehensive test coverage, even bonus features like auto-trust beyond the explicit ask). pinrule maintainer's role is now stable: review for boundary discipline + maintain GitHub-facing docs + sync general-layer code where backend changes need it. **Cross-platform AI Agent backend collaboration model validated**.
 
 ## [0.10.1] — 2026-05-16 (patch — codex shell-as-Read full integration + cross-backend contract tests)
 
-**First codex-owned PR merged**: [#3](https://github.com/jhaizhou-ops/karma/pull/3) by Codex CLI itself (`feat(codex-backend): detect shell reads from exec_command`). v0.10.0's ownership split worked as intended — codex submitted PR only touching its owned files (`karma/backends/codex.py` + `tests/test_codex_backend.py`), karma maintainer reviewed + handled the karma-side counterpart (the generic `post_tool_use.py` layer consumes the canonical `read_file_paths` field). End-to-end shell-as-Read recognition now works: codex agent runs `tail -n 20 file.py` → karma records it as Read → subsequent `apply_patch` on same file no longer false-positive denied by `read_first`. **Closes the last v0.9.16-era codex usability gap**.
+**First codex-owned PR merged**: [#3](https://github.com/jhaizhou-ops/pinrule/pull/3) by Codex CLI itself (`feat(codex-backend): detect shell reads from exec_command`). v0.10.0's ownership split worked as intended — codex submitted PR only touching its owned files (`pinrule/backends/codex.py` + `tests/test_codex_backend.py`), pinrule maintainer reviewed + handled the pinrule-side counterpart (the generic `post_tool_use.py` layer consumes the canonical `read_file_paths` field). End-to-end shell-as-Read recognition now works: codex agent runs `tail -n 20 file.py` → pinrule records it as Read → subsequent `apply_patch` on same file no longer false-positive denied by `read_first`. **Closes the last v0.9.16-era codex usability gap**.
 
 ### Codex backend contribution (PR #3)
 
@@ -753,9 +798,9 @@ v0.10.0 ownership split is now proven over 2 consecutive PRs. Codex CLI's contri
 
 15 codex-private tests in new `tests/test_codex_backend.py` cover all recognition + skip cases.
 
-### karma-side wiring (this PR)
+### pinrule-side wiring (this PR)
 
-`karma/hooks/post_tool_use.py` consumes the canonical `tool_input["read_file_paths"]` list — for **any** backend (not codex-specific). Iterates each path and calls `state.record_read()` before the per-tool-name branches. Backend-neutral by design: any future backend (Cursor / Copilot / Cline / etc.) whose `normalize_tool_input` populates `read_file_paths` automatically benefits.
+`pinrule/hooks/post_tool_use.py` consumes the canonical `tool_input["read_file_paths"]` list — for **any** backend (not codex-specific). Iterates each path and calls `state.record_read()` before the per-tool-name branches. Backend-neutral by design: any future backend (Cursor / Copilot / Cline / etc.) whose `normalize_tool_input` populates `read_file_paths` automatically benefits.
 
 New integration test `test_post_tool_use_records_codex_shell_read_paths` locks the full chain: codex `exec_command` + `cmd: "tail -n 20 ..."` payload → backend normalize → post_tool_use generic handler → state.read_files actually populated.
 
@@ -771,7 +816,7 @@ Coverage per backend:
 - `hook_events()` returns non-empty dict with snake_case basenames
 - `settings_path()` under dotted config dir
 - `build_event_entry()` returns dict with `hooks` key + list
-- `is_karma_entry()` recognizes own generated entry + rejects foreign entry
+- `is_pinrule_entry()` recognizes own generated entry + rejects foreign entry
 - `name` / `display_name` non-empty
 - `skill_install_targets()` returns list with valid format strings
 
@@ -782,27 +827,27 @@ Coverage per backend:
 ### Why this release
 
 User triggered architecture rethink after v0.9.16 real-codex testing exposed two new bugs:
-1. **Codex rejects `permissionDecision:"allow"` shape** — v0.9.15 had wrongly assumed Codex accepts Claude's hookSpecificOutput.allow shape. Real testing 2026-05-16 with codex 0.130 CLI produced `unsupported permissionDecision:allow` error. karma had this wrong for 1 release.
-2. **Codex shell-as-Read gap** — codex has no separate `Read` tool; reads files via `exec_command` running `tail` / `sed` / `cat`. karma's `record_read` only matches `tool_name == "Read"` → all codex shell-reads invisible → `read_first` false-positive denials on edits.
+1. **Codex rejects `permissionDecision:"allow"` shape** — v0.9.15 had wrongly assumed Codex accepts Claude's hookSpecificOutput.allow shape. Real testing 2026-05-16 with codex 0.130 CLI produced `unsupported permissionDecision:allow` error. pinrule had this wrong for 1 release.
+2. **Codex shell-as-Read gap** — codex has no separate `Read` tool; reads files via `exec_command` running `tail` / `sed` / `cat`. pinrule's `record_read` only matches `tool_name == "Read"` → all codex shell-reads invisible → `read_first` false-positive denials on edits.
 
-User feedback: *"karma 的 hook 和判定的设计可能得针对不同的平台有针对性的开发和维护，你主要负责维护 karma 主程序和 claude 端，codex 端我让 codex 自行开发和测试"*. This is sound — codex protocol details belong to whoever has fastest signal on codex platform changes, which is Codex CLI itself.
+User feedback: *"pinrule 的 hook 和判定的设计可能得针对不同的平台有针对性的开发和维护，你主要负责维护 pinrule 主程序和 claude 端，codex 端我让 codex 自行开发和测试"*. This is sound — codex protocol details belong to whoever has fastest signal on codex platform changes, which is Codex CLI itself.
 
 ### Major — architectural split
 
-karma now treats backend ownership as **separate contributor surfaces**:
+pinrule now treats backend ownership as **separate contributor surfaces**:
 
 | Files | Owner |
 |---|---|
-| `karma/hooks/*.py` main logic + `karma/checks/*.py` engine checks + `karma/backends/_base.py` Protocol + `karma/backends/_json_hooks.py` base + `karma/backends/protocol_adapter.py` dispatch + `karma/backends/claude_code.py` + `karma/backends/gemini_cli.py` | karma maintainer |
-| **`karma/backends/codex.py`** + **`tests/test_codex_backend.py`** (planned) | **Codex CLI itself** (PRs via Codex sessions) |
-| `tests/test_protocol_adapter.py` cross-backend contract | karma maintainer |
-| `README.md` / `CHANGELOG.md` / `HANDOFF.md` / `ARCHITECTURE.md` / `HOWTO.md` | karma maintainer |
+| `pinrule/hooks/*.py` main logic + `pinrule/checks/*.py` engine checks + `pinrule/backends/_base.py` Protocol + `pinrule/backends/_json_hooks.py` base + `pinrule/backends/protocol_adapter.py` dispatch + `pinrule/backends/claude_code.py` + `pinrule/backends/gemini_cli.py` | pinrule maintainer |
+| **`pinrule/backends/codex.py`** + **`tests/test_codex_backend.py`** (planned) | **Codex CLI itself** (PRs via Codex sessions) |
+| `tests/test_protocol_adapter.py` cross-backend contract | pinrule maintainer |
+| `README.md` / `CHANGELOG.md` / `HANDOFF.md` / `ARCHITECTURE.md` / `HOWTO.md` | pinrule maintainer |
 
 New doc [`docs/CODEX_BACKEND.md`](docs/CODEX_BACKEND.md) (and `.zh.md`) defines the ownership boundary, 6-method contract, and known TODO agenda for Codex backend owner.
 
 ### Major — 6-method backend contract
 
-`karma/backends/_base.py:Backend` Protocol formalizes the methods every backend must provide. `_json_hooks.py` provides Claude-Code-shape defaults; backends override only what differs:
+`pinrule/backends/_base.py:Backend` Protocol formalizes the methods every backend must provide. `_json_hooks.py` provides Claude-Code-shape defaults; backends override only what differs:
 
 | Method | Default (Claude) | Codex override | Gemini override |
 |---|---|---|---|
@@ -824,17 +869,17 @@ Real testing 2026-05-16 codex 0.130 CLI emitted error `PreToolUse hook returned 
 
 ### Internal — protocol_adapter.py becomes pure dispatch
 
-Previously `karma/backends/protocol_adapter.py` contained `_GEMINI_TOOL_MAP`, `_CODEX_TOOL_MAP`, `parse_apply_patch_envelope`, `_extract_codex_patch_text`, `normalize_tool_input` — all backend-specific code in a "neutral" file. v0.10.0 moves each to the backend file that owns the protocol:
+Previously `pinrule/backends/protocol_adapter.py` contained `_GEMINI_TOOL_MAP`, `_CODEX_TOOL_MAP`, `parse_apply_patch_envelope`, `_extract_codex_patch_text`, `normalize_tool_input` — all backend-specific code in a "neutral" file. v0.10.0 moves each to the backend file that owns the protocol:
 
-- Gemini tool name map → `karma/backends/gemini_cli.py:_GEMINI_TOOL_MAP`
-- Codex tool name map + envelope parser → `karma/backends/codex.py:_CODEX_TOOL_MAP` + `parse_apply_patch_envelope()` + `_extract_codex_patch_text()`
+- Gemini tool name map → `pinrule/backends/gemini_cli.py:_GEMINI_TOOL_MAP`
+- Codex tool name map + envelope parser → `pinrule/backends/codex.py:_CODEX_TOOL_MAP` + `parse_apply_patch_envelope()` + `_extract_codex_patch_text()`
 
 `protocol_adapter.py` now only contains:
 - `detect_backend(payload)` — routes to backend by `hook_event_name` for Gemini, by `sys.argv[0]` path (`/.codex/hooks/` literal) for codex, fallback claude-code
 - `normalize_tool_name` / `normalize_tool_input` / `emit_deny` / `emit_allow` — each 1-line delegation to `REGISTRY[detect_backend(payload)].method(...)`
-- `parse_apply_patch_envelope` re-export from `karma.backends.codex` for v0.9.16 test back-compat
+- `parse_apply_patch_envelope` re-export from `pinrule.backends.codex` for v0.9.16 test back-compat
 
-`detect_backend` upgrade: returns canonical REGISTRY key (`claude-code` / `codex` / `gemini-cli`) instead of v0.9.15's short forms (`claude` / `gemini`). codex detection via `sys.argv[0]` containing `/.codex/` literal is necessary because codex hook payloads don't have a reliable backend signature in stdin fields, but the wrapper file path is always `~/.codex/hooks/karma_*.py`.
+`detect_backend` upgrade: returns canonical REGISTRY key (`claude-code` / `codex` / `gemini-cli`) instead of v0.9.15's short forms (`claude` / `gemini`). codex detection via `sys.argv[0]` containing `/.codex/` literal is necessary because codex hook payloads don't have a reliable backend signature in stdin fields, but the wrapper file path is always `~/.codex/hooks/pinrule_*.py`.
 
 ### Internal — checks/read_first.py backend-neutral
 
@@ -844,7 +889,7 @@ v0.9.16 introduced `_codex_patch_files` field as canonical-protocol-leak (read_f
 
 Originally planned as v0.9.17 patch series, now integrated as backend-contract methods:
 - `CodexBackend.post_install_message()` — loud TUI `/hooks` approval reminder printed at install time, lists all 4 wrapper paths for user to copy into TUI
-- `karma doctor` — codex-specific section printing approval reminder when codex client + hooks.json detected. Doctor cannot programmatically verify approval state (codex doesn't expose it); honestly states this rather than fake-detecting.
+- `pinrule doctor` — codex-specific section printing approval reminder when codex client + hooks.json detected. Doctor cannot programmatically verify approval state (codex doesn't expose it); honestly states this rather than fake-detecting.
 - README.md + README.zh.md — alert box at codex install section (no longer buried in table row)
 
 ### Codex backend known TODOs (handoff to Codex)
@@ -852,7 +897,7 @@ Originally planned as v0.9.17 patch series, now integrated as backend-contract m
 Listed in `docs/CODEX_BACKEND.md`. Codex backend owner should pick these up:
 
 1. **shell-as-Read recognition** — `exec_command` tail/sed/cat should count as Read for `record_read`. Most important for codex usability.
-2. **Capture real hook-level payload** — currently inferred from session rollout, not directly captured. After `/hooks` approval, dump real hook stdin via `KARMA_DEBUG_DUMP_PAYLOAD`.
+2. **Capture real hook-level payload** — currently inferred from session rollout, not directly captured. After `/hooks` approval, dump real hook stdin via `PINRULE_DEBUG_DUMP_PAYLOAD`.
 3. Other codex tool names not yet mapped (`exec_command → Bash`, etc).
 4. Approval state programmatic detection (if codex exposes it).
 
@@ -882,7 +927,7 @@ Follow-up to v0.9.15 cross-backend phase 1. v0.9.15 normalized `tool_name` only 
 
 ```
 *** Begin Patch
-*** Update File: /tmp/karma-codex-toy.py
+*** Update File: /tmp/pinrule-codex-toy.py
 @@
 +# v0.9.16 test
 *** End Patch
@@ -890,7 +935,7 @@ Follow-up to v0.9.15 cross-backend phase 1. v0.9.15 normalized `tool_name` only 
 
 Codex `custom_tool_call.input` passes the **entire envelope as a single string** (not a structured dict). Multi-file patches concatenate multiple `*** Update File:` / `*** Add File:` / `*** Delete File:` blocks within one envelope.
 
-**Two new functions in `karma/backends/protocol_adapter.py`**:
+**Two new functions in `pinrule/backends/protocol_adapter.py`**:
 
 ```python
 def parse_apply_patch_envelope(envelope: str) -> list[dict[str, str]]:
@@ -904,21 +949,21 @@ def normalize_tool_input(raw_tool_name: str, raw_tool_input: Any, payload: dict)
 **Wired into both hooks**:
 - `pre_tool_use.py`: `tool_input = normalize_tool_input(...)` at entry. Multi-file patches expose `_codex_patch_files` list to downstream checks.
 - `post_tool_use.py`: When `tool_name == "Edit"` and `_codex_patch_files` is present, iterate each Update/Add path → `record_edit` + `record_read` per file (Delete skipped). `last_edit_ts` truly advances for codex multi-file commits — fixes the v0.9.15-era gap where evidence/commit gate was silently waved through on Codex.
-- `karma/checks/read_first.py`: Iterates `_codex_patch_files` when present — any Update path not yet Read triggers denial. Add paths exempted (new files, no prior Read required), Delete paths skipped. **Catches multi-file patches where only the primary file was Read.**
+- `pinrule/checks/read_first.py`: Iterates `_codex_patch_files` when present — any Update path not yet Read triggers denial. Add paths exempted (new files, no prior Read required), Delete paths skipped. **Catches multi-file patches where only the primary file was Read.**
 
 ### Defensive input shape handling
 
-`_extract_codex_patch_text()` handles both the bare-string form (verified from rollout) and possible dict-wrapped forms (`{"input": ...}`, `{"command": ...}`, etc.) — because the **hook-level** payload shape couldn't be directly captured: `codex exec` non-interactive mode does not fire user hooks even with `--enable hooks` (verified via `KARMA_DEBUG_DUMP_PAYLOAD` instrumentation + `codex features list`). Interactive codex (production path) is expected to fire hooks normally; defensive wrap-detection means karma works regardless of which exact shape the codex hook passes.
+`_extract_codex_patch_text()` handles both the bare-string form (verified from rollout) and possible dict-wrapped forms (`{"input": ...}`, `{"command": ...}`, etc.) — because the **hook-level** payload shape couldn't be directly captured: `codex exec` non-interactive mode does not fire user hooks even with `--enable hooks` (verified via `PINRULE_DEBUG_DUMP_PAYLOAD` instrumentation + `codex features list`). Interactive codex (production path) is expected to fire hooks normally; defensive wrap-detection means pinrule works regardless of which exact shape the codex hook passes.
 
 ### Config DEFAULTS silent-drop bug (Minor #4)
 
-`karma/config.py:load()` iterates `for key in DEFAULTS` to merge user config — so any user-settable knob **not** in `DEFAULTS` is silently dropped from `~/.claude/karma/config.yaml`. `reinject_every_n_tokens` was a documented user-tunable in `post_tool_use._build_smart_reinject` but missing from `DEFAULTS` → users writing `reinject_every_n_tokens: 4000` in their config were silently falling back to the model-adaptive default.
+`pinrule/config.py:load()` iterates `for key in DEFAULTS` to merge user config — so any user-settable knob **not** in `DEFAULTS` is silently dropped from `~/.claude/pinrule/config.yaml`. `reinject_every_n_tokens` was a documented user-tunable in `post_tool_use._build_smart_reinject` but missing from `DEFAULTS` → users writing `reinject_every_n_tokens: 4000` in their config were silently falling back to the model-adaptive default.
 
 **Fix**: Added `"reinject_every_n_tokens": None` to `DEFAULTS` (None preserves the "auto by model" semantics) + documented sample in `data/config.example.yaml` + new test `tests/test_config.py:test_reinject_every_n_tokens_in_defaults_and_user_override` locks the round-trip.
 
 ### Compact/SubagentStop hook test asserts tightened (Minor #5)
 
-`tests/test_compact_hooks.py` had three sites with `if "hookSpecificOutput" in output:` conditional branches that silently passed if the hook regressed to emitting the (Claude-Code-unsupported) `hookSpecificOutput` shape on PreCompact/SubagentStop. Per 2026-05-15 official-docs verification, those events only support `decision`/`reason` mode — karma emits bare `{}` now. Tests now strict-assert `output == {}` so future regressions fail loud instead of green-silently.
+`tests/test_compact_hooks.py` had three sites with `if "hookSpecificOutput" in output:` conditional branches that silently passed if the hook regressed to emitting the (Claude-Code-unsupported) `hookSpecificOutput` shape on PreCompact/SubagentStop. Per 2026-05-15 official-docs verification, those events only support `decision`/`reason` mode — pinrule emits bare `{}` now. Tests now strict-assert `output == {}` so future regressions fail loud instead of green-silently.
 
 ### Test coverage delta
 
@@ -943,27 +988,27 @@ Plus the config DEFAULTS test + tightened compact_hooks asserts.
 
 - **510/510** passing both locales (was 498) — 12 new tests
 - All 6 local gates pass (pytest zh + en / ruff / mypy / vulture / wheel build+verify+smoke)
-- Wheel smoke test: clean venv `pip install karma-0.9.16-py3-none-any.whl` → parser correctly extracts file paths from real codex envelope, `normalize_tool_name("apply_patch", ...)` returns `"Edit"`, all `data/signals/` files shipped (force-include from v0.9.15 carried forward)
+- Wheel smoke test: clean venv `pip install pinrule-0.9.16-py3-none-any.whl` → parser correctly extracts file paths from real codex envelope, `normalize_tool_name("apply_patch", ...)` returns `"Edit"`, all `data/signals/` files shipped (force-include from v0.9.15 carried forward)
 
-Full details: [CHANGELOG.md](https://github.com/jhaizhou-ops/karma/blob/v0.9.16/CHANGELOG.md)
+Full details: [CHANGELOG.md](https://github.com/jhaizhou-ops/pinrule/blob/v0.9.16/CHANGELOG.md)
 
-## [0.9.15] — 2026-05-16 (fix — cross-model audit (GPT-5.5) catches 3 critical cross-backend protocol bugs; karma had Claude-only assumptions hiding for entire repo lifetime)
+## [0.9.15] — 2026-05-16 (fix — cross-model audit (GPT-5.5) catches 3 critical cross-backend protocol bugs; pinrule had Claude-only assumptions hiding for entire repo lifetime)
 
 ### Why this release
 
 User: "再来一轮 cross-audit，本机配置了 codex cli，也配置好了 gpt 5.5 模型，你委派 codex cli 做一次多 Agent 交叉评审。"
 
-Ran `codex exec` with GPT-5.5 xhigh reasoning against karma. **Cross-model viewpoint exposed 3 critical bugs Claude-side audits missed every previous round**:
+Ran `codex exec` with GPT-5.5 xhigh reasoning against pinrule. **Cross-model viewpoint exposed 3 critical bugs Claude-side audits missed every previous round**:
 
-1. **Gemini BeforeTool output shape mismatch** — karma always emitted Claude's `{hookSpecificOutput: {permissionDecision: "deny"}}` shape, but [Gemini hooks docs](https://geminicli.com/docs/hooks/reference/) require top-level `{decision: "deny" | "block", reason: ...}`. Verified via WebFetch. **Impact**: Gemini users had karma writing violations + stderr warnings but **the dangerous tool actually executed** — all intercept-type rules (non_blocking / bypass_karma / read_first) were write-only, no real blocking.
+1. **Gemini BeforeTool output shape mismatch** — pinrule always emitted Claude's `{hookSpecificOutput: {permissionDecision: "deny"}}` shape, but [Gemini hooks docs](https://geminicli.com/docs/hooks/reference/) require top-level `{decision: "deny" | "block", reason: ...}`. Verified via WebFetch. **Impact**: Gemini users had pinrule writing violations + stderr warnings but **the dangerous tool actually executed** — all intercept-type rules (non_blocking / bypass_pinrule / read_first) were write-only, no real blocking.
 
-2. **Gemini tool_name not normalized** — karma checks compare against Claude-style names (`Bash`/`Read`/`Edit`/`Write`/`NotebookEdit`). Gemini uses `run_shell_command` / `read_file` / `write_file` / `replace`. **Impact**: Every check early-returns `None` on Gemini → **zero checks fire** for Gemini users.
+2. **Gemini tool_name not normalized** — pinrule checks compare against Claude-style names (`Bash`/`Read`/`Edit`/`Write`/`NotebookEdit`). Gemini uses `run_shell_command` / `read_file` / `write_file` / `replace`. **Impact**: Every check early-returns `None` on Gemini → **zero checks fire** for Gemini users.
 
-3. **Codex `apply_patch` tool_name not handled** — [Codex hooks docs](https://developers.openai.com/codex/hooks) explicitly state hook input reports `tool_name: "apply_patch"` for edits, not `Edit`/`Write`. karma 0 places handle it. **Impact**: Codex users using `apply_patch` (the primary edit path) bypass `read_first` / `long_term_fundamental` / `testset` / `evidence` checks entirely. `last_edit_ts` doesn't advance → stale "recent test pass" state preserved → git commit `evidence.commit` check waved through.
+3. **Codex `apply_patch` tool_name not handled** — [Codex hooks docs](https://developers.openai.com/codex/hooks) explicitly state hook input reports `tool_name: "apply_patch"` for edits, not `Edit`/`Write`. pinrule 0 places handle it. **Impact**: Codex users using `apply_patch` (the primary edit path) bypass `read_first` / `long_term_fundamental` / `testset` / `evidence` checks entirely. `last_edit_ts` doesn't advance → stale "recent test pass" state preserved → git commit `evidence.commit` check waved through.
 
-User caught me misjudging once during this session: "你没有探查就下结论这很不好。结合实际环境支持和官方文档开始排查、修复和测试吧。" Was about to ask user to pick between fix options before verifying. Rule #6 read-before-write applies to docs too — pulled actual `~/.codex/hooks.json` + `~/.gemini/settings.json` + WebFetched both backends' official hook protocol docs. This also caught a codex-audit misjudgment (codex thought Codex needed legacy `{decision, reason}` shape; the docs actually say Codex accepts the new `hookSpecificOutput` shape too — karma's current Codex output is OK; only `apply_patch` tool_name handling is missing).
+User caught me misjudging once during this session: "你没有探查就下结论这很不好。结合实际环境支持和官方文档开始排查、修复和测试吧。" Was about to ask user to pick between fix options before verifying. Rule #6 read-before-write applies to docs too — pulled actual `~/.codex/hooks.json` + `~/.gemini/settings.json` + WebFetched both backends' official hook protocol docs. This also caught a codex-audit misjudgment (codex thought Codex needed legacy `{decision, reason}` shape; the docs actually say Codex accepts the new `hookSpecificOutput` shape too — pinrule's current Codex output is OK; only `apply_patch` tool_name handling is missing).
 
-### Fix — `karma/backends/protocol_adapter.py` (new module)
+### Fix — `pinrule/backends/protocol_adapter.py` (new module)
 
 Centralizes cross-backend protocol differences in one place:
 
@@ -997,7 +1042,7 @@ Gemini → Claude canonical:
   replace / edit / edit_file → Edit
 
 Codex → Claude canonical:
-  apply_patch → Edit  # so long_term/testset/bypass_karma scan tool_input.command
+  apply_patch → Edit  # so long_term/testset/bypass_pinrule scan tool_input.command
 ```
 
 ### Hook entry migration
@@ -1006,15 +1051,15 @@ Codex → Claude canonical:
 - `_allow()` / `_deny()` now take `payload` and route through `emit_allow/emit_deny`
 - `tool_name = normalize_tool_name(raw, payload)` at entry — all downstream checks see canonical name
 
-`apply_patch` Phase-2 limitation: edits via `apply_patch` carry diff in `tool_input.command`, not single `file_path`. `long_term`/`testset`/`bypass_karma` scan the command text correctly. But `read_first` (needs `file_path` to compare against `state.read_files`) and `record_edit` (single path) currently no-op on `apply_patch` because there's no `file_path`. Multi-file diff parsing is **Phase 2** (would let `read_first` enforce "read every file in the patch first" and `record_edit` advance `last_edit_ts` per touched file). Documented in adapter module docstring.
+`apply_patch` Phase-2 limitation: edits via `apply_patch` carry diff in `tool_input.command`, not single `file_path`. `long_term`/`testset`/`bypass_pinrule` scan the command text correctly. But `read_first` (needs `file_path` to compare against `state.read_files`) and `record_edit` (single path) currently no-op on `apply_patch` because there's no `file_path`. Multi-file diff parsing is **Phase 2** (would let `read_first` enforce "read every file in the patch first" and `record_edit` advance `last_edit_ts` per touched file). Documented in adapter module docstring.
 
 ### Critical wheel-packaging fix (caught by second codex full-repo review)
 
-After Phase 1 merged into v0.9.15, user requested another codex GPT-5.5 review — this time **entire karma project, not just the diff**. GPT-5.5 caught a **catastrophic packaging bug separate from the cross-backend protocol issue**:
+After Phase 1 merged into v0.9.15, user requested another codex GPT-5.5 review — this time **entire pinrule project, not just the diff**. GPT-5.5 caught a **catastrophic packaging bug separate from the cross-backend protocol issue**:
 
-`pyproject.toml` `force-include` listed individual yaml templates + skills + locales — but **never included `data/signals/`**. `karma/signals.py:40` hardcodes `_REPO_ROOT / "data" / "signals"` for loading. Source-tree tests pass (signals directory exists locally), but **wheel installations lose the entire `data/signals/` tree**. `compile_alternation()` returns never-match regex `(?!)` → **all keyword-fallback layers fail silently** for every pip-installed user: `evidence` / `keep_pushing` / `non_blocking` checks lose their detection vocabulary entirely.
+`pyproject.toml` `force-include` listed individual yaml templates + skills + locales — but **never included `data/signals/`**. `pinrule/signals.py:40` hardcodes `_REPO_ROOT / "data" / "signals"` for loading. Source-tree tests pass (signals directory exists locally), but **wheel installations lose the entire `data/signals/` tree**. `compile_alternation()` returns never-match regex `(?!)` → **all keyword-fallback layers fail silently** for every pip-installed user: `evidence` / `keep_pushing` / `non_blocking` checks lose their detection vocabulary entirely.
 
-This affects **every pip-installed karma user including the Claude Code mainstream path** — more severe than the cross-backend bug (which only affected Gemini/Codex users). My own 6-gate local checklist included a wheel verify step but **only locked 6 expected files**; the `data/signals/` subtree was never in the lockdown list (extension of rule #5 lesson: locked lists only cover what was thought-of at lockdown time, new data subtrees slip through).
+This affects **every pip-installed pinrule user including the Claude Code mainstream path** — more severe than the cross-backend bug (which only affected Gemini/Codex users). My own 6-gate local checklist included a wheel verify step but **only locked 6 expected files**; the `data/signals/` subtree was never in the lockdown list (extension of rule #5 lesson: locked lists only cover what was thought-of at lockdown time, new data subtrees slip through).
 
 **Fix**:
 - `pyproject.toml` force-include adds `"data/signals" = "data/signals"` (whole directory, not glob — protects future signal types from being missed)
@@ -1039,9 +1084,9 @@ This affects **every pip-installed karma user including the Claude Code mainstre
 
 ### Meta-pattern
 
-**Cross-model audit value is real** when the in-house model has systematic blind spots. Claude wrote karma; Claude reviewed karma 12+ times this session; Claude's blind spot was: **assume the protocol that Claude itself uses is universal**. GPT-5.5 — running on Codex CLI, having different training exposure to Gemini hooks docs — pulled official refs and flagged exactly this assumption. Single-model rounds (v0.9.13 / v0.9.14) had diminishing returns; cross-model rounds opened a whole new audit surface.
+**Cross-model audit value is real** when the in-house model has systematic blind spots. Claude wrote pinrule; Claude reviewed pinrule 12+ times this session; Claude's blind spot was: **assume the protocol that Claude itself uses is universal**. GPT-5.5 — running on Codex CLI, having different training exposure to Gemini hooks docs — pulled official refs and flagged exactly this assumption. Single-model rounds (v0.9.13 / v0.9.14) had diminishing returns; cross-model rounds opened a whole new audit surface.
 
-The bug had been latent for the entire history of karma's "3-backend support" claim — every dogfooding case was Claude Code, so the cross-backend protocol never got tested. README literally claims "Claude Code / Codex CLI / Gemini CLI" support but Gemini support was non-functional. Honest correction shipped.
+The bug had been latent for the entire history of pinrule's "3-backend support" claim — every dogfooding case was Claude Code, so the cross-backend protocol never got tested. README literally claims "Claude Code / Codex CLI / Gemini CLI" support but Gemini support was non-functional. Honest correction shipped.
 
 ## [0.9.14] — 2026-05-16 (fix — multi-agent cross-audit catches v0.9.13's own regression: `pre_tool_use` `update_state` not wrapped in try/except)
 
@@ -1058,7 +1103,7 @@ Per rule #4, each finding was hand-verified — most of viewpoint 1's findings t
 
 **Viewpoint 3 caught the real one**: v0.9.13's own regression. When I migrated `pre_tool_use.py:98-100` from `load + catchup_pending_bg + no save` to `update_state(sid, lambda s: s.catchup_pending_bg(), agent_id=...)` to fix the C1 instrumentation bug, I **forgot to wrap it in try/except**. The original `load + catchup` was implicitly fail-safe (load catches OSError, catchup_pending_bg internally catches OSError per-task), but `update_state` introduces a new failure path: `fcntl.flock` acquire failures (extremely rare but possible — file system errors, broken NFS mount, etc), `save()` OSError when writing back. If any of those raises, the exception bubbles, `pre_tool_use.main()` returns non-zero, and Claude Code sees the hook fail — **user is blocked from making the tool call**.
 
-This is **fail-closed**, the exact opposite of karma's design principle (all hooks must fail-open: karma's own internal failure must never block the user).
+This is **fail-closed**, the exact opposite of pinrule's design principle (all hooks must fail-open: pinrule's own internal failure must never block the user).
 
 ### Fix 1 (critical) — `pre_tool_use.py:104-108` wrapped in try/except with fallback
 
@@ -1068,7 +1113,7 @@ try:
         session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id,
     )
 except Exception as e:
-    print(f"karma PreToolUse: update_state 失败 fallback 裸 load ({e})", file=sys.stderr)
+    print(f"pinrule PreToolUse: update_state 失败 fallback 裸 load ({e})", file=sys.stderr)
     state = session_state.load(session_id, agent_id=agent_id)
 ```
 
@@ -1110,7 +1155,7 @@ Sub-agent's viewpoint 1 caught this as a real FN: `pip install` always takes ≥
 
 ### Why this release
 
-After v0.9.12 (the v0.9.11 instrumentation bug + meta-lesson "rule #4 applies in both directions — verify the result isn't instrument artifact"), user asked: "全面排查下，还有没有这种 bug，直接影响 karma 运行准确性和统计准确性的". Launched a comprehensive audit using v0.9.12's bug pattern as template — Type A (field-missing), Type B (aggregation off-by-one), Type C (race / load-modify-no-save), Type D (i18n inconsistency).
+After v0.9.12 (the v0.9.11 instrumentation bug + meta-lesson "rule #4 applies in both directions — verify the result isn't instrument artifact"), user asked: "全面排查下，还有没有这种 bug，直接影响 pinrule 运行准确性和统计准确性的". Launched a comprehensive audit using v0.9.12's bug pattern as template — Type A (field-missing), Type B (aggregation off-by-one), Type C (race / load-modify-no-save), Type D (i18n inconsistency).
 
 Sub-agent reported 5 findings. Per rule #4 (don't trust agent reports, verify with read), each was hand-verified:
 
@@ -1124,15 +1169,15 @@ Sub-agent reported 5 findings. Per rule #4 (don't trust agent reports, verify wi
 
 ### Fix 1 — `load_all()` reads `agent_id` field
 
-`karma/violations.py:370` — `Violation()` construction during jsonl read now includes `agent_id=d.get("agent_id")`. Symmetric with `to_json()` write path (line 59-60). Audit/stats views correctly distinguish main Agent violations from sub Agent violations.
+`pinrule/violations.py:370` — `Violation()` construction during jsonl read now includes `agent_id=d.get("agent_id")`. Symmetric with `to_json()` write path (line 59-60). Audit/stats views correctly distinguish main Agent violations from sub Agent violations.
 
 ### Fix 2 — Turn window cutoff: `cur - (window - 1)` instead of `cur - window`
 
-`karma/violations.py:309 recent_turns` + `karma/violations.py:343 count_recent_turns` + `karma/cli.py:836 cmd_audit` drift-view — all three cutoff calculations consistently fixed.
+`pinrule/violations.py:309 recent_turns` + `pinrule/violations.py:343 count_recent_turns` + `pinrule/cli.py:836 cmd_audit` drift-view — all three cutoff calculations consistently fixed.
 
 **Real impact**: `stop.py:162 force_block` was the worst affected. With `force_window=3, force_threshold=5`, old `cutoff=cur-3` matched `[cur-3, cur]` = 4 turns. So a user who already fixed the root cause 3 turns ago could still be force-blocked on the 4th-turn-old violation counting toward the threshold. The user's config.yaml comment literally reads "最近 N turn 内同一规则违反 ≥ M 次" — N is meant to be N turns, not N+1.
 
-After fix: `cur - (window - 1)` makes `window=N` truly match N turns. Sub-agent reported this as "medium severity statistical drift" — but real semantic is "incorrect force_block trigger condition" affecting karma's intervention behavior accuracy.
+After fix: `cur - (window - 1)` makes `window=N` truly match N turns. Sub-agent reported this as "medium severity statistical drift" — but real semantic is "incorrect force_block trigger condition" affecting pinrule's intervention behavior accuracy.
 
 Existing tests `test_recent_turns_filters_by_session_and_turn_window` / `test_count_recent_turns_by_session` use the boundary turn semantically (r2 at turn=5 in / r1 at turn=2 out) — their asserts still pass under new cutoff because both windows still bracket the named turns correctly. Test docstring comments updated to reflect new semantics. Plus new lockdown `test_recent_turns_window_lockdown_v0913` explicitly asserts `window=3, current=10 → matches [8,9,10]` (3 turns, not 4) and `window=1 → matches only current turn`.
 
@@ -1140,7 +1185,7 @@ One existing test `test_stop_hook_force_blocks_on_accumulated_violations` had a 
 
 ### Fix 3 — `pre_tool_use.py` catchup migrated to `update_state`
 
-`karma/hooks/pre_tool_use.py:98-100` previously did `state = session_state.load(...); state.catchup_pending_bg()` with **no save**. This was inconsistent with v0.9.8's `update_state` architecture — every other hook write path uses `update_state` for atomic load-modify-save. Sub-agent's report caught my earlier misjudgment (I read this code in v0.9.8 and classified it as design choice "PreToolUse is decision-side, not state-side"). But `catchup_pending_bg()` mutates `pending_bg_tasks` and `recent_bash` — leaving those mutations un-persisted means the next hook does redundant catchup on the same tasks. Fixed by routing through `session_state.update_state(session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id)` matching post_tool_use.py.
+`pinrule/hooks/pre_tool_use.py:98-100` previously did `state = session_state.load(...); state.catchup_pending_bg()` with **no save**. This was inconsistent with v0.9.8's `update_state` architecture — every other hook write path uses `update_state` for atomic load-modify-save. Sub-agent's report caught my earlier misjudgment (I read this code in v0.9.8 and classified it as design choice "PreToolUse is decision-side, not state-side"). But `catchup_pending_bg()` mutates `pending_bg_tasks` and `recent_bash` — leaving those mutations un-persisted means the next hook does redundant catchup on the same tasks. Fixed by routing through `session_state.update_state(session_id, lambda s: s.catchup_pending_bg(), agent_id=agent_id)` matching post_tool_use.py.
 
 ### Fix 4 — zh weak_claims signal coverage parity with en
 
@@ -1167,11 +1212,11 @@ Three of the four bugs (A1, B1, D1) match v0.9.12's pattern: "instrumentation dr
 
 ### Why this release (loud failure callout)
 
-v0.9.11 shipped `karma audit --by-check`. First-run dogfood on author's machine produced a striking result: **"86% of violations are keyword-only fallback hits, only 14% from engine checks."** I read this as a real signal and gave the user the interpretation: "most rules don't have `violation_checks` attached, engine layer needs more investment."
+v0.9.11 shipped `pinrule audit --by-check`. First-run dogfood on author's machine produced a striking result: **"86% of violations are keyword-only fallback hits, only 14% from engine checks."** I read this as a real signal and gave the user the interpretation: "most rules don't have `violation_checks` attached, engine layer needs more investment."
 
-**The interpretation was wrong.** User asked the right follow-up: "are these 1-trigger checks like `bypass_karma` / `evidence.completion` / `testset` redundant rule design, or are they missing real signals they should catch?" Investigating that question forced reading the raw violations.jsonl — and found two records with identical `trigger` text (the i18n-translated output of `check.keep_pushing.default.trigger`), one with `trigger_key` field present, one without. **Pure field-presence difference; the underlying signal was the same.**
+**The interpretation was wrong.** User asked the right follow-up: "are these 1-trigger checks like `bypass_pinrule` / `evidence.completion` / `testset` redundant rule design, or are they missing real signals they should catch?" Investigating that question forced reading the raw violations.jsonl — and found two records with identical `trigger` text (the i18n-translated output of `check.keep_pushing.default.trigger`), one with `trigger_key` field present, one without. **Pure field-presence difference; the underlying signal was the same.**
 
-Root cause: `karma/hooks/user_prompt_submit.py:_build_strong_reminder` (a v0.4.41 fallback path that writes violations when the user immediately submits a new prompt before Stop hook can run) constructs `Violation` objects but **didn't pass `trigger_key`** — while `pre_tool_use.py` and `stop.py` both did. So every engine check fired via this fallback path got recorded with empty `trigger_key`, and v0.9.11's `--by-check` view bucketed them as "keyword-only."
+Root cause: `pinrule/hooks/user_prompt_submit.py:_build_strong_reminder` (a v0.4.41 fallback path that writes violations when the user immediately submits a new prompt before Stop hook can run) constructs `Violation` objects but **didn't pass `trigger_key`** — while `pre_tool_use.py` and `stop.py` both did. So every engine check fired via this fallback path got recorded with empty `trigger_key`, and v0.9.11's `--by-check` view bucketed them as "keyword-only."
 
 ### Fix
 
@@ -1179,7 +1224,7 @@ Root cause: `karma/hooks/user_prompt_submit.py:_build_strong_reminder` (a v0.4.4
 
 ### Regression lockdown — `test_all_hook_violation_writes_pass_trigger_key`
 
-Static scan over `karma/hooks/*.py`: for every `Violation(...)` or `_V(...)` construction site that has `rule_id=...`, require `trigger_key=...` in the same call. If a future PR adds another hook path that writes violations and forgets `trigger_key`, CI fails immediately. The invariant is now in the test suite, not just code review memory.
+Static scan over `pinrule/hooks/*.py`: for every `Violation(...)` or `_V(...)` construction site that has `rule_id=...`, require `trigger_key=...` in the same call. If a future PR adds another hook path that writes violations and forgets `trigger_key`, CI fails immediately. The invariant is now in the test suite, not just code review memory.
 
 ### Honesty caveat on historical data
 
@@ -1199,7 +1244,7 @@ User reading the view sees the data as-is plus the honest caveat. Real engine-vs
 
 Author's 187-violation dataset, partially affected by the bug:
 - Originally reported `keep_pushing` engine: 20×. After accounting for the bug: the `keep_pushing.default` trigger appears 79 additional times in the keyword-only bucket — those are the same check truly firing. **True `keep_pushing` engine hits estimated ~99.**
-- Originally reported `bypass_karma` engine: 1×. The keyword-only bucket has 6 hits with trigger text "绕开检测 — 手动写 karma 内部状态" (the `bypass_karma` check's i18n trigger). **True `bypass_karma` engine hits estimated ~7.**
+- Originally reported `bypass_pinrule` engine: 1×. The keyword-only bucket has 6 hits with trigger text "绕开检测 — 手动写 pinrule 内部状态" (the `bypass_pinrule` check's i18n trigger). **True `bypass_pinrule` engine hits estimated ~7.**
 - `evidence.completion`: 1× → estimated ~10× (9 keyword-only with the same completion trigger)
 - `testset.*`: 1× → estimated ~5× (4 keyword-only with `testset` triggers)
 
@@ -1215,23 +1260,23 @@ User's question "are the 1-trigger checks redundant?" — answer: **none of them
 
 v0.9.11's "86% keyword-only" was a **dashboard pulling double duty as data**: I read the number as user-behavior signal and gave a confident interpretation, but the number was actually instrumentation telling me about a data-pipeline bug. Rule #4 [loud-failure-with-evidence] applies in both directions — claim a result, then verify the result wasn't just instrument artifact. User asking "are the 1-trigger ones redundant?" was the prompt that exposed the artifact.
 
-## [0.9.11] — 2026-05-16 (feat — observability: `karma audit --by-check` engine-check hit distribution + `/karma` no-arg defaults to this view)
+## [0.9.11] — 2026-05-16 (feat — observability: `pinrule audit --by-check` engine-check hit distribution + `/pinrule` no-arg defaults to this view)
 
 ### Why this release
 
 After v0.9.10 onboarding polish, asked user which direction to push next: check-firing-distribution observability or weekly trend visualization. User's design insight:
 
-> "Adding new skills creates extra cognitive load for users — I want to compress that. For the first direction (check-firing observability), wouldn't it be better as the **default output of `/karma` when no description is given**? Just typing `/karma` shows the check-firing distribution."
+> "Adding new skills creates extra cognitive load for users — I want to compress that. For the first direction (check-firing observability), wouldn't it be better as the **default output of `/pinrule` when no description is given**? Just typing `/pinrule` shows the check-firing distribution."
 
-This avoids inventing a new entry point (new CLI subcommand or new slash command). `/karma` is something the user already knows (v0.9.10 footer just introduced it). No-arg `/karma` getting a useful default reuses existing muscle memory — zero learning curve.
+This avoids inventing a new entry point (new CLI subcommand or new slash command). `/pinrule` is something the user already knows (v0.9.10 footer just introduced it). No-arg `/pinrule` getting a useful default reuses existing muscle memory — zero learning curve.
 
 ### Implementation
 
-**1. CLI backend — `karma audit --by-check`** (`karma/cli.py`):
+**1. CLI backend — `pinrule audit --by-check`** (`pinrule/cli.py`):
 
 New `_cmd_audit_by_check()` aggregates violations by `trigger_key` field (the i18n locale key, format `check.<name>[.<sub>].trigger`):
 
-- **Top-level aggregation** (8 engine checks): one row per check function (`bypass_karma`, `chinese_plain`, `evidence`, `keep_pushing`, ...) with count and ratio of total engine hits
+- **Top-level aggregation** (8 engine checks): one row per check function (`bypass_pinrule`, `chinese_plain`, `evidence`, `keep_pushing`, ...) with count and ratio of total engine hits
 - **Sub-variant breakdown** (when applicable): finer rows like `chinese_plain.ratio` vs `chinese_plain.jargon`, `evidence.commit` vs `evidence.completion`, etc — helps the author see which sub-check is high-firing vs high-false-positive
 - **Keyword-only bucket**: violations with empty `trigger_key` (caught by keyword fallback layer, no engine check)
 
@@ -1240,13 +1285,13 @@ No schema change required — reuses the existing `Violation.trigger_key` field 
 Real dogfood data from author's machine (187 violations, repo current state):
 
 ```
-karma engine check 命中分布 (总 187 条违反):
+pinrule engine check 命中分布 (总 187 条违反):
 
 按 check 函数聚合 (26 条 engine 命中):
     20× ( 77%) keep_pushing
      3× ( 12%) non_blocking
      1× (  4%) testset
-     1× (  4%) bypass_karma
+     1× (  4%) bypass_pinrule
      1× (  4%) evidence
 
 按 sub-variant 细分 (26 条 engine 命中):
@@ -1254,35 +1299,35 @@ karma engine check 命中分布 (总 187 条违反):
      3× ( 12%) non_blocking.sleep
      2× (  8%) keep_pushing.stop_hint
      1× (  4%) testset.hash_branch
-     1× (  4%) bypass_karma
+     1× (  4%) bypass_pinrule
      1× (  4%) evidence.completion
 
 keyword-only 兜底命中 (无 engine check): 161× (86%)
 ```
 
-**2. Skill — `/karma` no-arg default** (`skills/karma/SKILL.md`):
+**2. Skill — `/pinrule` no-arg default** (`skills/pinrule/SKILL.md`):
 
-Added "No-argument flow" section to the `karma` skill: when the user types `/karma` with empty `$ARGUMENTS`, the Agent runs `karma audit --by-check` and relays the output to the user with a brief interpretation (high-firing checks → which direction violates most; high keyword-only ratio → most violations caught by fallback layer; high-FP suspicion → sub-variants where literal patterns may overfire). Then asks: "Want to tune any check, drop a rule, or add a new one based on this data?"
+Added "No-argument flow" section to the `pinrule` skill: when the user types `/pinrule` with empty `$ARGUMENTS`, the Agent runs `pinrule audit --by-check` and relays the output to the user with a brief interpretation (high-firing checks → which direction violates most; high keyword-only ratio → most violations caught by fallback layer; high-FP suspicion → sub-variants where literal patterns may overfire). Then asks: "Want to tune any check, drop a rule, or add a new one based on this data?"
 
-This closes the dogfood feedback loop: violations.jsonl → audit → user sees pattern → decides to tune. No new entry point invented; `/karma` no-arg is the natural "show me what's happening" gesture.
+This closes the dogfood feedback loop: violations.jsonl → audit → user sees pattern → decides to tune. No new entry point invented; `/pinrule` no-arg is the natural "show me what's happening" gesture.
 
 **3. Backward compatibility**:
 
-`karma audit` (without `--by-check`) keeps its existing behavior (per-rule aggregation with false-positive suspicion / fix timeline / current-session drift sections). The `--by-check` flag is purely additive.
+`pinrule audit` (without `--by-check`) keeps its existing behavior (per-rule aggregation with false-positive suspicion / fix timeline / current-session drift sections). The `--by-check` flag is purely additive.
 
 ### Test coverage
 
 2 new tests in `tests/test_cli.py`:
-- `test_audit_by_check_aggregates_engine_hits` — synthesizes 6 violations (3 `bypass_karma` engine + 2 `keep_pushing` sub-variants + 1 keyword-only), verifies top-level + sub-variant + keyword-only sections all appear
+- `test_audit_by_check_aggregates_engine_hits` — synthesizes 6 violations (3 `bypass_pinrule` engine + 2 `keep_pushing` sub-variants + 1 keyword-only), verifies top-level + sub-variant + keyword-only sections all appear
 - `test_audit_default_view_backward_compat` — `cmd_audit()` without `by_check=True` produces the old per-rule view, doesn't leak `--by-check`-only literal strings
 
 ### Verification
 
 - 481/481 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 479)
 - All 6 local gates pass
-- Real dogfood validation: `karma audit --by-check` on author's machine produced the meaningful 187-violation distribution shown above on first run
+- Real dogfood validation: `pinrule audit --by-check` on author's machine produced the meaningful 187-violation distribution shown above on first run
 
-## [0.9.10] — 2026-05-16 (feat — onboarding polish: rule summary shows first paragraph (not half-line) + footer with token-cost reassurance and `/karma` in-chat entry)
+## [0.9.10] — 2026-05-16 (feat — onboarding polish: rule summary shows first paragraph (not half-line) + footer with token-cost reassurance and `/pinrule` in-chat entry)
 
 ### Why this release
 
@@ -1290,7 +1335,7 @@ v0.9.9 shipped the onboarding summary block. User acceptance review surfaced two
 
 1. **First-line truncation produced half-sentences** — `preference.strip().split("\n")[0]` cut at YAML visual wrap, e.g. `long-term-fundamental` showed "The user trusts you to dig into root causes. When facing hard problems" with the rest ("they want you to pause and think...") dropped. User picked option (b): show the **first paragraph** (split by blank line) so each rule's summary is a complete meaning unit.
 
-2. **No reassurance on cost / no clear next step for adding rules** — User wanted a footer to address both: "Tested: rule injection accounts for under 3% of per-session token spend; to add or modify rules, just type `/karma <natural-language description>` in your AI client."
+2. **No reassurance on cost / no clear next step for adding rules** — User wanted a footer to address both: "Tested: rule injection accounts for under 3% of per-session token spend; to add or modify rules, just type `/pinrule <natural-language description>` in your AI client."
 
 ### Fix 1 — Show first paragraph instead of first line
 
@@ -1309,49 +1354,49 @@ YAML `|` block paragraphs are separated by blank lines (semantic units), within-
 
 Length tradeoff: zh full 7 → ~33 lines summary; en minimal 5 → ~37 lines. Still fits on one screen for Agent relay.
 
-### Fix 2 — Bilingual footer with token reassurance + `/karma` entry
+### Fix 2 — Bilingual footer with token reassurance + `/pinrule` entry
 
 New `init.summary.footer` locale key:
 
 ```
-经测试，以上规则注入仅占 karma 每 session 会话 token 消耗总量的 3% 以内，
+经测试，以上规则注入仅占 pinrule 每 session 会话 token 消耗总量的 3% 以内，
 请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入
-/karma <自然语言你想增加的规则> 即可。
+/pinrule <自然语言你想增加的规则> 即可。
 ```
 
 ```
-Tested: this rule injection accounts for under 3% of karma's per-session
+Tested: this rule injection accounts for under 3% of pinrule's per-session
 token spend — relax and enjoy the "Agent doesn't drift in long tasks" feel.
-To add or modify rules, just type /karma <natural-language description of
+To add or modify rules, just type /pinrule <natural-language description of
 the rule> in your AI client.
 ```
 
-**Why `/karma` doesn't violate v0.9.9's "no command tips" rule**: `/karma` is a slash command typed in the AI client's chat box (Claude Code / Codex / Gemini), not a shell command requiring the user to open a terminal. It's the natural-language rule-input skill — typing `/karma <intent>` is equivalent to "just tell the Agent what rule you want". So it's an in-chat continuation, not a "go run this in your shell" friction.
+**Why `/pinrule` doesn't violate v0.9.9's "no command tips" rule**: `/pinrule` is a slash command typed in the AI client's chat box (Claude Code / Codex / Gemini), not a shell command requiring the user to open a terminal. It's the natural-language rule-input skill — typing `/pinrule <intent>` is equivalent to "just tell the Agent what rule you want". So it's an in-chat continuation, not a "go run this in your shell" friction.
 
-Footer follows `_resolve_locale()` (KARMA_LOCALE env > config.yaml > `is_chinese_user()` system detect) — Chinese-system users see Chinese footer, English-system users see English footer automatically.
+Footer follows `_resolve_locale()` (PINRULE_LOCALE env > config.yaml > `is_chinese_user()` system detect) — Chinese-system users see Chinese footer, English-system users see English footer automatically.
 
 ### Test coverage
 
 2 new tests in `tests/test_cli.py`:
-- `test_init_summary_footer_includes_token_cost_and_slash_karma` — verifies footer contains `3%` + `/karma`
-- `test_init_summary_footer_matches_user_locale` — **lockdown**: with `KARMA_LOCALE=zh` only Chinese footer appears (no English leak); with `KARMA_LOCALE=en` only English footer appears (no Chinese leak)
+- `test_init_summary_footer_includes_token_cost_and_slash_pinrule` — verifies footer contains `3%` + `/pinrule`
+- `test_init_summary_footer_matches_user_locale` — **lockdown**: with `PINRULE_LOCALE=zh` only Chinese footer appears (no English leak); with `PINRULE_LOCALE=en` only English footer appears (no Chinese leak)
 
-Updated `test_init_summary_does_not_include_command_tips` comment to clarify `/karma <natural-language>` is explicitly allowed (slash command in chat, not shell command).
+Updated `test_init_summary_does_not_include_command_tips` comment to clarify `/pinrule <natural-language>` is explicitly allowed (slash command in chat, not shell command).
 
 ### Verification
 
 - 479/479 passing under both `LANG=zh_CN.UTF-8` and `LANG=en_US.UTF-8` (was 477)
 - All 6 local gates pass
 
-## [0.9.9] — 2026-05-16 (feat — onboarding: `karma init` shows default rules summary so Agent-assisted install can relay it to the user)
+## [0.9.9] — 2026-05-16 (feat — onboarding: `pinrule init` shows default rules summary so Agent-assisted install can relay it to the user)
 
 ### Why this release
 
-User observation while reviewing product gaps: "Can `karma init` give a clear feedback at the end — when the Agent helps install karma, the user should be told which default rules are enabled, without needing to type any command themselves."
+User observation while reviewing product gaps: "Can `pinrule init` give a clear feedback at the end — when the Agent helps install pinrule, the user should be told which default rules are enabled, without needing to type any command themselves."
 
-The Agent-assisted install flow (the "Or ask your AI client to install it" path in README) currently ends after `karma install-hooks` succeeds. Agent has no built-in knowledge of which rules ended up enabled — it would need to either (a) instruct the user to run `karma rule list`, which contradicts "no manual command typing" goal, or (b) read `rules.yaml` itself, which is extra Agent work outside the install script.
+The Agent-assisted install flow (the "Or ask your AI client to install it" path in README) currently ends after `pinrule install-hooks` succeeds. Agent has no built-in knowledge of which rules ended up enabled — it would need to either (a) instruct the user to run `pinrule rule list`, which contradicts "no manual command typing" goal, or (b) read `rules.yaml` itself, which is extra Agent work outside the install script.
 
-### Fix — `karma init` ends with a default-rules summary block
+### Fix — `pinrule init` ends with a default-rules summary block
 
 Added `_print_default_rules_summary()` helper called at the end of `cmd_init`. Output format (zh locale shown):
 
@@ -1364,11 +1409,11 @@ Added `_print_default_rules_summary()` helper called at the end of `cmd_init`. O
   ... (one line per rule: id + first line of preference)
 ```
 
-Agent running `karma init` sees this stdout block and naturally relays it to the user — fulfilling the onboarding requirement without any user-typed command.
+Agent running `pinrule init` sees this stdout block and naturally relays it to the user — fulfilling the onboarding requirement without any user-typed command.
 
 ### Design choice — deliberately no "next steps" tips
 
-First-pass implementation included a "Next steps:" section with `karma rule edit / list / remove` command tips. User pushback: "I don't want the user to type any command manually." Removed the tips block. The principle: **once Agent has relayed the rule summary, user wanting to modify a rule should just tell the Agent "remove rule X" or "change rule Y" — Agent knows to use the `/karma` skill or `karma rule edit`.** No manual command syntax required.
+First-pass implementation included a "Next steps:" section with `pinrule rule edit / list / remove` command tips. User pushback: "I don't want the user to type any command manually." Removed the tips block. The principle: **once Agent has relayed the rule summary, user wanting to modify a rule should just tell the Agent "remove rule X" or "change rule Y" — Agent knows to use the `/pinrule` skill or `pinrule rule edit`.** No manual command syntax required.
 
 Header text only is bilingual (`init.summary.header` locale key). Rule content stays in whichever language the template uses (zh template → Chinese preference; en template → English preference).
 
@@ -1376,7 +1421,7 @@ Header text only is bilingual (`init.summary.header` locale key). Rule content s
 
 2 new tests in `tests/test_cli.py`:
 - `test_init_prints_default_rules_summary` — verifies header + each rule id appears in stdout under minimal install
-- `test_init_summary_does_not_include_command_tips` — locks the "no manual command tips" invariant; if anyone re-introduces "Next steps:" / `karma rule edit` literal in the summary block, this fails CI
+- `test_init_summary_does_not_include_command_tips` — locks the "no manual command tips" invariant; if anyone re-introduces "Next steps:" / `pinrule rule edit` literal in the summary block, this fails CI
 
 ### Verification
 
@@ -1393,7 +1438,7 @@ The actual scope of the race is broader than that docstring suggests: multiple C
 
 ### Anti-shortcut alignment moment
 
-First-pass plan was to expose `state_lock(sid)` contextmanager and have 6 hook entry points each manually wrap `load → modify → save` with `with state_lock(...)`. User caught this: **"咱们要做长期方案，你忘了么？为什么 karma 没制止你走短期路线？"** — I had identified the higher-order-function approach (B) as "long-term correct" but rationalized choosing the contextmanager approach (A) as "v0.9.8 务实，留 v0.10/v1 走 B" using framing that didn't trigger karma's literal-pattern checks (karma is pure engineering, zero LLM; design-intent shortcuts aren't catchable by regex — human review is the backstop).
+First-pass plan was to expose `state_lock(sid)` contextmanager and have 6 hook entry points each manually wrap `load → modify → save` with `with state_lock(...)`. User caught this: **"咱们要做长期方案，你忘了么？为什么 pinrule 没制止你走短期路线？"** — I had identified the higher-order-function approach (B) as "long-term correct" but rationalized choosing the contextmanager approach (A) as "v0.9.8 务实，留 v0.10/v1 走 B" using framing that didn't trigger pinrule's literal-pattern checks (pinrule is pure engineering, zero LLM; design-intent shortcuts aren't catchable by regex — human review is the backstop).
 
 After rollback + re-read, settled on approach C (chosen via informed alignment with user, not my own shortcut):
 
@@ -1408,14 +1453,14 @@ After rollback + re-read, settled on approach C (chosen via informed alignment w
 
 | Location | Change |
 |---|---|
-| `karma/session_state.py` | Added `_state_lock` (fcntl.flock advisory lock, Windows no-op fallback) + `update_state` + `read_state`. Updated module docstring with API layering policy. |
-| `karma/hooks/post_tool_use.py:main` | Wrapped full modify-block + `_build_smart_reinject` in fn; fn returns `additional_context` for stdout. |
-| `karma/hooks/user_prompt_submit.py:_advance_turn_state` | Wrapped catchup + turn++ + stop_block reset + model detection in fn. |
-| `karma/hooks/session_start.py` | model assignment now via `update_state`. |
-| `karma/hooks/subagent_start.py` | Two independent `update_state` calls (main state model queue pop + sub state model write — different lock keys, independent). |
-| `karma/hooks/pre_tool_use.py` | Section 1 (Agent model enqueue) via `update_state`. Section 2 (catchup-no-save) preserved unchanged — this is the existing design "PreToolUse is decision-side, not state-side; real catchup happens in PostToolUse/Stop". |
-| `karma/hooks/stop.py` | `_handle_force_block` + `_handle_keep_pushing_block` use `update_state` for `stop_block_count += 1`. |
-| `karma/cli.py` | Two read-only callers (`stats` / `doctor` views) migrated to `read_state` to make API intent visible. |
+| `pinrule/session_state.py` | Added `_state_lock` (fcntl.flock advisory lock, Windows no-op fallback) + `update_state` + `read_state`. Updated module docstring with API layering policy. |
+| `pinrule/hooks/post_tool_use.py:main` | Wrapped full modify-block + `_build_smart_reinject` in fn; fn returns `additional_context` for stdout. |
+| `pinrule/hooks/user_prompt_submit.py:_advance_turn_state` | Wrapped catchup + turn++ + stop_block reset + model detection in fn. |
+| `pinrule/hooks/session_start.py` | model assignment now via `update_state`. |
+| `pinrule/hooks/subagent_start.py` | Two independent `update_state` calls (main state model queue pop + sub state model write — different lock keys, independent). |
+| `pinrule/hooks/pre_tool_use.py` | Section 1 (Agent model enqueue) via `update_state`. Section 2 (catchup-no-save) preserved unchanged — this is the existing design "PreToolUse is decision-side, not state-side; real catchup happens in PostToolUse/Stop". |
+| `pinrule/hooks/stop.py` | `_handle_force_block` + `_handle_keep_pushing_block` use `update_state` for `stop_block_count += 1`. |
+| `pinrule/cli.py` | Two read-only callers (`stats` / `doctor` views) migrated to `read_state` to make API intent visible. |
 | Bonus | Stop hook's hardcoded "临时改 sticky" string (missed by v0.9.7's i18n string sweep — this was direct code literal not i18n key) → "临时改 rules.yaml". |
 
 ### Test coverage
@@ -1437,25 +1482,25 @@ After rollback + re-read, settled on approach C (chosen via informed alignment w
 
 ### Why this matters more than v0.9.2-v0.9.7
 
-v0.9.2 → v0.9.7 fixed CI gates + i18n residue + user-facing string consistency. v0.9.8 fixes a **functional correctness bug** that affects every multi-process karma user — and does so by encoding the invariant in API shape rather than in calling convention. This is what "long-term-fundamental" means in code, not in tone.
+v0.9.2 → v0.9.7 fixed CI gates + i18n residue + user-facing string consistency. v0.9.8 fixes a **functional correctness bug** that affects every multi-process pinrule user — and does so by encoding the invariant in API shape rather than in calling convention. This is what "long-term-fundamental" means in code, not in tone.
 
-## [0.9.7] — 2026-05-15 (fix — KARMA_HOME isolation broken in bypass detection + v0.6.0 user-facing sticky residue + regression mechanism)
+## [0.9.7] — 2026-05-15 (fix — PINRULE_HOME isolation broken in bypass detection + v0.6.0 user-facing sticky residue + regression mechanism)
 
 ### Why this release
 
 While auditing what the sub-agent classified as "legitimately preserved" in the v0.9.6 sticky→rules rename audit, found 2 actual bugs the rename sweep had been missing — not in code paths the sub-agent had flagged. These are deeper than v0.9.2 → v0.9.6 CI fixes because they're cross-user / multi-profile / CI-isolation correctness, not just gate alignment.
 
-### Fix 1 — `bypass_karma` check broken under `KARMA_HOME` isolation
+### Fix 1 — `bypass_pinrule` check broken under `PINRULE_HOME` isolation
 
-`karma/paths.py:karma_home()` has supported `KARMA_HOME` env override since the env was introduced (for cross-user / dry-run / CI / multi-profile). But `karma/checks/bypass_karma.py:_KARMA_STATE_PATH_RE` had a hardcoded `\.claude/karma/...` literal regex. Effect: user running `KARMA_HOME=/tmp/foo karma ...` then `rm /tmp/foo/session-state/*.json` (bypass attempt) — the bypass-karma check **completely missed it**, because the regex only matched the default `~/.claude/karma/` path.
+`pinrule/paths.py:pinrule_home()` has supported `PINRULE_HOME` env override since the env was introduced (for cross-user / dry-run / CI / multi-profile). But `pinrule/checks/bypass_pinrule.py:_PINRULE_STATE_PATH_RE` had a hardcoded `\.claude/pinrule/...` literal regex. Effect: user running `PINRULE_HOME=/tmp/foo pinrule ...` then `rm /tmp/foo/session-state/*.json` (bypass attempt) — the bypass-pinrule check **completely missed it**, because the regex only matched the default `~/.claude/pinrule/` path.
 
 This is the same class of bug as the CI verify step: a hardcoded literal where a factory call was required. Single-source-of-truth principle was broken in one corner of the codebase.
 
-**Fix**: `_build_state_path_re()` factory function dynamically constructs the regex from `karma_home()` — covers default mode, `KARMA_HOME` override mode, and home-subdir mode (where users may type `~/<rel>` literal). Also expanded the filename set from `(session-state|violations|sticky.yaml)` to `(session-state|violations|rules.yaml|sticky.yaml)` — both v0.6.0+ main name and the legacy migration path now get caught.
+**Fix**: `_build_state_path_re()` factory function dynamically constructs the regex from `pinrule_home()` — covers default mode, `PINRULE_HOME` override mode, and home-subdir mode (where users may type `~/<rel>` literal). Also expanded the filename set from `(session-state|violations|sticky.yaml)` to `(session-state|violations|rules.yaml|sticky.yaml)` — both v0.6.0+ main name and the legacy migration path now get caught.
 
-### Fix 2 — `karma/cli.py:257` hardcoded hint string misleads `KARMA_HOME` users
+### Fix 2 — `pinrule/cli.py:257` hardcoded hint string misleads `PINRULE_HOME` users
 
-`print("编辑用: ... vim ~/.claude/karma/config.yaml")` — but file actually created at `KARMA_DIR / "config.yaml"`. Under `KARMA_HOME=/tmp/foo`, user gets pointed at a non-existent file. Fix: `print(f"... vim {config_path}")` — same variable already in scope.
+`print("编辑用: ... vim ~/.claude/pinrule/config.yaml")` — but file actually created at `PINRULE_DIR / "config.yaml"`. Under `PINRULE_HOME=/tmp/foo`, user gets pointed at a non-existent file. Fix: `print(f"... vim {config_path}")` — same variable already in scope.
 
 ### Fix 3 — `pyproject.toml` keywords still listed `"sticky"`
 
@@ -1465,11 +1510,11 @@ v0.6.0 BREAKING renamed `sticky.*` → `rules.*` but the PyPI keywords still lis
 
 5 user-facing places where the user actually sees the string and would get confused (file doesn't exist / wrong filename):
 - `data/locales/zh.yaml:28` — force_block reason i18n message
-- `data/config.example.yaml:13,16` — comments in the config template that gets copied to `~/.claude/karma/config.yaml` by `karma init`
-- `data/rules.dev.example.zh.yaml:57,120` — rule template preference text users install via `karma init`
+- `data/config.example.yaml:13,16` — comments in the config template that gets copied to `~/.claude/pinrule/config.yaml` by `pinrule init`
+- `data/rules.dev.example.zh.yaml:57,120` — rule template preference text users install via `pinrule init`
 - `data/rules.dev.minimal.example.zh.yaml:71` — minimal template parallel residue
 
-### Fix 5 — `karma/violations.py` API contract docstrings said `sticky_id`
+### Fix 5 — `pinrule/violations.py` API contract docstrings said `sticky_id`
 
 4 functions (`recent`/`count_recent`/`recent_session`/`count_recent_turns`) had docstrings claiming they return `sticky_id` keys, but the actual code returns `rule_id` (per `extract_rule_id()` helper). API contract was misleading. Fixed all 4 + 1 inline comment ("3 turn 内同 sticky" → "3 turn 内同一规则").
 
@@ -1479,12 +1524,12 @@ The deeper structural issue: every `sticky` → `rules` sweep so far (v0.8.2, v0
 
 Dev-facing residue (cli/hook/notify module docstrings, tests/ variable names — ~10 more places) deferred to v0.10.x for a single mass sweep rather than piece­meal patches.
 
-### New tests — `tests/test_bypass_karma.py` KARMA_HOME isolation coverage
+### New tests — `tests/test_bypass_pinrule.py` PINRULE_HOME isolation coverage
 
 4 new cases:
-- Default mode: matches `~/.claude/karma/*` / absolute home path / relative fragment
-- `KARMA_HOME` override mode: matches custom path bypass writes
-- `KARMA_HOME` in home subdir: matches `~/<rel>` literal users may type
+- Default mode: matches `~/.claude/pinrule/*` / absolute home path / relative fragment
+- `PINRULE_HOME` override mode: matches custom path bypass writes
+- `PINRULE_HOME` in home subdir: matches `~/<rel>` literal users may type
 - Both `rules.yaml` and `sticky.yaml` (legacy compat) get caught
 
 ### Verification
@@ -1510,7 +1555,7 @@ expected = [
     'data/locales/en.yaml',
     'data/locales/zh.yaml',
     'data/config.example.yaml',
-    'skills/karma/SKILL.md',
+    'skills/pinrule/SKILL.md',
 ]
 ```
 
@@ -1525,16 +1570,16 @@ I'd been peeling CI failures off one layer at a time, declaring each one "the ro
 ```bash
 pytest -q                                            # 460/460
 LANG=en_US.UTF-8 pytest -q                          # 460/460 (locale)
-ruff check karma/ tests/                            # clean
-mypy karma/ && mypy tests/                          # no issues
-vulture karma/ whitelist.py --min-confidence 60     # exit 0
+ruff check pinrule/ tests/                            # clean
+mypy pinrule/ && mypy tests/                          # no issues
+vulture pinrule/ whitelist.py --min-confidence 60     # exit 0
 python -m build --wheel && python -c "<verify>"     # wheel verify (NEW)
 ```
 
 ### Verification
 
 - All 6 local gates pass
-- Built wheel `karma-0.9.5-py3-none-any.whl` (will be `0.9.6` after this commit) contains all 6 expected templates
+- Built wheel `pinrule-0.9.5-py3-none-any.whl` (will be `0.9.6` after this commit) contains all 6 expected templates
 
 ### Honesty caveat
 
@@ -1544,7 +1589,7 @@ I cannot guarantee this is the deepest layer. If a 6th CI failure appears after 
 
 ### Pattern continues
 
-v0.9.4 push: `mypy` green, `vulture` green, `ruff` green — but **`pytest` red on 16 tests**. Root cause: test fixtures assert Chinese strings (`"默契"` / `"偏离"` / `"纯陈述"`) for `format_for_injection` output. My local machine's `LANG=zh_CN.UTF-8` makes `karma.locale_detect.is_chinese_user()` return True → i18n picks zh → fixtures pass. CI runners default `en_US.UTF-8` → is_chinese_user returns False → i18n picks en → 16 fixtures fail.
+v0.9.4 push: `mypy` green, `vulture` green, `ruff` green — but **`pytest` red on 16 tests**. Root cause: test fixtures assert Chinese strings (`"默契"` / `"偏离"` / `"纯陈述"`) for `format_for_injection` output. My local machine's `LANG=zh_CN.UTF-8` makes `pinrule.locale_detect.is_chinese_user()` return True → i18n picks zh → fixtures pass. CI runners default `en_US.UTF-8` → is_chinese_user returns False → i18n picks en → 16 fixtures fail.
 
 This is **the 4th independent CI failure root cause** in 4 patch releases (v0.9.2 → v0.9.5). Each fix revealed the next layer.
 
@@ -1552,8 +1597,8 @@ This is **the 4th independent CI failure root cause** in 4 patch releases (v0.9.
 
 ```python
 def pytest_configure(config):
-    """Force zh locale before any karma module is imported."""
-    os.environ.setdefault("KARMA_LOCALE", "zh")
+    """Force zh locale before any pinrule module is imported."""
+    os.environ.setdefault("PINRULE_LOCALE", "zh")
 ```
 
 Tests now always run in zh locale (matching fixture strings) regardless of host OS locale. `setdefault` lets users override via env if needed.
@@ -1573,9 +1618,9 @@ This release adds the **5th** local gate matching CI: setting `LANG=en_US.UTF-8`
 ```bash
 pytest -q                                            # 460/460
 LANG=en_US.UTF-8 pytest -q                          # also 460/460 (catches locale coupling)
-ruff check karma/ tests/                            # clean
-mypy karma/ && mypy tests/                          # no issues
-vulture karma/ whitelist.py --min-confidence 60     # exit 0
+ruff check pinrule/ tests/                            # clean
+mypy pinrule/ && mypy tests/                          # no issues
+vulture pinrule/ whitelist.py --min-confidence 60     # exit 0
 # Push, then:
 gh run watch $(gh run list -L 1 --json databaseId -q '.[0].databaseId') --exit-status
 ```
@@ -1590,10 +1635,10 @@ gh run watch $(gh run list -L 1 --json databaseId -q '.[0].databaseId') --exit-s
 
 ### Pattern: I never ran mypy locally
 
-After v0.9.3 push (which fixed vulture-min-conf-60 mismatch), CI **still red**. Third independent root cause: `karma/signals.py:116` `mypy` error introduced in v0.8.1:
+After v0.9.3 push (which fixed vulture-min-conf-60 mismatch), CI **still red**. Third independent root cause: `pinrule/signals.py:116` `mypy` error introduced in v0.8.1:
 
 ```
-karma/signals.py:116: error: Argument 1 to "product" has incompatible type
+pinrule/signals.py:116: error: Argument 1 to "product" has incompatible type
                             "*list[list[Any] | None]"; expected "Iterable[Any]"
 ```
 
@@ -1601,7 +1646,7 @@ In `_expand_yaml_signals`, `resolved` has type `list[tuple[str, list | None]]` a
 
 ### The deeper admission
 
-I never ran `mypy` locally. My local "quality gates" check before push was just `pytest + ruff`. CI runs `pytest + ruff + mypy karma/ + mypy tests/ + vulture --min-conf 60`. My local subset missed mypy + low-conf vulture, so 2 of 4 CI checks could silently fail.
+I never ran `mypy` locally. My local "quality gates" check before push was just `pytest + ruff`. CI runs `pytest + ruff + mypy pinrule/ + mypy tests/ + vulture --min-conf 60`. My local subset missed mypy + low-conf vulture, so 2 of 4 CI checks could silently fail.
 
 This is the **deepest root cause** of the v0.8.6 → v0.9.3 CI red streak — not 3 unrelated bugs, but **one systemic gap**: my "passing locally" claim was based on a strict subset of CI's actual checks.
 
@@ -1620,9 +1665,9 @@ The `any(v is None)` guard above already ensures this, but the explicit filter b
 Local gates before any tag/release:
 
 1. `pytest -q` — 460/460 passing
-2. `ruff check karma/ tests/` — All checks passed
-3. `mypy karma/ && mypy tests/` — no issues
-4. `vulture karma/ whitelist.py --min-confidence 60` — exit 0
+2. `ruff check pinrule/ tests/` — All checks passed
+3. `mypy pinrule/ && mypy tests/` — no issues
+4. `vulture pinrule/ whitelist.py --min-confidence 60` — exit 0
 5. `gh run list --limit 1` after push — verify CI is actually green
 
 All 4 of these gates now match what CI runs. Step 5 is the final verification.
@@ -1639,20 +1684,20 @@ v0.9.2 fixed the hardcoded path bug from issue #2. After push I checked `gh run 
 
 ### Real root cause for the CI red streak
 
-CI runs `vulture karma/ --min-confidence 60` but my local checks use `--min-confidence 70`. The 60-confidence threshold flags 5 items my local runs never see:
+CI runs `vulture pinrule/ --min-confidence 60` but my local checks use `--min-confidence 70`. The 60-confidence threshold flags 5 items my local runs never see:
 
 | File / Line | Item | Verdict |
 |---|---|---|
-| `karma/cli.py:67-68` | `EXAMPLE_RULES` / `EXAMPLE_RULES_MINIMAL` aliases | **truly dead** — 0 callers, delete |
-| `karma/i18n.py:99` | `current_locale()` (docstring says "for diagnostics") | **truly dead** — 0 callers, delete |
-| `karma/i18n.py:104` | `reset_cache()` (docstring says "for tests / config-reload") | **truly dead** — 0 callers, delete |
-| `karma/signals.py:205` | `reset_cache()` | **vulture false positive** — `tests/test_signals.py` imports + uses it (vulture only scans `karma/`, doesn't see test usage) |
+| `pinrule/cli.py:67-68` | `EXAMPLE_RULES` / `EXAMPLE_RULES_MINIMAL` aliases | **truly dead** — 0 callers, delete |
+| `pinrule/i18n.py:99` | `current_locale()` (docstring says "for diagnostics") | **truly dead** — 0 callers, delete |
+| `pinrule/i18n.py:104` | `reset_cache()` (docstring says "for tests / config-reload") | **truly dead** — 0 callers, delete |
+| `pinrule/signals.py:205` | `reset_cache()` | **vulture false positive** — `tests/test_signals.py` imports + uses it (vulture only scans `pinrule/`, doesn't see test usage) |
 
 ### Fix
 
 - Deleted the 4 truly-dead items
-- Added `whitelist.py` referencing `karma.signals.reset_cache` so vulture sees it as "used"
-- Updated `.github/workflows/ci.yml`: `vulture karma/ whitelist.py --min-confidence 60`
+- Added `whitelist.py` referencing `pinrule.signals.reset_cache` so vulture sees it as "used"
+- Updated `.github/workflows/ci.yml`: `vulture pinrule/ whitelist.py --min-confidence 60`
 
 ### Loud-failure admission (continued from v0.9.2)
 
@@ -1665,15 +1710,15 @@ For the v0.9.0/v0.9.1 CI failures specifically, the vulture issue likely started
 ### Verification
 
 - 460/460 passing locally
-- `vulture karma/ whitelist.py --min-confidence 60` → exit 0 locally (CI command exactly)
+- `vulture pinrule/ whitelist.py --min-confidence 60` → exit 0 locally (CI command exactly)
 - `ruff` clean
 - This push's CI run should finally be green
 
-## [0.9.2] — 2026-05-15 (fix — `test_compact_hooks.py` hardcoded `/Users/jhz/karma` path → dynamic resolution; issue #2 from @fyn1320068837-source)
+## [0.9.2] — 2026-05-15 (fix — `test_compact_hooks.py` hardcoded `/Users/jhz/pinrule` path → dynamic resolution; issue #2 from @fyn1320068837-source)
 
 ### Real-user bug report (2nd from same external contributor)
 
-@fyn1320068837-source filed issue #2: `tests/test_compact_hooks.py` had **20 hardcoded references to `/Users/jhz/karma`** (the maintainer's local path) across all 9 test functions. Result: tests pass locally on the maintainer's machine but fail with `FileNotFoundError: '/Users/jhz/karma'` on any other machine, **including CI**.
+@fyn1320068837-source filed issue #2: `tests/test_compact_hooks.py` had **20 hardcoded references to `/Users/jhz/pinrule`** (the maintainer's local path) across all 9 test functions. Result: tests pass locally on the maintainer's machine but fail with `FileNotFoundError: '/Users/jhz/pinrule'` on any other machine, **including CI**.
 
 ### CI was broken for 3 releases (loud-failure admission)
 
@@ -1692,8 +1737,8 @@ PYTHON = sys.executable
 ```
 
 Then:
-- All `"/Users/jhz/karma/.venv/bin/python"` → `PYTHON`
-- All `cwd="/Users/jhz/karma"` → `cwd=PROJECT_ROOT`
+- All `"/Users/jhz/pinrule/.venv/bin/python"` → `PYTHON`
+- All `cwd="/Users/jhz/pinrule"` → `cwd=PROJECT_ROOT`
 
 20 occurrences replaced. Tests still pass locally (9/9) and now work on any machine + CI.
 
@@ -1717,7 +1762,7 @@ v0.9.0 shipped the injection architecture change but left a few internal docs de
 
 - **`docs/PRD.md` / `docs/PRD.zh.md`**: F2 (user_prompt_submit hook) description now reflects the compact anchor (~490 tok) vs full preference text. Added new F2.5 "Injection architecture (v0.9.0)" section with the 5-hook lifecycle table
 - **`docs/HOOK_CONFIGURATION_GUIDE.md`**: UserPromptSubmit row updated to describe compact anchor format; SessionStart row clarifies "full baseline" (only one full injection per session); PostToolUse row shows session-global threshold trigger
-- **`karma/hooks/session_start.py`**: docstring had reversed description ("UserPromptSubmit every turn full, SessionStart per-session compact") — exactly opposite of v0.9.0 reality. Rewrote to match v0.9.0 architecture
+- **`pinrule/hooks/session_start.py`**: docstring had reversed description ("UserPromptSubmit every turn full, SessionStart per-session compact") — exactly opposite of v0.9.0 reality. Rewrote to match v0.9.0 architecture
 
 ### Verification
 
@@ -1775,7 +1820,7 @@ Real-world cumulative saving for 1M Opus session: ~100K tokens (10% of context),
 
 ### New `format_anchor_only()` function
 
-`karma/rule.py` adds `format_anchor_only(rule_list, recent_violations)` rendering compact text: `id + first-line preference + drift marker`. Used by UserPromptSubmit per-turn injection. `format_for_injection()` (full) still used by SessionStart + PostToolUse mid-reinject.
+`pinrule/rule.py` adds `format_anchor_only(rule_list, recent_violations)` rendering compact text: `id + first-line preference + drift marker`. Used by UserPromptSubmit per-turn injection. `format_for_injection()` (full) still used by SessionStart + PostToolUse mid-reinject.
 
 ### State semantic change
 
@@ -1832,12 +1877,12 @@ User asked for another round of code audit + doc consistency review. Tools clean
 
 ### What got fixed
 
-- `karma/rule.py:format_for_injection` had `from karma.i18n import tr` as a function-level import. Verified `karma.i18n` is a leaf module (no `karma.*` imports) — safe to hoist to module top. Reduces function-body noise + matches module-level import convention.
-- `karma/checks/chinese_plain.py` had an inline magic number `< 30` for "jargon-to-explanation parenthesis max distance". Extracted as named constant `_JARGON_PAREN_MAX_DIST = 30` alongside the existing `_JARGON_CONTEXT_RADIUS = 30` — both module-level, both explanatory.
+- `pinrule/rule.py:format_for_injection` had `from pinrule.i18n import tr` as a function-level import. Verified `pinrule.i18n` is a leaf module (no `pinrule.*` imports) — safe to hoist to module top. Reduces function-body noise + matches module-level import convention.
+- `pinrule/checks/chinese_plain.py` had an inline magic number `< 30` for "jargon-to-explanation parenthesis max distance". Extracted as named constant `_JARGON_PAREN_MAX_DIST = 30` alongside the existing `_JARGON_CONTEXT_RADIUS = 30` — both module-level, both explanatory.
 
 ### What was reviewed and intentionally not changed
 
-- cli.py has ~10 function-level `from karma.* import ...` calls. Most are safe to hoist (no circular-import risk verified), but several serve testing mock-friendliness (e.g. `cmd_reset_session` lazy-imports `DEFAULT_DIR as SS_DIR` so `monkeypatch.setattr(karma.session_state, 'DEFAULT_DIR', ...)` sees the patched value). Net benefit of mass-hoisting is small (~3 net lines saved), and individual analysis to separate true-mock-friendly from cruft would burn review time on diminishing returns.
+- cli.py has ~10 function-level `from pinrule.* import ...` calls. Most are safe to hoist (no circular-import risk verified), but several serve testing mock-friendliness (e.g. `cmd_reset_session` lazy-imports `DEFAULT_DIR as SS_DIR` so `monkeypatch.setattr(pinrule.session_state, 'DEFAULT_DIR', ...)` sees the patched value). Net benefit of mass-hoisting is small (~3 net lines saved), and individual analysis to separate true-mock-friendly from cruft would burn review time on diminishing returns.
 - cli.py has 4 functions over 100 lines (`cmd_audit` / `cmd_rule_add` / `cmd_doctor` / module `main` dispatcher). Tools find no dead code or duplication; they're long-but-clear coordinator functions. Forced helper extraction would shuffle parameters across 5+ helpers per function without making the code easier to navigate.
 
 ### Doc consistency audit (post v0.8.4)
@@ -1876,14 +1921,14 @@ After v0.8.0 → v0.8.3 in rapid succession, user asked for an "E" pass: re-audi
 
 ### Real dead code v0.8.2 audit missed
 
-`karma/checks/__init__.py:run_checks()` had a `sticky_id: str = ""` parameter whose own inline comment said "v0.5.0 deprecated alias, removed in v0.6.0" — never actually removed. 0 callers passed it (grep verified). Removed parameter + the `rule_id=rule_id or sticky_id` fallback that referenced it. Now the function signature is just `rule_id: str = ""`.
+`pinrule/checks/__init__.py:run_checks()` had a `sticky_id: str = ""` parameter whose own inline comment said "v0.5.0 deprecated alias, removed in v0.6.0" — never actually removed. 0 callers passed it (grep verified). Removed parameter + the `rule_id=rule_id or sticky_id` fallback that referenced it. Now the function signature is just `rule_id: str = ""`.
 
-This is the same pattern as the 3 dead-code items v0.8.2 caught (`KARMA_RULE_SKILL_SRC`, `_claude_skills_dir`, `_install_karma_rule_skill`) — comments said "v0.6.0 removed" but never were. v0.8.4 catches the 4th instance the manual grep missed last round.
+This is the same pattern as the 3 dead-code items v0.8.2 caught (`PINRULE_RULE_SKILL_SRC`, `_claude_skills_dir`, `_install_pinrule_rule_skill`) — comments said "v0.6.0 removed" but never were. v0.8.4 catches the 4th instance the manual grep missed last round.
 
 ### What did NOT change
 
 - CHANGELOG / HANDOFF historical entries with "6 signals" counts — those describe what was true at that release, archive integrity preserved (rule 5)
-- README "Older versions" banner mentioning v0.6.0 `karma.sticky` removal — legitimate migration guidance for users on pre-v0.6 versions
+- README "Older versions" banner mentioning v0.6.0 `pinrule.sticky` removal — legitimate migration guidance for users on pre-v0.6 versions
 
 ### Verification
 
@@ -1911,9 +1956,9 @@ The other 5 hook mains were already under 90 lines and didn't warrant splitting.
 
 ### B: `cli.py` function-level duplicate imports
 
-`cli.py` had 3 places re-importing `from karma.rule import ... load as load_rules` inside function bodies while the module had already imported `load` at the top. Plus 1 instance of `from karma.violations import load_all as _load_v` shadow-aliasing the module-top import. All 4 cleaned up:
+`cli.py` had 3 places re-importing `from pinrule.rule import ... load as load_rules` inside function bodies while the module had already imported `load` at the top. Plus 1 instance of `from pinrule.violations import load_all as _load_v` shadow-aliasing the module-top import. All 4 cleaned up:
 
-- Module top now imports `from karma.rule import load as load_rules` and `format_for_injection`
+- Module top now imports `from pinrule.rule import load as load_rules` and `format_for_injection`
 - Function-internal duplicate imports removed
 - 3 places using bare `load()` standardized to `load_rules()` — consistent naming, less mental switching
 
@@ -1935,22 +1980,22 @@ After shipping v0.8.0/v0.8.1, user asked: "再做一轮代码审查咋样，看�
 
 ### Dead code — comments said "removed in v0.6.0" but were still alive
 
-- `KARMA_RULE_SKILL_SRC` in `cli.py` — v0.5.x deprecated alias, comment self-said "removed in v0.6.0" but never deleted. 0 external usage
+- `PINRULE_RULE_SKILL_SRC` in `cli.py` — v0.5.x deprecated alias, comment self-said "removed in v0.6.0" but never deleted. 0 external usage
 - `_claude_skills_dir()` in `cli.py` — docstring self-said "v0.5.16 deprecated, removed in v0.6.0" but kept. 0 external usage
-- `_install_karma_rule_skill()` in `cli.py` — same self-said v0.6.0 removal, 0 callers
+- `_install_pinrule_rule_skill()` in `cli.py` — same self-said v0.6.0 removal, 0 callers
 
 ### Naming consistency — v0.6.0 BREAKING left `sticky` shrapnel
 
 The sticky → rule rename in v0.5.0 + v0.6.0 BREAKING focused on the public API surface. Internal names and user-facing output strings were partially left in `sticky` naming, creating user-visible inconsistency:
 
 - **Functions**: `cmd_sticky_list` / `cmd_sticky_edit` / `cmd_sticky_remove` → `cmd_rule_*` (renamed; tests synced)
-- **Module-level constant**: `STICKY_PATH` (alias of `karma.rule.DEFAULT_PATH`) → `RULES_PATH`. Used in 10 cli.py + 8 test_cli.py places
-- **`karma doctor` output**: `"sticky.yaml: <path>"` was printing the path to `rules.yaml` — name and content disagreed. Now prints `"rules.yaml: <path>"`. Also `"sticky 加载: ✓"` → `"规则加载: ✓"`
-- **`karma audit` output**: column header `'sticky_id'` → `'rule_id'`; "未触发的 sticky" section title → "未触发的规则"
-- **`karma violations clear` output**: filter description `"sticky={id}"` → `"rule={id}"` (CLI flag `--sticky` kept for backward compat per past deprecation discipline)
-- **`karma rule list` output**: `"karma sticky (N/M)"` → `"karma 规则 (N/M)"`; local var `sticky = load()` → `rules = load()`
+- **Module-level constant**: `STICKY_PATH` (alias of `pinrule.rule.DEFAULT_PATH`) → `RULES_PATH`. Used in 10 cli.py + 8 test_cli.py places
+- **`pinrule doctor` output**: `"sticky.yaml: <path>"` was printing the path to `rules.yaml` — name and content disagreed. Now prints `"rules.yaml: <path>"`. Also `"sticky 加载: ✓"` → `"规则加载: ✓"`
+- **`pinrule audit` output**: column header `'sticky_id'` → `'rule_id'`; "未触发的 sticky" section title → "未触发的规则"
+- **`pinrule violations clear` output**: filter description `"sticky={id}"` → `"rule={id}"` (CLI flag `--sticky` kept for backward compat per past deprecation discipline)
+- **`pinrule rule list` output**: `"pinrule sticky (N/M)"` → `"pinrule 规则 (N/M)"`; local var `sticky = load()` → `rules = load()`
 - **Hook stderr output**: `pre_compact.py` / `session_start.py` / `subagent_start.py` all printed `"sticky 加载失败"` on errors → now `"规则加载失败"`; local variable `sticky_list` → `rule_list`
-- **`cli.py` top docstring**: removed obsolete `karma sticky <...>` entry (the command's hint logic at L1252 still handles the legacy invocation)
+- **`cli.py` top docstring**: removed obsolete `pinrule sticky <...>` entry (the command's hint logic at L1252 still handles the legacy invocation)
 
 ### Real bug found during audit
 
@@ -1984,7 +2029,7 @@ Now **7 of 7 detection signals fully i18n-externalized** (was 6 in v0.8.1):
 
 ### Why this matters
 
-`karma audit` and `karma doctor` outputs are what new users see first when something looks off. Mixed `sticky` / `rule` naming there signals "this project hasn't kept up with itself" — exactly the impression rule 9 doc-sync discipline is meant to prevent. v0.8.2 makes the user-facing output consistent with the v0.6.0 BREAKING reality.
+`pinrule audit` and `pinrule doctor` outputs are what new users see first when something looks off. Mixed `sticky` / `rule` naming there signals "this project hasn't kept up with itself" — exactly the impression rule 9 doc-sync discipline is meant to prevent. v0.8.2 makes the user-facing output consistent with the v0.6.0 BREAKING reality.
 
 ## [0.8.1] — 2026-05-15 (feat — `push_signals` i18n via YAML DSL: cartesian templates + word vocabularies, English Agent push phrases now recognized)
 
@@ -2003,7 +2048,7 @@ verbs: [做, 改, 加, 修, 跑, 开始, 实施, ...]
 phrases: [继续推进, 下一推进点, 接下来打算, ...]   # 不需 cartesian 的整句
 ```
 
-`karma/signals.py` 加 `load_patterns()` + `_expand_yaml_signals()`：扫 yaml templates × Cartesian 词集 + phrases，合并进 `compile_alternation()` 输出的单 regex。
+`pinrule/signals.py` 加 `load_patterns()` + `_expand_yaml_signals()`：扫 yaml templates × Cartesian 词集 + phrases，合并进 `compile_alternation()` 输出的单 regex。
 
 DSL niceties:
 - Template placeholders use singular (`{subject}`) for natural reading; YAML field names use plural (`subjects:`) — loader auto-resolves singular → plural
@@ -2048,9 +2093,9 @@ Adding a new language (Japanese, Korean, German, etc.) means writing 6 small fil
 
 ### Why this matters
 
-Before v0.8.0, karma's detection regexes (`_USER_STOP_HINT_RE` / `_AGENT_SATURATION_RE` / `_STOP_HINT_RE` / `_EXPLICIT_USER_HANDOFF_RE` / `_WEAK_CLAIM_RE`) were Chinese-hardcoded in Python source. English users could install karma but the `keep_pushing` reflection nudge fired false-positive often — the Agent's "Next I'll proceed to X" wasn't recognized, the user's "looks good / LGTM" didn't exempt, and `evidence` missed "should work / probably fine" weak claims.
+Before v0.8.0, pinrule's detection regexes (`_USER_STOP_HINT_RE` / `_AGENT_SATURATION_RE` / `_STOP_HINT_RE` / `_EXPLICIT_USER_HANDOFF_RE` / `_WEAK_CLAIM_RE`) were Chinese-hardcoded in Python source. English users could install pinrule but the `keep_pushing` reflection nudge fired false-positive often — the Agent's "Next I'll proceed to X" wasn't recognized, the user's "looks good / LGTM" didn't exempt, and `evidence` missed "should work / probably fine" weak claims.
 
-User asked the right question: **是不是工程模块全英文就行，反正 LLM 能看懂，人类也不看工程模块** (can't the engineering modules just be English-only?). Mostly yes for *karma's own source code*, but the **regex literals themselves** match user / Agent dialogue, which is whatever language the user actually speaks. So the elegant fix is: separate signal phrases from code entirely, into language-tagged data files.
+User asked the right question: **是不是工程模块全英文就行，反正 LLM 能看懂，人类也不看工程模块** (can't the engineering modules just be English-only?). Mostly yes for *pinrule's own source code*, but the **regex literals themselves** match user / Agent dialogue, which is whatever language the user actually speaks. So the elegant fix is: separate signal phrases from code entirely, into language-tagged data files.
 
 ### Architecture — phrases as data, code as loader
 
@@ -2066,13 +2111,13 @@ data/signals/
 ```
 
 - One phrase per line, `#` comments + blank lines skipped
-- `karma/signals.py` loads all language files in a signal directory, dedupes, unions, and compiles to a single regex (long phrases prioritized to avoid `OK` swallowing `OK 了`)
+- `pinrule/signals.py` loads all language files in a signal directory, dedupes, unions, and compiles to a single regex (long phrases prioritized to avoid `OK` swallowing `OK 了`)
 - Character sets across languages don't overlap (Chinese vs Latin vs kana vs hangul) → no cross-language false matches
 - LRU-cached; phrase files are read once per process
 
 ### Adding a new language = 0 Python code
 
-A native speaker of Japanese / Korean / Russian / German / etc. can contribute a single `data/signals/<signal>/xx.txt` per signal directory. karma picks it up on next startup. No regex composition skill required — just write the phrases users would actually say.
+A native speaker of Japanese / Korean / Russian / German / etc. can contribute a single `data/signals/<signal>/xx.txt` per signal directory. pinrule picks it up on next startup. No regex composition skill required — just write the phrases users would actually say.
 
 ### English coverage for existing signals
 
@@ -2094,9 +2139,9 @@ A native speaker of Japanese / Korean / Russian / German / etc. can contribute a
 - 4 new English-coverage tests in `tests/test_keep_pushing.py` + `tests/test_checks.py` (English users get same protection as Chinese users)
 - **444/444 passing**, `ruff` clean
 
-### Real karma value
+### Real pinrule value
 
-karma's "永不依赖 LLM" boundary stands stronger here — i18n is achievable with pure data files + regex, no LLM in the loop. The same principle that makes karma fast (< 60ms) is what makes it locale-extensible at zero cognitive cost.
+pinrule's "永不依赖 LLM" boundary stands stronger here — i18n is achievable with pure data files + regex, no LLM in the loop. The same principle that makes pinrule fast (< 60ms) is what makes it locale-extensible at zero cognitive cost.
 
 ## [0.7.4] — 2026-05-15 (fix — `keep_pushing` user-stop hint covers "satisfied / confirmation" phrases, not only "tired / dismissive")
 
@@ -2104,11 +2149,11 @@ karma's "永不依赖 LLM" boundary stands stronger here — i18n is achievable 
 
 After shipping v0.7.3, user said: **"感觉已经挺稳定了，不错不错。"** (Feels stable now, nice nice.) — clearly a stop signal expressing satisfaction. The keep_pushing reflection hook still fired (reminder 1/2), because the existing `_USER_STOP_HINT_RE` only covered the "tired / dismissive" category (`休息吧 / 算了 / 够了 / 明天再说`), not the "satisfied / confirmation" category that users naturally use when a sustained push wave reaches a good stopping point.
 
-Per rule #7 (treat root cause when karma fires false-positive): the trigger fired correctly *given the regex*, but the regex was missing a whole semantic class of user-stop signals.
+Per rule #7 (treat root cause when pinrule fires false-positive): the trigger fired correctly *given the regex*, but the regex was missing a whole semantic class of user-stop signals.
 
 ### Fix — extend `_USER_STOP_HINT_RE` with satisfied-confirmation phrases
 
-Added second category of stop hints to `karma/checks/keep_pushing.py`:
+Added second category of stop hints to `pinrule/checks/keep_pushing.py`:
 
 | Category | Existing (v0.4.41) | Added (v0.7.4) |
 |---|---|---|
@@ -2123,7 +2168,7 @@ Extended `test_v0441_user_stop_hint_exempts_keep_pushing` with 7 new satisfied-c
 
 ### Why this matters
 
-karma's whole reason for the user-stop exemption is to **not be in the way when the user is done**. Missing the "satisfied" case meant the hook nagged the Agent to keep pushing past a stopping point the user had already declared — exactly the kind of nag karma is supposed to *prevent*, not generate.
+pinrule's whole reason for the user-stop exemption is to **not be in the way when the user is done**. Missing the "satisfied" case meant the hook nagged the Agent to keep pushing past a stopping point the user had already declared — exactly the kind of nag pinrule is supposed to *prevent*, not generate.
 
 This is also why pure-engineering regex matters: the moment the user said "挺稳定了", we caught the false-positive within one turn, identified the gap, extended the pattern, and shipped a release with tests. No LLM in the loop — just `re.compile` + a new bullet in the OR clause.
 
@@ -2145,8 +2190,8 @@ Per-file audit, not batch replacement. The "真X" problem from v0.7.0–v0.7.2 w
 - Removed the dead "Full English translation lands in v0.5.3" promise (over 18 releases ago)
 
 **Tier 2 — project contracts (`CLAUDE.md/.zh.md`, `CODE_OF_CONDUCT.md/.zh.md`, `SECURITY.md/.zh.md`)**:
-- Dropped the dead M0 milestone block and the obsolete "Strict LLM authorization v1+" section (karma is firmly no-LLM, not "v0 no LLM")
-- Renamed the doc heading from "karma v2" to "karma" — v2 framing was internal to v1 archival, no longer relevant
+- Dropped the dead M0 milestone block and the obsolete "Strict LLM authorization v1+" section (pinrule is firmly no-LLM, not "v0 no LLM")
+- Renamed the doc heading from "pinrule v2" to "pinrule" — v2 framing was internal to v1 archival, no longer relevant
 - Replaced the "stay under ~200 lines" rule with "small by default, larger batches OK when user explicitly asks one commit" — matches the v0.7.0 651-line user-authorized batch precedent
 - `SECURITY.md` reporting line: removed the "look up author email via gh" instruction, pointed directly at GitHub private Security Advisory
 
@@ -2155,10 +2200,10 @@ Per-file audit, not batch replacement. The "真X" problem from v0.7.0–v0.7.2 w
 **Tier 4 — architecture / handoff / hook guides**:
 - `PRD.md/.zh.md`: removed obsolete "Future possibilities: LLM-judged check upgrade" — directly contradicts the firm no-LLM boundary
 - `PRD.md/.zh.md`: corrected hard-cap from "14 attention inflection point" to "12" (matches `rule.py:HARD_MAX` and Mnilax's empirical study)
-- `ARCHITECTURE.zh.md`: full sweep of `sticky.yaml` → `rules.yaml` and `karma sticky list/edit/remove` → `karma rule …` (these survived v0.6.0); injection header text updated to current "[karma — 你跟用户的长期默契]" collaborative-agreement tone; performance figure < 50ms → < 60ms (matches measurements)
+- `ARCHITECTURE.zh.md`: full sweep of `sticky.yaml` → `rules.yaml` and `pinrule sticky list/edit/remove` → `pinrule rule …` (these survived v0.6.0); injection header text updated to current "[pinrule — 你跟用户的长期默契]" collaborative-agreement tone; performance figure < 50ms → < 60ms (matches measurements)
 - `ARCHITECTURE.md/.zh.md` titles: dropped frozen "(M3 current state)" tag
 - `HANDOFF.md`: rewrote the milestone status section as "Recent milestones (latest first)" with v0.7.2 head; fixed broken `./HOWTO.md` link to `./HANDOFF.md`; removed the obsolete "post-v0.5.3 bilingual handoff" plan
-- `HANDOFF.zh.md`: same rename — title from "M3 六波结束" to "karma 内部接力文档"; current-version line updated to v0.7.2
+- `HANDOFF.zh.md`: same rename — title from "M3 六波结束" to "pinrule 内部接力文档"; current-version line updated to v0.7.2
 - `HOOK_CONFIGURATION_GUIDE.md`: full rewrite. Corrected hook count from 9 to actual 8 (the old guide listed a non-existent `PostCompact`); switched all `sticky.yaml` references to `rules.yaml`; updated scenarios to match how Stop / SubagentStart / PreCompact + SessionStart actually work in v0.7
 - `HOOK_PROTOCOL_RESEARCH.md`: added archive header — research dated 2026-05-14, conclusions already landed; clarified that `ARCHITECTURE.zh.md` is the current source of truth
 
@@ -2167,7 +2212,7 @@ Per-file audit, not batch replacement. The "真X" problem from v0.7.0–v0.7.2 w
 **Tier 6 — operational templates**:
 - `.github/PULL_REQUEST_TEMPLATE.md/.zh.md`: replaced the rigid "under ~200 lines" checklist item with "small by default, larger batches OK when explicitly asked" — matches CLAUDE.md
 - `.github/ISSUE_TEMPLATE/feature_request.zh.md`: `sticky.yaml` → `rules.yaml`
-- `karma/backends/HOWTO.md/.zh.md`: replaced internal `[karma rule #1 long-term fundamental]` cross-references with natural prose pointing to rule slugs
+- `pinrule/backends/HOWTO.md/.zh.md`: replaced internal `[pinrule rule #1 long-term fundamental]` cross-references with natural prose pointing to rule slugs
 - `CODE_OF_CONDUCT.md`: fixed broken `./README.en.md` link to `./README.md`
 
 ### What did NOT happen (correctness restraint)
@@ -2182,9 +2227,9 @@ Per-file audit, not batch replacement. The "真X" problem from v0.7.0–v0.7.2 w
 - `ruff`: 0 issues
 - 22 files changed, 447 / 510 lines (net −63)
 
-### Real karma value
+### Real pinrule value
 
-This release is a "rule 9 (docs-sync-after-commit)" catch-up — a careful pass at the level of "would a first-time karma reader feel this is a viral-quality project or a fragmentary one?" Marketing fluff and stale commands both signal sloppiness; removing them makes the project read as more honest, not less impressive.
+This release is a "rule 9 (docs-sync-after-commit)" catch-up — a careful pass at the level of "would a first-time pinrule reader feel this is a viral-quality project or a fragmentary one?" Marketing fluff and stale commands both signal sloppiness; removing them makes the project read as more honest, not less impressive.
 
 ## [0.7.2] — 2026-05-15 (refactor — remove `chinese_plain` Check 3 reactive monitor: source treated, symptom monitor obsolete)
 
@@ -2192,13 +2237,13 @@ This release is a "rule 9 (docs-sync-after-commit)" catch-up — a careful pass 
 
 `chinese_plain.py` Check 3 (`_check_repeated_prefix`) was added in v0.4.40 as **reactive treat-symptom monitoring** for the "真字狂魔" side effect — its own code comment said: *"治症状不治根因，但能减弱视觉别扭程度"* (treats symptom not root cause, but reduces visual awkwardness).
 
-After v0.7.0 + v0.7.1 treated the source (rewrote ~640 mimicry occurrences across rule templates + locale + docs), `karma audit` data confirmed Check 3 has **0 triggers** in 168 total violations across the session. The mimicry source is gone; the reactive monitor is obsolete.
+After v0.7.0 + v0.7.1 treated the source (rewrote ~640 mimicry occurrences across rule templates + locale + docs), `pinrule audit` data confirmed Check 3 has **0 triggers** in 168 total violations across the session. The mimicry source is gone; the reactive monitor is obsolete.
 
-This is the same logic the user applied to `defensive_prefix_stacking` in v0.7.0: **"这显然是你对 karma 的应激反应，咱们要治根不要治表"** (this is clearly your reactive response to karma — treat the root, not the symptom). v0.7.0 reverted that check before adding it; v0.7.2 removes the parallel Check 3 that snuck in three months earlier.
+This is the same logic the user applied to `defensive_prefix_stacking` in v0.7.0: **"这显然是你对 pinrule 的应激反应，咱们要治根不要治表"** (this is clearly your reactive response to pinrule — treat the root, not the symptom). v0.7.0 reverted that check before adding it; v0.7.2 removes the parallel Check 3 that snuck in three months earlier.
 
 ### Removed
 
-- `karma/checks/chinese_plain.py`: `_check_repeated_prefix()` function + `_PREFIX_REPEAT_THRESHOLD` constant + Check 3 invocation in `check()` (~45 lines)
+- `pinrule/checks/chinese_plain.py`: `_check_repeated_prefix()` function + `_PREFIX_REPEAT_THRESHOLD` constant + Check 3 invocation in `check()` (~45 lines)
 - `data/locales/zh.yaml`: `check.chinese_plain.repeated_prefix.trigger` + `check.chinese_plain.repeated_prefix.fix` keys
 - `tests/test_checks.py`: `test_v0440_repeated_prefix_check_catches_zhen_zi_kuangmo` + `test_v0440_repeated_common_word_not_triggered` (2 tests, both Check 3-specific)
 
@@ -2206,11 +2251,11 @@ This is the same logic the user applied to `defensive_prefix_stacking` in v0.7.0
 
 - `pytest`: 427/427 passing (was 429 — 2 tests removed match the 2 deletions)
 - `ruff`: 0 issues
-- `karma audit` chinese-plain breakdown: Check 1 (中文占比) + Check 2 (jargon) still cover all real cases; no Check 3 触发 lost
+- `pinrule audit` chinese-plain breakdown: Check 1 (中文占比) + Check 2 (jargon) still cover all real cases; no Check 3 触发 lost
 
 ### Why this matters
 
-karma's core philosophy is **treat root not symptom**. Reactive monitors accumulate as "we'll deal with it engineering-side" hedges, then linger after the root cause is fixed. v0.7.2 closes the loop on v0.7.0's user directive: now that source rewrite is done, the reactive monitor it was hedging against can also go.
+pinrule's core philosophy is **treat root not symptom**. Reactive monitors accumulate as "we'll deal with it engineering-side" hedges, then linger after the root cause is fixed. v0.7.2 closes the loop on v0.7.0's user directive: now that source rewrite is done, the reactive monitor it was hedging against can also go.
 
 ## [0.7.1] — 2026-05-15 (refactor — deeper "真X" cleanup: drop unnecessary modifier synonyms across full repo)
 
@@ -2232,7 +2277,7 @@ Sequential cleanup waves (`/tmp/zhen_replace[1-10].pl`) targeting different mimi
 - Phase 5: doubled artifacts cleanup (`任务任务到饱和` → `任务饱和`, `实际实际` → `实际`)
 - Phase 6: 真实 X → X / 实际 (94 rebound from phase 5's `s/实际/真实/g` misstep — corrected)
 - Phase 7: 真工作 / 真装 / 真反喂 / 真反映 → natural alternatives
-- Phase 8: karma rule source files + check comments (in-context mimicry origin layer)
+- Phase 8: pinrule rule source files + check comments (in-context mimicry origin layer)
 - Phase 9-10: scattered residuals
 
 ### Result
@@ -2255,11 +2300,11 @@ Sequential cleanup waves (`/tmp/zhen_replace[1-10].pl`) targeting different mimi
 
 62 files modified, 651 / 651 lines (exactly token-neutral). Coverage:
 
-- All `karma/**/*.py` source code comments (previously deferred in v0.7.0)
+- All `pinrule/**/*.py` source code comments (previously deferred in v0.7.0)
 - All `tests/**/*.py` test code + fixtures (preserving check-3 mimicry fixture)
 - Historical archives: `CHANGELOG.zh.md`, `docs/HANDOFF.zh.md`, `docs/RULES_REDESIGN_PROPOSAL.zh.md`
 - All `.github/*.zh.md` issue/PR templates
-- `karma/backends/HOWTO.zh.md`, `data/rules.dev.minimal.example.zh.yaml`
+- `pinrule/backends/HOWTO.zh.md`, `data/rules.dev.minimal.example.zh.yaml`
 
 ### Verification
 
@@ -2268,19 +2313,19 @@ Sequential cleanup waves (`/tmp/zhen_replace[1-10].pl`) targeting different mimi
 - Doubled-artifact regression test: `grep -E "(任务任务|实际实际|真实真实|真真|装上实测)" $(git ls-files)` returns 0 hits
 - Source rule file mimicry source: 0 `真X` prefixes in `data/rules.dev.example.zh.yaml` and `data/rules.dev.minimal.example.zh.yaml`
 
-### Real karma value
+### Real pinrule value
 
 User's "同义词也没必要存在" insight is sharper than v0.7.0's substitution approach. v0.7.0 assumed the problem was the specific word "真"; this release confirms the problem is the **defensive modifier itself** — whether 真/实际/真正/确实, all signal Agent over-asserting evidence rather than just stating. Drop the modifier, let nouns speak directly.
 
 This is sticky #4 ("loud failure with evidence") at the language layer: real evidence > stacked modifiers asserting evidence.
 
-## [0.7.0] — 2026-05-15 (refactor — treat root cause: rewrite "真X" defensive prefixes in karma source rule texts)
+## [0.7.0] — 2026-05-15 (refactor — treat root cause: rewrite "真X" defensive prefixes in pinrule source rule texts)
 
 ### Root cause user identified
 
-User caught a real architectural failure mode: I (the Agent under karma) was repeatedly stacking "真X" prefixes ("原因 / 违反 / 任务饱和 / 实测") as defensive-evidence language. User's diagnosis was sharp — adding a `defensive_prefix_stacking` check function would have been **treating the symptom** while leaving the **source of the mimicry** untouched.
+User caught a real architectural failure mode: I (the Agent under pinrule) was repeatedly stacking "真X" prefixes ("原因 / 违反 / 任务饱和 / 实测") as defensive-evidence language. User's diagnosis was sharp — adding a `defensive_prefix_stacking` check function would have been **treating the symptom** while leaving the **source of the mimicry** untouched.
 
-The source: karma's own rule texts and locale strings used "真X" patterns throughout (e.g. `rules.dev.example.zh.yaml` line "想清楚是违反 / 修原因", `data/locales/zh.yaml` reflection prompts mentioned "任务饱和"). LLMs read the karma headers every turn and copied the prefix style in their responses — in-context mimicry of the rule text itself.
+The source: pinrule's own rule texts and locale strings used "真X" patterns throughout (e.g. `rules.dev.example.zh.yaml` line "想清楚是违反 / 修原因", `data/locales/zh.yaml` reflection prompts mentioned "任务饱和"). LLMs read the pinrule headers every turn and copied the prefix style in their responses — in-context mimicry of the rule text itself.
 
 ### Fix — multi-diversified rewrite of "真X" prefixes
 
@@ -2315,12 +2360,12 @@ Replaced ~140 occurrences across user-facing docs and templates with diversified
 - Rule templates: `data/rules.dev.example.zh.yaml`, `data/rules.dev.minimal.example.zh.yaml`
 - i18n locale: `data/locales/zh.yaml` (hook injection strings, reflection prompts, suggested_fix texts)
 - User-facing docs (Chinese): `README.zh.md`, `CLAUDE.zh.md`, `SECURITY.zh.md`, `CODE_OF_CONDUCT.zh.md`
-- Internal docs (Chinese): `docs/PRD.zh.md`, `docs/ARCHITECTURE.zh.md`, `docs/V0_6_0_PLAN.zh.md`, `docs/REFACTOR_PLAN_RULE_AND_I18N.zh.md`, `docs/RULES_REDESIGN_PROPOSAL.zh.md`, `karma/backends/HOWTO.zh.md`
+- Internal docs (Chinese): `docs/PRD.zh.md`, `docs/ARCHITECTURE.zh.md`, `docs/V0_6_0_PLAN.zh.md`, `docs/REFACTOR_PLAN_RULE_AND_I18N.zh.md`, `docs/RULES_REDESIGN_PROPOSAL.zh.md`, `pinrule/backends/HOWTO.zh.md`
 
 ### What did NOT happen (correctness restraint)
 
-- **Did not add `defensive_prefix_stacking` engine-layer check** — initially started but reverted after user pointed out it's a treat-symptom reaction. The reactive monitor would have caught Agent symptoms while leaving the karma-itself-induced mimicry source intact. Correct fix is at the source text level.
-- **Did not touch `karma/*.py` source code comments** (~200 occurrences) — these don't enter Agent prompt context, so they don't drive mimicry. Lower-priority cleanup deferred to v0.7.1+.
+- **Did not add `defensive_prefix_stacking` engine-layer check** — initially started but reverted after user pointed out it's a treat-symptom reaction. The reactive monitor would have caught Agent symptoms while leaving the pinrule-itself-induced mimicry source intact. Correct fix is at the source text level.
+- **Did not touch `pinrule/*.py` source code comments** (~200 occurrences) — these don't enter Agent prompt context, so they don't drive mimicry. Lower-priority cleanup deferred to v0.7.1+.
 - **Did not touch CHANGELOG / HANDOFF historical entries** — rule 5 (eval cleanliness) applies metaphorically: historical archive entries shouldn't be rewritten retroactively.
 
 ### Verification
@@ -2329,9 +2374,9 @@ Replaced ~140 occurrences across user-facing docs and templates with diversified
 - `ruff`: 0 issues
 - Mimicry source reduction: rule text + i18n + user-facing docs total "真X" mimicry-style prefixes from ~140 → ~60 (natural language modifiers, not mimicry)
 
-### Real karma value
+### Real pinrule value
 
-User identified this as a **原因 vs 真表征** distinction (... using the exact pattern karma was inducing — confirming the source is the rule text itself, not the Agent's instinct). The fact that even a careful Agent under heavy rule context drifts toward "真X" style speaks to how strong in-context mimicry is from rule text → response text. Cleaning the source is the only durable fix.
+User identified this as a **原因 vs 真表征** distinction (... using the exact pattern pinrule was inducing — confirming the source is the rule text itself, not the Agent's instinct). The fact that even a careful Agent under heavy rule context drifts toward "真X" style speaks to how strong in-context mimicry is from rule text → response text. Cleaning the source is the only durable fix.
 
 ## [0.6.1] — 2026-05-15 (fix — `record_edit` exempts non-code paths; first real-user bug from issue #1)
 
@@ -2345,7 +2390,7 @@ The reporter's proposed fix (`_TEST_CMD_RE` adding optional docker prefix) addre
 
 ### Fix
 
-`karma/session_state.py` adds `_NON_CODE_EDIT_RE` exemption list — `record_edit()` no longer pushes `last_edit_ts` when the file is documentation / metadata / top-level repo text:
+`pinrule/session_state.py` adds `_NON_CODE_EDIT_RE` exemption list — `record_edit()` no longer pushes `last_edit_ts` when the file is documentation / metadata / top-level repo text:
 
 - Documentation suffixes: `.md` / `.rst` / `.txt` / `.markdown` / `.adoc`
 - Metadata files: `.gitignore` / `.gitattributes` / `.editorconfig`
@@ -2366,7 +2411,7 @@ The reporter's proposed fix (`_TEST_CMD_RE` adding optional docker prefix) addre
 
 ### Real-user collaboration value
 
-karma's first real outside contributor (`@fyn1320068837-source`) reported a bug they actually hit in their `henghai-backend` workflow — `docker exec container python -m pytest` + edit + commit. Their initial root-cause diagnosis ("regex doesn't match docker prefix") was wrong, but the bug itself was real. End-to-end docker pytest testing on the maintainer's machine reproduced the actual bug in Candidate A scenario (`last_edit_ts > last_test_pass_ts` after non-code edit). v0.6.1 fixes the real root cause at the right layer.
+pinrule's first real outside contributor (`@fyn1320068837-source`) reported a bug they actually hit in their `henghai-backend` workflow — `docker exec container python -m pytest` + edit + commit. Their initial root-cause diagnosis ("regex doesn't match docker prefix") was wrong, but the bug itself was real. End-to-end docker pytest testing on the maintainer's machine reproduced the actual bug in Candidate A scenario (`last_edit_ts > last_test_pass_ts` after non-code edit). v0.6.1 fixes the real root cause at the right layer.
 
 Issue #1 closed by this release — full thread documents the real-user collaboration → real-test → real-root-cause arc.
 
@@ -2374,57 +2419,57 @@ Issue #1 closed by this release — full thread documents the real-user collabor
 
 ### What's removed (breaking)
 
-- **`karma.sticky` module** — `from karma.sticky import ...` now raises `ModuleNotFoundError`. Migration: `from karma.rule import ...` (identical exports).
+- **`pinrule.sticky` module** — `from pinrule.sticky import ...` now raises `ModuleNotFoundError`. Migration: `from pinrule.rule import ...` (identical exports).
 - **`Violation.sticky_id` @property** — `violation.sticky_id` raises `AttributeError`. Migration: use `.rule_id`.
 - **`CheckHit.sticky_id` @property** — `hit.sticky_id` raises `AttributeError`. Migration: use `.rule_id`.
-- **`karma sticky <subcommand>` CLI** — exits 1 with hint: `💡 你是不是想用 karma rule？`. Migration: use `karma rule list / edit / remove / add / preview`.
-- **`karma.rule` aliases** — `Sticky`, `MAX_STICKY`, `StickyConfigError` removed. Migration: `Rule`, `MAX_RULES`, `RuleConfigError`.
-- **`karma.cli` aliases** — `EXAMPLE_STICKY`, `EXAMPLE_STICKY_MINIMAL` removed (internal symbols, unlikely to affect users).
+- **`pinrule sticky <subcommand>` CLI** — exits 1 with hint: `💡 你是不是想用 pinrule rule？`. Migration: use `pinrule rule list / edit / remove / add / preview`.
+- **`pinrule.rule` aliases** — `Sticky`, `MAX_STICKY`, `StickyConfigError` removed. Migration: `Rule`, `MAX_RULES`, `RuleConfigError`.
+- **`pinrule.cli` aliases** — `EXAMPLE_STICKY`, `EXAMPLE_STICKY_MINIMAL` removed (internal symbols, unlikely to affect users).
 
 ### What stays (data-compat preserved forever)
 
-These are not deprecation aliases — they handle real on-disk user data and stay in karma indefinitely:
+These are not deprecation aliases — they handle real on-disk user data and stay in pinrule indefinitely:
 
-- **`sticky.yaml` → `rules.yaml` auto-migration** in `karma init` — users upgrading from v0.4.x still have `sticky.yaml`; karma silently moves it to `rules.yaml` with `.bak` backup.
-- **`violations.jsonl` `sticky_id` field fallback** — historical jsonl rows from v0.4.x have `sticky_id` instead of `rule_id`; `karma audit` / `stats` still read them correctly via `_extract_rule_id`.
-- **`STICKY_PATH` internal constant** in `karma.cli` — backward-compat path alias to `rule.DEFAULT_PATH`. Used by tests; no migration required.
+- **`sticky.yaml` → `rules.yaml` auto-migration** in `pinrule init` — users upgrading from v0.4.x still have `sticky.yaml`; pinrule silently moves it to `rules.yaml` with `.bak` backup.
+- **`violations.jsonl` `sticky_id` field fallback** — historical jsonl rows from v0.4.x have `sticky_id` instead of `rule_id`; `pinrule audit` / `stats` still read them correctly via `_extract_rule_id`.
+- **`STICKY_PATH` internal constant** in `pinrule.cli` — backward-compat path alias to `rule.DEFAULT_PATH`. Used by tests; no migration required.
 
 ### Why this release
 
 v0.5.0 (2026-05-15 earlier today) renamed `sticky` → `rule` codebase-wide and shipped backward-compat aliases so user scripts wouldn't break immediately. The deprecation warning ran for one full release cycle (v0.5.x: 18 releases). v0.6.0 cliff arrives per the plan in [`docs/V0_6_0_PLAN.md`](./docs/V0_6_0_PLAN.md).
 
-Internal karma code stopped using the aliases entirely in v0.5.13 (`.sticky_id` attribute access) and v0.5.15 (`from karma.sticky` imports). v0.6.0 is a **pure deletion commit** — no refactor logic, just removal.
+Internal pinrule code stopped using the aliases entirely in v0.5.13 (`.sticky_id` attribute access) and v0.5.15 (`from pinrule.sticky` imports). v0.6.0 is a **pure deletion commit** — no refactor logic, just removal.
 
 ### Migration cookbook for external users
 
-Most user scripts using karma are 1-line mechanical fixes:
+Most user scripts using pinrule are 1-line mechanical fixes:
 
 ```python
 # Before (any v0.5.x — warned)
-from karma.sticky import Sticky, MAX_STICKY, StickyConfigError
+from pinrule.sticky import Sticky, MAX_STICKY, StickyConfigError
 violation.sticky_id  # works with warning
 
 # After (v0.6.0+)
-from karma.rule import Rule, MAX_RULES, RuleConfigError
+from pinrule.rule import Rule, MAX_RULES, RuleConfigError
 violation.rule_id  # required
 ```
 
 ```bash
 # Before
-karma sticky list
+pinrule sticky list
 
 # After
-karma rule list
+pinrule rule list
 ```
 
 ### Verification
 
 - 5 new deletion-lock tests in `tests/test_sticky.py` (`test_v0600_*`):
-  - `import karma.sticky` raises `ModuleNotFoundError` ✓
+  - `import pinrule.sticky` raises `ModuleNotFoundError` ✓
   - `Violation.sticky_id` raises `AttributeError` ✓
   - `CheckHit.sticky_id` raises `AttributeError` ✓
-  - `karma.rule.Sticky` / `MAX_STICKY` / `StickyConfigError` are `hasattr() == False` ✓
-  - `karma sticky list` subprocess exits 1 with `"karma rule"` in stderr ✓
+  - `pinrule.rule.Sticky` / `MAX_STICKY` / `StickyConfigError` are `hasattr() == False` ✓
+  - `pinrule sticky list` subprocess exits 1 with `"pinrule rule"` in stderr ✓
 - `pytest`: 423/423 passing (418 prior + 5 new)
 - `ruff`: 0 issues
 - Cumulative: from this morning's v0.5.0 rename to tonight's v0.6.0 cliff, **20 releases shipped in a single day** — the full sticky → rule rename + 1-cycle deprecation + cliff arc lives in `git log v0.5.0..v0.6.0`.
@@ -2445,7 +2490,7 @@ User asked me to self-audit whether the past 4 releases honored rule 10 ("after 
 | Rule-10 requirement | v0.5.16–19 result |
 |---|---|
 | ① after-commit doc audit | ✅ for v0.5.16/17/18; ❌ for v0.5.19 (fixed by this release) |
-| ② "feature as subject, version as clause" | ✅ in README hero, `/karma` section, PRD F5; ARCHITECTURE milestone table is patch-style by format (acceptable — milestone tables are chronological by nature) |
+| ② "feature as subject, version as clause" | ✅ in README hero, `/pinrule` section, PRD F5; ARCHITECTURE milestone table is patch-style by format (acceptable — milestone tables are chronological by nature) |
 | ③ flagship features in README top | ✅ v0.5.16 skill promoted to hero + Real-problems row + new top-level section |
 | ④ bilingual `.md` + `.zh.md` sync | ✅ for README/PRD/ARCH/HANDOFF on v0.5.16-18; ❌ for v0.5.19 (fixed) |
 | ⑤ internal-refactor exception | ✅ v0.5.18/19 correctly skipped README/PRD (no user-visible CLI change), but HANDOFF was still required and missed for v0.5.19 |
@@ -2457,59 +2502,59 @@ Net: 4/5 honored across the 4 releases. The miss was caught by explicit rule-10 
 - `pytest`: 418/418 passing (pure docs, no code change)
 - `ruff`: 0 issues
 
-## [0.5.18] — 2026-05-15 (fix — `bypass_karma` distinguishes "read karma + write elsewhere" from "write to karma path")
+## [0.5.18] — 2026-05-15 (fix — `bypass_pinrule` distinguishes "read pinrule + write elsewhere" from "write to pinrule path")
 
 ### Root-cause fix triggered by live dogfooding false-positive
 
-While inspecting `karma audit` data for today's violation patterns, ran `grep deep-fix ~/.claude/karma/violations.jsonl > /tmp/df_audit.jsonl` to extract a few rows for analysis — got blocked by `bypass_karma` as "writing to karma internal state." Per rule #7, didn't bypass; root-cause-fixed instead.
+While inspecting `pinrule audit` data for today's violation patterns, ran `grep deep-fix ~/.claude/pinrule/violations.jsonl > /tmp/df_audit.jsonl` to extract a few rows for analysis — got blocked by `bypass_pinrule` as "writing to pinrule internal state." Per rule #7, didn't bypass; root-cause-fixed instead.
 
-**What was wrong**: the old `bypass_karma` rule was `(has_internal OR has_state_path) AND has_write` — any command containing a karma path AND any redirect/write op triggered the rule, even if the redirect target was `/tmp/`. Reading karma state into a tmp file for analysis is a legitimate audit pattern, but the rule conflated "karma path appears in command" with "writing to karma path."
+**What was wrong**: the old `bypass_pinrule` rule was `(has_internal OR has_state_path) AND has_write` — any command containing a pinrule path AND any redirect/write op triggered the rule, even if the redirect target was `/tmp/`. Reading pinrule state into a tmp file for analysis is a legitimate audit pattern, but the rule conflated "pinrule path appears in command" with "writing to pinrule path."
 
-**Fix**: extracted redirect targets via `_BASH_REDIR_TARGET_RE` (already shared in `description_context.py` from v0.5.9), check whether any target matches `_KARMA_STATE_PATH_RE`. The new rule becomes `(has_internal OR has_state_path) AND write_to_karma_state` where `write_to_karma_state = has_python_write OR (any redirect target IS a karma path)`.
+**Fix**: extracted redirect targets via `_BASH_REDIR_TARGET_RE` (already shared in `description_context.py` from v0.5.9), check whether any target matches `_PINRULE_STATE_PATH_RE`. The new rule becomes `(has_internal OR has_state_path) AND write_to_pinrule_state` where `write_to_pinrule_state = has_python_write OR (any redirect target IS a pinrule path)`.
 
 **Behavior diff** (verified by 4 new regression tests):
 
 | Command | v0.5.17 | v0.5.18 |
 |---|---|---|
-| `grep ~/.claude/karma/violations.jsonl > /tmp/x` | ❌ blocked (false positive) | ✓ exempt |
-| `cat ~/.claude/karma/violations.jsonl \| python3 -m json.tool > /tmp/pretty.json` | ❌ blocked | ✓ exempt |
-| `echo '{}' >> ~/.claude/karma/violations.jsonl` | ✓ blocked | ✓ blocked (real write-to-karma) |
-| `python -c "open('.claude/karma/x', 'w').write(...)"` | ✓ blocked | ✓ blocked (python write API) |
-| `echo 'last_test_pass_ts=999' > /tmp/inject.txt` | ✓ blocked | ✓ exempt (target is /tmp, not karma) — symmetric with state_path dimension |
+| `grep ~/.claude/pinrule/violations.jsonl > /tmp/x` | ❌ blocked (false positive) | ✓ exempt |
+| `cat ~/.claude/pinrule/violations.jsonl \| python3 -m json.tool > /tmp/pretty.json` | ❌ blocked | ✓ exempt |
+| `echo '{}' >> ~/.claude/pinrule/violations.jsonl` | ✓ blocked | ✓ blocked (real write-to-pinrule) |
+| `python -c "open('.claude/pinrule/x', 'w').write(...)"` | ✓ blocked | ✓ blocked (python write API) |
+| `echo 'last_test_pass_ts=999' > /tmp/inject.txt` | ✓ blocked | ✓ exempt (target is /tmp, not pinrule) — symmetric with state_path dimension |
 
-The `has_internal` (field-name reference) dimension also tightened symmetrically: writing `last_test_pass_ts=...` to `/tmp/` doesn't affect karma state, so it's now exempted. Writing the same string to `~/.claude/karma/...` is still blocked because the redirect target is a karma path.
+The `has_internal` (field-name reference) dimension also tightened symmetrically: writing `last_test_pass_ts=...` to `/tmp/` doesn't affect pinrule state, so it's now exempted. Writing the same string to `~/.claude/pinrule/...` is still blocked because the redirect target is a pinrule path.
 
 ### Why this matters
 
-This was karma's own false-positive blocking real audit work — exactly the kind of "karma overcorrects → user forced to bypass" failure mode rule #7 was written to prevent. Caught the trigger, didn't bypass, dug into the regex, fixed the discriminator. Two new test cases lock in both the new exemption (`test_v0518_read_karma_state_write_tmp_exempted`) and the preserved blocking (`test_v0518_redirect_target_is_karma_path_still_blocked`).
+This was pinrule's own false-positive blocking real audit work — exactly the kind of "pinrule overcorrects → user forced to bypass" failure mode rule #7 was written to prevent. Caught the trigger, didn't bypass, dug into the regex, fixed the discriminator. Two new test cases lock in both the new exemption (`test_v0518_read_pinrule_state_write_tmp_exempted`) and the preserved blocking (`test_v0518_redirect_target_is_pinrule_path_still_blocked`).
 
 ### Verification
 
-- 4 new regression tests in `tests/test_bypass_karma.py` covering: read-karma-write-tmp exempted, pipe-to-python exempted, write-to-karma still blocked, internal-field-name + write-to-tmp now exempted (symmetric with state_path fix), internal-field-name + write-to-karma still blocked
-- `pytest`: 416/416 passing (411 prior + 5 new — Wait, math: 411 + 4 added but one renamed = net 4 new). Actually 411 → 416 = 5 new. Two were `internal_field_name_*` variants (one expects exempt, one expects blocked); other three: `read_karma_state_write_tmp_exempted`, `cat_karma_pipe_to_python_exempted`, `redirect_target_is_karma_path_still_blocked`.
+- 4 new regression tests in `tests/test_bypass_pinrule.py` covering: read-pinrule-write-tmp exempted, pipe-to-python exempted, write-to-pinrule still blocked, internal-field-name + write-to-tmp now exempted (symmetric with state_path fix), internal-field-name + write-to-pinrule still blocked
+- `pytest`: 416/416 passing (411 prior + 5 new — Wait, math: 411 + 4 added but one renamed = net 4 new). Actually 411 → 416 = 5 new. Two were `internal_field_name_*` variants (one expects exempt, one expects blocked); other three: `read_pinrule_state_write_tmp_exempted`, `cat_pinrule_pipe_to_python_exempted`, `redirect_target_is_pinrule_path_still_blocked`.
 - `ruff`: 0 issues
 - All 4 prior `test_*_real_bypass_*` tests remain green — the fix didn't loosen real-write detection
 
-## [0.5.17] — 2026-05-15 (docs — README narrative rewrite: `/karma <NL>` skill promoted to top-level section, not patch-style mention)
+## [0.5.17] — 2026-05-15 (docs — README narrative rewrite: `/pinrule <NL>` skill promoted to top-level section, not patch-style mention)
 
 ### Why this release
 
-v0.5.16 shipped the working skill but README still treated it as a patch-style mention buried inside the "Customize your own rules" section — the "Agent writes the rule for you" capability was a one-line aside while the "Agent complies with rules" capability owned the entire hero/pitch. This release rewrites README narrative so both sides of karma's loop get equal billing on the landing page, per user principle:
+v0.5.16 shipped the working skill but README still treated it as a patch-style mention buried inside the "Customize your own rules" section — the "Agent writes the rule for you" capability was a one-line aside while the "Agent complies with rules" capability owned the entire hero/pitch. This release rewrites README narrative so both sides of pinrule's loop get equal billing on the landing page, per user principle:
 
 > "对外说明文档一定不要只是打补丁，要很「爆款」的融入整体说明，重要亮点和功能说明展示好。"
 > (Don't just patch — fold new capabilities into the overall narrative; flagship features deserve flagship presentation.)
 
 ### What changed (README + README.zh.md, symmetric)
 
-**1. Hero opening rewritten** — was a single "monitor Agent" paragraph + violation-rate stat. Now explicitly frames karma as "two sides of the same loop": 🛡️ pin rules / Agent complies + ✨ tell karma in plain words / Agent writes the rule. Both with concrete one-liners.
+**1. Hero opening rewritten** — was a single "monitor Agent" paragraph + violation-rate stat. Now explicitly frames pinrule as "two sides of the same loop": 🛡️ pin rules / Agent complies + ✨ tell pinrule in plain words / Agent writes the rule. Both with concrete one-liners.
 
-**2. Table of contents** — adds `/karma natural-language rule input` as a top-level entry alongside install / how-it-works / customize.
+**2. Table of contents** — adds `/pinrule natural-language rule input` as a top-level entry alongside install / how-it-works / customize.
 
 **3. Real-problems table** — adds a 7th row covering the actual pain point that v0.5.16 solves ("I want to add a rule but writing yaml is too heavy / my phrasing doesn't make Agent comply"), so the value-prop appears in the same comparative format as the other 6 pains.
 
-**4. Quick install section** — adds a one-line callout that `karma init` auto-installs the skill across all three backends (no extra step), so users know it ships ready-to-use, not as an opt-in upgrade.
+**4. Quick install section** — adds a one-line callout that `pinrule init` auto-installs the skill across all three backends (no extra step), so users know it ships ready-to-use, not as an opt-in upgrade.
 
-**5. New top-level section `/karma <natural language>` — Agent writes the rule for you** — replaces the 20-line "Recommended:" sub-section that v0.5.15 had patched into "Customize." New section is 55+ lines: 7-step workflow visualization, "what the skill handles for you" 6-row table (tone / format / overlap / scope / locale / modify), "three backends, one command" install table, upgrade flow (`karma install-skill --force` / `--backend`).
+**5. New top-level section `/pinrule <natural language>` — Agent writes the rule for you** — replaces the 20-line "Recommended:" sub-section that v0.5.15 had patched into "Customize." New section is 55+ lines: 7-step workflow visualization, "what the skill handles for you" 6-row table (tone / format / overlap / scope / locale / modify), "three backends, one command" install table, upgrade flow (`pinrule install-skill --force` / `--backend`).
 
 **6. "Customize your own rules" reduced to a 1-line pointer** — directs users to the new top-level skill section, with a note that the manual-yaml fallback is for advanced users / no-skill environments. The yaml example block remains as fallback reference; the duplicated "Recommended:" content from v0.5.15 is removed (no more redundancy).
 
@@ -2523,55 +2568,55 @@ v0.5.16 shipped the working skill but README still treated it as a patch-style m
 
 - `pytest`: 411/411 passing (pure docs, no code change)
 - `ruff`: 0 issues
-- Manual sanity: TOC anchor `#karma-natural-language--agent-writes-the-rule-for-you` resolves; sectioning makes sense for a first-time reader landing on the README
+- Manual sanity: TOC anchor `#pinrule-natural-language--agent-writes-the-rule-for-you` resolves; sectioning makes sense for a first-time reader landing on the README
 
 ### Trigger
 
-This release was triggered by user typing `/karma 每次commit以后必须更新所有 github 文档至最新版本...要很「爆款」的融入整体说明` — the karma skill's first live end-to-end use added rule 10 (`docs-sync-after-commit`), and this commit is the immediate first application of that newly-added rule.
+This release was triggered by user typing `/pinrule 每次commit以后必须更新所有 github 文档至最新版本...要很「爆款」的融入整体说明` — the pinrule skill's first live end-to-end use added rule 10 (`docs-sync-after-commit`), and this commit is the immediate first application of that newly-added rule.
 
-## [0.5.16] — 2026-05-15 (feat — `/karma <natural language>` skill works for real, multi-backend install)
+## [0.5.16] — 2026-05-15 (feat — `/pinrule <natural language>` skill works for real, multi-backend install)
 
 ### Why this release is big
 
-Live-session deep audit (driven by user asking "can we simplify `/karma rule X` to just `/karma X`?") surfaced that **karma skill has not actually been triggering since v0.5.1**. Root cause: Claude Code skill mechanism requires `<name>/SKILL.md` directory structure (not flat `<name>.md` file), the `name:` frontmatter field, and a single-token slash command (not multi-word `/karma rule`). v0.5.1 through v0.5.15 all shipped with the wrong assumption — manual CLI testing worked but skill auto-trigger never did.
+Live-session deep audit (driven by user asking "can we simplify `/pinrule rule X` to just `/pinrule X`?") surfaced that **pinrule skill has not actually been triggering since v0.5.1**. Root cause: Claude Code skill mechanism requires `<name>/SKILL.md` directory structure (not flat `<name>.md` file), the `name:` frontmatter field, and a single-token slash command (not multi-word `/pinrule rule`). v0.5.1 through v0.5.15 all shipped with the wrong assumption — manual CLI testing worked but skill auto-trigger never did.
 
 This release rebuilds skill installation correctly across **3 backends**:
 
 | Backend | Path | Format | Trigger |
 |---|---|---|---|
-| Claude Code | `~/.claude/skills/karma/SKILL.md` | Markdown + YAML frontmatter | `/karma <args>` |
-| Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` not `~/.codex/`) | Markdown | `/skills` menu, `$karma <args>` inline, or auto |
-| Gemini CLI | `~/.gemini/skills/karma/SKILL.md` + `~/.gemini/commands/karma.toml` (dual-track) | Markdown (skill) + TOML (commands) | auto-trigger via skill, explicit `/karma <args>` via commands |
+| Claude Code | `~/.claude/skills/pinrule/SKILL.md` | Markdown + YAML frontmatter | `/pinrule <args>` |
+| Codex CLI | `~/.agents/skills/pinrule/SKILL.md` (note: `~/.agents/` not `~/.codex/`) | Markdown | `/skills` menu, `$pinrule <args>` inline, or auto |
+| Gemini CLI | `~/.gemini/skills/pinrule/SKILL.md` + `~/.gemini/commands/pinrule.toml` (dual-track) | Markdown (skill) + TOML (commands) | auto-trigger via skill, explicit `/pinrule <args>` via commands |
 
 ### What changed
 
-**1. Repository skill source restructured** — `skills/karma-rule.md` (flat file, wrong) → `skills/karma/SKILL.md` (correct directory structure). Added required `name: karma` + `description: ...` frontmatter. Updated all `/karma rule X` references inside the skill body to `/karma X` to match the simplified trigger.
+**1. Repository skill source restructured** — `skills/pinrule-rule.md` (flat file, wrong) → `skills/pinrule/SKILL.md` (correct directory structure). Added required `name: pinrule` + `description: ...` frontmatter. Updated all `/pinrule rule X` references inside the skill body to `/pinrule X` to match the simplified trigger.
 
-**2. New module `karma/skill_packaging.py`** — handles format conversion:
+**2. New module `pinrule/skill_packaging.py`** — handles format conversion:
 - `parse_frontmatter(md_text)` — extracts YAML frontmatter without requiring PyYAML dependency
 - `markdown_to_toml(md_text)` — converts Markdown skill to Gemini CLI's `commands/*.toml` format (`description = "..."` + `prompt = """..."""`). Auto-translates `$ARGUMENTS` (Claude/Codex) ↔ `{{args}}` (Gemini) so the same skill source works across all three.
 
-**3. `Backend` Protocol extended** with `skill_install_targets(skill_name="karma") -> list[tuple[Path, str]]`. Each backend declares its own install paths + content formats. Three implementations:
+**3. `Backend` Protocol extended** with `skill_install_targets(skill_name="pinrule") -> list[tuple[Path, str]]`. Each backend declares its own install paths + content formats. Three implementations:
 - `ClaudeCodeBackend` → 1 target (Markdown)
 - `CodexBackend` → 1 target (Markdown, `~/.agents/` path)
 - `GeminiCLIBackend` → 2 targets (Markdown skill + TOML commands)
 
 **4. CLI multi-backend support**:
-- `_install_karma_skill_multi_backend(force, backend_filter)` — central install function; iterates all detected backends and writes each target with format-appropriate content
-- `cmd_install_skill(force, backend)` — `karma install-skill` now installs to all by default; `--backend claude-code|codex|gemini-cli` targets one
-- `cmd_init` — auto-installs to all backends, prints `创建 [<backend>] karma skill: <path>` per target
+- `_install_pinrule_skill_multi_backend(force, backend_filter)` — central install function; iterates all detected backends and writes each target with format-appropriate content
+- `cmd_install_skill(force, backend)` — `pinrule install-skill` now installs to all by default; `--backend claude-code|codex|gemini-cli` targets one
+- `cmd_init` — auto-installs to all backends, prints `创建 [<backend>] pinrule skill: <path>` per target
 - `cmd_doctor` — reports multi-backend skill status (✓ 最新 / ⚠ 跟当前版本不一致 / 未装), one line per (backend, path) pair
 
-**5. `pyproject.toml`** — `force-include` updated `skills/karma/SKILL.md` so `pip install karma` ships the correct file.
+**5. `pyproject.toml`** — `force-include` updated `skills/pinrule/SKILL.md` so `pip install pinrule` ships the correct file.
 
 ### Live verification (this session)
 
 After installing v0.5.16 on the author's machine, the Claude Code session running this very release surfaced this message in `SessionStart` hook context:
 
 > The following skills are available for use with the Skill tool:
-> - **karma**: Natural-language karma rule input — refine user's plain description into karma's validated rule structure, preview, confirm, and add to rules.yaml. Use when the user types `/karma <natural language describing a rule preference>`.
+> - **pinrule**: Natural-language pinrule rule input — refine user's plain description into pinrule's validated rule structure, preview, confirm, and add to rules.yaml. Use when the user types `/pinrule <natural language describing a rule preference>`.
 
-**This is the first time karma skill has actually been seen by Claude Code in any session.** v0.5.1 through v0.5.15 it sat in the wrong path silently.
+**This is the first time pinrule skill has actually been seen by Claude Code in any session.** v0.5.1 through v0.5.15 it sat in the wrong path silently.
 
 ### Verification
 
@@ -2583,20 +2628,20 @@ After installing v0.5.16 on the author's machine, the Claude Code session runnin
 
 ### Migration notes for v0.5.15 → v0.5.16 users
 
-- Old `~/.claude/skills/karma-rule.md` (flat file from v0.5.12-15 install) is dead weight; you can `rm` it
-- New skill auto-installs on next `karma init` or `karma install-skill`
-- The `/karma rule X` slash command never worked (despite docs saying it did); the new `/karma X` does, in Claude Code at least
-- Codex / Gemini support is best-effort — Codex needs `/skills` menu or `$karma` inline; Gemini supports explicit `/karma` via the TOML commands path
+- Old `~/.claude/skills/pinrule-rule.md` (flat file from v0.5.12-15 install) is dead weight; you can `rm` it
+- New skill auto-installs on next `pinrule init` or `pinrule install-skill`
+- The `/pinrule rule X` slash command never worked (despite docs saying it did); the new `/pinrule X` does, in Claude Code at least
+- Codex / Gemini support is best-effort — Codex needs `/skills` menu or `$pinrule` inline; Gemini supports explicit `/pinrule` via the TOML commands path
 
 ### What v0.5.1 to v0.5.15 docs claimed vs. reality (sticky #4 honest disclosure)
 
-The v0.5.1 release notes claimed "Claude Code skill template at `skills/karma-rule.md` for natural-language rule input." It described a `/karma rule <NL>` trigger. **None of that actually worked end-to-end** until this release. Skill flow worked only when the user manually invoked the underlying `karma rule add --from-yaml` CLI — the natural-language → skill auto-refinement path was vapor. Apologies for the misleading docs.
+The v0.5.1 release notes claimed "Claude Code skill template at `skills/pinrule-rule.md` for natural-language rule input." It described a `/pinrule rule <NL>` trigger. **None of that actually worked end-to-end** until this release. Skill flow worked only when the user manually invoked the underlying `pinrule rule add --from-yaml` CLI — the natural-language → skill auto-refinement path was vapor. Apologies for the misleading docs.
 
-## [0.5.15] — 2026-05-15 (chore — v0.6.0 preparation: draft plan doc + internal `karma.sticky` → `karma.rule` import migration)
+## [0.5.15] — 2026-05-15 (chore — v0.6.0 preparation: draft plan doc + internal `pinrule.sticky` → `pinrule.rule` import migration)
 
 ### Why this release
 
-v0.5.13 audit ostensibly "cleaned all `.sticky_id` callsites" but only at the attribute level. A follow-up audit while drafting the v0.6.0 plan surfaced a deeper miss: **11 internal `from karma.sticky import ...` statements** still lived in karma's own source code (4 in `cli.py`, 6 in `hooks/*.py`, plus self-references) — plus parallel imports in 4 test files. v0.6.0 cannot safely delete `karma/sticky.py` until karma itself stops importing it. This release fixes that.
+v0.5.13 audit ostensibly "cleaned all `.sticky_id` callsites" but only at the attribute level. A follow-up audit while drafting the v0.6.0 plan surfaced a deeper miss: **11 internal `from pinrule.sticky import ...` statements** still lived in pinrule's own source code (4 in `cli.py`, 6 in `hooks/*.py`, plus self-references) — plus parallel imports in 4 test files. v0.6.0 cannot safely delete `pinrule/sticky.py` until pinrule itself stops importing it. This release fixes that.
 
 ### Two things in this release
 
@@ -2604,39 +2649,39 @@ v0.5.13 audit ostensibly "cleaned all `.sticky_id` callsites" but only at the at
 
 Spelled-out deprecation contract before the cliff. Three categories:
 
-- **Group A** — internal scaffolding (aliases referenced only by karma itself). Zero external impact.
-- **Group B** — public API breaking changes (`karma.sticky` module / `.sticky_id` @property / `karma sticky` CLI alias). Each deprecated since v0.5.0; v0.6.0 cliff.
+- **Group A** — internal scaffolding (aliases referenced only by pinrule itself). Zero external impact.
+- **Group B** — public API breaking changes (`pinrule.sticky` module / `.sticky_id` @property / `pinrule sticky` CLI alias). Each deprecated since v0.5.0; v0.6.0 cliff.
 - **Group C** — on-disk data migration (`sticky.yaml` → `rules.yaml`, legacy `violations.jsonl` `sticky_id` field fallback). **Stays forever** — these handle real user data, not API surface.
 
-Includes execution order, test coverage expectations, risk assessment, and 2 open questions (whether `karma sticky` CLI alias deserves an extra release cycle of grace; whether `chinese_plain_no_jargon` default behavior for non-Chinese users is in scope — answered "no" to both, deferred).
+Includes execution order, test coverage expectations, risk assessment, and 2 open questions (whether `pinrule sticky` CLI alias deserves an extra release cycle of grace; whether `chinese_plain_no_jargon` default behavior for non-Chinese users is in scope — answered "no" to both, deferred).
 
 **2. Pre-v0.6.0 import migration** (executed this release)
 
-Replaced `from karma.sticky import X` → `from karma.rule import X` across:
+Replaced `from pinrule.sticky import X` → `from pinrule.rule import X` across:
 
-- `karma/cli.py` (4 occurrences)
-- `karma/hooks/post_tool_use.py`, `karma/hooks/stop.py`, `karma/hooks/pre_tool_use.py`, `karma/hooks/subagent_start.py`, `karma/hooks/user_prompt_submit.py`, `karma/hooks/pre_compact.py`, `karma/hooks/session_start.py` (7 hook files, 7 occurrences total)
+- `pinrule/cli.py` (4 occurrences)
+- `pinrule/hooks/post_tool_use.py`, `pinrule/hooks/stop.py`, `pinrule/hooks/pre_tool_use.py`, `pinrule/hooks/subagent_start.py`, `pinrule/hooks/user_prompt_submit.py`, `pinrule/hooks/pre_compact.py`, `pinrule/hooks/session_start.py` (7 hook files, 7 occurrences total)
 - `tests/test_violations.py`, `tests/test_sticky.py`, `tests/test_paths.py`, `tests/test_cli.py`, `tests/test_post_tool_use_reinject.py` (5 test files)
-- `mock.patch("karma.sticky.load", ...)` patterns in `test_post_tool_use_reinject.py` → `mock.patch("karma.rule.load", ...)` (4 patches) — Python module aliasing means patching the alias namespace doesn't reach the real module if the consumer imports from the real module directly
+- `mock.patch("pinrule.sticky.load", ...)` patterns in `test_post_tool_use_reinject.py` → `mock.patch("pinrule.rule.load", ...)` (4 patches) — Python module aliasing means patching the alias namespace doesn't reach the real module if the consumer imports from the real module directly
 
 ### Verification
 
 - `pytest`: 410/410 passing
-- `pytest -W error::DeprecationWarning`: 410/410 passing — **zero `karma.sticky` deprecation warnings** triggered from karma's own code or tests
+- `pytest -W error::DeprecationWarning`: 410/410 passing — **zero `pinrule.sticky` deprecation warnings** triggered from pinrule's own code or tests
 - `ruff`: 0 issues
-- `grep -rn "from karma.sticky" karma/ tests/` returns only the `karma/sticky.py` shim's own docstring (the shim's purpose is to be a thing to import; it doesn't import itself)
+- `grep -rn "from pinrule.sticky" pinrule/ tests/` returns only the `pinrule/sticky.py` shim's own docstring (the shim's purpose is to be a thing to import; it doesn't import itself)
 
 ### v0.6.0 readiness status
 
-After this release, deleting `karma/sticky.py` in v0.6.0 will not break any internal callsite. Same for the 4 class/property aliases (`MAX_STICKY`, `Sticky`, `StickyConfigError`, `EXAMPLE_STICKY*`) — they have zero internal users now. The `.sticky_id` @property on `CheckHit` + `Violation` already had zero internal users since v0.5.13. The `karma sticky <subcommand>` CLI alias has zero internal users (it's an entry-point branch in `cli.py:1183`).
+After this release, deleting `pinrule/sticky.py` in v0.6.0 will not break any internal callsite. Same for the 4 class/property aliases (`MAX_STICKY`, `Sticky`, `StickyConfigError`, `EXAMPLE_STICKY*`) — they have zero internal users now. The `.sticky_id` @property on `CheckHit` + `Violation` already had zero internal users since v0.5.13. The `pinrule sticky <subcommand>` CLI alias has zero internal users (it's an entry-point branch in `cli.py:1183`).
 
 In short: v0.6.0 can ship as a pure deletion commit, no refactor required.
 
-## [0.5.14] — 2026-05-15 (docs — `karma-rule` skill teaches the modify recipe with existing commands, no new CLI added)
+## [0.5.14] — 2026-05-15 (docs — `pinrule-rule` skill teaches the modify recipe with existing commands, no new CLI added)
 
 ### Why this release
 
-Live dogfooding turned up a real gap: when an Agent walks through Step 2 of the skill and the decision table says "modify existing rule," the skill stopped there — `karma rule edit` was mentioned but that command launches `$EDITOR` for the user (not Agent-automatable). The Agent had no clear path to "modify" using the CLI surface it has, which led me (the Agent dogfooding right now) to propose adding a new `karma rule replace` command. User pushed back: don't grow surface area; teach the existing commands clearly.
+Live dogfooding turned up a real gap: when an Agent walks through Step 2 of the skill and the decision table says "modify existing rule," the skill stopped there — `pinrule rule edit` was mentioned but that command launches `$EDITOR` for the user (not Agent-automatable). The Agent had no clear path to "modify" using the CLI surface it has, which led me (the Agent dogfooding right now) to propose adding a new `pinrule rule replace` command. User pushed back: don't grow surface area; teach the existing commands clearly.
 
 ### What changed
 
@@ -2645,13 +2690,13 @@ Pure skill documentation — **zero new CLI commands, zero new code**. Closes th
 - **New "How to modify an existing rule (replace / merge / extend scope)" section** under Step 2, with:
   - The 3-step recipe (draft yaml → preview → `remove && add` swap)
   - A 4-row "common modify shapes" table (Replace / Extend scope / Merge / Genuine purpose change) clarifying when to keep the `id` (almost always — keeps violation history linked) vs. when to use a new one
-  - Explicit "why not `karma rule edit`" callout — it's a user escape hatch, not an Agent path
+  - Explicit "why not `pinrule rule edit`" callout — it's a user escape hatch, not an Agent path
 - **Step 6 expanded** with two branches (new rule vs. modify) showing exact commands
 - **Honest atomicity caveat** — clarifies that `remove && add` is *not* a true transaction (if `add` fails after `remove` succeeded, the rule is gone); preview-first reduces but doesn't eliminate the risk; `cp rules.yaml rules.yaml.bak` is the cheap belt-and-suspenders. Original draft incorrectly claimed `&&` "ensured" atomicity — caught and corrected in this same commit (sticky #4: be honest about caveats).
 
 ### Why no new CLI command
 
-User principle (from this session): "don't give users a pile of rarely-used skills/commands." Modifying = removing + adding; the existing commands compose. Adding `karma rule replace` would have been surface-area bloat with no real capability gain — the Agent reading the skill just needed the recipe documented.
+User principle (from this session): "don't give users a pile of rarely-used skills/commands." Modifying = removing + adding; the existing commands compose. Adding `pinrule rule replace` would have been surface-area bloat with no real capability gain — the Agent reading the skill just needed the recipe documented.
 
 ### Verification
 
@@ -2661,7 +2706,7 @@ User principle (from this session): "don't give users a pile of rarely-used skil
 
 ### Also in this release
 
-- `rule 9 lighthearted-vibe` modified in user's `~/.claude/karma/sticky.yaml` (out-of-tree user data, not in this commit): scope expanded from "during /karma rule conversations" to "整体说话方式", with a stronger dual clause "具体问题分析要认深刻" replacing the milder "该严肃就严肃." This served as the dogfood that exposed the skill gap fixed here.
+- `rule 9 lighthearted-vibe` modified in user's `~/.claude/pinrule/sticky.yaml` (out-of-tree user data, not in this commit): scope expanded from "during /pinrule rule conversations" to "整体说话方式", with a stronger dual clause "具体问题分析要认深刻" replacing the milder "该严肃就严肃." This served as the dogfood that exposed the skill gap fixed here.
 
 ## [0.5.13] — 2026-05-15 (refactor — audit-driven dedup: shared `is_python_c_command` + sticky_id alias cleanup + doctor skill check)
 
@@ -2671,18 +2716,18 @@ An end-of-day code audit surfaced 3 real debts. v0.5.13 pays them off in one cle
 
 ### F1 — `_LANG_C_HEAD_RE` was copy-pasted across 3 check files
 
-`testset.py` / `bypass_karma.py` / `non_blocking.py` each defined the same regex `r"\b(?:python\d?|node|ruby|perl)\s+-[ce]\b"` independently. v0.5.9 lifted the parallel `_BASH_REDIR_TARGET_RE` into `description_context.py` but missed this one.
+`testset.py` / `bypass_pinrule.py` / `non_blocking.py` each defined the same regex `r"\b(?:python\d?|node|ruby|perl)\s+-[ce]\b"` independently. v0.5.9 lifted the parallel `_BASH_REDIR_TARGET_RE` into `description_context.py` but missed this one.
 
-**Fix**: Added `is_python_c_command(cmd: str) -> bool` helper in `karma/checks/common.py` (correct home — sits alongside `_SHELL_INTERPRETER_RE`, `_HEREDOC_RE`, and other Bash-parsing utilities). All 3 checks now import and call `is_python_c_command(cmd_raw)` instead of holding their own pattern.
+**Fix**: Added `is_python_c_command(cmd: str) -> bool` helper in `pinrule/checks/common.py` (correct home — sits alongside `_SHELL_INTERPRETER_RE`, `_HEREDOC_RE`, and other Bash-parsing utilities). All 3 checks now import and call `is_python_c_command(cmd_raw)` instead of holding their own pattern.
 
-### F2 — `karma doctor` didn't report skill installation status
+### F2 — `pinrule doctor` didn't report skill installation status
 
-v0.5.12 added `karma install-skill`, but `cmd_doctor` only reported hook installation, not skill. A user running `karma doctor` after a clean install couldn't see whether `/karma rule <NL>` was actually wired up.
+v0.5.12 added `pinrule install-skill`, but `cmd_doctor` only reported hook installation, not skill. A user running `pinrule doctor` after a clean install couldn't see whether `/pinrule rule <NL>` was actually wired up.
 
-**Fix**: `cmd_doctor` now reports `karma-rule skill` status in three states:
+**Fix**: `cmd_doctor` now reports `pinrule-rule skill` status in three states:
 - "存在 ✓ 最新" — installed and content matches the shipped version
-- "存在 ⚠ 跟当前 karma 版本不一致" — installed but out of date (suggests `karma install-skill` to upgrade)
-- "未装" — missing (suggests `karma install-skill`)
+- "存在 ⚠ 跟当前 pinrule 版本不一致" — installed but out of date (suggests `pinrule install-skill` to upgrade)
+- "未装" — missing (suggests `pinrule install-skill`)
 
 ### F3 — 34 `.sticky_id` callsites would have broken at v0.6.0
 
@@ -2704,18 +2749,18 @@ v0.5.0 announced "sticky → rule renamed across entire codebase" but in practic
 - All 5 Bash-aware checks use unified `tool_name == "Bash"` guard
 - v0.5.9 refactor cleanup was clean (no stale `_bash_writes_to_description_context` or `_DESC_CTX_PATH_RE` residuals)
 
-## [0.5.12] — 2026-05-15 (feat — `karma init` auto-installs `karma-rule` skill + new `karma install-skill` command)
+## [0.5.12] — 2026-05-15 (feat — `pinrule init` auto-installs `pinrule-rule` skill + new `pinrule install-skill` command)
 
-### feat — `/karma rule <NL>` flow now works out-of-box for new users
+### feat — `/pinrule rule <NL>` flow now works out-of-box for new users
 
-v0.5.11 audit surfaced the gap: `skills/karma-rule.md` was in the repo but not auto-installed to `~/.claude/skills/karma-rule.md`, so first-time users typing `/karma rule add a new rule about X` in Claude Code would get nothing — the skill needed manual copy. This release closes the gap.
+v0.5.11 audit surfaced the gap: `skills/pinrule-rule.md` was in the repo but not auto-installed to `~/.claude/skills/pinrule-rule.md`, so first-time users typing `/pinrule rule add a new rule about X` in Claude Code would get nothing — the skill needed manual copy. This release closes the gap.
 
 ### Changes
 
-- **`karma init` now auto-installs the skill** at the end of its flow. Path: `~/.claude/skills/karma-rule.md`. First run prints `创建 karma-rule skill: <path>` plus the `/karma rule <NL>` usage tip.
-- **New `karma install-skill [--force]` subcommand** for users who installed karma before v0.5.12 (or want to upgrade the skill after a clarity audit like v0.5.11). Without `--force`, conflicts are non-destructive — if the user has a locally-modified `karma-rule.md`, the new version writes to `karma-rule.md.new` and tells the user how to diff/merge. `--force` overwrites.
-- **`pyproject.toml` `force-include`** now packages `skills/karma-rule.md` into the wheel so `pip install karma` works.
-- **`karma --help`** lists the new `install-skill` subcommand with brief usage.
+- **`pinrule init` now auto-installs the skill** at the end of its flow. Path: `~/.claude/skills/pinrule-rule.md`. First run prints `创建 pinrule-rule skill: <path>` plus the `/pinrule rule <NL>` usage tip.
+- **New `pinrule install-skill [--force]` subcommand** for users who installed pinrule before v0.5.12 (or want to upgrade the skill after a clarity audit like v0.5.11). Without `--force`, conflicts are non-destructive — if the user has a locally-modified `pinrule-rule.md`, the new version writes to `pinrule-rule.md.new` and tells the user how to diff/merge. `--force` overwrites.
+- **`pyproject.toml` `force-include`** now packages `skills/pinrule-rule.md` into the wheel so `pip install pinrule` works.
+- **`pinrule --help`** lists the new `install-skill` subcommand with brief usage.
 
 ### Conflict handling (sticky #1: don't overwrite user changes silently)
 
@@ -2728,7 +2773,7 @@ v0.5.11 audit surfaced the gap: `skills/karma-rule.md` was in the repo but not a
 ### Verification
 
 - 5 new regression tests in `tests/test_cli.py`:
-  - `test_v0512_init_auto_installs_karma_rule_skill` — first run installs ✓
+  - `test_v0512_init_auto_installs_pinrule_rule_skill` — first run installs ✓
   - `test_v0512_init_second_run_skill_up_to_date` — idempotent on second run ✓
   - `test_v0512_init_skill_user_modified_writes_new_file` — user changes preserved, `.md.new` written ✓
   - `test_v0512_install_skill_force_overwrites` — `--force` wins ✓
@@ -2736,27 +2781,27 @@ v0.5.11 audit surfaced the gap: `skills/karma-rule.md` was in the repo but not a
 - `pytest`: 409/409 passing (404 prior + 5 new)
 - `ruff`: 0 issues
 
-## [0.5.11] — 2026-05-15 (docs — `skills/karma-rule.md` clarity audit, 5 gaps closed)
+## [0.5.11] — 2026-05-15 (docs — `skills/pinrule-rule.md` clarity audit, 5 gaps closed)
 
-### docs — 5 clarity gaps in `/karma rule` skill template closed
+### docs — 5 clarity gaps in `/pinrule rule` skill template closed
 
-Dogfood-driven audit. While walking through the `/karma rule` flow end-to-end (real natural-language input → CLI), 5 places where a first-time Agent could silently make the wrong call surfaced:
+Dogfood-driven audit. While walking through the `/pinrule rule` flow end-to-end (real natural-language input → CLI), 5 places where a first-time Agent could silently make the wrong call surfaced:
 
-1. **Step 1 missed anchor-vs-scope ambiguity** — User phrasing "during scenario X, do Y" usually means "X is an example" not "Y only applies during X," but karma v2 is always-on injection (no scene routing). Skill now requires the Agent to surface this ambiguity verbatim instead of silently guessing scope. Also adds a one-off vs long-term tell list (`"for this PR" → one-off` / `"I always want" → long-term`) so the "is this karma-worthy at all" check is concrete.
+1. **Step 1 missed anchor-vs-scope ambiguity** — User phrasing "during scenario X, do Y" usually means "X is an example" not "Y only applies during X," but pinrule v2 is always-on injection (no scene routing). Skill now requires the Agent to surface this ambiguity verbatim instead of silently guessing scope. Also adds a one-off vs long-term tell list (`"for this PR" → one-off` / `"I always want" → long-term`) so the "is this pinrule-worthy at all" check is concrete.
 
 2. **Step 2 had no overlap-decision standard** — Skill said "check existing rules" but gave no rule for what counts as overlap (id match? semantic similarity? keyword intersection?). Added a 4-row decision table covering 4 overlap cases with concrete actions (modify existing / two-option ask / mention keyword overlap / add fresh).
 
 3. **Step 3 → Step 5 skipped user inline draft review** — Original flow went straight from "draft to temp file" → preview → user sees finished yaml. Users wanting wording tweaks had to make the Agent restart. Skill now requires showing a draft inline in Step 3 before writing to disk, with explicit "say so now if you want adjustments" callout.
 
-4. **No locale-aware tone guidance** — Post v0.5.2 i18n made karma bilingual, but skill had English-only examples. Added explicit "write `preference` in the language the user is talking to you in; `violation_checks` function names stay English" rule. Points Chinese-locale Agents at `data/rules.dev.example.zh.yaml` as reference pattern source.
+4. **No locale-aware tone guidance** — Post v0.5.2 i18n made pinrule bilingual, but skill had English-only examples. Added explicit "write `preference` in the language the user is talking to you in; `violation_checks` function names stay English" rule. Points Chinese-locale Agents at `data/rules.dev.example.zh.yaml` as reference pattern source.
 
-5. **Step 7 "when it takes effect" was buried** — Original skill had a standalone `## Restart Claude Code after karma rule add` section at the bottom, easy to miss. Moved the "takes effect on next UserPromptSubmit" notice inline into Step 7 as bullet 4, plus made the "suggest deletions" step concrete (name specific redundant pairs, not vague "review for duplicates"). Removed the standalone section.
+5. **Step 7 "when it takes effect" was buried** — Original skill had a standalone `## Restart Claude Code after pinrule rule add` section at the bottom, easy to miss. Moved the "takes effect on next UserPromptSubmit" notice inline into Step 7 as bullet 4, plus made the "suggest deletions" step concrete (name specific redundant pairs, not vague "review for duplicates"). Removed the standalone section.
 
 3 new entries added to the `## Common mistakes to avoid` list at the bottom mirroring gaps 1, 4, and 3 so a quick scan catches the high-impact failure modes.
 
 ### Discovered (but not fixed in v0.5.11)
 
-While auditing, also noticed `skills/karma-rule.md` is **not auto-installed** to `~/.claude/skills/karma-rule.md` by `karma init` — users have to copy it manually. This means today's `/karma rule <NL>` flow only works if the user knows about the manual install step. Not in scope for v0.5.11 (docs-only release), but worth a v0.5.12 `karma install-skill` or `karma init` extension.
+While auditing, also noticed `skills/pinrule-rule.md` is **not auto-installed** to `~/.claude/skills/pinrule-rule.md` by `pinrule init` — users have to copy it manually. This means today's `/pinrule rule <NL>` flow only works if the user knows about the manual install step. Not in scope for v0.5.11 (docs-only release), but worth a v0.5.12 `pinrule install-skill` or `pinrule init` extension.
 
 ### Verification
 
@@ -2764,35 +2809,35 @@ While auditing, also noticed `skills/karma-rule.md` is **not auto-installed** to
 - Length: 225 → 269 lines (net +44, explicit guidance not bloat)
 - No code changes — `pytest 404/404`, `ruff 0` unchanged
 
-## [0.5.10] — 2026-05-15 (docs — `karma --help` now lists `rule add` / `rule preview` subcommands)
+## [0.5.10] — 2026-05-15 (docs — `pinrule --help` now lists `rule add` / `rule preview` subcommands)
 
-### docs — `karma --help` was hiding `karma rule add` / `karma rule preview`
+### docs — `pinrule --help` was hiding `pinrule rule add` / `pinrule rule preview`
 
-A user-initiated dogfood test (running the v0.5.1 `karma rule` flow end-to-end for the first time) surfaced that `karma --help` still only listed `karma sticky list/edit/remove` — the new `rule add`, `rule preview`, and `rule list/edit/remove` subcommands shipped in v0.5.1 were fully implemented and dispatched correctly, but invisible from top-level help. A first-time user typing `karma --help` would have no idea `karma rule add` exists.
+A user-initiated dogfood test (running the v0.5.1 `pinrule rule` flow end-to-end for the first time) surfaced that `pinrule --help` still only listed `pinrule sticky list/edit/remove` — the new `rule add`, `rule preview`, and `rule list/edit/remove` subcommands shipped in v0.5.1 were fully implemented and dispatched correctly, but invisible from top-level help. A first-time user typing `pinrule --help` would have no idea `pinrule rule add` exists.
 
-This release fixes the docstring at the top of `karma/cli.py` to:
+This release fixes the docstring at the top of `pinrule/cli.py` to:
 - List all 4 `rule` subcommands (`list` / `edit` / `remove` / `add` / `preview`) with their flags (`--from-yaml <file>` / `--from-stdin`)
-- Mention `karma sticky` as a deprecated alias removed in v0.6.0
-- Add a footer pointer to the Claude Code `/karma rule <natural language>` skill workflow
+- Mention `pinrule sticky` as a deprecated alias removed in v0.6.0
+- Add a footer pointer to the Claude Code `/pinrule rule <natural language>` skill workflow
 
 The implementation has been working since v0.5.1; this is a pure documentation fix.
 
 ### Verified end-to-end (16 test cases)
 
-- `karma rule preview --from-stdin` with valid yaml → schema check + injection preview render ✓
-- `karma rule preview` error paths (missing id / nonexistent yaml file) → `exit 1` with `❌` message ✓
-- `karma rule add --from-stdin` with valid yaml → schema validate + id-uniqueness + cap + REGISTRY check + write + report ✓
-- `karma rule add --from-yaml <file>` with valid yaml → same flow ✓
-- `karma rule add` duplicate id → `exit 1` ✓
-- `karma rule add` unknown `violation_checks` function → `exit 1` with available-functions list ✓
-- `karma rule add` schema error (missing preference) → `exit 1` ✓
-- `karma rule add` invalid yaml → `exit 1` ✓
-- `karma rule add` no flag → `exit 1` with usage prompt + `/karma rule` skill hint ✓
-- `karma rule` no subcommand → `exit 1` with subcommand list ✓
-- `karma rule foobar` unknown subcommand → `exit 1` ✓
-- `karma rule list` shows newly-added rule ✓
-- `karma rule remove <id>` removes the rule ✓
-- `karma rule remove <id>` then `karma rule add` same id → succeeds ✓
+- `pinrule rule preview --from-stdin` with valid yaml → schema check + injection preview render ✓
+- `pinrule rule preview` error paths (missing id / nonexistent yaml file) → `exit 1` with `❌` message ✓
+- `pinrule rule add --from-stdin` with valid yaml → schema validate + id-uniqueness + cap + REGISTRY check + write + report ✓
+- `pinrule rule add --from-yaml <file>` with valid yaml → same flow ✓
+- `pinrule rule add` duplicate id → `exit 1` ✓
+- `pinrule rule add` unknown `violation_checks` function → `exit 1` with available-functions list ✓
+- `pinrule rule add` schema error (missing preference) → `exit 1` ✓
+- `pinrule rule add` invalid yaml → `exit 1` ✓
+- `pinrule rule add` no flag → `exit 1` with usage prompt + `/pinrule rule` skill hint ✓
+- `pinrule rule` no subcommand → `exit 1` with subcommand list ✓
+- `pinrule rule foobar` unknown subcommand → `exit 1` ✓
+- `pinrule rule list` shows newly-added rule ✓
+- `pinrule rule remove <id>` removes the rule ✓
+- `pinrule rule remove <id>` then `pinrule rule add` same id → succeeds ✓
 - `rules.yaml` is truly persisted (grep verified line count = 7 after 2 adds to 5-minimal base) ✓
 
 Plus `pytest` 404/404 + `ruff` 0 issues.
@@ -2841,7 +2886,7 @@ A future refactor (likely v0.5.9) will lift this into `description_context.py` s
 
 ### feat — audit groups by `trigger_key` instead of `trigger` literal
 
-A side-effect of v0.5.4 (i18n'd all trigger strings): `karma audit` was grouping by `trigger` literal, so a user who ran karma in zh locale for a week then switched to en would see "the same behavior" split into two separate counter lines. The audit's "top trigger" analysis would mis-represent reality.
+A side-effect of v0.5.4 (i18n'd all trigger strings): `pinrule audit` was grouping by `trigger` literal, so a user who ran pinrule in zh locale for a week then switched to en would see "the same behavior" split into two separate counter lines. The audit's "top trigger" analysis would mis-represent reality.
 
 v0.5.7 adds a locale-agnostic `trigger_key` (the i18n key itself, e.g. `"check.evidence.commit.trigger"`) as a stable identifier across locales:
 
@@ -2889,11 +2934,11 @@ False-cousin "下一次再说吧" (deferral, not planning) is correctly *not* co
 - `pytest`: 396/396 passing (394 prior + 2 new)
 - `ruff`: 0 issues
 
-## [0.5.5] — 2026-05-15 (fix — testset check adds `python -c` exemption, parity with non_blocking / bypass_karma)
+## [0.5.5] — 2026-05-15 (fix — testset check adds `python -c` exemption, parity with non_blocking / bypass_pinrule)
 
 ### fix — testset.py false-positive on `python -c` string literals
 
-A v0.5.3 dogfooding session hit it: a probe script `python -c "r = check(content='gold_cases.append(x)')"` was blocked by the testset check, treating the in-quote string `gold_cases.append(x)` as a real reverse-feed call. Root cause: `testset.py` was the only one of three `python -c`-affected checks missing the `_LANG_C_HEAD_RE` exemption (`non_blocking.py` got it in v0.4.18, `bypass_karma.py` got it in v0.4.13).
+A v0.5.3 dogfooding session hit it: a probe script `python -c "r = check(content='gold_cases.append(x)')"` was blocked by the testset check, treating the in-quote string `gold_cases.append(x)` as a real reverse-feed call. Root cause: `testset.py` was the only one of three `python -c`-affected checks missing the `_LANG_C_HEAD_RE` exemption (`non_blocking.py` got it in v0.4.18, `bypass_pinrule.py` got it in v0.4.13).
 
 This release adds the same exemption pattern to `testset.py` `check()` — when `tool_name == "Bash"` and command head matches `\b(?:python\d?|node|ruby|perl)\s+-[ce]\b`, the check returns `None`. Real reverse-feed Bash commands (`cp eval/* train/`, `cat detail.json >> pool.jsonl`) without a `-c` wrapper still trigger.
 
@@ -2909,9 +2954,9 @@ This release adds the same exemption pattern to `testset.py` `check()` — when 
 
 ### feat — All `CheckHit.trigger` audit labels now locale-aware
 
-The `trigger` field — written to `~/.claude/karma/violations.jsonl` for audit-log classification — was the last bilingual gap left after v0.5.3. v0.5.4 closes it: 28 trigger strings across 8 check modules are now `tr()`-driven, parallel to the `fix` namespace.
+The `trigger` field — written to `~/.claude/pinrule/violations.jsonl` for audit-log classification — was the last bilingual gap left after v0.5.3. v0.5.4 closes it: 28 trigger strings across 8 check modules are now `tr()`-driven, parallel to the `fix` namespace.
 
-- 14 direct-trigger entries in `chinese_plain` / `non_blocking` / `evidence` / `keep_pushing` / `read_first` / `bypass_karma` (with `{term}` / `{cmd}` / `{word}` / `{tool}` / `{file_path}` / `{target}` interpolations)
+- 14 direct-trigger entries in `chinese_plain` / `non_blocking` / `evidence` / `keep_pushing` / `read_first` / `bypass_pinrule` (with `{term}` / `{cmd}` / `{word}` / `{tool}` / `{file_path}` / `{target}` interpolations)
 - 14 pattern-table entries in `long_term` / `testset` — tuple structure now `(regex, trigger_key, fix_key)`, both translated at hit time
 
 ### feat — 28 new `check.*.trigger` keys in `data/locales/en.yaml` + `zh.yaml`
@@ -2934,14 +2979,14 @@ The `trigger` field — written to `~/.claude/karma/violations.jsonl` for audit-
 
 All `CheckHit.suggested_fix` strings — the part directly injected into Agent's next-turn context — switched from hard-coded Chinese to `tr()` lookup. Coverage is complete across all 8 check modules.
 
-- **`karma/checks/chinese_plain.py`** (3 entries) — `ratio` / `jargon` / `repeated_prefix`. Note: chinese_plain check itself is opt-in for Chinese users; English default install removes it via rule-template selection.
-- **`karma/checks/non_blocking.py`** (4 entries) — `python_block` / `sleep` / `wait` / `long_task` (with `{cmd}` interpolation)
-- **`karma/checks/evidence.py`** (3 entries) — `commit` / `completion` / `weak_claim`
-- **`karma/checks/keep_pushing.py`** (2 entries) — `stop_hint` / `default`
-- **`karma/checks/read_first.py`** (1 entry, with `{file_path}` interpolation)
-- **`karma/checks/bypass_karma.py`** (1 entry)
-- **`karma/checks/long_term.py`** (7 entries in pattern tuples) — `long_id_branch` / `blacklist_literal` / `uppercase_const_list` / `commit_hack` / `git_skip_verify` / `todo_marker` / `patch_intent`
-- **`karma/checks/testset.py`** (7 entries in pattern tuples) — `reverse_feed` / `detail_writeback` / `cross_split_copy` / `detail_append` / `split_hardcode` / `hash_branch` / `case_list_hash`
+- **`pinrule/checks/chinese_plain.py`** (3 entries) — `ratio` / `jargon` / `repeated_prefix`. Note: chinese_plain check itself is opt-in for Chinese users; English default install removes it via rule-template selection.
+- **`pinrule/checks/non_blocking.py`** (4 entries) — `python_block` / `sleep` / `wait` / `long_task` (with `{cmd}` interpolation)
+- **`pinrule/checks/evidence.py`** (3 entries) — `commit` / `completion` / `weak_claim`
+- **`pinrule/checks/keep_pushing.py`** (2 entries) — `stop_hint` / `default`
+- **`pinrule/checks/read_first.py`** (1 entry, with `{file_path}` interpolation)
+- **`pinrule/checks/bypass_pinrule.py`** (1 entry)
+- **`pinrule/checks/long_term.py`** (7 entries in pattern tuples) — `long_id_branch` / `blacklist_literal` / `uppercase_const_list` / `commit_hack` / `git_skip_verify` / `todo_marker` / `patch_intent`
+- **`pinrule/checks/testset.py`** (7 entries in pattern tuples) — `reverse_feed` / `detail_writeback` / `cross_split_copy` / `detail_append` / `split_hardcode` / `hash_branch` / `case_list_hash`
 
 For `long_term` and `testset`, the `_PATTERNS` tuple structure was preserved with `fix_key` (an `i18n` key string) as the third element instead of literal fix text — the `check()` function calls `tr(fix_key)` at hit time. This keeps the pattern table compact and lets translators edit `data/locales/*.yaml` without touching Python.
 
@@ -2957,14 +3002,14 @@ For `long_term` and `testset`, the `_PATTERNS` tuple structure was preserved wit
 
 ### What stays Chinese (intentional, scoped to v0.5.3)
 
-- `CheckHit.trigger` field — internal audit-log classification label, written to `~/.claude/karma/violations.jsonl`. Not in Agent injection path, so prioritization is lower; will migrate in a future minor release alongside trigger-key namespace design.
+- `CheckHit.trigger` field — internal audit-log classification label, written to `~/.claude/pinrule/violations.jsonl`. Not in Agent injection path, so prioritization is lower; will migrate in a future minor release alongside trigger-key namespace design.
 
 ## [0.5.2] — 2026-05-15 (feat — i18n infrastructure + all hook injection texts switchable en/zh)
 
 ### feat — Engineering-layer i18n MVP
 
-- **`karma/i18n.py` module** — `tr(key, **fmt)` translation lookup with `{placeholder}` interpolation; fail-open (missing key returns key itself, never crashes hook)
-- **Locale resolution** — `KARMA_LOCALE` env var > `config.yaml` `locale` field > `karma.locale_detect.is_chinese_user()` auto-detect > fallback `en`
+- **`pinrule/i18n.py` module** — `tr(key, **fmt)` translation lookup with `{placeholder}` interpolation; fail-open (missing key returns key itself, never crashes hook)
+- **Locale resolution** — `PINRULE_LOCALE` env var > `config.yaml` `locale` field > `pinrule.locale_detect.is_chinese_user()` auto-detect > fallback `en`
 - **`config.yaml` `locale` field** — `"auto"` (default) / `"en"` / `"zh"`
 - **`data/locales/en.yaml` + `data/locales/zh.yaml`** — Translation dicts covering all user-visible hook-injection strings (header / drift marker / mid-injection / strong reminder / Stop reason / SessionStart variants / SubagentStart)
 
@@ -2972,22 +3017,22 @@ For `long_term` and `testset`, the `_PATTERNS` tuple structure was preserved wit
 
 All hook injection texts switched from hard-coded Chinese to `tr()` lookup:
 
-- `karma/rule.py format_for_injection` — header title + 2 description lines + drift marker
-- `karma/hooks/post_tool_use.py` — mid-injection "anchoring refresh" 3 lines
-- `karma/hooks/stop.py` — Stop hook `decision=block` reason (with `{count}/{max}` interpolation)
-- `karma/hooks/user_prompt_submit.py` — strong reminder header + footer
-- `karma/hooks/subagent_start.py` — SubAgent baseline title + tail
-- `karma/hooks/session_start.py` — 3 source branches (compact/resume/startup) + compact prior-drift header + tail
+- `pinrule/rule.py format_for_injection` — header title + 2 description lines + drift marker
+- `pinrule/hooks/post_tool_use.py` — mid-injection "anchoring refresh" 3 lines
+- `pinrule/hooks/stop.py` — Stop hook `decision=block` reason (with `{count}/{max}` interpolation)
+- `pinrule/hooks/user_prompt_submit.py` — strong reminder header + footer
+- `pinrule/hooks/subagent_start.py` — SubAgent baseline title + tail
+- `pinrule/hooks/session_start.py` — 3 source branches (compact/resume/startup) + compact prior-drift header + tail
 
 ### Manual verification
 
-- `KARMA_LOCALE=en` → `[karma — Your long-term agreement with the user]` / `[karma — Last response didn't show a next-step push signal]` ...
-- `KARMA_LOCALE=zh` → `[karma — 你跟用户的长期默契]` / `[karma — 上一回应没看到下一步推进信号]` ...
+- `PINRULE_LOCALE=en` → `[pinrule — Your long-term agreement with the user]` / `[pinrule — Last response didn't show a next-step push signal]` ...
+- `PINRULE_LOCALE=zh` → `[pinrule — 你跟用户的长期默契]` / `[pinrule — 上一回应没看到下一步推进信号]` ...
 
 ### Pending in v0.5.3 (Phase D — English content completion)
 
 8 built-in check functions still have hard-coded Chinese `suggested_fix` text (~14 entries):
-- chinese_plain (3 / non_blocking (4) / evidence (3) / keep_pushing (2) / long_term (7) / testset (7) / read_first (1) / bypass_karma (1)
+- chinese_plain (3 / non_blocking (4) / evidence (3) / keep_pushing (2) / long_term (7) / testset (7) / read_first (1) / bypass_pinrule (1)
 
 Phase D will abstract these behind `tr()` keys + provide English translations. Hook injection texts are user-visible critical path (covered in v0.5.2); `suggested_fix` only shown when violations trigger (less critical) — phased separately.
 
@@ -2997,12 +3042,12 @@ Phase D will abstract these behind `tr()` keys + provide English translations. H
 - 4-check: ruff / mypy / vulture / pytest all green
 - Manual run: EN/ZH locale switching truly produces different injection text
 
-## [0.5.1] — 2026-05-15 (feat — `karma rule add` natural-language rule input + i18n English-default docs)
+## [0.5.1] — 2026-05-15 (feat — `pinrule rule add` natural-language rule input + i18n English-default docs)
 
 ### feat
 
-- **`karma rule add` / `karma rule preview` CLI commands** — Natural-language rule input via Claude Code skill collaboration. User invokes `/karma rule <description>` in Claude Code → Agent refines to karma's validated tone/structure (per `skills/karma-rule.md` template) → calls `karma rule preview` to test → user confirms → calls `karma rule add` to write
-- **`skills/karma-rule.md`** — Claude Code skill template for natural-language rule creation. Install: copy to `~/.claude/skills/karma-rule.md`
+- **`pinrule rule add` / `pinrule rule preview` CLI commands** — Natural-language rule input via Claude Code skill collaboration. User invokes `/pinrule rule <description>` in Claude Code → Agent refines to pinrule's validated tone/structure (per `skills/pinrule-rule.md` template) → calls `pinrule rule preview` to test → user confirms → calls `pinrule rule add` to write
+- **`skills/pinrule-rule.md`** — Claude Code skill template for natural-language rule creation. Install: copy to `~/.claude/skills/pinrule-rule.md`
   - Workflow: understand intent → check existing rules → refine yaml → preview test → user confirm → write → report results (optimized content + tests passed + current rule library count + suggest deletions/modifications)
   - Critical constraints: collaborative-agreement tone (not rule-system), intent-prefix + action keyword format, optional engine-layer `violation_checks`, schema test before write
 - Rule add validation: schema check + id duplicate check + soft/hard cap (10/12) check + `violation_checks` function existence check in REGISTRY
@@ -3012,10 +3057,10 @@ Phase D will abstract these behind `tr()` keys + provide English translations. H
 - **English-default documentation swap** (per user input: "the world's 90%+ future users are English") — switched main documentation language from Chinese to English. Chinese versions preserved as `.zh.md` alternatives:
   - README.md / SECURITY.md / CODE_OF_CONDUCT.md / CLAUDE.md
   - docs/PRD.md / docs/ARCHITECTURE.md / docs/REFACTOR_PLAN_RULE_AND_I18N.md / docs/RULES_REDESIGN_PROPOSAL.md / docs/HANDOFF.md
-  - karma/backends/HOWTO.md
+  - pinrule/backends/HOWTO.md
   - .github/ISSUE_TEMPLATE/bug_report.md / .github/ISSUE_TEMPLATE/feature_request.md / .github/PULL_REQUEST_TEMPLATE.md
   - CHANGELOG.md (this file)
-- **Rule templates English-default**: `data/rules.dev.example.yaml` is now English-default; `.zh.yaml` is Chinese alternative. `karma init` auto-selects based on `karma/locale_detect.py` system-language detection
+- **Rule templates English-default**: `data/rules.dev.example.yaml` is now English-default; `.zh.yaml` is Chinese alternative. `pinrule init` auto-selects based on `pinrule/locale_detect.py` system-language detection
 - **GitHub repo description** switched to English
 
 ### docs (i18n complete)
@@ -3024,28 +3069,28 @@ Phase D will abstract these behind `tr()` keys + provide English translations. H
 - **Swapped files** (English-default + .zh.md backup):
   - README.md / SECURITY.md / CODE_OF_CONDUCT.md / CLAUDE.md
   - docs/PRD.md / docs/ARCHITECTURE.md / docs/REFACTOR_PLAN_RULE_AND_I18N.md / docs/RULES_REDESIGN_PROPOSAL.md / docs/HANDOFF.md
-  - karma/backends/HOWTO.md
+  - pinrule/backends/HOWTO.md
   - .github/ISSUE_TEMPLATE/bug_report.md / .github/ISSUE_TEMPLATE/feature_request.md / .github/PULL_REQUEST_TEMPLATE.md
   - CHANGELOG.md (this file)
 - **Rule templates English-default**:
   - `data/rules.dev.example.yaml` is now English-default
   - `data/rules.dev.example.zh.yaml` (Chinese version, was previous default)
   - `data/rules.dev.minimal.example.yaml` same pattern
-  - `karma init` auto-selects based on `karma/locale_detect.py` system-language detection
+  - `pinrule init` auto-selects based on `pinrule/locale_detect.py` system-language detection
 - **GitHub repo description** switched to English: "Make AI Agents never violate your rules in long tasks — auto-correct violations before they frustrate you. Pure-engineering zero-LLM hook system for Claude Code / Codex CLI / Gemini CLI. Measured violation rate ≈ 0%."
 
 ## [0.5.0] — 2026-05-15 (major breaking change — sticky → rule rename)
 
-User authorized: "rename all `sticky` references in karma's code and files to `rule`."
+User authorized: "rename all `sticky` references in pinrule's code and files to `rule`."
 
-Phase A complete: sticky → rule rename + backward-compat migration. Phase B (natural-language rule input via `karma rule add` CLI + Claude Code skill) / C (i18n infrastructure) / D (full English content) are pending in subsequent releases.
+Phase A complete: sticky → rule rename + backward-compat migration. Phase B (natural-language rule input via `pinrule rule add` CLI + Claude Code skill) / C (i18n infrastructure) / D (full English content) are pending in subsequent releases.
 
 Key changes:
 - Core classes: `class Sticky` → `class Rule`, `StickyConfigError` → `RuleConfigError`, `MAX_STICKY` → `MAX_RULES` (all preserved as aliases until v0.6.0)
-- Module: `karma/sticky.py` → `karma/rule.py` (git mv preserved history), legacy `karma/sticky.py` became a compat shim
+- Module: `pinrule/sticky.py` → `pinrule/rule.py` (git mv preserved history), legacy `pinrule/sticky.py` became a compat shim
 - Fields: `Violation.sticky_id` → `Violation.rule_id` (property `sticky_id` alias preserved), `CheckHit.sticky_id` → `CheckHit.rule_id`
-- CLI: `karma sticky list/edit/remove` → `karma rule list/edit/remove`, legacy `karma sticky` as deprecated alias
-- Config: `~/.claude/karma/sticky.yaml` → `~/.claude/karma/rules.yaml`, auto-migration via `karma init`
+- CLI: `pinrule sticky list/edit/remove` → `pinrule rule list/edit/remove`, legacy `pinrule sticky` as deprecated alias
+- Config: `~/.claude/pinrule/sticky.yaml` → `~/.claude/pinrule/rules.yaml`, auto-migration via `pinrule init`
 - Data templates: `data/sticky.dev.example.yaml` → `data/rules.dev.example.yaml`
 
 Tests: 392/392 + 4-check (ruff / mypy / vulture / pytest) all green.
@@ -3054,7 +3099,7 @@ For detailed pre-v0.5.0 release notes (v0.1.0 through v0.4.44), see [CHANGELOG.z
 
 ## Pre-v0.5.0 releases
 
-For all release history from karma's earliest version (v0.1.0) through v0.4.44, see [CHANGELOG.zh.md](./CHANGELOG.zh.md). Each release includes:
+For all release history from pinrule's earliest version (v0.1.0) through v0.4.44, see [CHANGELOG.zh.md](./CHANGELOG.zh.md). Each release includes:
 
 - Trigger context (what prompted the change)
 - Root-cause analysis
@@ -3066,7 +3111,7 @@ For all release history from karma's earliest version (v0.1.0) through v0.4.44, 
 Notable releases:
 - **v0.4.42** — "Collaborative agreement" tone refactor (see [docs/RULES_REDESIGN_PROPOSAL.md](./docs/RULES_REDESIGN_PROPOSAL.md))
 - **v0.4.43 / v0.4.44** — Stop / SubagentStop / PreCompact hook schema compliance fixes
-- **v0.4.39** — Per-model adaptive injection threshold (`karma/model_threshold.py`)
+- **v0.4.39** — Per-model adaptive injection threshold (`pinrule/model_threshold.py`)
 - **v0.4.34** — Subagent independent state architecture
 - **v0.4.28 / v0.4.29 / v0.4.30** — v3 evolution: SessionStart baseline + PreCompact dump + SubagentStart/Stop
 - **v0.4.0** — Multi-backend (Gemini CLI added) + JsonHooksBackend abstraction

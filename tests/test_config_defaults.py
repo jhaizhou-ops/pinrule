@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 
-from karma.config import DEFAULTS, get, load
+from pinrule.config import DEFAULTS, get, load
 
 
 # ---------------------------------------------------------------------------

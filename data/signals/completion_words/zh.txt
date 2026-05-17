@@ -1,5 +1,5 @@
-# karma 信号：完成词（中文）— evidence check 用
-# Agent 用这些词声称代码任务完成，karma 配合 _ACTION_CONTEXT_RE 看上下文
+# pinrule 信号：完成词（中文）— evidence check 用
+# Agent 用这些词声称代码任务完成，pinrule 配合 _ACTION_CONTEXT_RE 看上下文
 # 是否真有测试证据。无证据 + 命中完成词 → 触发「响亮失败附证据」规则反思。
 
 完成

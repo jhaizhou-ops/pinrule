@@ -1,4 +1,4 @@
-# karma 信号：弱声明字眼（中文）— evidence check 用
+# pinrule 信号：弱声明字眼（中文）— evidence check 用
 # 「应该可以 / 大概率」类没查过的猜测语气，触发「响亮失败附证据」规则反思
 #
 # v0.9.13 补字眼：之前中文 8 字眼 vs 英文 23 字眼，中文用户 evidence check

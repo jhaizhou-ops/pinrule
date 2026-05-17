@@ -27,7 +27,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from karma.rule import HARD_MAX, MAX_RULES, Rule, RuleConfigError, load
+from pinrule.rule import HARD_MAX, MAX_RULES, Rule, RuleConfigError, load
 
 
 # ---------------------------------------------------------------------------

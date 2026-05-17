@@ -1,7 +1,7 @@
 #!/bin/bash
 # 发版二阶段：commit + push 完成后跑这个做 tag + gh release。
 #
-# 分阶段防幽灵 release —— 一阶段如果失败（karma hook 拦 commit），脚本退出
+# 分阶段防幽灵 release —— 一阶段如果失败（pinrule hook 拦 commit），脚本退出
 # 不进入二阶段，不会产生 tag 指向错 commit 的幽灵 release。
 #
 # 用法：scripts/release-finalize.sh <version> "<release title>" <notes-file>

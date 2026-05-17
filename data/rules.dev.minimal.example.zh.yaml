@@ -1,4 +1,4 @@
-# karma 规则模板 — 软件开发场景「跨用户中性」5 条精选
+# pinrule 规则模板 — 软件开发场景「跨用户中性」5 条精选
 #
 # 这是 rules.dev.example.yaml 的精简版，砍掉了语言 / 场景特化的两条：
 #   - chinese-plain-no-jargon（中文用户偏好）
@@ -7,9 +7,9 @@
 # 适合：英文母语用户 / 普通后端 / 前端 / 工具开发，不需要场景化规则。
 #
 # 用法：
-#   1. karma init  （会装默认 7 条到 ~/.claude/karma/rules.yaml）
+#   1. pinrule init  （会装默认 7 条到 ~/.claude/pinrule/rules.yaml）
 #   2. 想换成这个 5 条核心：
-#      cp data/rules.dev.minimal.example.yaml ~/.claude/karma/rules.yaml
+#      cp data/rules.dev.minimal.example.yaml ~/.claude/pinrule/rules.yaml
 #
 # 上限：软上限 10 / 硬上限 12（超过 12 hook 拒绝加载）
 
@@ -67,8 +67,8 @@
 
 - id: deep-fix-not-bypass
   preference: |
-    karma 拦截发生时，先停下深挖**为什么拦** — 是违反还是 karma 自身 bug。
-    禁止通过手动改 ~/.claude/karma/session-state/ / 临时改 rules.yaml /
+    pinrule 拦截发生时，先停下深挖**为什么拦** — 是违反还是 pinrule 自身 bug。
+    禁止通过手动改 ~/.claude/pinrule/session-state/ / 临时改 rules.yaml /
     hack 字面 等方式绕开检测。
     经典 anti-pattern：被拦 → 手动改内部状态让 commit 通过。
     正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修原因。
@@ -78,7 +78,7 @@
     - 手动接入
     - hack 让 commit
   violation_checks:
-    - bypass_karma_detection
+    - bypass_pinrule_detection
 
 - id: read-before-write
   preference: |

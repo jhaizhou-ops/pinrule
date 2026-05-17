@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from karma.checks import REGISTRY
+from pinrule.checks import REGISTRY
 
 
 def _check(response: str):
@@ -176,7 +176,7 @@ def test_explicit_user_handoff_exempted():
     pushing 算停下。
     """
     cases = [
-        "我会跑 karma violations clear。授权后才执行。请决定。",
+        "我会跑 pinrule violations clear。授权后才执行。请决定。",
         "改完了。等你确认。",
         "做了 A 跟 B。请授权。",
     ]
@@ -241,10 +241,10 @@ def test_v419_real_stop_still_caught():
 def test_push_signal_woqu_kan_exempted():
     """「我去看 / 我去查 / 我要去做 X」简单近 future 动作 → 豁免推进。
 
-    dogfooding 实测：「我去看 karma check 能不能加一条...」被错拦
+    dogfooding 实测：「我去看 pinrule check 能不能加一条...」被错拦
     （`_PUSH_SIGNAL_RE` 漏「我去 + 看/查」类动词组合）。
     """
-    assert _check("commit 推完。我去看 karma stats 累积违反。") is None
+    assert _check("commit 推完。我去看 pinrule stats 累积违反。") is None
     assert _check("做好了。我去查下个推进点。") is None
     assert _check("OK。接下来去看 force_block 累计。") is None
 
@@ -331,7 +331,7 @@ def test_v0441_user_normal_prompt_no_exempt():
 def test_v080_english_user_stop_hint_exempts():
     """v0.8.0 i18n 信号: 英文用户叫停字眼也豁免反思 hook。
 
-    karma 信号字眼外部化到 data/signals/user_stop_hints/{zh,en}.txt 后，
+    pinrule 信号字眼外部化到 data/signals/user_stop_hints/{zh,en}.txt 后，
     英文用户「looks good / LGTM / all set / nice nice」等满意确认 +
     「never mind / stop pushing / call it a day」等推卸都应整 turn 豁免。
     """

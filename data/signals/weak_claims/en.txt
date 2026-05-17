@@ -1,4 +1,4 @@
-# karma signal: weak / hedging claim phrases (English)
+# pinrule signal: weak / hedging claim phrases (English)
 # Used by evidence check — phrases like "should work" / "probably fine"
 # indicate guessing without verification, triggering the
 # "loud-failure-with-evidence" rule reflection

@@ -3,7 +3,7 @@
 覆盖：
 - 未知 check 名 → 静默跳过，不崩
 - check 函数抛异常 → fail open（不崩、不命中）
-- KARMA_DEBUG=1 → 两种情况都往 stderr 打诊断
+- PINRULE_DEBUG=1 → 两种情况都往 stderr 打诊断
 - 多命中按顺序返回
 - check_names 为空 → 立即返回 []
 - tool_input=None → 默认 {}（不传 None 进 check 函数）
@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 
 
-from karma.checks import REGISTRY, CheckHit, run_checks
+from pinrule.checks import REGISTRY, CheckHit, run_checks
 
 
 # ---------------------------------------------------------------------------
@@ -47,13 +47,13 @@ def test_run_checks_empty_list_returns_empty():
 # ---------------------------------------------------------------------------
 
 def test_run_checks_unknown_name_silently_skipped(monkeypatch):
-    monkeypatch.setitem(os.environ, "KARMA_DEBUG", "")
+    monkeypatch.setitem(os.environ, "PINRULE_DEBUG", "")
     result = run_checks(["non_existent_check_xyz"])
     assert result == []
 
 
 def test_run_checks_unknown_name_debug_writes_stderr(monkeypatch, capsys):
-    monkeypatch.setitem(os.environ, "KARMA_DEBUG", "1")
+    monkeypatch.setitem(os.environ, "PINRULE_DEBUG", "1")
     run_checks(["totally_unknown_check"])
     err = capsys.readouterr().err
     assert "totally_unknown_check" in err
@@ -65,14 +65,14 @@ def test_run_checks_unknown_name_debug_writes_stderr(monkeypatch, capsys):
 
 def test_run_checks_exception_in_check_is_swallowed(monkeypatch):
     monkeypatch.setitem(REGISTRY, "_test_raises", _raises)
-    monkeypatch.setitem(os.environ, "KARMA_DEBUG", "")
+    monkeypatch.setitem(os.environ, "PINRULE_DEBUG", "")
     result = run_checks(["_test_raises"])
     assert result == []
 
 
 def test_run_checks_exception_debug_writes_stderr(monkeypatch, capsys):
     monkeypatch.setitem(REGISTRY, "_test_raises_dbg", _raises)
-    monkeypatch.setitem(os.environ, "KARMA_DEBUG", "1")
+    monkeypatch.setitem(os.environ, "PINRULE_DEBUG", "1")
     run_checks(["_test_raises_dbg"])
     err = capsys.readouterr().err
     assert "_test_raises_dbg" in err
@@ -144,7 +144,7 @@ def test_run_checks_none_tool_input_defaults_to_dict(monkeypatch):
 def test_run_checks_exception_does_not_block_subsequent_checks(monkeypatch):
     monkeypatch.setitem(REGISTRY, "_crash_first", _raises)
     monkeypatch.setitem(REGISTRY, "_hit_after", _always_hit)
-    monkeypatch.setitem(os.environ, "KARMA_DEBUG", "")
+    monkeypatch.setitem(os.environ, "PINRULE_DEBUG", "")
     result = run_checks(["_crash_first", "_hit_after"])
     assert len(result) == 1
     assert result[0].rule_id == "r1"
@@ -162,7 +162,7 @@ _EXPECTED_CHECKS = [
     "no_testset_no_future_leakage",
     "read_before_write",
     "keep_pushing_no_stop",
-    "bypass_karma_detection",
+    "bypass_pinrule_detection",
 ]
 
 

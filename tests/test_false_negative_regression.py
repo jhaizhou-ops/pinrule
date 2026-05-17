@@ -6,8 +6,8 @@
 
 from __future__ import annotations
 
-from karma.checks import REGISTRY
-from karma.session_state import SessionState
+from pinrule.checks import REGISTRY
+from pinrule.session_state import SessionState
 
 
 # ============================================================
@@ -171,25 +171,25 @@ def test_long_term_response_en_reflection_no_false_positive():
 
 
 # v0.11.4 — i18n hook output templates (pre_tool_use deny reason)
-# 真根因: pre_tool_use.py + stop.py 之前硬编码中文模板, KARMA_LOCALE=en 没影响.
+# 真根因: pre_tool_use.py + stop.py 之前硬编码中文模板, PINRULE_LOCALE=en 没影响.
 # 这一波改成 走 tr(). lockdown 防未来 PR 回退到硬编码.
 
 def test_pre_tool_use_deny_reason_uses_tr_not_hardcoded_chinese():
-    """v0.11.4 i18n lockdown: pre_tool_use.py 不能再硬编码中文模板 'karma 拦截：违反'."""
+    """v0.11.4 i18n lockdown: pre_tool_use.py 不能再硬编码中文模板 'pinrule 拦截：违反'."""
     import pathlib
-    src = pathlib.Path("karma/hooks/pre_tool_use.py").read_text(encoding="utf-8")
+    src = pathlib.Path("pinrule/hooks/pre_tool_use.py").read_text(encoding="utf-8")
     # 硬编码中文 reason 模板字面在 source 里出现 = 没走 tr() = 回退
-    assert "f\"karma 拦截：违反" not in src, (
-        "pre_tool_use.py 不应再硬编码 'karma 拦截：违反' — 必须走 tr('hook.pre_tool_use.deny_*_reason')"
+    assert "f\"pinrule 拦截：违反" not in src, (
+        "pre_tool_use.py 不应再硬编码 'pinrule 拦截：违反' — 必须走 tr('hook.pre_tool_use.deny_*_reason')"
     )
 
 
 def test_stop_violation_line_uses_tr_not_hardcoded_chinese():
     """v0.11.4 i18n lockdown: stop.py 不能再硬编码 'Agent 违反' / '建议：' 模板."""
     import pathlib
-    src = pathlib.Path("karma/hooks/stop.py").read_text(encoding="utf-8")
+    src = pathlib.Path("pinrule/hooks/stop.py").read_text(encoding="utf-8")
     # 硬编码中文 stderr 模板字面 — 必须 tr()
-    assert "f\"⚠️ karma: Agent 违反 {h.rule_id!r}" not in src, (
+    assert "f\"⚠️ pinrule: Agent 违反 {h.rule_id!r}" not in src, (
         "stop.py 不应再硬编码 'Agent 违反' — 必须走 tr('hook.stop.violation_line')"
     )
     assert "f\"   建议：{h.suggested_fix}\"" not in src, (
@@ -205,8 +205,8 @@ def test_stop_violation_line_uses_tr_not_hardcoded_chinese():
 
 def test_deep_fix_edit_after_test_fail_unread_file_blocks():
     """v0.11.1: pytest 挂 → 立刻 Edit 没读过的文件 → 拦 (草草了事)."""
-    from karma.session_state import SessionState, BashSnapshot
-    fn = REGISTRY["bypass_karma_detection"]
+    from pinrule.session_state import SessionState, BashSnapshot
+    fn = REGISTRY["bypass_pinrule_detection"]
     state = SessionState(session_id="test")
     # 模拟最近 Bash 是失败的测试命令
     state.recent_bash.append(BashSnapshot(
@@ -227,8 +227,8 @@ def test_deep_fix_edit_after_test_fail_unread_file_blocks():
 
 def test_deep_fix_edit_after_test_fail_already_read_passes():
     """v0.11.1: 测试挂但 Agent 已读过源文件 → 不拦 (合法调试)."""
-    from karma.session_state import SessionState, BashSnapshot
-    fn = REGISTRY["bypass_karma_detection"]
+    from pinrule.session_state import SessionState, BashSnapshot
+    fn = REGISTRY["bypass_pinrule_detection"]
     state = SessionState(session_id="test")
     state.record_read("/workspace/src/foo.py")  # 已读
     state.recent_bash.append(BashSnapshot(
@@ -245,8 +245,8 @@ def test_deep_fix_edit_after_test_fail_already_read_passes():
 
 def test_deep_fix_edit_after_test_pass_passes():
     """v0.11.1: 测试通过 + Edit → 不拦 (不是报错救火场景)."""
-    from karma.session_state import SessionState, BashSnapshot
-    fn = REGISTRY["bypass_karma_detection"]
+    from pinrule.session_state import SessionState, BashSnapshot
+    fn = REGISTRY["bypass_pinrule_detection"]
     state = SessionState(session_id="test")
     state.recent_bash.append(BashSnapshot(
         ts=0.0, command_summary="pytest tests/test_foo.py",
@@ -262,8 +262,8 @@ def test_deep_fix_edit_after_test_pass_passes():
 
 def test_deep_fix_edit_after_non_test_bash_fail_passes():
     """v0.11.1: 非测试命令失败 (e.g., 网络 / 编译) + Edit → 不拦."""
-    from karma.session_state import SessionState, BashSnapshot
-    fn = REGISTRY["bypass_karma_detection"]
+    from pinrule.session_state import SessionState, BashSnapshot
+    fn = REGISTRY["bypass_pinrule_detection"]
     state = SessionState(session_id="test")
     state.recent_bash.append(BashSnapshot(
         ts=0.0, command_summary="curl https://example.com",
@@ -484,7 +484,7 @@ def test_single_quoted_subst_not_executed_passes():
 
 def test_escaped_dollar_paren_not_treated_as_subst():
     """转义 '\\$(...)' 在双引号内是字面美元符 + 括号，shell 不展开为 substitution。
-    本身规则：实际作者 commit message 引用 bug case 字面时被 karma 自拦的 regression
+    本身规则：实际作者 commit message 引用 bug case 字面时被 pinrule 自拦的 regression
     — 不该误识别成真 substitution 提升出来扫。
     """
     fn = REGISTRY["non_blocking_parallel"]
@@ -521,7 +521,7 @@ def test_write_comment_with_intent_keyword_caught(monkeypatch):
     这个测试假设 task #27 实施后关键词层能扫 Write/Edit 注释行。
     工程层 long_term 已能抓「先打个补丁」等核心意图词，关键词层补用户自定义词。
     """
-    from karma.checks.common import extract_natural_language
+    from pinrule.checks.common import extract_natural_language
     try:
         # 假设新加的 extract_natural_language 抽出注释 + docstring
         content = '''def foo():

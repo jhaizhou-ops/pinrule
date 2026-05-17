@@ -1,14 +1,14 @@
-"""karma.i18n.tr() 直接单测。
+"""pinrule.i18n.tr() 直接单测。
 
 覆盖：
 - 已知 key zh locale → 返回中文值
 - 已知 key en locale → 返回英文值
 - 缺失 key → 返回 key 本身（fail-open，不崩）
-- 显式 lang= 参数覆盖 KARMA_LOCALE env
+- 显式 lang= 参数覆盖 PINRULE_LOCALE env
 - {placeholder} 格式插值正常工作
 - 插值 kwarg 缺失 → 不崩，返回模板原文
 - 无效插值格式（% 格式非 .format）→ 不崩
-- 两种 locale 的 inject.header.title 都包含 "karma"
+- 两种 locale 的 inject.header.title 都包含 "pinrule"
 - en locale 缺某个 zh 专属 key → fallback 英文（zh fallback 链）
 - zh locale fallback 到英文当 zh.yaml 里没有该 key
 """
@@ -19,7 +19,7 @@ import os
 
 import pytest
 
-from karma.i18n import tr
+from pinrule.i18n import tr
 
 
 # ---------------------------------------------------------------------------
@@ -30,13 +30,13 @@ def test_tr_known_key_zh():
     val = tr("inject.header.title", lang="zh")
     assert isinstance(val, str)
     assert len(val) > 0
-    assert "karma" in val.lower() or "默契" in val
+    assert "pinrule" in val.lower() or "默契" in val
 
 
 def test_tr_known_key_en():
     val = tr("inject.header.title", lang="en")
     assert isinstance(val, str)
-    assert "karma" in val.lower()
+    assert "pinrule" in val.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -90,11 +90,11 @@ def test_tr_missing_format_kwarg_does_not_crash():
 
 
 # ---------------------------------------------------------------------------
-# 5. 显式 lang= 覆盖 KARMA_LOCALE env
+# 5. 显式 lang= 覆盖 PINRULE_LOCALE env
 # ---------------------------------------------------------------------------
 
 def test_tr_explicit_lang_overrides_env(monkeypatch):
-    monkeypatch.setitem(os.environ, "KARMA_LOCALE", "zh")
+    monkeypatch.setitem(os.environ, "PINRULE_LOCALE", "zh")
     val_en = tr("inject.header.title", lang="en")
     val_zh = tr("inject.header.title", lang="zh")
     # 两种语言结果不同（除非 zh/en 翻译完全一样，但 inject header 不同）
@@ -169,7 +169,7 @@ def test_tr_init_summary_header_interpolation():
 # ---------------------------------------------------------------------------
 
 def test_tr_invalid_locale_env_does_not_crash(monkeypatch):
-    monkeypatch.setitem(os.environ, "KARMA_LOCALE", "fr")
+    monkeypatch.setitem(os.environ, "PINRULE_LOCALE", "fr")
     val = tr("inject.header.title")
     assert isinstance(val, str)
     assert len(val) > 0

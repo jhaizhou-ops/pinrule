@@ -1,4 +1,4 @@
-# karma signal: Agent honestly declaring task saturation (English)
+# pinrule signal: Agent honestly declaring task saturation (English)
 # Hit → exempts the keep_pushing reflection nudge (rule #8 exception ②:
 # real saturation, said out loud where the user is stuck)
 #

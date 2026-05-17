@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 
-from karma.hooks import user_prompt_submit
+from pinrule.hooks import user_prompt_submit
 
 from tests.test_hooks import _patch_paths
 
@@ -15,7 +15,7 @@ def test_cursor_before_submit_injects_rule_id_catalog(monkeypatch, tmp_path, cap
         {"id": "dogfood-marker-cursor-v12", "preference": "marker", "violation_keywords": []},
     ])
     payload = json.dumps({
-        "prompt": "列出 karma 规则 id",
+        "prompt": "列出 pinrule 规则 id",
         "conversation_id": "cursor-vis-1",
         "hook_event_name": "beforeSubmitPrompt",
     })

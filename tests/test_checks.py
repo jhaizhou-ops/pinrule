@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from karma.checks import REGISTRY, run_checks
-from karma.session_state import SessionState
+from pinrule.checks import REGISTRY, run_checks
+from pinrule.session_state import SessionState
 
 
 # -------- #1 long-term-fundamental --------
@@ -90,7 +90,7 @@ def test_long_term_clean_code_passes():
 def test_long_term_write_with_no_verify_string_passes():
     """Write 文档里描述 --no-verify 字面（不是要跑）→ 不该拦。"""
     fn = REGISTRY["long_term_fundamental"]
-    content = "# karma 检测规则\n这条规则会拦截 --no-verify、--skip、--force 等 flag。"
+    content = "# pinrule 检测规则\n这条规则会拦截 --no-verify、--skip、--force 等 flag。"
     hit = fn(tool_name="Write", tool_input={"file_path": "/tmp/doc.md", "content": content})
     assert hit is None
 
@@ -105,7 +105,7 @@ def test_long_term_bash_with_no_verify_blocked():
 
 def test_long_term_cli_dispatch_kebab_passes():
     """CLI dispatch 字符串字面（kebab-case 命令名）不该命中「长 ID if 分支」
-    pattern — 命令名是合法分发不是 ID 硬写。dogfooding 实证：karma cli.py
+    pattern — 命令名是合法分发不是 ID 硬写。dogfooding 实证：pinrule cli.py
     'if cmd == \"install-hooks\"' 之前误命中。"""
     fn = REGISTRY["long_term_fundamental"]
     for code in [
@@ -262,7 +262,7 @@ def test_evidence_pytest_collect_only_not_exempted():
 def test_non_blocking_python_c_sleep_literal_exempted():
     """v0.4.18：python -c "..." 内的 sleep 字面是字符串数据不是真 shell sleep。
 
-    dogfooding 实测假阳率 60%：karma 自测 _SLEEP_RE 探针
+    dogfooding 实测假阳率 60%：pinrule 自测 _SLEEP_RE 探针
     `python3 -c "for c in ['sleep 5']: ..."` 被错算真 sleep。
     fix：命令头是宿主语言 + -c 时跳 sleep 检测（同 deep-fix v0.4.13 _WRITE_OP_RE 根因）。
     真 python 等待用 time.sleep 不是裸 sleep 字面。
@@ -284,7 +284,7 @@ def test_non_blocking_python_c_wait_identifier_exempted():
     \\bwait\\b 是假阳（python identifier 不是 shell wait 命令）。同 sleep 根因。
     """
     fn = REGISTRY["non_blocking_parallel"]
-    cmd = 'python3 -c "from karma.checks.non_blocking import _WAIT_RE; print(_WAIT_RE)"'
+    cmd = 'python3 -c "from pinrule.checks.non_blocking import _WAIT_RE; print(_WAIT_RE)"'
     assert fn(tool_name="Bash", tool_input={"command": cmd}) is None
 
 
@@ -436,7 +436,7 @@ def test_chinese_plain_url_not_counted_in_ratio():
     """
     fn = REGISTRY["chinese_plain_no_jargon"]
     response = (
-        "v0.3.0 已发布到 https://github.com/jhaizhou-ops/karma/releases/tag/v0.3.0 "
+        "v0.3.0 已发布到 https://github.com/jhaizhou-ops/pinrule/releases/tag/v0.3.0 "
         "看这个链接拿 release notes。本轮做了 codex backend 适配，跑通了实测。"
     )
     hit = fn(response=response)
@@ -489,7 +489,7 @@ def test_chinese_plain_jargon_in_table_cell_exempted():
         "最终交付清单：\n\n"
         "| # | 工作 | 证据 |\n"
         "|---|---|---|\n"
-        "| 1 | 答 embedding 问 | karma v2 代码里只 3 处全是反例 |\n"
+        "| 1 | 答 embedding 问 | pinrule v2 代码里只 3 处全是反例 |\n"
         "| 2 | retrieval 治理候选 | 跟 deep-fix 同根因 |\n"
     )
     hit = fn(response=response)
@@ -509,7 +509,7 @@ def test_chinese_plain_kebab_snake_idents_not_counted():
     """项目专有标识符 kebab-case / snake_case（chinese-plain / force_block / karma-v1）
     是 code identifier 不是自然语言 jargon — 算 ratio 时剥。
 
-    dogfooding 实测第 6 次触发：karma 自己的发布报告里大量提自家 sticky_id
+    dogfooding 实测第 6 次触发：pinrule 自己的发布报告里大量提自家 sticky_id
     / 规则名 / 仓库代号，被算成英文 token 拉低中文比例。
     """
     fn = REGISTRY["chinese_plain_no_jargon"]
@@ -558,7 +558,7 @@ def test_v0440_dotted_identifier_not_counted():
     fn = REGISTRY["chinese_plain_no_jargon"]
     response = (
         "我刚改了 pre_tool_use.py 的 state.model 字段，调用 extract_model_from_transcript() "
-        "拿到了模型，karma.hooks.session_start 也写了 state，全跑通。"
+        "拿到了模型，pinrule.hooks.session_start 也写了 state，全跑通。"
     )
     hit = fn(response=response)
     # 含 5 个点号标识符 + 自然中文 — 算 ratio 时点号标识符剥后中文比应 ≥ 40%
@@ -569,8 +569,8 @@ def test_v0440_path_literal_not_counted():
     """v0.4.40: 路径字面（/path / ~/.claude）不算自然语言英文。"""
     fn = REGISTRY["chinese_plain_no_jargon"]
     response = (
-        "我看了 ~/.claude/karma/session-state/abc.json 里的字段，又查了 "
-        "/Users/jhz/karma/karma/checks/chinese_plain.py 的实施，发现都对。"
+        "我看了 ~/.pinrule/session-state/abc.json 里的字段，又查了 "
+        "/Users/jhz/pinrule/pinrule/checks/chinese_plain.py 的实施，发现都对。"
     )
     hit = fn(response=response)
     assert hit is None, f"路径字面不该拉低中文比: {hit}"
@@ -865,7 +865,7 @@ def test_testset_python_c_string_literal_exempted():
     """v0.5.5：python -c "..." 内含 gold_cases.append 字面是字符串数据不是执行 — 豁免。
 
     v0.5.3 dogfooding 触发：probe 脚本里 `python -c "r = check(content='gold_cases.append(x)')"`
-    被错算执行意图. 跟 non_blocking sleep / bypass_karma write 同根因 fix.
+    被错算执行意图. 跟 non_blocking sleep / bypass_pinrule write 同根因 fix.
     """
     fn = REGISTRY["no_testset_no_future_leakage"]
     hit = fn(
@@ -1019,13 +1019,13 @@ def test_run_checks_multiple_hits():
 def test_run_checks_check_exception_silently_swallowed_by_default(monkeypatch, capsys):
     """check 函数抛异常默认 fail open 静默吞错（不阻塞 hook）— 但 stderr 应该
     什么都不打（避免污染 hook 输出）。"""
-    from karma.checks import REGISTRY
+    from pinrule.checks import REGISTRY
 
     def _bad_check(**_):
         raise RuntimeError("intentional test failure")
 
     monkeypatch.setitem(REGISTRY, "_bad_test_check", _bad_check)
-    monkeypatch.delenv("KARMA_DEBUG", raising=False)
+    monkeypatch.delenv("PINRULE_DEBUG", raising=False)
     hits = run_checks(["_bad_test_check"])
     assert hits == []
     captured = capsys.readouterr()
@@ -1033,15 +1033,15 @@ def test_run_checks_check_exception_silently_swallowed_by_default(monkeypatch, c
 
 
 def test_run_checks_check_exception_prints_traceback_under_debug(monkeypatch, capsys):
-    """KARMA_DEBUG=1 时 check 抛异常打 traceback 到 stderr — 评审 A Agent 建议
-    的调试门控（让用户能 debug 自定义 check / karma 内部 bug 不黑盒）。"""
-    from karma.checks import REGISTRY
+    """PINRULE_DEBUG=1 时 check 抛异常打 traceback 到 stderr — 评审 A Agent 建议
+    的调试门控（让用户能 debug 自定义 check / pinrule 内部 bug 不黑盒）。"""
+    from pinrule.checks import REGISTRY
 
     def _bad_check(**_):
         raise RuntimeError("intentional test failure")
 
     monkeypatch.setitem(REGISTRY, "_bad_test_check2", _bad_check)
-    monkeypatch.setenv("KARMA_DEBUG", "1")
+    monkeypatch.setenv("PINRULE_DEBUG", "1")
     hits = run_checks(["_bad_test_check2"])
     assert hits == []
     captured = capsys.readouterr()
@@ -1050,8 +1050,8 @@ def test_run_checks_check_exception_prints_traceback_under_debug(monkeypatch, ca
 
 
 def test_run_checks_unknown_name_prints_under_debug(monkeypatch, capsys):
-    """KARMA_DEBUG=1 时未知 check 名也打提示 — sticky.yaml 写错时能立刻发现。"""
-    monkeypatch.setenv("KARMA_DEBUG", "1")
+    """PINRULE_DEBUG=1 时未知 check 名也打提示 — sticky.yaml 写错时能立刻发现。"""
+    monkeypatch.setenv("PINRULE_DEBUG", "1")
     hits = run_checks(["nonexistent_xyz_check"])
     assert hits == []
     captured = capsys.readouterr()
@@ -1088,7 +1088,7 @@ def test_v057_violation_roundtrip_trigger_key():
     import json
     import tempfile
     from pathlib import Path
-    from karma.violations import Violation, load_all
+    from pinrule.violations import Violation, load_all
 
     v = Violation(
         ts=1700000000,
@@ -1115,7 +1115,7 @@ def test_v057_violation_backward_compat_no_trigger_key():
     import json
     import tempfile
     from pathlib import Path
-    from karma.violations import load_all
+    from pinrule.violations import load_all
 
     legacy_line = json.dumps({
         "ts": 1600000000,
@@ -1138,7 +1138,7 @@ def test_v057_violation_backward_compat_no_trigger_key():
 def test_v057_audit_groups_by_trigger_key_across_locales():
     """audit 按 trigger_key 分组合并 — zh/en locale 同 key 的 trigger 字面被算成一组."""
     from collections import Counter
-    from karma.violations import Violation
+    from pinrule.violations import Violation
 
     violations = []
     for _ in range(5):
@@ -1169,7 +1169,7 @@ def test_v057_audit_groups_by_trigger_key_across_locales():
 def test_v057_audit_legacy_no_key_fallback_to_trigger():
     """audit 老数据无 trigger_key → fallback 按 trigger 字面分组保兼容."""
     from collections import Counter
-    from karma.violations import Violation
+    from pinrule.violations import Violation
     violations = [
         Violation(ts=1, session_id="s", rule_id="r", trigger="legacy A", snippet="x", turn=1),
         Violation(ts=2, session_id="s", rule_id="r", trigger="legacy A", snippet="x", turn=2),

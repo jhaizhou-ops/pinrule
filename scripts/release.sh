@@ -1,7 +1,7 @@
 #!/bin/bash
-# karma 发版工作流脚本 — 防幽灵 release。
+# pinrule 发版工作流脚本 — 防幽灵 release。
 #
-# 真触发：v0.4.22 commit 被 karma 自己 pre_tool_use hook 拦了（命令字面含真
+# 真触发：v0.4.22 commit 被 pinrule 自己 pre_tool_use hook 拦了（命令字面含真
 # 阻塞 pattern），但 shell `&&` 链没真短路，后续 tag/push/release 基于没含
 # 改动的 head 跑成功 → v0.4.22 tag 指向 v0.4.21 commit 的幽灵 release。
 #
@@ -22,10 +22,10 @@
 # 2. 验证 pyproject 版本跟参数匹配（防版本不一致 release）
 # 3. 跑 pytest 确保全过（不过就不发版）
 # 4. git status 显示当前改动
-# 5. 提示用户手动 commit（避免脚本里写命令字面被 karma hook 拦） + push
+# 5. 提示用户手动 commit（避免脚本里写命令字面被 pinrule hook 拦） + push
 # 6. 等用户确认 push 完成 → 才 tag + push tag + gh release
 #
-# 设计原则：karma hook 可能拦 commit 但不会拦 tag/release/push — 分阶段防幽灵
+# 设计原则：pinrule hook 可能拦 commit 但不会拦 tag/release/push — 分阶段防幽灵
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
@@ -55,7 +55,7 @@ echo "→ 当前未提交改动："
 git status -s
 
 echo
-echo "请手动跑下面命令完成 commit + push（脚本不写命令字面避免 karma hook 拦）："
+echo "请手动跑下面命令完成 commit + push（脚本不写命令字面避免 pinrule hook 拦）："
 echo "  git add -A"
 echo "  git commit -m '<commit message>'"
 echo "  git push"

@@ -1,62 +1,62 @@
-# karma i18n — 中文翻译
+# pinrule i18n — 中文翻译
 #
 # Key 是稳定标识符, value 是用户可见的中文字符串.
-# 支持 {placeholder} 占位符 (karma.i18n.tr() 用 str.format() 插值).
+# 支持 {placeholder} 占位符 (pinrule.i18n.tr() 用 str.format() 插值).
 
 # ===== 规则 baseline 头部 (format_for_injection) =====
-inject.header.title: "[karma — 你跟用户的长期默契]"
+inject.header.title: "[pinrule — 你跟用户的长期默契]"
 inject.header.line1: "跟你协作的是一位这位用户，他列出了几条长期最看重的方向。"
 inject.header.line2: "这不是规则也不是审判 — 是他希望跟你建立的协作默契。"
-anchor.header.title: "[karma — 长期默契提示（精简版，完整 preference 见 session 起手注入）]"
+anchor.header.title: "[pinrule — 长期默契提示（精简版，完整 preference 见 session 起手注入）]"
 anchor.header.line: "本 turn 提醒一下规则名跟核心方向一句话，详细 preference 已在 session 起手注入过。"
-catalog.header.title: "[karma — 当前生效的规则 id（Cursor 可见性）]"
-catalog.header.line: "若用户问 karma 规则 id，直接逐条列出下列 id（不必去读 rules.yaml）："
+catalog.header.title: "[pinrule — 当前生效的规则 id（Cursor 可见性）]"
+catalog.header.line: "若用户问 pinrule 规则 id，直接逐条列出下列 id（不必去读 rules.yaml）："
 inject.drift_marker: "  〔上一回应这条有偏离，本 turn 看看能否更对齐〕"
 
 # ===== PostToolUse 中段注入 (锚定刷新) =====
-mid_inject.header.title: "[karma — 长 context 后回想一下跟用户的默契]"
+mid_inject.header.title: "[pinrule — 长 context 后回想一下跟用户的默契]"
 mid_inject.header.line1: "context 已累积一段，提醒一下用户长期看重的几条方向"
 mid_inject.header.line2: "（不需要回应这条，只是让你在脑中回顾免得后续偏离）："
 
 # ===== UserPromptSubmit 强提醒 (上一回应违反) =====
-strong_reminder.header.title: "\n\n[karma — 上一回应有几处没对齐用户默契]"
+strong_reminder.header.title: "\n\n[pinrule — 上一回应有几处没对齐用户默契]"
 strong_reminder.header.line: "你的上一回应在某些点上跟用户长期偏好有偏差，看看本 turn 能否调整："
 strong_reminder.footer: "\n本 turn 自然回应即可，不需要为这条特意补偿过度。"
 
 # ===== Stop hook reason (keep-pushing 干预) =====
-stop.reason: "[karma — 上一回应没看到下一步推进信号]用户是全权委托型，他期待你完成一波后立刻接着推进。如果有方向需要他判断就明确问出来；如果是任务饱和合理停下，明说卡在哪一步让他知道，不要默默等。（提醒 {count}/{max}）"
+stop.reason: "[pinrule — 上一回应没看到下一步推进信号]用户是全权委托型，他期待你完成一波后立刻接着推进。如果有方向需要他判断就明确问出来；如果是任务饱和合理停下，明说卡在哪一步让他知道，不要默默等。（提醒 {count}/{max}）"
 
 # ===== Stop hook force_block reason =====
-stop.force_block.reason: "karma 强制干预：累积违反 {rules} 共 {count} 次。必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。禁止继续绕（手动改 karma 状态 / 临时改 rules.yaml）。"
+stop.force_block.reason: "pinrule 强制干预：累积违反 {rules} 共 {count} 次。必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。禁止继续绕（手动改 pinrule 状态 / 临时改 rules.yaml）。"
 
-# ===== karma init 末尾的「默认启用规则」简要列表 (v0.9.9) =====
+# ===== pinrule init 末尾的「默认启用规则」简要列表 (v0.9.9) =====
 # Agent 代装场景下这段会被 Agent 转述给用户，让用户一眼看到默认开了什么规则。
 # 刻意不加「下一步：跑 X 命令」类 tip — 那会变「让用户手动输指令」的 friction。
 init.summary.header: "已为你启用以下默认规则 ({count}/{soft_max} 软上限):"
-init.summary.footer: "经测试，以上规则注入仅占 karma 每 session 会话 token 消耗总量的 3% 以内，请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入 /karma <自然语言你想增加的规则> 即可。"
+init.summary.footer: "经测试，以上规则注入仅占 pinrule 每 session 会话 token 消耗总量的 3% 以内，请放心使用，体验下 Agent 长任务不飘逸的爽感。希望增改规则直接输入 /pinrule <自然语言你想增加的规则> 即可。"
 
 # ===== SessionStart baseline =====
-session_start.compact.title: "[karma — context compact 后回想一下跟用户的默契]"
+session_start.compact.title: "[pinrule — context compact 后回想一下跟用户的默契]"
 session_start.compact.prior_drift_header: "compact 前这几条曾经偏离过，重起时多留意："
 session_start.compact.tail: "compact 后默契容易在新 context 里淡化 — 留意你正在按这些方向行为。"
-session_start.resume.title: "[karma — session 接力，回想一下跟用户的默契]"
-session_start.startup.title: "[karma — session 起手，跟用户的几条长期默契（source={source}）]"
+session_start.resume.title: "[pinrule — session 接力，回想一下跟用户的默契]"
+session_start.startup.title: "[pinrule — session 起手，跟用户的几条长期默契（source={source}）]"
 
 # ===== PreCompact (Cursor user_message) =====
-pre_compact.cursor_notice: "karma 已在上下文 compact 前把协作规则落盘。compact 后 SessionStart 会重新加载 — 请继续按这些默契行为。"
+pre_compact.cursor_notice: "pinrule 已在上下文 compact 前把协作规则落盘。compact 后 SessionStart 会重新加载 — 请继续按这些默契行为。"
 
 # ===== SubagentStart =====
-subagent_start.title: "[karma — 你是父 session 派来的子 Agent，继承用户的几条长期默契]"
+subagent_start.title: "[pinrule — 你是父 session 派来的子 Agent，继承用户的几条长期默契]"
 subagent_start.tail: "跑任务时也按这些方向行为，主 Agent 会在你结束时收到摘要提醒。"
 
 # ===== 违反 stderr =====
-violation.stderr.line: "⚠️ karma: Agent 违反 {rule_id!r} — {trigger}"
+violation.stderr.line: "⚠️ pinrule: Agent 违反 {rule_id!r} — {trigger}"
 violation.stderr.suggestion: "   建议：{fix}"
-violation.keyword.stderr.line: "⚠️ karma: Agent 触发关键词 {rule_id!r} (词 {trigger!r})"
+violation.keyword.stderr.line: "⚠️ pinrule: Agent 触发关键词 {rule_id!r} (词 {trigger!r})"
 
 # ===== 桌面通知 =====
-notify.violation.title: "karma 检测违反"
-notify.escalated.title: "🚨 karma 严重 — 累积违反 {count} 条"
+notify.violation.title: "pinrule 检测违反"
+notify.escalated.title: "🚨 pinrule 严重 — 累积违反 {count} 条"
 
 # ===== 8 个 check 函数 suggested_fix (v0.5.3) =====
 
@@ -82,8 +82,8 @@ check.keep_pushing.default.fix: "用户是全权委托型 — 完成一波后他
 # read_first (1 处)
 check.read_first.fix: "先 Read {file_path} 看现有内容 / 上游调用者 / 相关约定 — 花 2 分钟避免改坏 30 分钟才发现的连锁 bug。看清耦合再下手用户会更放心。"
 
-# bypass_karma (1 处)
-check.bypass_karma.fix: "手动改 karma 内部状态等于给用户演戏 — 短期通过但他会发现，信任会受损。如果 karma 拦得不对，深挖根因（pattern 过宽就收紧 / catchup race / hook 协议 bug）— 这样下次别人遇到同场景也不会被拦了。如果想要绕，明说「我打算绕开检测 因为 X」让用户决定，不要默默绕。"
+# bypass_pinrule (1 处)
+check.bypass_pinrule.fix: "手动改 pinrule 内部状态等于给用户演戏 — 短期通过但他会发现，信任会受损。如果 pinrule 拦得不对，深挖根因（pattern 过宽就收紧 / catchup race / hook 协议 bug）— 这样下次别人遇到同场景也不会被拦了。如果想要绕，明说「我打算绕开检测 因为 X」让用户决定，不要默默绕。"
 
 # long_term (7 处) — Phase D 第二波
 check.long_term.long_id_branch.fix: "长 ID 写在 if 分支后面别人加新 case 都要改这里 — 提到配置 / 通用判定逻辑让它能长期演化。"
@@ -130,15 +130,15 @@ check.keep_pushing.default.trigger: "response 纯陈述完结，无推进信号 
 # read_first (1 处)
 check.read_first.trigger: "未 Read 就 {tool} {file_path}"
 
-# bypass_karma (1 处)
-check.bypass_karma.trigger: "绕开检测 — 手动写 karma 内部状态 ({target!r})"
+# bypass_pinrule (1 处)
+check.bypass_pinrule.trigger: "绕开检测 — 手动写 pinrule 内部状态 ({target!r})"
 
 # hook 输出模板 (v0.11.4 i18n)
-hook.pre_tool_use.deny_engine_reason: "karma 拦截：违反 {rule_id!r}。\n检测到：{trigger}\n方向：{preference}\n建议：{fix}"
-hook.pre_tool_use.deny_keyword_reason: "karma 拦截：违反 {rule_id!r}（触发词 {trigger!r}）。\n方向：{preference}\n请改写，不要用 {trigger!r} 这种方式。"
-hook.stop.violation_line: "⚠️ karma: Agent 违反 {rule_id!r} — {trigger}"
+hook.pre_tool_use.deny_engine_reason: "pinrule 拦截：违反 {rule_id!r}。\n检测到：{trigger}\n方向：{preference}\n建议：{fix}"
+hook.pre_tool_use.deny_keyword_reason: "pinrule 拦截：违反 {rule_id!r}（触发词 {trigger!r}）。\n方向：{preference}\n请改写，不要用 {trigger!r} 这种方式。"
+hook.stop.violation_line: "⚠️ pinrule: Agent 违反 {rule_id!r} — {trigger}"
 hook.stop.suggestion_line: "   建议：{fix}"
-hook.stop.keyword_line: "⚠️ karma: Agent 触发关键词 {rule_id!r} (词 {trigger!r})"
+hook.stop.keyword_line: "⚠️ pinrule: Agent 触发关键词 {rule_id!r} (词 {trigger!r})"
 
 # long_term (7 处)
 check.long_term.long_id_branch.trigger: "长 ID 字面写在 if 分支（特例分支硬编码）"

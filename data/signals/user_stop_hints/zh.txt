@@ -1,8 +1,8 @@
-# karma 信号：用户上一句 prompt 含「明确叫停」字眼（中文）
+# pinrule 信号：用户上一句 prompt 含「明确叫停」字眼（中文）
 # 命中 → 整 turn 豁免 keep_pushing 反思（rule #8 例外：用户已明确表态）
 #
 # 一行一个字眼，`#` 开头是注释，空行忽略。
-# 加新字眼直接 append，karma 启动时加载 union。
+# 加新字眼直接 append，pinrule 启动时加载 union。
 
 # 类 1: 累了 / 推卸
 不用啦

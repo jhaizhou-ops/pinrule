@@ -1,4 +1,4 @@
-# karma signal: Agent response tail contains "soft pause" phrasing (English)
+# pinrule signal: Agent response tail contains "soft pause" phrasing (English)
 # Hit → triggers keep_pushing reflection (user wants the Agent to keep
 # pushing, not softly stop without a specific blocker)
 #

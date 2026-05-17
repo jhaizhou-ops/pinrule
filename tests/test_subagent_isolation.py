@@ -1,4 +1,4 @@
-"""v0.4.34 子 Agent 独立 karma 监控架构守护测试。
+"""v0.4.34 子 Agent 独立 pinrule 监控架构守护测试。
 
 设计意图（用户决策）：子 Agent 跟主 Agent 是两个不同进程彼此互不干扰，
 子 Agent 应有临时独立 state，子 Agent 结束自动销毁。
@@ -10,8 +10,8 @@
 
 from __future__ import annotations
 
-from karma import session_state
-from karma.violations import Violation
+from pinrule import session_state
+from pinrule.violations import Violation
 
 
 def test_main_agent_state_path_unchanged(tmp_path):
@@ -110,7 +110,7 @@ def test_subagent_state_model_drives_threshold(tmp_path):
     """v0.4.37 闭环：主 PreToolUse 入队 → SubagentStart pop → 子 state.model
     写入 → 后续子 Agent 内 PostToolUse 用 threshold_for_model(state.model)。
     """
-    from karma.model_threshold import threshold_for_model
+    from pinrule.model_threshold import threshold_for_model
 
     # 模拟 SubagentStart 写完子 Agent state.model
     sub_state = session_state.SessionState(session_id="sess1", agent_id="sub-1")

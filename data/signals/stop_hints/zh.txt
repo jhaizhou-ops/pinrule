@@ -1,4 +1,4 @@
-# karma 信号：Agent response 末尾「柔性停顿」字眼（中文）
+# pinrule 信号：Agent response 末尾「柔性停顿」字眼（中文）
 # 命中 → 命中 keep_pushing 反思（用户希望 Agent 继续推，不要软停）
 #
 # 跟 agent_saturation 互斥：那个是强饱和声明该豁免，这个是柔性偷懒该拦。

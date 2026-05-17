@@ -1,8 +1,8 @@
 #!/bin/bash
-# karma 发版工作流脚本集合。
+# pinrule 发版工作流脚本集合。
 #
-# 1. 验证本机 .venv 装的 karma 版本跟 pyproject.toml 一致。
-# 2. 防 `&&` 链式 commit-tag-release 命令因 karma hook 拦截产生幽灵 release。
+# 1. 验证本机 .venv 装的 pinrule 版本跟 pyproject.toml 一致。
+# 2. 防 `&&` 链式 commit-tag-release 命令因 pinrule hook 拦截产生幽灵 release。
 # 防止「改了代码 + commit + push + gh release 都做了但忘 reinstall」类
 # 假完成（hook 仍跑旧字节码所有 fix 不生效）。
 #
@@ -17,11 +17,11 @@ set -e
 cd "$(dirname "$0")/.."
 
 PYPROJECT_VERSION=$(grep -E '^version = ' pyproject.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
-INSTALLED_RAW=$(.venv/bin/karma --version 2>/dev/null || echo "karma not-installed")
+INSTALLED_RAW=$(.venv/bin/pinrule --version 2>/dev/null || echo "pinrule not-installed")
 INSTALLED_VERSION=$(echo "$INSTALLED_RAW" | awk '{print $2}' | sed 's/^v//')
 
 if [ "$INSTALLED_VERSION" = "$PYPROJECT_VERSION" ]; then
-    echo "OK: .venv karma v$INSTALLED_VERSION 跟 pyproject 一致"
+    echo "OK: .venv pinrule v$INSTALLED_VERSION 跟 pyproject 一致"
     exit 0
 fi
 
@@ -30,7 +30,7 @@ echo "MISMATCH: .venv 装的 v$INSTALLED_VERSION ≠ pyproject v$PYPROJECT_VERSI
 if [ "$1" = "--reinstall" ]; then
     echo "重装中..."
     uv pip install -e . --python .venv/bin/python --quiet
-    NEW=$(.venv/bin/karma --version | awk '{print $2}' | sed 's/^v//')
+    NEW=$(.venv/bin/pinrule --version | awk '{print $2}' | sed 's/^v//')
     if [ "$NEW" = "$PYPROJECT_VERSION" ]; then
         echo "OK: 重装到 v$NEW"
         exit 0

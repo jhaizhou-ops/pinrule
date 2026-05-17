@@ -1,63 +1,63 @@
-# karma i18n — English translations
+# pinrule i18n — English translations
 #
 # Keys are stable identifiers; values are user-visible English strings.
-# Supports {placeholder} interpolation via str.format() in karma.i18n.tr().
+# Supports {placeholder} interpolation via str.format() in pinrule.i18n.tr().
 
 # ===== rule baseline header (format_for_injection) =====
-inject.header.title: "[karma — Your long-term agreement with the user]"
+inject.header.title: "[pinrule — Your long-term agreement with the user]"
 inject.header.line1: "You're collaborating with a real human user who listed several long-term priorities."
 inject.header.line2: "This isn't rules and isn't a judgment — these are the collaborative agreements they hope to build with you."
 inject.drift_marker: "  〔Last response had drift on this one — let's realign this turn〕"
-anchor.header.title: "[karma — long-term agreement anchor (compact form; full preferences injected at session start)]"
+anchor.header.title: "[pinrule — long-term agreement anchor (compact form; full preferences injected at session start)]"
 anchor.header.line: "This turn: a quick name + one-line reminder of each direction. Full preference text was injected at session start."
-catalog.header.title: "[karma — active rule IDs (Cursor visibility)]"
-catalog.header.line: "If the user asks for karma rule ids, list these verbatim (no need to read rules.yaml):"
+catalog.header.title: "[pinrule — active rule IDs (Cursor visibility)]"
+catalog.header.line: "If the user asks for pinrule rule ids, list these verbatim (no need to read rules.yaml):"
 
 # ===== PostToolUse mid-injection (锚定刷新) =====
-mid_inject.header.title: "[karma — After long context, recall the agreement with the user]"
+mid_inject.header.title: "[pinrule — After long context, recall the agreement with the user]"
 mid_inject.header.line1: "Context has accumulated for a while. Reminding you of the long-term priorities"
 mid_inject.header.line2: "(no need to respond, just refresh in mind to avoid future drift):"
 
 # ===== UserPromptSubmit strong reminder (上一回应违反) =====
-strong_reminder.header.title: "\n\n[karma — Last response had some misalignment with user agreement]"
+strong_reminder.header.title: "\n\n[pinrule — Last response had some misalignment with user agreement]"
 strong_reminder.header.line: "Your last response had drift on some points; see if you can adjust this turn:"
 strong_reminder.footer: "\nJust respond naturally this turn; no need to over-compensate for this one."
 
 # ===== Stop hook reason (keep-pushing intervention) =====
-stop.reason: "[karma — Last response didn't show a next-step push signal] The user is fully-delegating — they expect immediate continuation after finishing a wave. If you need their judgment, ask clearly; if truly saturated, say where you're stuck — don't silently wait. (Reminder {count}/{max})"
+stop.reason: "[pinrule — Last response didn't show a next-step push signal] The user is fully-delegating — they expect immediate continuation after finishing a wave. If you need their judgment, ask clearly; if truly saturated, say where you're stuck — don't silently wait. (Reminder {count}/{max})"
 
 # ===== Stop hook force_block reason =====
-stop.force_block.reason: "karma forced intervention: cumulative violations of {rules} totaling {count} times. Must fix root cause (deep-dive pattern / engine bug / protocol) or explicitly hand off to user. No more bypassing (manually modifying karma state / temporarily disabling rules)."
+stop.force_block.reason: "pinrule forced intervention: cumulative violations of {rules} totaling {count} times. Must fix root cause (deep-dive pattern / engine bug / protocol) or explicitly hand off to user. No more bypassing (manually modifying pinrule state / temporarily disabling rules)."
 
-# ===== karma init summary of default rules enabled (v0.9.9) =====
-# Under the "Agent installs karma for the user" scenario, this block gets relayed
+# ===== pinrule init summary of default rules enabled (v0.9.9) =====
+# Under the "Agent installs pinrule for the user" scenario, this block gets relayed
 # to the user. Deliberately no "next steps: run X" tips — that would turn into
 # "user types commands manually" friction, opposite of onboarding's intent.
 init.summary.header: "Default rules now enabled for you ({count}/{soft_max} soft cap):"
-init.summary.footer: "Tested: this rule injection accounts for under 3% of karma's per-session token spend — relax and enjoy the \"Agent doesn't drift in long tasks\" feel. To add or modify rules, just type /karma <natural-language description of the rule> in your AI client."
+init.summary.footer: "Tested: this rule injection accounts for under 3% of pinrule's per-session token spend — relax and enjoy the \"Agent doesn't drift in long tasks\" feel. To add or modify rules, just type /pinrule <natural-language description of the rule> in your AI client."
 
 # ===== SessionStart baseline =====
-session_start.compact.title: "[karma — After context compact, recall the agreement with the user]"
+session_start.compact.title: "[pinrule — After context compact, recall the agreement with the user]"
 session_start.compact.prior_drift_header: "Rules that drifted before compact (give them extra attention on restart):"
 session_start.compact.tail: "After compact, agreements easily fade in new context — stay aware of behaving in these directions."
-session_start.resume.title: "[karma — Session resumed, recalling agreement with the user]"
-session_start.startup.title: "[karma — Session start, your long-term agreement with the user (source={source})]"
+session_start.resume.title: "[pinrule — Session resumed, recalling agreement with the user]"
+session_start.startup.title: "[pinrule — Session start, your long-term agreement with the user (source={source})]"
 
 # ===== PreCompact (Cursor user_message) =====
-pre_compact.cursor_notice: "karma saved your collaboration rules to disk before context compact. After compact, SessionStart will reload them — keep following those agreements."
+pre_compact.cursor_notice: "pinrule saved your collaboration rules to disk before context compact. After compact, SessionStart will reload them — keep following those agreements."
 
 # ===== SubagentStart =====
-subagent_start.title: "[karma — You're a sub-Agent sent by the parent session, inheriting the user's long-term agreements]"
+subagent_start.title: "[pinrule — You're a sub-Agent sent by the parent session, inheriting the user's long-term agreements]"
 subagent_start.tail: "Behave per these directions when running tasks. The main Agent will receive a summary reminder when you finish."
 
 # ===== Violation stderr =====
-violation.stderr.line: "⚠️ karma: Agent violated {rule_id!r} — {trigger}"
+violation.stderr.line: "⚠️ pinrule: Agent violated {rule_id!r} — {trigger}"
 violation.stderr.suggestion: "   Suggestion: {fix}"
-violation.keyword.stderr.line: "⚠️ karma: Agent triggered keyword for {rule_id!r} (word {trigger!r})"
+violation.keyword.stderr.line: "⚠️ pinrule: Agent triggered keyword for {rule_id!r} (word {trigger!r})"
 
 # ===== Notifications =====
-notify.violation.title: "karma detected violation"
-notify.escalated.title: "🚨 karma severe — {count} cumulative violations"
+notify.violation.title: "pinrule detected violation"
+notify.escalated.title: "🚨 pinrule severe — {count} cumulative violations"
 
 # ===== 8 check functions suggested_fix (v0.5.3) =====
 
@@ -84,8 +84,8 @@ check.keep_pushing.default.fix: "The user is fully-delegating — after finishin
 # read_first (1 entry)
 check.read_first.fix: "First Read {file_path} to see existing content / upstream callers / existing conventions — spend 2 minutes to avoid the 30-minute-later-discovered cascading bug. Seeing the coupling before changing makes the user more comfortable."
 
-# bypass_karma (1 entry)
-check.bypass_karma.fix: "Manually modifying karma internal state is performing for the user — short-term passing but they'll find out, trust suffers. If karma blocks incorrectly, dig into root cause (pattern too wide → tighten / catchup race / hook protocol bug) — this way the next person hitting the same scenario won't be blocked the same way. If you really need to bypass, explicitly say 'I plan to bypass because X' and let the user decide; don't silently bypass."
+# bypass_pinrule (1 entry)
+check.bypass_pinrule.fix: "Manually modifying pinrule internal state is performing for the user — short-term passing but they'll find out, trust suffers. If pinrule blocks incorrectly, dig into root cause (pattern too wide → tighten / catchup race / hook protocol bug) — this way the next person hitting the same scenario won't be blocked the same way. If you really need to bypass, explicitly say 'I plan to bypass because X' and let the user decide; don't silently bypass."
 
 # long_term (7 entries) — Phase D wave 2
 check.long_term.long_id_branch.fix: "Long ID literal hard-coded in an if branch means every new case requires touching this code — lift it into config or a general dispatch rule so it can evolve long-term."
@@ -133,15 +133,15 @@ check.keep_pushing.default.trigger: "Response is pure-statement conclusion with 
 # read_first (1 entry)
 check.read_first.trigger: "{tool} {file_path} without prior Read"
 
-# bypass_karma (1 entry)
-check.bypass_karma.trigger: "Bypass attempt — manual write to karma internal state ({target!r})"
+# bypass_pinrule (1 entry)
+check.bypass_pinrule.trigger: "Bypass attempt — manual write to pinrule internal state ({target!r})"
 
 # hook output templates (v0.11.4 i18n)
-hook.pre_tool_use.deny_engine_reason: "karma blocked: violation of {rule_id!r}.\nDetected: {trigger}\nDirection: {preference}\nSuggestion: {fix}"
-hook.pre_tool_use.deny_keyword_reason: "karma blocked: violation of {rule_id!r} (keyword {trigger!r}).\nDirection: {preference}\nRephrase — don't use {trigger!r} like this."
-hook.stop.violation_line: "⚠️ karma: Agent violated {rule_id!r} — {trigger}"
+hook.pre_tool_use.deny_engine_reason: "pinrule blocked: violation of {rule_id!r}.\nDetected: {trigger}\nDirection: {preference}\nSuggestion: {fix}"
+hook.pre_tool_use.deny_keyword_reason: "pinrule blocked: violation of {rule_id!r} (keyword {trigger!r}).\nDirection: {preference}\nRephrase — don't use {trigger!r} like this."
+hook.stop.violation_line: "⚠️ pinrule: Agent violated {rule_id!r} — {trigger}"
 hook.stop.suggestion_line: "   suggestion: {fix}"
-hook.stop.keyword_line: "⚠️ karma: Agent hit keyword {rule_id!r} (word {trigger!r})"
+hook.stop.keyword_line: "⚠️ pinrule: Agent hit keyword {rule_id!r} (word {trigger!r})"
 
 # long_term (7 entries)
 check.long_term.long_id_branch.trigger: "Long ID literal in if branch (special-case hard-code)"

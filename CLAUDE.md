@@ -1,10 +1,10 @@
-# karma — Project collaboration charter
+# pinrule — Project collaboration charter
 
 **[🇬🇧 English (current)](./CLAUDE.md) · [🇨🇳 中文](./CLAUDE.zh.md)**
 
 ## One-line positioning
 
-karma keeps the user's most-valued directions from being lost in long Agent tasks.
+pinrule keeps the user's most-valued directions from being lost in long Agent tasks.
 
 ## Strict boundaries (non-negotiable)
 
@@ -22,17 +22,17 @@ These boundaries come from v1's lessons (see [karma-v1/ARCHIVE.md](https://githu
 
 ### 1. Don't cheat the current user
 
-karma is validated by author self-use. To keep that signal honest, **never** do these for short-term comfort:
+pinrule is validated by author self-use. To keep that signal honest, **never** do these for short-term comfort:
 - Hardcode author-specific rules into default templates
 - Hardcode author's empirically-found violation phrases into hooks
 - Train anything on author's session data
 
-karma's defaults have to be **cross-user reasonable** — at CLAUDE.md / Anthropic best-practice level of universality.
+pinrule's defaults have to be **cross-user reasonable** — at CLAUDE.md / Anthropic best-practice level of universality.
 
 ### 2. Always design from "I am the user" perspective
 
 For every change, ask:
-- Can a first-time karma user get started in 5 minutes?
+- Can a first-time pinrule user get started in 5 minutes?
 - Is the yaml config self-explanatory, or do they need to read docs to understand it?
 - Does the first violation detection make them say "ah, I see"?
 
@@ -40,14 +40,14 @@ If a feature only works for the author → cut it.
 
 ### 3. Validation beats accuracy numbers
 
-karma v1 fixated on accuracy numbers (67% precision, etc.) and that fixation pulled optimization off-target.
+pinrule v1 fixated on accuracy numbers (67% precision, etc.) and that fixation pulled optimization off-target.
 
-karma's validation criterion is **whether the author can describe 3 concrete cases after a week of self-use**:
+pinrule's validation criterion is **whether the author can describe 3 concrete cases after a week of self-use**:
 - "During a long task, I didn't say anything and the Agent reminded itself of X"
 - "After a compact, the Agent still remembered Y"
 - "When the Agent was about to do Z, I saw the ⚠ prompt and corrected it"
 
-If a week passes with no such cases → karma's hypothesis is wrong, redesign.
+If a week passes with no such cases → pinrule's hypothesis is wrong, redesign.
 
 ## Commit conventions
 
@@ -85,12 +85,12 @@ Default to autonomous on these:
 Still need pre-approval:
 - `git push --force` / `git reset --hard` of published commits
 - gh repo archive / settings modifications
-- Data destruction (`~/.claude/karma/` clearing)
+- Data destruction (`~/.claude/pinrule/` clearing)
 - Cross-repo changes
 
 ## Failure handling
 
-karma's first principle is **honesty**:
+pinrule's first principle is **honesty**:
 
 - If a hook doesn't take effect, say so plainly — don't fake it
 - If a check missed a real violation, record it — don't cover it up

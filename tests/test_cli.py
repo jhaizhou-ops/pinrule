@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from karma import cli
-from karma.backends import ClaudeCodeBackend
+from pinrule import cli
+from pinrule.backends import ClaudeCodeBackend
 
 
 # ---- 通用 fixtures ----
@@ -27,8 +27,8 @@ def fake_home(tmp_path, monkeypatch):
     自己 monkeypatch 覆盖即可。
     """
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(cli, "KARMA_DIR", tmp_path / ".claude" / "karma")
-    from karma.backends import ClaudeCodeBackend, CodexBackend
+    monkeypatch.setattr(cli, "PINRULE_DIR", tmp_path / ".claude" / "pinrule")
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     return tmp_path
@@ -48,14 +48,14 @@ def _read_settings(home: Path) -> dict:
 # ---- install-hooks ----
 
 def test_version_matches_pyproject():
-    """karma --version 必须跟 pyproject.toml [project] version 字段一致。
+    """pinrule --version 必须跟 pyproject.toml [project] version 字段一致。
 
     历史 bug：__init__.py 硬写 __version__ = '0.1.0' 跟 pyproject 双维护，
-    版本 bump 后 `karma --version` 卡老版本（v0.4.3 时输出 v0.1.0）误导陌生
+    版本 bump 后 `pinrule --version` 卡老版本（v0.4.3 时输出 v0.1.0）误导陌生
     用户。修：__init__.py 用 importlib.metadata 单一来源读 pyproject metadata。
     """
     from pathlib import Path
-    from karma import __version__
+    from pinrule import __version__
     pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
     import re
     m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
@@ -76,27 +76,27 @@ def test_install_hooks_all_backend_only_installs_detected(fake_home, monkeypatch
     注：必须 mock 全部 3 个 backend 的 client_installed — CI 环境通常无任何
     AI 客户端，作者本机有 claude 但 CI 没，依赖本机 PATH 会让 test 在 CI fail。
     """
-    from karma.backends import ClaudeCodeBackend, CodexBackend
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend
     # mock Claude Code 装了，其他都没装
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     rc = cli.cmd_install_hooks(backend_name="all")
     assert rc == 0
     # 只有 Claude Code 装了 wrapper，其他 backend 没装
-    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("pinrule_*.py"))
     # 动态从 _HOOK_EVENTS 算 — 避免每次加 hook 改测试硬编码（v0.4.28 SessionStart /
     # v0.4.29 PreCompact / v0.4.30 SubagentStart+Stop 都得改这数字是反 pattern）
     assert len(cc_wrappers) == len(ClaudeCodeBackend._HOOK_EVENTS)
     # Codex 目录可能不存在（client 没装）— 不该建
     assert not (fake_home / ".codex" / "hooks").exists() or \
-        not list((fake_home / ".codex" / "hooks").glob("karma_*.py"))
+        not list((fake_home / ".codex" / "hooks").glob("pinrule_*.py"))
 
 
 def test_install_hooks_codex_native_surface_no_duplicate_wrapper_output(
     fake_home, monkeypatch, capsys,
 ):
     """Codex installs 6 native events but only 5 wrapper files."""
-    from karma.backends import CodexBackend
+    from pinrule.backends import CodexBackend
 
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "pre_install_setup", lambda self: ["Codex hooks ready"])
@@ -107,7 +107,7 @@ def test_install_hooks_codex_native_surface_no_duplicate_wrapper_output(
     assert rc == 0
     generated = [line for line in out.splitlines() if "生成:" in line]
     assert len(generated) == 5
-    assert sum("karma_pre_tool_use.py" in line for line in generated) == 1
+    assert sum("pinrule_pre_tool_use.py" in line for line in generated) == 1
     assert "6 个 hook event" in out
     assert "6 个 event / 5 个 wrapper" in out
 
@@ -123,7 +123,7 @@ def test_install_hooks_codex_native_surface_no_duplicate_wrapper_output(
     pre_cmd = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
     perm_cmd = settings["hooks"]["PermissionRequest"][0]["hooks"][0]["command"]
     assert pre_cmd == perm_cmd
-    assert pre_cmd.endswith("karma_pre_tool_use.py")
+    assert pre_cmd.endswith("pinrule_pre_tool_use.py")
 
     config_text = (fake_home / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert ":permission_request:0:0" in config_text
@@ -131,7 +131,7 @@ def test_install_hooks_codex_native_surface_no_duplicate_wrapper_output(
 
 def test_uninstall_hooks_codex_shared_wrapper_deleted_once(fake_home, monkeypatch, capsys):
     """Codex uninstall should remove the shared pre_tool_use wrapper once cleanly."""
-    from karma.backends import CodexBackend
+    from pinrule.backends import CodexBackend
 
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "pre_install_setup", lambda self: ["Codex hooks ready"])
@@ -143,53 +143,53 @@ def test_uninstall_hooks_codex_shared_wrapper_deleted_once(fake_home, monkeypatc
 
     out = capsys.readouterr().out
     deleted = [line for line in out.splitlines() if "删除:" in line]
-    assert sum("karma_pre_tool_use.py" in line for line in deleted) == 1
-    assert not (fake_home / ".codex" / "hooks" / "karma_pre_tool_use.py").exists()
+    assert sum("pinrule_pre_tool_use.py" in line for line in deleted) == 1
+    assert not (fake_home / ".codex" / "hooks" / "pinrule_pre_tool_use.py").exists()
 
 
 def test_uninstall_all_backend_iterates_each_installed(fake_home, monkeypatch):
     """`--backend all` 卸装应对每个检测到的 backend 各跑一遍卸装流程。"""
-    from karma.backends import ClaudeCodeBackend, CodexBackend
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend
     # mock 全部 3 个 backend — CI 隔离防 PATH 干扰
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="all")
     rc = cli.cmd_uninstall_hooks(backend_name="all")
     assert rc == 0
-    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("pinrule_*.py"))
     assert cc_wrappers == [], "uninstall all 后 Claude Code wrapper 应清空"
 
 
 def test_uninstall_one_shot_alias(fake_home, monkeypatch, capsys):
-    """`karma uninstall` 是 `uninstall-hooks --backend all` 的一键 alias。
+    """`pinrule uninstall` 是 `uninstall-hooks --backend all` 的一键 alias。
 
-    陌生用户不用记 backend flag 长串 — 想完全卸载就 karma uninstall 一句。
+    陌生用户不用记 backend flag 长串 — 想完全卸载就 pinrule uninstall 一句。
     """
-    from karma.backends import ClaudeCodeBackend, CodexBackend
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="claude-code")
-    # 用 main dispatch 跑 `karma uninstall`（不带 args）
+    # 用 main dispatch 跑 `pinrule uninstall`（不带 args）
     rc = cli.main(["uninstall"])
     assert rc == 0
-    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
-    assert cc_wrappers == [], "karma uninstall 后 wrapper 应清空"
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("pinrule_*.py"))
+    assert cc_wrappers == [], "pinrule uninstall 后 wrapper 应清空"
 
 
 def test_install_hooks_aborts_when_client_not_installed(fake_home, monkeypatch, capsys):
     """显式 backend 也必须查 client_installed — 静默装到不存在客户端是bug。
 
-    sub-agent 排查发现 P1：同事没装 Claude Code 跑 `karma install-hooks` 默认
+    sub-agent 排查发现 P1：同事没装 Claude Code 跑 `pinrule install-hooks` 默认
     装 claude-code 静默写 settings.json 完全无反馈。修：检测不到客户端时报错。
     """
-    from karma.backends import ClaudeCodeBackend
+    from pinrule.backends import ClaudeCodeBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
     rc = cli.cmd_install_hooks(backend_name="claude-code")
     assert rc == 1
     captured = capsys.readouterr()
     assert "没检测到" in captured.err
     # wrapper 不该被创建（拦在 client 检测就退了）
-    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("karma_*.py"))
+    cc_wrappers = list((fake_home / ".claude" / "hooks").glob("pinrule_*.py"))
     assert cc_wrappers == [], "拦在 client 检测后不该创建 wrapper"
 
 
@@ -202,29 +202,29 @@ def test_install_hooks_unknown_backend_errors(fake_home, capsys):
 
 
 def test_init_explicit_no_minimal_installs_7_sticky(fake_home, capsys):
-    """karma init --no-minimal 强制装 7 条 dev.example（覆盖自动检测）。"""
-    import karma.rule
-    monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    """pinrule init --no-minimal 强制装 7 条 dev.example（覆盖自动检测）。"""
+    import pinrule.rule
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
-        with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
+        with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
             rc = cli.cmd_init(minimal=False)
     assert rc == 0
     assert monkeypatch_path.exists()
-    sticky_list = karma.rule.load(monkeypatch_path)
+    sticky_list = pinrule.rule.load(monkeypatch_path)
     assert len(sticky_list) == 7
 
 
 def test_init_explicit_minimal_installs_5_sticky(fake_home, capsys):
-    """karma init --minimal 强制装 5 条精简（覆盖自动检测）。"""
-    import karma.rule
-    monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    """pinrule init --minimal 强制装 5 条精简（覆盖自动检测）。"""
+    import pinrule.rule
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
-        with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
+        with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
             rc = cli.cmd_init(minimal=True)
     assert rc == 0
-    sticky_list = karma.rule.load(monkeypatch_path)
+    sticky_list = pinrule.rule.load(monkeypatch_path)
     assert len(sticky_list) == 5
     ids = {s.id for s in sticky_list}
     assert "chinese-plain-no-jargon" not in ids
@@ -233,17 +233,17 @@ def test_init_explicit_minimal_installs_5_sticky(fake_home, capsys):
 
 def test_init_auto_chinese_user_installs_7_sticky(fake_home, capsys):
     """minimal=None + 系统语言中文 → 自动装 7 条含 chinese_plain。"""
-    import karma.rule
-    import karma.locale_detect
-    monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    import pinrule.rule
+    import pinrule.locale_detect
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
-        with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
-            with unittest.mock.patch.object(karma.locale_detect, "detect_user_language",
+        with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
+            with unittest.mock.patch.object(pinrule.locale_detect, "detect_user_language",
                                             return_value="zh"):
                 rc = cli.cmd_init(minimal=None)
     assert rc == 0
-    sticky_list = karma.rule.load(monkeypatch_path)
+    sticky_list = pinrule.rule.load(monkeypatch_path)
     assert len(sticky_list) == 7
     out = capsys.readouterr().out
     # v0.5.0 起 label 改英文 ("full 7 dev-scenario" / "minimal 5"), zh 仍出现在 detected locale
@@ -252,17 +252,17 @@ def test_init_auto_chinese_user_installs_7_sticky(fake_home, capsys):
 
 def test_init_auto_non_chinese_user_installs_5_sticky(fake_home, capsys):
     """minimal=None + 系统语言非中文 → 自动装 5 条精简（砍 chinese_plain）。"""
-    import karma.rule
-    import karma.locale_detect
-    monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    import pinrule.rule
+    import pinrule.locale_detect
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
-        with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
-            with unittest.mock.patch.object(karma.locale_detect, "detect_user_language",
+        with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
+            with unittest.mock.patch.object(pinrule.locale_detect, "detect_user_language",
                                             return_value="en"):
                 rc = cli.cmd_init(minimal=None)
     assert rc == 0
-    sticky_list = karma.rule.load(monkeypatch_path)
+    sticky_list = pinrule.rule.load(monkeypatch_path)
     assert len(sticky_list) == 5
     out = capsys.readouterr().out
     assert "en" in out and ("精简" in out or "minimal" in out)
@@ -270,17 +270,17 @@ def test_init_auto_non_chinese_user_installs_5_sticky(fake_home, capsys):
 
 def test_init_auto_unknown_locale_fallback_to_minimal(fake_home, capsys):
     """minimal=None + 检测不到（容器 / CI / 异常）→ fallback 5 条精简（最安全）。"""
-    import karma.rule
-    import karma.locale_detect
-    monkeypatch_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    import pinrule.rule
+    import pinrule.locale_detect
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
-        with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", monkeypatch_path):
-            with unittest.mock.patch.object(karma.locale_detect, "detect_user_language",
+        with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
+            with unittest.mock.patch.object(pinrule.locale_detect, "detect_user_language",
                                             return_value=None):
                 rc = cli.cmd_init(minimal=None)
     assert rc == 0
-    sticky_list = karma.rule.load(monkeypatch_path)
+    sticky_list = pinrule.rule.load(monkeypatch_path)
     assert len(sticky_list) == 5
 
 
@@ -289,20 +289,20 @@ def test_install_hooks_creates_wrappers(fake_home, capsys):
     assert rc == 0
     hooks_dir = fake_home / ".claude" / "hooks"
     for name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"):
-        wrapper = hooks_dir / f"karma_{name}.py"
+        wrapper = hooks_dir / f"pinrule_{name}.py"
         assert wrapper.exists(), f"{wrapper} 应该被创建"
         assert os.access(wrapper, os.X_OK), f"{wrapper} 应该可执行"
 
 
 def test_install_hooks_writes_settings_when_missing(fake_home, capsys):
-    """settings.json 不存在 → 创建并写入 4 条 karma entry。"""
+    """settings.json 不存在 → 创建并写入 4 条 pinrule entry。"""
     cli.cmd_install_hooks()
     settings = _read_settings(fake_home)
     hooks = settings.get("hooks", {})
     for event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"):
         assert event in hooks, f"hooks.{event} 应该被创建"
         cmds = [h["command"] for m in hooks[event] for h in m.get("hooks", [])]
-        assert any("karma_" in c for c in cmds), f"{event} 应含 karma wrapper"
+        assert any("pinrule_" in c for c in cmds), f"{event} 应含 pinrule wrapper"
 
 
 def test_install_hooks_preserves_other_hooks(fake_home):
@@ -341,36 +341,36 @@ def test_install_hooks_preserves_other_hooks(fake_home):
     pre_cmds = [h["command"] for m in settings["hooks"]["PreToolUse"] for h in m.get("hooks", [])]
     assert any("rtk hook claude" in c for c in pre_cmds), "rtk 不能被覆盖"
 
-    # karma 也加进去了
-    assert any("karma_post_tool_use" in c for c in post_cmds)
-    assert any("karma_pre_tool_use" in c for c in pre_cmds)
+    # pinrule 也加进去了
+    assert any("pinrule_post_tool_use" in c for c in post_cmds)
+    assert any("pinrule_pre_tool_use" in c for c in pre_cmds)
 
 
 def test_install_hooks_idempotent(fake_home):
-    """跑两次 install 结果一致，不重复添加 karma entry。"""
+    """跑两次 install 结果一致，不重复添加 pinrule entry。"""
     cli.cmd_install_hooks()
     settings_first = _read_settings(fake_home)
-    karma_cmds_first = sorted(
+    pinrule_cmds_first = sorted(
         h["command"]
         for event in settings_first["hooks"].values()
         for m in event
         for h in m.get("hooks", [])
-        if "karma_" in h["command"]
+        if "pinrule_" in h["command"]
     )
 
     cli.cmd_install_hooks()
     settings_second = _read_settings(fake_home)
-    karma_cmds_second = sorted(
+    pinrule_cmds_second = sorted(
         h["command"]
         for event in settings_second["hooks"].values()
         for m in event
         for h in m.get("hooks", [])
-        if "karma_" in h["command"]
+        if "pinrule_" in h["command"]
     )
 
-    assert karma_cmds_first == karma_cmds_second
-    # 动态从 _HOOK_EVENTS 算（每个 event 一个 karma 命令）
-    assert len(karma_cmds_first) == len(ClaudeCodeBackend._HOOK_EVENTS)
+    assert pinrule_cmds_first == pinrule_cmds_second
+    # 动态从 _HOOK_EVENTS 算（每个 event 一个 pinrule 命令）
+    assert len(pinrule_cmds_first) == len(ClaudeCodeBackend._HOOK_EVENTS)
 
 
 def test_install_hooks_stop_entry_has_no_matcher(fake_home):
@@ -382,8 +382,8 @@ def test_install_hooks_stop_entry_has_no_matcher(fake_home):
     """
     cli.cmd_install_hooks()
     settings = _read_settings(fake_home)
-    stop_entries = [e for e in settings["hooks"].get("Stop", []) if ClaudeCodeBackend().is_karma_entry(e)]
-    assert len(stop_entries) == 1, "Stop 应该有恰好 1 条 karma entry"
+    stop_entries = [e for e in settings["hooks"].get("Stop", []) if ClaudeCodeBackend().is_pinrule_entry(e)]
+    assert len(stop_entries) == 1, "Stop 应该有恰好 1 条 pinrule entry"
     assert "matcher" not in stop_entries[0], (
         "Stop entry 不能含 matcher 字段 — 否则 Claude Code 无声忽略整个 entry"
     )
@@ -398,9 +398,9 @@ def test_install_hooks_tool_events_keep_matcher(fake_home):
     cli.cmd_install_hooks()
     settings = _read_settings(fake_home)
     for event in ("PreToolUse", "PostToolUse", "UserPromptSubmit"):
-        karma_entries = [e for e in settings["hooks"][event] if ClaudeCodeBackend().is_karma_entry(e)]
-        assert len(karma_entries) == 1
-        assert karma_entries[0].get("matcher") == "*", f"{event} 必须 matcher='*'"
+        pinrule_entries = [e for e in settings["hooks"][event] if ClaudeCodeBackend().is_pinrule_entry(e)]
+        assert len(pinrule_entries) == 1
+        assert pinrule_entries[0].get("matcher") == "*", f"{event} 必须 matcher='*'"
 
 
 def test_install_hooks_aborts_on_corrupted_settings(fake_home, capsys):
@@ -428,17 +428,17 @@ def test_install_hooks_writes_atomic(fake_home):
     """_save_settings 用 tmp + os.replace 原子写，无残留 tmp 文件。"""
     cli.cmd_install_hooks()
     settings_dir = fake_home / ".claude"
-    tmp_files = list(settings_dir.glob("*karma-tmp*"))
+    tmp_files = list(settings_dir.glob("*pinrule-tmp*"))
     assert not tmp_files, f"原子写不该留 tmp 文件: {tmp_files}"
 
 
 def test_install_hooks_backs_up_first_time(fake_home):
-    """第一次运行 → 创建 settings.json.before-karma 备份。"""
+    """第一次运行 → 创建 settings.json.before-pinrule 备份。"""
     original = {"model": "opus", "hooks": {}}
     _write_settings(fake_home, original)
 
     cli.cmd_install_hooks()
-    backup = fake_home / ".claude" / "settings.json.before-karma"
+    backup = fake_home / ".claude" / "settings.json.before-pinrule"
     assert backup.exists(), "第一次 install 应该备份原 settings"
     assert json.loads(backup.read_text()) == original
 
@@ -448,12 +448,12 @@ def test_install_hooks_does_not_overwrite_backup(fake_home):
     original = {"model": "first", "hooks": {}}
     _write_settings(fake_home, original)
     cli.cmd_install_hooks()
-    backup_first = (fake_home / ".claude" / "settings.json.before-karma").read_text()
+    backup_first = (fake_home / ".claude" / "settings.json.before-pinrule").read_text()
 
     # 用户改 settings 后重 install — 备份不该被新 settings 覆盖
     _write_settings(fake_home, {"model": "changed", "hooks": {}})
     cli.cmd_install_hooks()
-    backup_second = (fake_home / ".claude" / "settings.json.before-karma").read_text()
+    backup_second = (fake_home / ".claude" / "settings.json.before-pinrule").read_text()
     assert backup_first == backup_second, "备份应保留最初版本"
 
 
@@ -461,33 +461,33 @@ def test_install_hooks_does_not_overwrite_backup(fake_home):
 
 def test_uninstall_removes_wrappers_and_settings_entries(fake_home):
     cli.cmd_install_hooks()
-    # verify install 后 karma entry 存在
+    # verify install 后 pinrule entry 存在
     settings = _read_settings(fake_home)
-    karma_cmds = [
+    pinrule_cmds = [
         h["command"]
         for event in settings["hooks"].values()
         for m in event
         for h in m.get("hooks", [])
-        if "karma_" in h["command"]
+        if "pinrule_" in h["command"]
     ]
-    # 动态从 _HOOK_EVENTS 算（每个 event 一个 karma 命令）
-    assert len(karma_cmds) == len(ClaudeCodeBackend._HOOK_EVENTS)
+    # 动态从 _HOOK_EVENTS 算（每个 event 一个 pinrule 命令）
+    assert len(pinrule_cmds) == len(ClaudeCodeBackend._HOOK_EVENTS)
 
     cli.cmd_uninstall_hooks()
     settings_after = _read_settings(fake_home)
-    karma_cmds_after = [
+    pinrule_cmds_after = [
         h["command"]
         for event in settings_after["hooks"].values()
         for m in event
         for h in m.get("hooks", [])
-        if "karma_" in h["command"]
+        if "pinrule_" in h["command"]
     ]
-    assert karma_cmds_after == [], "uninstall 后 settings 里不应有 karma entry"
+    assert pinrule_cmds_after == [], "uninstall 后 settings 里不应有 pinrule entry"
 
     # wrapper 也被删
     hooks_dir = fake_home / ".claude" / "hooks"
     for name in ("user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"):
-        assert not (hooks_dir / f"karma_{name}.py").exists()
+        assert not (hooks_dir / f"pinrule_{name}.py").exists()
 
 
 def test_uninstall_preserves_other_hooks(fake_home):
@@ -506,7 +506,7 @@ def test_uninstall_preserves_other_hooks(fake_home):
     post = settings.get("hooks", {}).get("PostToolUse", [])
     cmds = [h["command"] for m in post for h in m.get("hooks", [])]
     assert any("vibe" in c for c in cmds), "vibe hook 应保留"
-    assert not any("karma_" in c for c in cmds), "karma 应清掉"
+    assert not any("pinrule_" in c for c in cmds), "pinrule 应清掉"
 
 
 # ---- doctor ----
@@ -514,15 +514,15 @@ def test_uninstall_preserves_other_hooks(fake_home):
 def test_doctor_reports_missing_wrappers(fake_home, capsys):
     """没装 hook → doctor 报告缺失。"""
     # 准备最小 sticky 让 doctor 跑下去
-    sticky_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    sticky_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
     sticky_path.write_text("- id: test\n  preference: x\n")
-    import karma.rule
-    import karma.violations
+    import pinrule.rule
+    import pinrule.violations
     import unittest.mock
-    with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
+    with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", sticky_path):
         with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
-            with unittest.mock.patch.object(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
+            with unittest.mock.patch.object(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
                 with unittest.mock.patch.object(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl"):
                     cli.cmd_doctor()
     out = capsys.readouterr().out
@@ -531,19 +531,19 @@ def test_doctor_reports_missing_wrappers(fake_home, capsys):
 
 def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
     """install Claude Code 后 doctor 应报告 Claude Code 全部 ✓（mock Codex 没装）。"""
-    sticky_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    sticky_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
     sticky_path.write_text("- id: test\n  preference: x\n")
-    import karma.rule
-    import karma.violations
-    from karma.backends import CodexBackend
+    import pinrule.rule
+    import pinrule.violations
+    from pinrule.backends import CodexBackend
     import unittest.mock
     # mock 其他 backend 没装（fake_home 是 tmp，本测试只关心 Claude Code 路径）
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="claude-code")
-    with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
+    with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", sticky_path):
         with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
-            with unittest.mock.patch.object(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
+            with unittest.mock.patch.object(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl"):
                 with unittest.mock.patch.object(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl"):
                     rc = cli.cmd_doctor()
     out = capsys.readouterr().out
@@ -555,37 +555,37 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
 
 def test_doctor_cursor_flat_hook_entry_detected(fake_home, monkeypatch, capsys):
     """Cursor native flat {command} entry 应被 doctor 识别为已安装 (v0.13.5 fix)."""
-    from karma.backends import CursorBackend, CodexBackend, ClaudeCodeBackend
+    from pinrule.backends import CursorBackend, CodexBackend, ClaudeCodeBackend
 
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
-    monkeypatch.setattr(CursorBackend, "_CONFIG_DIR_NAME", "cursor-karma-test")
+    monkeypatch.setattr(CursorBackend, "_CONFIG_DIR_NAME", "cursor-pinrule-test")
 
     b = CursorBackend()
     hooks_dir = b.hooks_dir()
     hooks_dir.mkdir(parents=True, exist_ok=True)
     for basename in b.hook_events().values():
-        w = hooks_dir / f"karma_{basename}.py"
+        w = hooks_dir / f"pinrule_{basename}.py"
         w.write_text("#!/bin/sh\n", encoding="utf-8")
         w.chmod(0o755)
 
     settings = {"version": 1, "hooks": {}}
     for event_name, basename in b.hook_events().items():
-        wrapper = hooks_dir / f"karma_{basename}.py"
+        wrapper = hooks_dir / f"pinrule_{basename}.py"
         settings["hooks"][event_name] = [{"command": str(wrapper)}]
     b.save_settings(settings)
 
-    sticky_path = fake_home / ".claude" / "karma" / "sticky.yaml"
+    sticky_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
     sticky_path.write_text("- id: test\n  preference: x\n")
-    import karma.rule
-    import karma.violations
+    import pinrule.rule
+    import pinrule.violations
     import unittest.mock
 
-    with unittest.mock.patch.object(karma.rule, "DEFAULT_PATH", sticky_path):
+    with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", sticky_path):
         with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
             with unittest.mock.patch.object(
-                karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl",
+                pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl",
             ):
                 with unittest.mock.patch.object(
                     cli, "VIOLATIONS_PATH", fake_home / "v.jsonl",
@@ -602,7 +602,7 @@ def test_doctor_codex_native_surface_trust_message_no_stale_manual_approval_copy
     fake_home, monkeypatch, capsys,
 ):
     """Codex doctor copy must match auto-trust + 6 native events / 5 wrappers."""
-    from karma.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
 
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
@@ -612,7 +612,7 @@ def test_doctor_codex_native_surface_trust_message_no_stale_manual_approval_copy
     hooks_dir = b.hooks_dir()
     hooks_dir.mkdir(parents=True, exist_ok=True)
     for basename in b.hook_events().values():
-        w = hooks_dir / f"karma_{basename}.py"
+        w = hooks_dir / f"pinrule_{basename}.py"
         w.write_text("#!/bin/sh\n", encoding="utf-8")
         w.chmod(0o755)
 
@@ -633,27 +633,27 @@ def test_doctor_codex_native_surface_trust_message_no_stale_manual_approval_copy
     assert "没 approved 的逐个 approve" not in out
 
 
-# ---- v0.5.16 karma install-skill / karma init 多 backend skill 装机 ----
+# ---- v0.5.16 pinrule install-skill / pinrule init 多 backend skill 装机 ----
 
 def _patch_rules_path(monkeypatch, fake_home):
-    """共享 helper: monkeypatch rules.yaml DEFAULT_PATH 避免污染真 karma 配置."""
-    import karma.rule
-    monkeypatch.setattr(karma.rule, "DEFAULT_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
-    monkeypatch.setattr(cli, "RULES_PATH", fake_home / ".claude" / "karma" / "rules.yaml")
+    """共享 helper: monkeypatch rules.yaml DEFAULT_PATH 避免污染真 pinrule 配置."""
+    import pinrule.rule
+    monkeypatch.setattr(pinrule.rule, "DEFAULT_PATH", fake_home / ".claude" / "pinrule" / "rules.yaml")
+    monkeypatch.setattr(cli, "RULES_PATH", fake_home / ".claude" / "pinrule" / "rules.yaml")
 
 
-def test_v0516_init_auto_installs_karma_skill_all_backends(fake_home, monkeypatch, capsys):
-    """v0.5.16: karma init 自动装 karma skill 到所有 backend (v0.13.2 砍 Gemini 后剩 Claude/Codex).
+def test_v0516_init_auto_installs_pinrule_skill_all_backends(fake_home, monkeypatch, capsys):
+    """v0.5.16: pinrule init 自动装 pinrule skill 到所有 backend (v0.13.2 砍 Gemini 后剩 Claude/Codex).
 
     Cursor 协议级限制 — 只 project-scoped skills, 没 home global, skill_install_targets 返 [].
 
-    路径: ~/.claude/skills/karma/SKILL.md (Claude, 目录形式)
-         ~/.agents/skills/karma/SKILL.md (Codex, 注意 ~/.agents/ 不是 ~/.codex/)
+    路径: ~/.claude/skills/pinrule/SKILL.md (Claude, 目录形式)
+         ~/.agents/skills/pinrule/SKILL.md (Codex, 注意 ~/.agents/ 不是 ~/.codex/)
     """
     _patch_rules_path(monkeypatch, fake_home)
 
-    claude_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
-    codex_dest = fake_home / ".agents" / "skills" / "karma" / "SKILL.md"
+    claude_dest = fake_home / ".claude" / "skills" / "pinrule" / "SKILL.md"
+    codex_dest = fake_home / ".agents" / "skills" / "pinrule" / "SKILL.md"
     for p in (claude_dest, codex_dest):
         assert not p.exists()
 
@@ -663,7 +663,7 @@ def test_v0516_init_auto_installs_karma_skill_all_backends(fake_home, monkeypatc
     assert codex_dest.exists(), "Codex skill 应自动装"
 
     # Markdown source 跟 Claude/Codex 两处内容一致 (raw markdown, 没有 TOML 转换)
-    src_text = cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
+    src_text = cli.PINRULE_SKILL_SRC.read_text(encoding="utf-8")
     assert claude_dest.read_text(encoding="utf-8") == src_text
     assert codex_dest.read_text(encoding="utf-8") == src_text
 
@@ -678,14 +678,14 @@ def test_v0516_init_second_run_idempotent(fake_home, monkeypatch, capsys):
     cli.cmd_init(minimal=True)
     out = capsys.readouterr().out
     # 第二次不该报「创建」(那是 installed reason 文字)
-    assert "创建 [claude-code] karma skill" not in out
+    assert "创建 [claude-code] pinrule skill" not in out
 
 
 def test_v0516_init_skill_user_modified_writes_new_file(fake_home, monkeypatch):
-    """用户改过 Claude skill → karma init 不覆盖, 写 .new 兄弟文件."""
+    """用户改过 Claude skill → pinrule init 不覆盖, 写 .new 兄弟文件."""
     _patch_rules_path(monkeypatch, fake_home)
 
-    skill_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
+    skill_dest = fake_home / ".claude" / "skills" / "pinrule" / "SKILL.md"
     skill_dest.parent.mkdir(parents=True, exist_ok=True)
     user_modified = "# my customized version\n"
     skill_dest.write_text(user_modified, encoding="utf-8")
@@ -696,41 +696,41 @@ def test_v0516_init_skill_user_modified_writes_new_file(fake_home, monkeypatch):
     # 新版写到 SKILL.md.new
     new_file = skill_dest.with_suffix(skill_dest.suffix + ".new")
     assert new_file.exists()
-    assert new_file.read_text(encoding="utf-8") == cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
+    assert new_file.read_text(encoding="utf-8") == cli.PINRULE_SKILL_SRC.read_text(encoding="utf-8")
 
 
 def test_v0516_install_skill_force_overwrites_all_backends(fake_home):
-    """karma install-skill --force 强制覆盖所有 backend 的用户改动."""
-    claude_dest = fake_home / ".claude" / "skills" / "karma" / "SKILL.md"
+    """pinrule install-skill --force 强制覆盖所有 backend 的用户改动."""
+    claude_dest = fake_home / ".claude" / "skills" / "pinrule" / "SKILL.md"
     claude_dest.parent.mkdir(parents=True, exist_ok=True)
     claude_dest.write_text("# user modified Claude\n", encoding="utf-8")
 
     rc = cli.cmd_install_skill(force=True)
     assert rc == 0
-    src_text = cli.KARMA_SKILL_SRC.read_text(encoding="utf-8")
+    src_text = cli.PINRULE_SKILL_SRC.read_text(encoding="utf-8")
     assert claude_dest.read_text(encoding="utf-8") == src_text
 
 
 def test_v0516_install_skill_backend_filter(fake_home):
-    """karma install-skill --backend claude-code 只装 Claude, 不动 Codex."""
+    """pinrule install-skill --backend claude-code 只装 Claude, 不动 Codex."""
     rc = cli.cmd_install_skill(force=False, backend="claude-code")
     assert rc == 0
-    assert (fake_home / ".claude" / "skills" / "karma" / "SKILL.md").exists()
-    assert not (fake_home / ".agents" / "skills" / "karma" / "SKILL.md").exists()
+    assert (fake_home / ".claude" / "skills" / "pinrule" / "SKILL.md").exists()
+    assert not (fake_home / ".agents" / "skills" / "pinrule" / "SKILL.md").exists()
 
 
 def test_v0516_install_skill_handles_missing_source(fake_home, monkeypatch):
     """skill source 文件不存在 → 返回 1 不崩."""
-    monkeypatch.setattr(cli, "KARMA_SKILL_SRC", fake_home / "nonexistent" / "SKILL.md")
+    monkeypatch.setattr(cli, "PINRULE_SKILL_SRC", fake_home / "nonexistent" / "SKILL.md")
     rc = cli.cmd_install_skill(force=False)
     assert rc == 1
 
 
 def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch, capsys):
-    """karma doctor 报告 multi-backend skill 装机状态: claude/codex 各自一行."""
-    import karma.violations
+    """pinrule doctor 报告 multi-backend skill 装机状态: claude/codex 各自一行."""
+    import pinrule.violations
     _patch_rules_path(monkeypatch, fake_home)
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
     cli.cmd_init(minimal=True)
     capsys.readouterr()
@@ -738,12 +738,12 @@ def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch,
     # case 1: 装完是「最新」
     cli.cmd_doctor()
     out = capsys.readouterr().out
-    assert "karma skill 装机" in out
+    assert "pinrule skill 装机" in out
     assert "claude-code" in out and "codex" in out and "cursor" in out
     assert "最新" in out
 
     # case 2: 删掉 Claude skill → doctor 报「未装」
-    (fake_home / ".claude" / "skills" / "karma" / "SKILL.md").unlink()
+    (fake_home / ".claude" / "skills" / "pinrule" / "SKILL.md").unlink()
     cli.cmd_doctor()
     out = capsys.readouterr().out
     assert "未装" in out
@@ -752,7 +752,7 @@ def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch,
     assert "未装" in out
 
 
-# === v0.9.9: karma init 末尾 onboarding summary 验证 ===
+# === v0.9.9: pinrule init 末尾 onboarding summary 验证 ===
 # 用户需求：Agent 协助安装完后直接告知客户默认启用的规则有哪些，
 # 不让用户手动输指令。所以 init 末尾要输出规则简要列表（id + preference 首行），
 # 但不带「下一步指令」tip 段。
@@ -760,11 +760,11 @@ def test_v0516_doctor_reports_multi_backend_skill_status(fake_home, monkeypatch,
 def test_init_prints_default_rules_summary(fake_home, monkeypatch, capsys):
     """init 末尾输出含「默认启用规则」header + 每条 rule id + preference 首行。
 
-    Agent 代装场景：Agent 跑 karma init 会看到这段 stdout，自然 paraphrase 给用户。
+    Agent 代装场景：Agent 跑 pinrule init 会看到这段 stdout，自然 paraphrase 给用户。
     """
-    import karma.violations
+    import pinrule.violations
     _patch_rules_path(monkeypatch, fake_home)
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
     cli.cmd_init(minimal=True)
     out = capsys.readouterr().out
@@ -783,13 +783,13 @@ def test_init_prints_default_rules_summary(fake_home, monkeypatch, capsys):
 
 
 def test_init_summary_does_not_include_command_tips(fake_home, monkeypatch, capsys):
-    """summary 段刻意不包含「跑 karma rule edit / list / remove」类指令 tip —
+    """summary 段刻意不包含「跑 pinrule rule edit / list / remove」类指令 tip —
     那会变成「让用户手动输指令」的 friction，跟 onboarding「Agent 代用户操作」
     目标相反。tip 段必须从 v0.9.9 init summary 中删除。
     """
-    import karma.violations
+    import pinrule.violations
     _patch_rules_path(monkeypatch, fake_home)
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
     cli.cmd_init(minimal=True)
     out = capsys.readouterr().out
@@ -805,32 +805,32 @@ def test_init_summary_does_not_include_command_tips(fake_home, monkeypatch, caps
     summary_block = out[summary_start:]
 
     # summary 段不该包含 next-steps shell 指令 tip
-    # 例外：`/karma <natural-language>` 是 in-chat slash command（v0.9.10 footer
+    # 例外：`/pinrule <natural-language>` 是 in-chat slash command（v0.9.10 footer
     # 加的），不是 shell 命令，跟「让用户开 terminal 输指令」性质不同，允许
-    for tip in ("下一步:", "Next steps:", "karma rule edit", "karma rule list", "karma rule remove"):
+    for tip in ("下一步:", "Next steps:", "pinrule rule edit", "pinrule rule list", "pinrule rule remove"):
         assert tip not in summary_block, (
             f"summary 段含 shell 指令 tip {tip!r} — 违反 v0.9.9 onboarding 原则"
             f"\n summary block:\n{summary_block}"
         )
 
 
-def test_init_summary_footer_includes_token_cost_and_slash_karma(fake_home, monkeypatch, capsys):
-    """v0.9.10: footer 加 token 成本上限 + /karma in-chat 入口提示。
+def test_init_summary_footer_includes_token_cost_and_slash_pinrule(fake_home, monkeypatch, capsys):
+    """v0.9.10: footer 加 token 成本上限 + /pinrule in-chat 入口提示。
 
     用户原话「希望加一句用户体验相关补充」— 让 first-time 用户安心使用
-    （3% token 上限）+ 知道想加规则直接对话框输 /karma 就行（不用开 terminal）。
+    （3% token 上限）+ 知道想加规则直接对话框输 /pinrule 就行（不用开 terminal）。
     """
-    import karma.violations
+    import pinrule.violations
     _patch_rules_path(monkeypatch, fake_home)
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
     cli.cmd_init(minimal=True)
     out = capsys.readouterr().out
 
     # token 成本数字（双语都含 "3%"）
     assert "3%" in out, "footer 应含 token 上限 3% 数字让用户安心"
-    # /karma in-chat 入口字面
-    assert "/karma" in out, "footer 应含 /karma 入口提示"
+    # /pinrule in-chat 入口字面
+    assert "/pinrule" in out, "footer 应含 /pinrule 入口提示"
     # zh 或 en 任一关键 anchor 出现
     assert "经测试" in out or "Tested:" in out, "footer 双语任一应触发"
 
@@ -839,59 +839,59 @@ def test_init_summary_footer_matches_user_locale(fake_home, monkeypatch, capsys)
     """v0.9.10 lockdown: footer 必须按用户语言展示对应语言内容 — 中文用户出
     中文 footer，英文用户出英文 footer。
 
-    karma/i18n.py _resolve_locale() 优先级：KARMA_LOCALE env > config.yaml >
+    pinrule/i18n.py _resolve_locale() 优先级：PINRULE_LOCALE env > config.yaml >
     is_chinese_user() system detect。这条测试 mock 两个极端 case 锁不变量。
     """
-    import karma.violations
-    from karma import i18n
+    import pinrule.violations
+    from pinrule import i18n
     _patch_rules_path(monkeypatch, fake_home)
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", fake_home / "v.jsonl")
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", fake_home / "v.jsonl")
 
     # case 1: 强制 zh locale → footer 必须中文
-    monkeypatch.setenv("KARMA_LOCALE", "zh")
+    monkeypatch.setenv("PINRULE_LOCALE", "zh")
     i18n._load_locale_dict.cache_clear()
     cli.cmd_init(minimal=True)
     out_zh = capsys.readouterr().out
-    assert "经测试" in out_zh, "KARMA_LOCALE=zh 时 footer 应是中文 ‘经测试…’"
-    assert "Tested:" not in out_zh, "KARMA_LOCALE=zh 时 footer 不该是英文"
+    assert "经测试" in out_zh, "PINRULE_LOCALE=zh 时 footer 应是中文 ‘经测试…’"
+    assert "Tested:" not in out_zh, "PINRULE_LOCALE=zh 时 footer 不该是英文"
 
     # 重置 rules.yaml 让 case 2 走 init 全流程
-    (fake_home / ".claude" / "karma" / "rules.yaml").unlink()
+    (fake_home / ".claude" / "pinrule" / "rules.yaml").unlink()
 
     # case 2: 强制 en locale → footer 必须英文
-    monkeypatch.setenv("KARMA_LOCALE", "en")
+    monkeypatch.setenv("PINRULE_LOCALE", "en")
     i18n._load_locale_dict.cache_clear()
     cli.cmd_init(minimal=True)
     out_en = capsys.readouterr().out
-    assert "Tested:" in out_en, "KARMA_LOCALE=en 时 footer 应是英文 ‘Tested: …’"
-    assert "经测试" not in out_en, "KARMA_LOCALE=en 时 footer 不该是中文"
+    assert "Tested:" in out_en, "PINRULE_LOCALE=en 时 footer 应是英文 ‘Tested: …’"
+    assert "经测试" not in out_en, "PINRULE_LOCALE=en 时 footer 不该是中文"
 
 
-# === v0.9.11: karma audit --by-check engine check 命中分布 ===
-# `/karma` skill no-arg 默认输出走这个视图（让 dogfood 数据驱动迭代）
+# === v0.9.11: pinrule audit --by-check engine check 命中分布 ===
+# `/pinrule` skill no-arg 默认输出走这个视图（让 dogfood 数据驱动迭代）
 
 def test_audit_by_check_aggregates_engine_hits(fake_home, monkeypatch, capsys):
-    """`karma audit --by-check` 按 trigger_key 中的 check 名聚合命中次数。
+    """`pinrule audit --by-check` 按 trigger_key 中的 check 名聚合命中次数。
 
-    构造 5 条违反：3 条 bypass_karma engine 命中、2 条 keep_pushing 命中、
+    构造 5 条违反：3 条 bypass_pinrule engine 命中、2 条 keep_pushing 命中、
     1 条 keyword-only (空 trigger_key)。验证输出含正确聚合。
     """
-    import karma.violations
-    from karma.violations import Violation, append
+    import pinrule.violations
+    from pinrule.violations import Violation, append
     _patch_rules_path(monkeypatch, fake_home)
     v_path = fake_home / "v.jsonl"
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", v_path)
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
 
     # 构造 mixed violations
     records = [
         Violation(ts=1, session_id="s1", rule_id="deep-fix-not-bypass",
-                  trigger="x", snippet="x", trigger_key="check.bypass_karma.trigger"),
+                  trigger="x", snippet="x", trigger_key="check.bypass_pinrule.trigger"),
         Violation(ts=2, session_id="s1", rule_id="deep-fix-not-bypass",
-                  trigger="y", snippet="y", trigger_key="check.bypass_karma.trigger"),
+                  trigger="y", snippet="y", trigger_key="check.bypass_pinrule.trigger"),
         Violation(ts=3, session_id="s1", rule_id="deep-fix-not-bypass",
-                  trigger="z", snippet="z", trigger_key="check.bypass_karma.trigger"),
+                  trigger="z", snippet="z", trigger_key="check.bypass_pinrule.trigger"),
         Violation(ts=4, session_id="s1", rule_id="keep-pushing-no-stop",
                   trigger="kp1", snippet="kp1", trigger_key="check.keep_pushing.default.trigger"),
         Violation(ts=5, session_id="s1", rule_id="keep-pushing-no-stop",
@@ -908,30 +908,30 @@ def test_audit_by_check_aggregates_engine_hits(fake_home, monkeypatch, capsys):
     # 总数
     assert "总 6 条违反" in out
     # top-level 聚合
-    assert "bypass_karma" in out
+    assert "bypass_pinrule" in out
     assert "keep_pushing" in out
     # sub-variant 细分（keep_pushing.default + keep_pushing.stop_hint）
     assert "keep_pushing.default" in out
     assert "keep_pushing.stop_hint" in out
     # keyword-only fallback 桶
     assert "keyword-only" in out
-    # 数字：bypass_karma 3 条、keep_pushing 2 条、keyword-only 1 条
+    # 数字：bypass_pinrule 3 条、keep_pushing 2 条、keyword-only 1 条
     # 不直接 assert 整行数字（容易因格式微调坏掉），用更宽松匹配
-    assert "3×" in out, "bypass_karma 3 条应出现"
+    assert "3×" in out, "bypass_pinrule 3 条应出现"
 
 
 def test_audit_days_filter_excludes_old_violations(fake_home, monkeypatch, capsys):
-    """v0.11.3: `karma audit --days N` 只看最近 N 天违反 — dogfood-driven 决策
+    """v0.11.3: `pinrule audit --days N` 只看最近 N 天违反 — dogfood-driven 决策
     不被老数据稀释 (新 rule / engine 重设计 ship 后 fresh 窗口效果评估).
 
     构造 2 老 + 2 新 violations, --days 1 应只显示 2 条.
     """
     import time
-    import karma.violations
-    from karma.violations import Violation, append
+    import pinrule.violations
+    from pinrule.violations import Violation, append
     _patch_rules_path(monkeypatch, fake_home)
     v_path = fake_home / "v.jsonl"
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", v_path)
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
 
     now = time.time()
@@ -962,11 +962,11 @@ def test_audit_days_filter_excludes_old_violations(fake_home, monkeypatch, capsy
 def test_audit_days_filter_empty_window_message(fake_home, monkeypatch, capsys):
     """v0.11.3: --days N 窗口内 0 条违反, 提示用户而非误导显示 '没违反记录'."""
     import time
-    import karma.violations
-    from karma.violations import Violation, append
+    import pinrule.violations
+    from pinrule.violations import Violation, append
     _patch_rules_path(monkeypatch, fake_home)
     v_path = fake_home / "v.jsonl"
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", v_path)
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
 
     old_ts = time.time() - 60 * 86400
@@ -994,7 +994,7 @@ def test_all_hook_violation_writes_pass_trigger_key():
     import re
     from pathlib import Path
 
-    hooks_dir = Path(__file__).resolve().parent.parent / "karma" / "hooks"
+    hooks_dir = Path(__file__).resolve().parent.parent / "pinrule" / "hooks"
     offenders: list[str] = []
 
     for py in hooks_dir.glob("*.py"):
@@ -1021,16 +1021,16 @@ def test_all_hook_violation_writes_pass_trigger_key():
 
 
 def test_audit_default_view_backward_compat(fake_home, monkeypatch, capsys):
-    """`karma audit`（无 --by-check）行为不变 — 仍按 rule_id 聚合。
+    """`pinrule audit`（无 --by-check）行为不变 — 仍按 rule_id 聚合。
 
     v0.9.11 加 by-check 视图是新增功能，默认 audit 保持向后兼容（不破坏
     现有 dogfood 习惯 + 测试 + 用户 muscle memory）。
     """
-    import karma.violations
-    from karma.violations import Violation, append
+    import pinrule.violations
+    from pinrule.violations import Violation, append
     _patch_rules_path(monkeypatch, fake_home)
     v_path = fake_home / "v.jsonl"
-    monkeypatch.setattr(karma.violations, "DEFAULT_PATH", v_path)
+    monkeypatch.setattr(pinrule.violations, "DEFAULT_PATH", v_path)
     monkeypatch.setattr(cli, "VIOLATIONS_PATH", v_path)
     append([Violation(ts=1, session_id="s1", rule_id="rule-A",
                       trigger="x", snippet="x")], path=v_path)

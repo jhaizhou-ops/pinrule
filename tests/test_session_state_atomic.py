@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from karma.session_state import (
+from pinrule.session_state import (
     SessionState,
     _normalize_path,
     _parse_redirect_target,
@@ -213,7 +213,7 @@ def test_parse_redirect_empty_string():
     ("/repo/src/main.py", False),
     ("/repo/tests/test_foo.py", False),
     ("/repo/pyproject.toml", False),
-    ("/repo/karma/config.py", False),
+    ("/repo/pinrule/config.py", False),
     ("/repo/data/rules.yaml", False),
     ("/repo/CHANGELOG.zh.md", True),
     ("/repo/.gitignore", True),

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from karma.rule import Rule as Sticky
-from karma.violations import Violation, append, detect, load_all, recent
+from pinrule.rule import Rule as Sticky
+from pinrule.violations import Violation, append, detect, load_all, recent
 
 
 def _make_sticky() -> list[Sticky]:
@@ -115,7 +115,7 @@ def test_append_empty_list_noop(tmp_path: Path) -> None:
 
 def test_rotation_triggers_when_over_max_lines(tmp_path: Path) -> None:
     """append 后行数超 max_lines → rotate（重命名 + 新文件）。"""
-    from karma.violations import rotate_if_needed
+    from pinrule.violations import rotate_if_needed
     p = tmp_path / "violations.jsonl"
     # 写 11 行（max_lines=10 让测试简洁）
     items = [
@@ -134,7 +134,7 @@ def test_rotation_triggers_when_over_max_lines(tmp_path: Path) -> None:
 
 def test_rotation_under_threshold_no_op(tmp_path: Path) -> None:
     """行数未超阈值 → 不 rotate。"""
-    from karma.violations import rotate_if_needed
+    from pinrule.violations import rotate_if_needed
     p = tmp_path / "violations.jsonl"
     items = [
         Violation(ts=i, session_id="s", rule_id=f"r{i}", trigger="x", snippet=".")
@@ -149,7 +149,7 @@ def test_rotation_under_threshold_no_op(tmp_path: Path) -> None:
 
 def test_rotation_keep_history_count(tmp_path: Path) -> None:
     """多次 rotate 后保留最多 keep 个历史文件（最老的删）。"""
-    from karma.violations import rotate_if_needed
+    from pinrule.violations import rotate_if_needed
     p = tmp_path / "violations.jsonl"
     # 模拟 5 次 rotate（每次行数超阈值）
     for round_idx in range(5):
@@ -169,8 +169,8 @@ def test_rotation_keep_history_count(tmp_path: Path) -> None:
 
 def test_append_triggers_rotation_automatically(tmp_path: Path, monkeypatch) -> None:
     """append() 末尾自动调 rotate_if_needed — 超阈值时自动 rotate。
-    阈值从 karma.config 读，测试 monkeypatch config.load 返回低阈值。"""
-    import karma.config as cfg_mod
+    阈值从 pinrule.config 读，测试 monkeypatch config.load 返回低阈值。"""
+    import pinrule.config as cfg_mod
     monkeypatch.setattr(
         cfg_mod, "load",
         lambda path=None: {**cfg_mod.DEFAULTS, "violations_max_lines": 10, "violations_keep_history": 3},
@@ -189,7 +189,7 @@ def test_append_triggers_rotation_automatically(tmp_path: Path, monkeypatch) -> 
 
 def test_count_recent_returns_count_per_sticky(tmp_path: Path) -> None:
     """count_recent 返回 window_sec 内每个 sticky_id 的违反次数（不是最新 ts）。"""
-    from karma.violations import count_recent
+    from pinrule.violations import count_recent
     p = tmp_path / "violations.jsonl"
     items = [
         Violation(ts=1000, session_id="s", rule_id="r1", trigger="x", snippet="."),
@@ -205,7 +205,7 @@ def test_count_recent_returns_count_per_sticky(tmp_path: Path) -> None:
 
 def test_count_recent_filters_outside_window(tmp_path: Path) -> None:
     """超出 window_sec 的违反不算。"""
-    from karma.violations import count_recent
+    from pinrule.violations import count_recent
     p = tmp_path / "violations.jsonl"
     items = [
         Violation(ts=1000, session_id="s", rule_id="r1", trigger="x", snippet="."),  # 25 min 前
@@ -219,7 +219,7 @@ def test_count_recent_filters_outside_window(tmp_path: Path) -> None:
 
 def test_count_recent_no_file(tmp_path: Path) -> None:
     """文件不存在 → 返回空 dict。"""
-    from karma.violations import count_recent
+    from pinrule.violations import count_recent
     out = count_recent(tmp_path / "no.jsonl")
     assert out == {}
 
@@ -232,7 +232,7 @@ def test_recent_turns_filters_by_session_and_turn_window(tmp_path: Path) -> None
     v0.9.13 cutoff 收紧（off-by-one fix）：window=N 真匹配 N 个 turn 不是 N+1。
     session a, current_turn=6, window_turns=3 → 匹配 [cur-(N-1), cur] = [4, 6] 共 3 个 turn。
     """
-    from karma.violations import recent_turns
+    from pinrule.violations import recent_turns
     p = tmp_path / "violations.jsonl"
     # 不同 session + 不同 turn
     items = [
@@ -256,7 +256,7 @@ def test_count_recent_turns_by_session(tmp_path: Path) -> None:
     v0.9.13 cutoff 收紧（off-by-one fix）：window=N 真匹配 N 个 turn。
     current=7, window=3 → 匹配 [5, 6, 7] 共 3 个 turn。
     """
-    from karma.violations import count_recent_turns
+    from pinrule.violations import count_recent_turns
     p = tmp_path / "violations.jsonl"
     items = [
         Violation(ts=1000, session_id="a", rule_id="r1", trigger="x", snippet=".", turn=5),
@@ -280,7 +280,7 @@ def test_recent_turns_window_lockdown_v0913(tmp_path: Path) -> None:
 
     锁 force_block / escalation 阈值不被旧实现多算 1 turn 历史误算。
     """
-    from karma.violations import recent_turns, count_recent_turns
+    from pinrule.violations import recent_turns, count_recent_turns
     p = tmp_path / "violations.jsonl"
     items = [
         Violation(ts=t, session_id="s", rule_id="r", trigger="x", snippet=".", turn=t)
@@ -308,7 +308,7 @@ def test_recent_turns_skips_legacy_no_turn_field(tmp_path: Path) -> None:
     fallback 0 落入窗口 → 触发 force_block 假阳（dogfooding 实际踩过）。
     """
     import json
-    from karma.violations import recent_turns
+    from pinrule.violations import recent_turns
     p = tmp_path / "violations.jsonl"
     # 手写老格式（无 turn 字段，模拟 turn 维度引入前的历史）
     legacy = {"ts": 1000, "session_id": "a", "sticky_id": "r1",
@@ -322,7 +322,7 @@ def test_recent_turns_skips_legacy_no_turn_field(tmp_path: Path) -> None:
 def test_count_recent_turns_skips_legacy_no_turn_field(tmp_path: Path) -> None:
     """同上 — count_recent_turns 也要跳过无 turn 字段的老违反。"""
     import json
-    from karma.violations import count_recent_turns
+    from pinrule.violations import count_recent_turns
     p = tmp_path / "violations.jsonl"
     # 模拟 6 条老违反（force_block 阈值 5）
     legacy_lines = [

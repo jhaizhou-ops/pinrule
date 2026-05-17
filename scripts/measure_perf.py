@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""karma 性能真测脚本 — 跑在你本机出你这台机的真实数字.
+"""pinrule 性能真测脚本 — 跑在你本机出你这台机的真实数字.
 
 用法:
     source .venv/bin/activate
@@ -26,7 +26,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from karma.rule import format_anchor_only, load as load_rules  # noqa: E402
+from pinrule.rule import format_anchor_only, load as load_rules  # noqa: E402
 
 N_SAMPLES = 50
 TYPICAL_USER_CHARS = 800
@@ -79,8 +79,8 @@ def measure_latency() -> None:
         if not hooks_dir.exists():
             print(f"{name:10}  {'未装':10}  {'-':30}  {'-':30}")
             continue
-        ups_wrapper = hooks_dir / "karma_user_prompt_submit.py"
-        ptu_wrapper = hooks_dir / "karma_pre_tool_use.py"
+        ups_wrapper = hooks_dir / "pinrule_user_prompt_submit.py"
+        ptu_wrapper = hooks_dir / "pinrule_pre_tool_use.py"
         if not ups_wrapper.exists():
             print(f"{name:10}  {'wrapper 缺':10}  {'-':30}  {'-':30}")
             continue
@@ -102,7 +102,7 @@ def measure_token_overhead() -> None:
     print()
     rules = load_rules()
     if not rules:
-        print("(rules.yaml 没规则 — 跑 `karma init` 装 example 规则后再测)")
+        print("(rules.yaml 没规则 — 跑 `pinrule init` 装 example 规则后再测)")
         return
     rule_ids = [r.id for r in rules]
     print(f"  当前 rules.yaml 装了 {len(rules)} 条规则: {', '.join(rule_ids[:3])}...")

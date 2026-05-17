@@ -1,4 +1,4 @@
-# karma rule template — Software development scenario "cross-user neutral" 5 curated rules
+# pinrule rule template — Software development scenario "cross-user neutral" 5 curated rules
 #
 # This is the minimal version of rules.dev.example.yaml, with two language /
 # scenario-specific rules removed:
@@ -6,7 +6,7 @@
 #   - no-testset-no-future-leakage (ML / data / evaluation scenario)
 #
 # Suitable for: English-native users / general backend / frontend / tooling.
-# `karma init --minimal` installs this version; auto-detection installs this
+# `pinrule init --minimal` installs this version; auto-detection installs this
 # for non-Chinese system locale.
 
 - id: long-term-fundamental
@@ -89,15 +89,15 @@
 
 - id: deep-fix-not-bypass
   preference: |
-    When karma blocks you, first reaction shouldn't be "bypass" — pause
+    When pinrule blocks you, first reaction shouldn't be "bypass" — pause
     and read the trigger text, think whether it's a real violation or
-    karma's own bug. Manually modifying session-state to make commit pass
+    pinrule's own bug. Manually modifying session-state to make commit pass
     / temporarily changing rules.yaml to disable the rule / hacking
     literals to bypass detection — these are all "performing for the user,"
     short-term passing but they'll find out.
     The correct flow when blocked: see trigger → dig into pattern or
     system bug → fix root cause (tighten pattern if too wide, fix system
-    bug if karma's own issue). This way the next person hitting the same
+    bug if pinrule's own issue). This way the next person hitting the same
     scenario won't be blocked the same way.
     Exception: user explicitly says "bypass once for this commit" → only
     then bypass.
@@ -106,4 +106,4 @@
     - "manually inject"
     - "hack to make commit"
   violation_checks:
-    - bypass_karma_detection
+    - bypass_pinrule_detection

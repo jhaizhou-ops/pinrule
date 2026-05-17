@@ -5,14 +5,14 @@ from __future__ import annotations
 
 import pytest
 
-from karma.backends import (
+from pinrule.backends import (
     REGISTRY,
     ClaudeCodeBackend,
     CodexBackend,
     CursorBackend,
     detect_installed_backends,
 )
-from karma.backends._base import SettingsParseError
+from pinrule.backends._base import SettingsParseError
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def fake_home(tmp_path, monkeypatch):
 @pytest.fixture
 def cursor_test_config_dir(fake_home, monkeypatch):
     """Cursor backend 测试用非 `.cursor` 目录名 — 部分沙箱禁止 mkdir `.cursor`."""
-    dir_name = "cursor-karma-test"
+    dir_name = "cursor-pinrule-test"
     monkeypatch.setattr(CursorBackend, "_CONFIG_DIR_NAME", dir_name)
     return fake_home / dir_name
 
@@ -41,7 +41,7 @@ def test_registry_has_three_backends():
     assert isinstance(REGISTRY["cursor"], CursorBackend)
 
 
-def test_backends_all_have_common_karma_wrappers():
+def test_backends_all_have_common_pinrule_wrappers():
     """3 个 backend 都有 pre_tool_use / post_tool_use / stop 通用 wrapper.
 
     Cursor v0.12.2+ 用 beforeSubmitPrompt → user_prompt_submit 作每 turn 注入;
@@ -70,7 +70,7 @@ def test_claude_code_paths(fake_home):
     b = ClaudeCodeBackend()
     assert b.hooks_dir() == fake_home / ".claude" / "hooks"
     assert b.settings_path() == fake_home / ".claude" / "settings.json"
-    assert b.settings_backup_path() == fake_home / ".claude" / "settings.json.before-karma"
+    assert b.settings_backup_path() == fake_home / ".claude" / "settings.json.before-pinrule"
 
 
 def test_claude_code_event_entry_matcher(fake_home):
@@ -83,11 +83,11 @@ def test_claude_code_event_entry_matcher(fake_home):
 
 
 def test_claude_code_atomic_save(fake_home):
-    """save_settings 用 tmp + os.replace，不留 .karma-tmp.* 残留。"""
+    """save_settings 用 tmp + os.replace，不留 .pinrule-tmp.* 残留。"""
     b = ClaudeCodeBackend()
     b.save_settings({"hooks": {}, "model": "opus"})
     assert b.settings_path().exists()
-    tmp_files = list(b.settings_path().parent.glob("*karma-tmp*"))
+    tmp_files = list(b.settings_path().parent.glob("*pinrule-tmp*"))
     assert not tmp_files
 
 
@@ -118,12 +118,12 @@ def test_codex_event_entry_no_matcher(fake_home):
     hooks = entry["hooks"]
     assert len(hooks) == 1
     assert hooks[0]["type"] == "command"
-    assert "karma_user_prompt_submit.py" in hooks[0]["command"]
+    assert "pinrule_user_prompt_submit.py" in hooks[0]["command"]
     assert hooks[0].get("timeout") == 30
 
 
 def test_codex_native_hook_surface_matches_docs_full_list(fake_home):
-    """Codex hooks docs list 6 PascalCase native events; karma installs all 6.
+    """Codex hooks docs list 6 PascalCase native events; pinrule installs all 6.
 
     Reality check 2026-05-17: https://developers.openai.com/codex/hooks lists
     SessionStart / PreToolUse / PermissionRequest / PostToolUse /
@@ -131,7 +131,7 @@ def test_codex_native_hook_surface_matches_docs_full_list(fake_home):
     may contain future pre/post compact files, but the docs event table is the
     install surface.
     """
-    from karma.backends.native_capabilities import CODEX_HOOK_EVENTS, CODEX_NATIVE_HOOKS
+    from pinrule.backends.native_capabilities import CODEX_HOOK_EVENTS, CODEX_NATIVE_HOOKS
 
     docs_events = {
         "SessionStart",
@@ -148,7 +148,7 @@ def test_codex_native_hook_surface_matches_docs_full_list(fake_home):
 
 
 def test_codex_permission_request_maps_to_tool_gate_wrapper(fake_home):
-    """PermissionRequest is a native codex gate and reuses karma's pre tool gate.
+    """PermissionRequest is a native codex gate and reuses pinrule's pre tool gate.
 
     v0.15.0 changes the old ADR-001 decision: native-first means the event is
     installed, but no new check engine is invented; it routes to the same
@@ -169,7 +169,7 @@ def test_codex_install_writes_permission_request_entry(fake_home):
     hook = entry["hooks"][0]
     assert hook["type"] == "command"
     assert hook["timeout"] == 30
-    assert "karma_pre_tool_use.py" in hook["command"]
+    assert "pinrule_pre_tool_use.py" in hook["command"]
 
 
 def test_codex_load_save_roundtrip(fake_home):
@@ -210,19 +210,19 @@ def test_codex_features_hooks_enabled_detection(fake_home):
     assert b._is_hooks_feature_enabled() is False
 
 
-def test_codex_is_karma_entry_recognizes_wrapper(fake_home):
-    """karma 装的 hook entry（路径含 karma_ 前缀）被识别。"""
+def test_codex_is_pinrule_entry_recognizes_wrapper(fake_home):
+    """pinrule 装的 hook entry（路径含 pinrule_ 前缀）被识别。"""
     b = CodexBackend()
-    karma_entry = {"hooks": [{"type": "command", "command": "/x/karma_stop.py"}]}
+    pinrule_entry = {"hooks": [{"type": "command", "command": "/x/pinrule_stop.py"}]}
     other_entry = {"hooks": [{"type": "command", "command": "/x/vibe-island"}]}
-    assert b.is_karma_entry(karma_entry) is True
-    assert b.is_karma_entry(other_entry) is False
+    assert b.is_pinrule_entry(pinrule_entry) is True
+    assert b.is_pinrule_entry(other_entry) is False
 
 
 def test_codex_trust_state_covers_permission_request(fake_home):
     """auto-trust state must include the newly installed PermissionRequest event."""
     b = CodexBackend()
-    command = str(b.hooks_dir() / "karma_pre_tool_use.py")
+    command = str(b.hooks_dir() / "pinrule_pre_tool_use.py")
     settings = {
         "hooks": {
             "PermissionRequest": [{
@@ -276,7 +276,7 @@ def test_cursor_paths(fake_home):
     b = CursorBackend()
     assert b.hooks_dir() == fake_home / ".cursor" / "hooks"
     assert b.settings_path() == fake_home / ".cursor" / "hooks.json"
-    assert b.settings_backup_path() == fake_home / ".cursor" / "hooks.json.before-karma"
+    assert b.settings_backup_path() == fake_home / ".cursor" / "hooks.json.before-pinrule"
 
 
 def test_cursor_event_names_are_camelcase(fake_home):
@@ -320,7 +320,7 @@ def test_cursor_event_entry_native_flat_command(fake_home):
     entry = b.build_event_entry("pre_tool_use", "preToolUse")
     assert "matcher" not in entry
     assert "hooks" not in entry
-    assert "karma_pre_tool_use.py" in entry["command"]
+    assert "pinrule_pre_tool_use.py" in entry["command"]
     assert "type" not in entry
     stop_entry = b.build_event_entry("stop", "stop")
     assert stop_entry.get("loop_limit") == 10
@@ -417,8 +417,8 @@ def test_cursor_emit_context_injection_before_submit_nested():
 def test_cursor_emit_stop_followup_message_not_decision_block():
     """Cursor stop 没 block 概念 — 用 `followup_message` auto-continue.
 
-    这正映射 karma keep-pushing 「stop 时塞反思 prompt 让继续」语义,
-    比 Gemini AfterAgent 强制返 {} fail-open 更适配 karma 干预模型.
+    这正映射 pinrule keep-pushing 「stop 时塞反思 prompt 让继续」语义,
+    比 Gemini AfterAgent 强制返 {} fail-open 更适配 pinrule 干预模型.
     """
     import json as _json
     b = CursorBackend()
@@ -443,13 +443,13 @@ def test_cursor_client_installed_falls_back_to_config_dir(
     assert b.client_installed() is True
 
 
-def test_cursor_is_karma_entry_recognizes_wrapper(fake_home):
-    """karma 装的 hook entry (路径含 karma_ 前缀) 被识别."""
+def test_cursor_is_pinrule_entry_recognizes_wrapper(fake_home):
+    """pinrule 装的 hook entry (路径含 pinrule_ 前缀) 被识别."""
     b = CursorBackend()
-    karma_entry = {"hooks": [{"type": "command", "command": "/x/karma_stop.py"}]}
+    pinrule_entry = {"hooks": [{"type": "command", "command": "/x/pinrule_stop.py"}]}
     other_entry = {"hooks": [{"type": "command", "command": "/x/vibe-island"}]}
-    assert b.is_karma_entry(karma_entry) is True
-    assert b.is_karma_entry(other_entry) is False
+    assert b.is_pinrule_entry(pinrule_entry) is True
+    assert b.is_pinrule_entry(other_entry) is False
 
 
 def test_cursor_load_save_roundtrip(cursor_test_config_dir):
@@ -475,7 +475,7 @@ def test_cursor_load_corrupted_raises(cursor_test_config_dir):
 
 def test_detect_backend_routes_cursor_by_event_name():
     """payload.hook_event_name 含 Cursor camelCase event → 路由到 cursor."""
-    from karma.backends.protocol_adapter import detect_backend
+    from pinrule.backends.protocol_adapter import detect_backend
     assert detect_backend({"hook_event_name": "preToolUse"}) == "cursor"
     assert detect_backend({"hook_event_name": "sessionStart"}) == "cursor"
     assert detect_backend({"hook_event_name": "postToolUse"}) == "cursor"
@@ -484,9 +484,9 @@ def test_detect_backend_routes_cursor_by_event_name():
 
 def test_detect_backend_routes_cursor_by_path_fallback(monkeypatch):
     """sys.argv[0] 含 /.cursor/ → 路由到 cursor (event name 缺失兜底)."""
-    from karma.backends import protocol_adapter
+    from pinrule.backends import protocol_adapter
     monkeypatch.setattr(
         protocol_adapter.sys, "argv",
-        ["/Users/x/.cursor/hooks/karma_pre_tool_use.py"],
+        ["/Users/x/.cursor/hooks/pinrule_pre_tool_use.py"],
     )
     assert protocol_adapter.detect_backend({}) == "cursor"

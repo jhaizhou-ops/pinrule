@@ -1,16 +1,16 @@
-# karma rule template — Software development scenario (7 curated rules)
+# pinrule rule template — Software development scenario (7 curated rules)
 #
-# karma = universal hook framework + scenario rule sets
+# pinrule = universal hook framework + scenario rule sets
 # This file is the "software development" scenario preset. Other scenarios
 # (writing / research / product / design etc.) need different rule sets —
 # community contributions welcome.
 #
-# Install: `karma init` copies this file to ~/.claude/karma/rules.yaml
+# Install: `pinrule init` copies this file to ~/.claude/pinrule/rules.yaml
 # Cap: 10 rules (over 12 hook refuses to load)
 #
 # ⚠️ Not every rule fits every user — pick by scenario:
 #   - Rule 3 chinese-plain-no-jargon: applies to **Chinese users**. English-native
-#     users should `karma rule remove chinese-plain-no-jargon` to avoid persistent
+#     users should `pinrule rule remove chinese-plain-no-jargon` to avoid persistent
 #     false positives.
 #   - Rule 5 no-testset-no-future-leakage: applies to **ML / data / evaluation**
 #     scenarios. General backend / frontend / tooling development can remove it.
@@ -26,7 +26,7 @@
 #                         patch this quickly") rather than pure nouns (e.g.
 #                         "hardcoding"), to reduce description-class false positives
 #   violation_checks    : engine-layer check function names
-#                         (from karma.checks.REGISTRY)
+#                         (from pinrule.checks.REGISTRY)
 #   force_block_exempt  : optional bool, default false. Enable to disable
 #                         cumulative penalty for "should keep pushing / non-blocking"
 #                         type rules — otherwise cumulative penalty triggers
@@ -95,7 +95,7 @@
     Use analogies for complex concepts — shows you understand better than
     stacking jargon.
   # Note: this rule applies to **Chinese users**. English-native users should
-  # remove this rule via `karma rule remove chinese-plain-no-jargon`.
+  # remove this rule via `pinrule rule remove chinese-plain-no-jargon`.
   # Engine-layer monitoring temporarily off (only header injection reminder);
   # to enable engine check: add violation_checks: [chinese_plain_no_jargon]
   violation_keywords: []
@@ -155,15 +155,15 @@
 
 - id: deep-fix-not-bypass
   preference: |
-    When karma blocks you, first reaction shouldn't be "bypass" — pause
+    When pinrule blocks you, first reaction shouldn't be "bypass" — pause
     and read the trigger text, think whether it's a real violation or
-    karma's own bug. Manually modifying session-state to make commit pass
+    pinrule's own bug. Manually modifying session-state to make commit pass
     / temporarily changing rules.yaml to disable the rule / hacking
     literals to bypass detection — these are all "performing for the user,"
     short-term passing but they'll find out.
     The correct flow when blocked: see trigger → dig into pattern or
     system bug → fix root cause (tighten pattern if too wide, fix system
-    bug if karma's own issue). This way the next person hitting the same
+    bug if pinrule's own issue). This way the next person hitting the same
     scenario won't be blocked the same way.
     Exception: user explicitly says "bypass once for this commit" → only
     then bypass.
@@ -172,4 +172,4 @@
     - "manually inject"
     - "hack to make commit"
   violation_checks:
-    - bypass_karma_detection
+    - bypass_pinrule_detection

@@ -1,10 +1,10 @@
-# karma 配置文件 — 调阈值不用改代码
+# pinrule 配置文件 — 调阈值不用改代码
 #
-# 安装：karma init 会复制本文件到 ~/.claude/karma/config.yaml
-# 缺失字段用代码 DEFAULTS（见 karma/config.py:DEFAULTS）
+# 安装：pinrule init 会复制本文件到 ~/.claude/pinrule/config.yaml
+# 缺失字段用代码 DEFAULTS（见 pinrule/config.py:DEFAULTS）
 
 # 桌面通知开关（macOS osascript / Linux notify-send / Windows msg）
-# 设 false 完全关，或者环境变量 KARMA_NO_NOTIFY=1 临时关
+# 设 false 完全关，或者环境变量 PINRULE_NO_NOTIFY=1 临时关
 notify_enabled: true
 
 # Agent 漂移按 turn 累积（不是人类时钟）— 用户去开会 30 分钟跟连续 30 个 turn

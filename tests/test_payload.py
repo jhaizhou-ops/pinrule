@@ -1,4 +1,4 @@
-"""tests for karma.hooks._payload extract_session_id (v0.12.1).
+"""tests for pinrule.hooks._payload extract_session_id (v0.12.1).
 
 跨 backend stdin payload 字段 fallback 链:
 - Claude / Codex (Cursor 用 conversation_id): `session_id`
@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from karma.hooks._payload import extract_session_id, extract_subagent_id
+from pinrule.hooks._payload import extract_session_id, extract_subagent_id
 
 
 def test_session_id_primary_path():
@@ -54,7 +54,7 @@ def test_cursor_real_payload_shape():
     """模拟 Cursor 真 stdin payload (https://cursor.com/docs/hooks 文档 schema).
 
     Cursor payload 含 conversation_id / generation_id / model 等, 不含 session_id.
-    karma 入口拿不到 session_id 时 fallback 到 conversation_id 让 session_state
+    pinrule 入口拿不到 session_id 时 fallback 到 conversation_id 让 session_state
     不归到 'default' 一锅粥.
     """
     cursor_payload = {

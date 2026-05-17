@@ -8,8 +8,8 @@ from pathlib import Path
 
 import yaml
 
-from karma.hooks import post_tool_use, pre_tool_use, stop, user_prompt_submit
-from karma import session_state
+from pinrule.hooks import post_tool_use, pre_tool_use, stop, user_prompt_submit
+from pinrule import session_state
 
 
 def _patch_paths(monkeypatch, tmp_path: Path, sticky_items: list[dict] | None = None):
@@ -18,8 +18,8 @@ def _patch_paths(monkeypatch, tmp_path: Path, sticky_items: list[dict] | None = 
     violations_path = tmp_path / "violations.jsonl"
     if sticky_items is not None:
         sticky_path.write_text(yaml.safe_dump(sticky_items, allow_unicode=True), encoding="utf-8")
-    monkeypatch.setattr("karma.rule.DEFAULT_PATH", sticky_path)
-    monkeypatch.setattr("karma.violations.DEFAULT_PATH", violations_path)
+    monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", sticky_path)
+    monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", violations_path)
     return sticky_path, violations_path
 
 
@@ -65,8 +65,8 @@ def test_user_prompt_submit_handles_bad_yaml(monkeypatch, tmp_path, capsys):
     """sticky.yaml 配置错 → stderr 报错，输出 passthrough（空 JSON）。"""
     sticky_path = tmp_path / "sticky.yaml"
     sticky_path.write_text("- {{ this is not valid yaml", encoding="utf-8")
-    monkeypatch.setattr("karma.rule.DEFAULT_PATH", sticky_path)
-    monkeypatch.setattr("karma.violations.DEFAULT_PATH", tmp_path / "violations.jsonl")
+    monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", sticky_path)
+    monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", tmp_path / "violations.jsonl")
     payload = json.dumps({"prompt": "你好", "session_id": "s"})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     rc = user_prompt_submit.main()
@@ -74,7 +74,7 @@ def test_user_prompt_submit_handles_bad_yaml(monkeypatch, tmp_path, capsys):
     assert rc == 0
     out = json.loads(captured.out)
     assert out == {}
-    assert "karma:" in captured.err
+    assert "pinrule:" in captured.err
 
 
 def test_stop_reads_transcript_and_detects(monkeypatch, tmp_path, capsys):
@@ -110,7 +110,7 @@ def test_stop_reads_transcript_and_detects(monkeypatch, tmp_path, capsys):
         (json.loads(ln).get("rule_id") or json.loads(ln).get("sticky_id")) == "no-patch"
         for ln in lines
     )
-    assert "⚠️ karma" in captured.err
+    assert "⚠️ pinrule" in captured.err
 
 
 def test_stop_no_transcript_no_op(monkeypatch, tmp_path, capsys):
@@ -129,7 +129,7 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     """v0.4.24 生效守护：PostToolUse 在最近 N turn 有 sticky 触发时注入中段
     提醒作 anchor — proactive 锚定真信道。
 
-    dogfooding 触发：本回合 system-reminder 真显示 `[karma 中段提醒]` 字面，
+    dogfooding 触发：本回合 system-reminder 真显示 `[pinrule 中段提醒]` 字面，
     证明 Claude Code 接受 PostToolUse additionalContext。
     """
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
@@ -139,9 +139,9 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
             "violation_keywords": ["先打个补丁"],
         },
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 预设 2 条最近 turn 违反
-    from karma.violations import Violation, append as v_append
+    from pinrule.violations import Violation, append as v_append
     v_append([Violation(
         ts=1, session_id="anchor_test", rule_id="long-term-fundamental",
         trigger="先打个补丁", snippet=".", turn=5,
@@ -168,7 +168,7 @@ def test_post_tool_use_smart_reinject_when_recent_violation(monkeypatch, tmp_pat
     ctx = out["hookSpecificOutput"]["additionalContext"]
     # v0.9.0: 中段全量注入用 format_for_injection — 含 preference 全文 + 头部 +
     # 偏离回顾标记（违反过的规则带〔...偏离...〕标）
-    assert "[karma" in ctx and "长期默契" in ctx, "v0.9.0 中段全量注入用 format_for_injection 头部"
+    assert "[pinrule" in ctx and "长期默契" in ctx, "v0.9.0 中段全量注入用 format_for_injection 头部"
     assert "用最根本" in ctx, "应含 preference 文本 (fixture 的 long-term 规则首句)"
     assert "偏离" in ctx, "违反过的规则应带偏离回顾标记"
     # v0.4.32 注入后 last_reinject_byte_seq 真重置为当前 tool_byte_seq
@@ -187,7 +187,7 @@ def test_post_tool_use_no_reinject_when_clean(monkeypatch, tmp_path, capsys):
     _, _ = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "long-term-fundamental", "preference": "x", "violation_keywords": ["先打个补丁"]},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="clean_test")
     state.turn_count = 3  # 但 violations.jsonl 是空的
     session_state.save(state, base_dir=tmp_path)
@@ -210,7 +210,7 @@ def test_post_tool_use_write_records_read(monkeypatch, tmp_path, capsys):
     """Write 文件后 post_tool_use 既 record_edit 也 record_read —
     Agent 写过的内容自己知道，后续 Edit 同文件不该被 read_first 多余拦。
     """
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "write_then_edit",
         "tool_name": "Write",
@@ -228,7 +228,7 @@ def test_post_tool_use_write_records_read(monkeypatch, tmp_path, capsys):
 
 def test_post_tool_use_edit_does_not_imply_read(monkeypatch, tmp_path, capsys):
     """Edit 只改部分内容 → 不该 record_read（read_first 仍要拦未读 Edit）。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "edit_only",
         "tool_name": "Edit",
@@ -248,7 +248,7 @@ def test_post_tool_use_edit_does_not_imply_read(monkeypatch, tmp_path, capsys):
 def test_post_tool_use_failed_read_does_not_record(monkeypatch, tmp_path):
     """Read 失败（dict 含 isError=True）→ 不 record_read。否则 Agent 用 Read 失败
     后立刻 Edit 同文件会绕过 read_first 检测。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "read_fail",
         "tool_name": "Read",
@@ -264,7 +264,7 @@ def test_post_tool_use_failed_read_does_not_record(monkeypatch, tmp_path):
 
 def test_post_tool_use_failed_read_string_error_does_not_record(monkeypatch, tmp_path):
     """Read 返回 'Error: ...' 字符串前缀也算失败 → 不 record。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "read_str_fail",
         "tool_name": "Read",
@@ -279,7 +279,7 @@ def test_post_tool_use_failed_read_string_error_does_not_record(monkeypatch, tmp
 
 def test_post_tool_use_failed_edit_does_not_record(monkeypatch, tmp_path):
     """Edit 失败（old_string 不匹配等）→ 不 record_edit（代码没改成）。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "edit_fail",
         "tool_name": "Edit",
@@ -295,7 +295,7 @@ def test_post_tool_use_failed_edit_does_not_record(monkeypatch, tmp_path):
 def test_post_tool_use_failed_bash_still_records(monkeypatch, tmp_path):
     """Bash 即便 interrupted=True 也要 record — has_recent_test_pass 由内部
     PASS/FAIL 信号判，不依赖 tool 整体成败。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "bash_fail",
         "tool_name": "Bash",
@@ -313,7 +313,7 @@ def test_post_tool_use_failed_bash_still_records(monkeypatch, tmp_path):
 
 def test_post_tool_use_successful_read_records(monkeypatch, tmp_path):
     """Read 成功（无 isError）→ 正常 record_read。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "read_ok",
         "tool_name": "Read",
@@ -332,7 +332,7 @@ def test_post_tool_use_docs_edit_does_not_push_last_edit_ts(monkeypatch, tmp_pat
     用户洞察：sticky #4 说「完成代码任务必须附测试证据」，docs 改不是代码任务。
     post_tool_use 应区分文件类型，描述上下文文件 Edit 不推 last_edit_ts。
     """
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 改 README.md
     payload = json.dumps({
         "session_id": "docs_edit",
@@ -350,7 +350,7 @@ def test_post_tool_use_docs_edit_does_not_push_last_edit_ts(monkeypatch, tmp_pat
 
 def test_post_tool_use_code_edit_pushes_last_edit_ts(monkeypatch, tmp_path):
     """改普通源码（.py）推 last_edit_ts（real 代码改动）。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "code_edit",
         "tool_name": "Edit",
@@ -366,7 +366,7 @@ def test_post_tool_use_code_edit_pushes_last_edit_ts(monkeypatch, tmp_path):
 
 def test_post_tool_use_yaml_write_does_not_push_last_edit_ts(monkeypatch, tmp_path):
     """改 .yaml 配置不算代码改动。"""
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({
         "session_id": "yaml_write",
         "tool_name": "Write",
@@ -384,7 +384,7 @@ def test_post_tool_use_yaml_write_does_not_push_last_edit_ts(monkeypatch, tmp_pa
 def test_stop_hook_force_blocks_on_accumulated_violations(monkeypatch, tmp_path, capsys):
     """机制 2：同一 sticky 累积 ≥ force_block_threshold 次 → Stop hook 强制 decision=block。
 
-    Agent 反复违反同一规则却没 fix 原因 → karma 强制要求修。
+    Agent 反复违反同一规则却没 fix 原因 → pinrule 强制要求修。
     """
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {
@@ -393,13 +393,13 @@ def test_stop_hook_force_blocks_on_accumulated_violations(monkeypatch, tmp_path,
             "violation_keywords": ["先打个补丁"],
         },
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # v0.9.13 fixture 增强：cutoff off-by-one fix 后 force_block window=3 真
     # 匹配 3 个 turn。原 fixture（1 条/turn × 5 turn = 5 条 + 1 新 keyword 命中）
     # 严丝合缝卡在旧 cutoff 4+1=5 达 threshold；fix 后只有 3 个 turn 算（3+1=4 不够）。
     # 这条测试本意是「累积超 threshold 触发 force_block」，不是 verify cutoff
     # 边界 — fixture 加大到 6 条历史让两种 cutoff 实现都能达 threshold=5。
-    from karma.violations import Violation, append as v_append
+    from pinrule.violations import Violation, append as v_append
     items = [
         Violation(ts=i, session_id="force", rule_id="long-term-fundamental",
                   trigger="先打个补丁", snippet=".", turn=t)
@@ -452,9 +452,9 @@ def test_stop_hook_force_block_releases_when_current_turn_not_triggering(monkeyp
             "violation_keywords": ["其他词"],  # 当前 turn 触发这个
         },
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 预设 5 条 long-term 历史违反（累积超阈值）
-    from karma.violations import Violation, append as v_append
+    from pinrule.violations import Violation, append as v_append
     items = [
         Violation(ts=i, session_id="force2", rule_id="long-term-fundamental",
                   trigger="先打个补丁", snippet=".", turn=t)
@@ -492,14 +492,14 @@ def test_stop_hook_force_block_releases_when_current_turn_not_triggering(monkeyp
 def test_stop_hook_uses_codex_last_assistant_message_field(monkeypatch, tmp_path, capsys):
     """Codex Stop payload 给 `last_assistant_message` 字段直接用，不读 transcript。
 
-    跨 backend 兼容验证：karma 在 Codex 下不需要 transcript_path 也能 catch
+    跨 backend 兼容验证：pinrule 在 Codex 下不需要 transcript_path 也能 catch
     违反。实测 dogfooding：之前只读 transcript_path 在 Codex 下漏所有违反。
     """
     _, violations_path = _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "long-term-fundamental", "preference": "x",
          "violation_keywords": ["先打个补丁"]},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # Codex stdin 格式 — 无 transcript_path，直接给 last_assistant_message
     payload = json.dumps({
         "session_id": "codex-stop-test",
@@ -518,7 +518,7 @@ def test_stop_hook_uses_codex_last_assistant_message_field(monkeypatch, tmp_path
     lines = violations_path.read_text(encoding="utf-8").splitlines()
     assert any("先打个补丁" in ln for ln in lines), \
         "Codex last_assistant_message 中的违反应被 catch"
-    assert "karma" in captured.err
+    assert "pinrule" in captured.err
 
 
 def test_stop_hook_falls_back_to_transcript_when_no_codex_field(monkeypatch, tmp_path, capsys):
@@ -530,7 +530,7 @@ def test_stop_hook_falls_back_to_transcript_when_no_codex_field(monkeypatch, tmp
         {"id": "long-term-fundamental", "preference": "x",
          "violation_keywords": ["先打个补丁"]},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # Claude Code stdin — 给 transcript_path 不给 last_assistant_message
     transcript = tmp_path / "transcript.jsonl"
     transcript.write_text(json.dumps({
@@ -549,27 +549,27 @@ def test_stop_hook_falls_back_to_transcript_when_no_codex_field(monkeypatch, tmp
 
 
 def test_stop_hook_debug_trace_written_when_env_set(monkeypatch, tmp_path, capsys):
-    """KARMA_DEBUG_TRACE=<path> 环境变量启用时 Stop hook 触发应追加一行到 path。
-    评审第二轮发现：v0.2.1 之前补了 KARMA_DEBUG 测试但 KARMA_DEBUG_TRACE 姊妹
+    """PINRULE_DEBUG_TRACE=<path> 环境变量启用时 Stop hook 触发应追加一行到 path。
+    评审第二轮发现：v0.2.1 之前补了 PINRULE_DEBUG 测试但 PINRULE_DEBUG_TRACE 姊妹
     变量没测过 — 属于 sticky #4「完成要有证据」违反。
     """
     trace_path = tmp_path / "trace.log"
-    monkeypatch.setenv("KARMA_DEBUG_TRACE", str(trace_path))
+    monkeypatch.setenv("PINRULE_DEBUG_TRACE", str(trace_path))
     _patch_paths(monkeypatch, tmp_path, sticky_items=[])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({"session_id": "trace_test", "transcript_path": ""})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     stop.main()
-    assert trace_path.exists(), "KARMA_DEBUG_TRACE 设置后应该写 trace 文件"
+    assert trace_path.exists(), "PINRULE_DEBUG_TRACE 设置后应该写 trace 文件"
     content = trace_path.read_text(encoding="utf-8")
     assert "trace_test" in content, f"trace 应含 session_id, 实际: {content!r}"
 
 
 def test_stop_hook_no_trace_when_env_unset(monkeypatch, tmp_path, capsys):
-    """KARMA_DEBUG_TRACE 未设时不该写任何 trace（默认完全关，不污染 /tmp）。"""
-    monkeypatch.delenv("KARMA_DEBUG_TRACE", raising=False)
+    """PINRULE_DEBUG_TRACE 未设时不该写任何 trace（默认完全关，不污染 /tmp）。"""
+    monkeypatch.delenv("PINRULE_DEBUG_TRACE", raising=False)
     _patch_paths(monkeypatch, tmp_path, sticky_items=[])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = json.dumps({"session_id": "no_trace", "transcript_path": ""})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
     stop.main()
@@ -594,9 +594,9 @@ def test_stop_hook_force_block_exempts_keep_pushing(monkeypatch, tmp_path, capsy
             "force_block_exempt": True,  # 关键 — 这条字段控制豁免
         },
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 预设 5 条 keep-pushing 违反（force_threshold 默认 5）
-    from karma.violations import Violation, append as v_append
+    from pinrule.violations import Violation, append as v_append
     items = [
         Violation(ts=i, session_id="kp_force", rule_id="keep-pushing-no-stop",
                   trigger="response 纯陈述完结", snippet=".", turn=t)
@@ -640,7 +640,7 @@ def test_stop_hook_blocks_when_keep_pushing_violated(monkeypatch, tmp_path, caps
             "violation_checks": ["keep_pushing_no_stop"],
         },
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 准备 transcript 含「先到这」末尾停顿词
     transcript = tmp_path / "transcript.jsonl"
     transcript.write_text(json.dumps({
@@ -657,7 +657,7 @@ def test_stop_hook_blocks_when_keep_pushing_violated(monkeypatch, tmp_path, caps
     assert out.get("decision") == "block", f"应输出 decision=block，实际：{out}"
     # 2026-05-15 重写：reason 合作回顾语气取代「反思提醒 + 自检」指控式
     reason = out.get("reason", "")
-    assert "karma" in reason and ("推进" in reason or "默契" in reason)
+    assert "pinrule" in reason and ("推进" in reason or "默契" in reason)
 
 
 def test_user_prompt_submit_injects_strong_reminder_when_last_response_stopped(
@@ -672,7 +672,7 @@ def test_user_prompt_submit_injects_strong_reminder_when_last_response_stopped(
         {"id": "keep-pushing-no-stop", "preference": "x",
          "violation_checks": ["keep_pushing_no_stop"]},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # transcript last assistant = 「完成了。」纯陈述无推进
     transcript = tmp_path / "trans.jsonl"
     transcript.write_text(json.dumps({
@@ -701,7 +701,7 @@ def test_user_prompt_submit_no_reminder_when_last_response_has_push(
         {"id": "keep-pushing-no-stop", "preference": "x",
          "violation_checks": ["keep_pushing_no_stop"]},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     transcript = tmp_path / "trans.jsonl"
     transcript.write_text(json.dumps({
         "type": "assistant",
@@ -726,7 +726,7 @@ def test_user_prompt_submit_runs_catchup(monkeypatch, tmp_path, capsys):
     _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "test-rule", "preference": "x"},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 准备 pending_bg_tasks + 文件
     log = tmp_path / "bg.log"
     log.write_text("===== 10 passed in 0.1s =====")
@@ -757,7 +757,7 @@ def test_stop_hook_respects_block_max(monkeypatch, tmp_path, capsys):
             "violation_checks": ["keep_pushing_no_stop"],
         },
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 预设 session state 已 block 3 次（达到 max）
     state = session_state.SessionState(session_id="max_block")
     state.stop_block_count = 3  # default max=3
@@ -786,7 +786,7 @@ def test_stop_hook_respects_block_max(monkeypatch, tmp_path, capsys):
 # === v0.9.14 fail-open lockdown: pre_tool_use update_state 异常 → 仍 _allow ===
 # v0.9.13 我把 pre_tool_use 段 2 catchup 改用 update_state 但漏套 try/except，
 # 异常 bubble 让 Claude Code 看到 hook 失败 return 非 0 → 卡用户（fail-closed
-# 违反 karma 设计原则）。多 Agent audit 视角 3 抓到。v0.9.14 修 + 加这条
+# 违反 pinrule 设计原则）。多 Agent audit 视角 3 抓到。v0.9.14 修 + 加这条
 # lockdown 防未来 PR 再漏。
 
 def test_pre_tool_use_update_state_exception_falls_back_to_load(monkeypatch, tmp_path, capsys):
@@ -794,7 +794,7 @@ def test_pre_tool_use_update_state_exception_falls_back_to_load(monkeypatch, tmp
     _patch_paths(monkeypatch, tmp_path, sticky_items=[
         {"id": "any", "preference": "x", "violation_keywords": []},
     ])
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
 
     # mock update_state 抛异常模拟 fcntl.flock acquire 失败 / save OSError
     def _raise(*args, **kwargs):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from karma.session_state import SessionState, get_current_session_id, load, save
+from pinrule.session_state import SessionState, get_current_session_id, load, save
 
 
 def test_round_trip(tmp_path):
@@ -222,7 +222,7 @@ def test_bg_dict_with_stdout_passed_synchronous(tmp_path):
 
 def test_parse_redirect_target():
     """从 shell 命令字符串解析 > 重定向路径。"""
-    from karma.session_state import _parse_redirect_target
+    from pinrule.session_state import _parse_redirect_target
     assert _parse_redirect_target("pytest > /tmp/x.log") == "/tmp/x.log"
     assert _parse_redirect_target("pytest > /tmp/x.log 2>&1") == "/tmp/x.log"
     assert _parse_redirect_target("pytest 2>&1 > /tmp/x.log") == "/tmp/x.log"
@@ -238,7 +238,7 @@ def test_purge_old_session_states(tmp_path):
     """删 mtime 老于 max_age_days 的 session-state json。"""
     import os
     import time
-    from karma.session_state import purge_old_states
+    from pinrule.session_state import purge_old_states
     old1 = tmp_path / "old1.json"
     old2 = tmp_path / "old2.json"
     fresh = tmp_path / "fresh.json"
@@ -257,7 +257,7 @@ def test_purge_old_session_states(tmp_path):
 
 def test_purge_no_old_files(tmp_path):
     """没老文件 → 返回 0，不动新文件。"""
-    from karma.session_state import purge_old_states
+    from pinrule.session_state import purge_old_states
     fresh = tmp_path / "fresh.json"
     fresh.write_text("{}")
     n = purge_old_states(max_age_days=30, base_dir=tmp_path)
@@ -267,7 +267,7 @@ def test_purge_no_old_files(tmp_path):
 
 def test_purge_missing_dir(tmp_path):
     """目录不存在 → 返回 0 不抛错。"""
-    from karma.session_state import purge_old_states
+    from pinrule.session_state import purge_old_states
     n = purge_old_states(max_age_days=30, base_dir=tmp_path / "nonexistent")
     assert n == 0
 
@@ -276,7 +276,7 @@ def test_purge_missing_dir(tmp_path):
 
 def test_save_uses_unique_tmp_name(tmp_path, monkeypatch):
     """tmp 文件名应含 pid + nanosecond 避免并发冲突。"""
-    from karma.session_state import save, SessionState
+    from pinrule.session_state import save, SessionState
     s = SessionState(session_id="x")
     captured_tmp_names = []
     real_write = type(tmp_path).write_text
@@ -368,7 +368,7 @@ def test_v061_edit_readme_after_test_pass_keeps_fresh():
     """v0.6.1 原因 fix (issue #1 复现):
     docker pytest 通过 → 改 README.md → has_recent_test_pass 仍 True.
     """
-    from karma.session_state import SessionState
+    from pinrule.session_state import SessionState
     state = SessionState(session_id="test")
     state.record_bash("docker exec c1 python -m pytest tests/", "1190 passed in 42s")
     assert state.has_recent_test_pass(), "pytest 通过应 True"
@@ -377,7 +377,7 @@ def test_v061_edit_readme_after_test_pass_keeps_fresh():
 
 
 def test_v061_edit_changelog_keeps_fresh():
-    from karma.session_state import SessionState
+    from pinrule.session_state import SessionState
     state = SessionState(session_id="test")
     state.record_bash("pytest", "5 passed in 1s")
     state.record_edit("/repo/CHANGELOG.md")
@@ -385,7 +385,7 @@ def test_v061_edit_changelog_keeps_fresh():
 
 
 def test_v061_edit_docs_dir_keeps_fresh():
-    from karma.session_state import SessionState
+    from pinrule.session_state import SessionState
     state = SessionState(session_id="test")
     state.record_bash("pytest", "5 passed in 1s")
     state.record_edit("/repo/docs/ARCHITECTURE.md")
@@ -393,7 +393,7 @@ def test_v061_edit_docs_dir_keeps_fresh():
 
 
 def test_v061_edit_gitignore_keeps_fresh():
-    from karma.session_state import SessionState
+    from pinrule.session_state import SessionState
     state = SessionState(session_id="test")
     state.record_bash("pytest", "5 passed in 1s")
     state.record_edit("/repo/.gitignore")
@@ -405,7 +405,7 @@ def test_v061_edit_src_code_still_invalidates():
 
     不该松开「改完没重测就 commit」的核心拦截语义.
     """
-    from karma.session_state import SessionState
+    from pinrule.session_state import SessionState
     state = SessionState(session_id="test")
     state.record_bash("pytest", "5 passed in 1s")
     assert state.has_recent_test_pass()
@@ -415,7 +415,7 @@ def test_v061_edit_src_code_still_invalidates():
 
 def test_v061_edit_tests_dir_still_invalidates():
     """v0.6.1 对偶: 改测试文件本身也算「测试还没重跑」状态."""
-    from karma.session_state import SessionState
+    from pinrule.session_state import SessionState
     state = SessionState(session_id="test")
     state.record_bash("pytest", "5 passed in 1s")
     state.record_edit("/repo/tests/test_x.py")
@@ -429,7 +429,7 @@ def test_v061_edit_tests_dir_still_invalidates():
 
 def test_update_state_applies_fn_and_persists(tmp_path):
     """update_state 应用 fn 改 state 并落盘 — 下次 load 看到改动。"""
-    from karma.session_state import update_state, load
+    from pinrule.session_state import update_state, load
 
     def _add_read(state):
         state.record_read("/foo.py")
@@ -444,7 +444,7 @@ def test_update_state_applies_fn_and_persists(tmp_path):
 
 def test_update_state_returns_fn_value(tmp_path):
     """update_state 返回 (state, fn_return) — fn 可 derive 计算结果。"""
-    from karma.session_state import update_state
+    from pinrule.session_state import update_state
 
     def _compute(state):
         state.tool_byte_seq += 1000
@@ -457,7 +457,7 @@ def test_update_state_returns_fn_value(tmp_path):
 
 def test_update_state_fn_exception_rolls_back(tmp_path):
     """fn 抛异常 → state 不 save，磁盘保持旧状态（rollback）。"""
-    from karma.session_state import SessionState, save, update_state, load
+    from pinrule.session_state import SessionState, save, update_state, load
 
     initial = SessionState(session_id="sess1")
     initial.record_read("/initial.py")
@@ -479,7 +479,7 @@ def test_update_state_fn_exception_rolls_back(tmp_path):
 
 def test_update_state_agent_id_isolation(tmp_path):
     """子 Agent agent_id 走独立 lock + 独立 state 文件 — 主子互不阻塞."""
-    from karma.session_state import update_state, load
+    from pinrule.session_state import update_state, load
 
     def _set_main(state):
         state.tool_byte_seq = 100
@@ -498,7 +498,7 @@ def test_update_state_agent_id_isolation(tmp_path):
 
 def test_read_state_returns_snapshot(tmp_path):
     """read_state 是只读快照（语义跟 load 一样，名字提示『别在这改 state』）."""
-    from karma.session_state import SessionState, save, read_state
+    from pinrule.session_state import SessionState, save, read_state
 
     s = SessionState(session_id="sess1")
     s.record_read("/x.py")
@@ -510,7 +510,7 @@ def test_read_state_returns_snapshot(tmp_path):
 
 def test_state_lock_acquire_and_release(tmp_path):
     """_state_lock contextmanager 能 acquire + release 不报错（单进程基础测）."""
-    from karma.session_state import _state_lock
+    from pinrule.session_state import _state_lock
 
     with _state_lock("sess1", base_dir=tmp_path):
         # lock 内可以读写文件（lock 文件位于 <state_path>.json.lock）
@@ -533,13 +533,13 @@ def test_update_state_concurrent_no_lost_updates(tmp_path):
     """
     import subprocess
     import sys as _sys
-    from karma.session_state import load
+    from pinrule.session_state import load
 
     n_workers = 20
     worker_script = """
 import sys
 sys.path.insert(0, sys.argv[1])
-from karma.session_state import update_state
+from pinrule.session_state import update_state
 from pathlib import Path
 
 worker_id = sys.argv[2]
@@ -555,14 +555,14 @@ update_state("concurrent_sess", _add_my_read, base_dir=base_dir)
     worker_path = tmp_path / "worker.py"
     worker_path.write_text(worker_script)
 
-    # 找 karma package 根（site-packages or repo root）
-    import karma
-    karma_pkg_dir = str(Path(karma.__file__).resolve().parent.parent)
+    # 找 pinrule package 根（site-packages or repo root）
+    import pinrule
+    pinrule_pkg_dir = str(Path(pinrule.__file__).resolve().parent.parent)
 
     # 并发起 N 个 subprocess
     procs = [
         subprocess.Popen(
-            [_sys.executable, str(worker_path), karma_pkg_dir, str(i), str(tmp_path)],
+            [_sys.executable, str(worker_path), pinrule_pkg_dir, str(i), str(tmp_path)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         for i in range(n_workers)
@@ -597,13 +597,13 @@ def test_update_state_concurrent_counter_increment(tmp_path):
     """
     import subprocess
     import sys as _sys
-    from karma.session_state import load
+    from pinrule.session_state import load
 
     n_workers = 30
     worker_script = """
 import sys
 sys.path.insert(0, sys.argv[1])
-from karma.session_state import update_state
+from pinrule.session_state import update_state
 from pathlib import Path
 
 base_dir = Path(sys.argv[2])
@@ -617,12 +617,12 @@ update_state("counter_sess", _increment, base_dir=base_dir)
     worker_path = tmp_path / "counter_worker.py"
     worker_path.write_text(worker_script)
 
-    import karma
-    karma_pkg_dir = str(Path(karma.__file__).resolve().parent.parent)
+    import pinrule
+    pinrule_pkg_dir = str(Path(pinrule.__file__).resolve().parent.parent)
 
     procs = [
         subprocess.Popen(
-            [_sys.executable, str(worker_path), karma_pkg_dir, str(tmp_path)],
+            [_sys.executable, str(worker_path), pinrule_pkg_dir, str(tmp_path)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         for _ in range(n_workers)
@@ -647,19 +647,19 @@ def test_update_state_different_sessions_truly_parallel(tmp_path):
     并发（正确实施 — per-session lock）：总耗时 ≈ 0.3s + 启动 overhead
 
     实施 bug 比如「lock 文件用固定路径不按 session_id 隔离」会让所有
-    session 抢同一把 lock，karma 性能被全局串行化拖。这个测试反向防御。
+    session 抢同一把 lock，pinrule 性能被全局串行化拖。这个测试反向防御。
     """
     import subprocess
     import sys as _sys
     import time
-    from karma.session_state import load
+    from pinrule.session_state import load
 
     n_workers = 10
     worker_script = """
 import sys
 import time
 sys.path.insert(0, sys.argv[1])
-from karma.session_state import update_state
+from pinrule.session_state import update_state
 from pathlib import Path
 
 session_id = sys.argv[2]
@@ -675,13 +675,13 @@ update_state(session_id, _slow_fn, base_dir=base_dir)
     worker_path = tmp_path / "parallel_worker.py"
     worker_path.write_text(worker_script)
 
-    import karma
-    karma_pkg_dir = str(Path(karma.__file__).resolve().parent.parent)
+    import pinrule
+    pinrule_pkg_dir = str(Path(pinrule.__file__).resolve().parent.parent)
 
     t0 = time.time()
     procs = [
         subprocess.Popen(
-            [_sys.executable, str(worker_path), karma_pkg_dir, f"sess_{i}", str(tmp_path)],
+            [_sys.executable, str(worker_path), pinrule_pkg_dir, f"sess_{i}", str(tmp_path)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         for i in range(n_workers)

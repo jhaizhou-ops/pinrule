@@ -8,7 +8,7 @@ assignees: ''
 
 ## Your real pain point
 
-Describe the scenario concretely. karma's design principle is "user-real-pain-driven" — we don't accept "I think this might be useful" type preventive suggestions.
+Describe the scenario concretely. pinrule's design principle is "user-real-pain-driven" — we don't accept "I think this might be useful" type preventive suggestions.
 
 ## Proposed solution
 
@@ -19,8 +19,8 @@ If you have a specific idea, write it out. Include:
 
 ## Have you considered alternatives
 
-karma explicitly **doesn't do** these things — see README's "What karma doesn't do" section. If your need falls outside those boundaries, explain why an exception is necessary.
+pinrule explicitly **doesn't do** these things — see README's "What pinrule doesn't do" section. If your need falls outside those boundaries, explain why an exception is necessary.
 
 ## Real user scenario (not speculation)
 
-One of karma v1's failure lessons was "preventive design." New features must be driven by real user scenarios; we don't accept "might be useful" type needs.
+One of pinrule v1's failure lessons was "preventive design." New features must be driven by real user scenarios; we don't accept "might be useful" type needs.

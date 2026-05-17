@@ -9,13 +9,13 @@
 - 多行 preference → 续行缩进 3 空格（format_for_injection 专属）
 - format_anchor_only → 只出首行 + rule id
 - anchor 无多行缩进（只注首行 preference）
-- zh locale 头部含中文（KARMA_LOCALE=zh 环境下）
+- zh locale 头部含中文（PINRULE_LOCALE=zh 环境下）
 """
 
 from __future__ import annotations
 
 
-from karma.rule import Rule, format_anchor_only, format_for_injection
+from pinrule.rule import Rule, format_anchor_only, format_for_injection
 
 
 # ---------------------------------------------------------------------------
@@ -212,18 +212,18 @@ def test_format_anchor_multiline_preference_only_first_line():
 # ---------------------------------------------------------------------------
 
 def test_format_injection_zh_header_present():
-    """KARMA_LOCALE=zh 环境下头部含「默契」等中文标识词。"""
+    """PINRULE_LOCALE=zh 环境下头部含「默契」等中文标识词。"""
     rules = [_r("r1", "保持 A")]
     out = format_for_injection(rules)
-    # zh locale：inject.header.title = "[karma — 你跟用户的长期默契]"
-    assert "karma" in out
+    # zh locale：inject.header.title = "[pinrule — 你跟用户的长期默契]"
+    assert "pinrule" in out
     assert "默契" in out
 
 
 def test_format_anchor_zh_header_present():
     rules = [_r("r1", "保持 A")]
     out = format_anchor_only(rules, violated_rule_ids={"r1": 1})
-    assert "karma" in out
+    assert "pinrule" in out
 
 
 # ---------------------------------------------------------------------------

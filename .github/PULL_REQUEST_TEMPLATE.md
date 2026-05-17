@@ -4,12 +4,12 @@ Brief description of the change. If it's a new feature, explain whether it's at 
 
 ## Real driving scenario
 
-karma's validation criterion is "the author / user can describe 3 concrete cases" — what real scenarios does this PR solve?
+pinrule's validation criterion is "the author / user can describe 3 concrete cases" — what real scenarios does this PR solve?
 
 ## Verification evidence
 
 - [ ] All tests pass: `pytest tests/ -q`
-- [ ] Static checks clean: `ruff check karma/ tests/ && mypy karma/ tests/ && vulture karma/ --min-confidence 80`
+- [ ] Static checks clean: `ruff check pinrule/ tests/ && mypy pinrule/ tests/ && vulture pinrule/ --min-confidence 80`
 - [ ] Manual run verifies hook behavior (if hooks changed)
 - [ ] If adding new rule templates / check functions, add corresponding tests
 
@@ -23,4 +23,4 @@ karma's validation criterion is "the author / user can describe 3 concrete cases
 ## Related
 
 - Related issue: #
-- Related version: (see `karma --version`)
+- Related version: (see `pinrule --version`)

@@ -3,7 +3,7 @@
 注：v0.4.30 删了 post_compact hook — PostCompact 协议层不支持
 additionalContext，原 hook 是幽灵代码（输出会被 Claude Code 忽略）。
 
-v0.9.2: 动态路径解析 (修 issue #2) — 不再硬编码 /Users/jhz/karma。
+v0.9.2: 动态路径解析 (修 issue #2) — 不再硬编码 /Users/jhz/pinrule。
 """
 
 import json
@@ -31,7 +31,7 @@ def test_pre_compact_hook_auto_allows():
     }
 
     result = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.pre_compact"],
+        [PYTHON, "-m", "pinrule.hooks.pre_compact"],
         capture_output=True,
         text=True,
         input=json.dumps(payload),
@@ -57,11 +57,11 @@ def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
     user_prompt_submit hook 每 turn 都看 payload model 字段更新 state.model
     让中段 sticky 注入按真当前模型阈值（容错设计 — 协议有就用没保留之前）。
     """
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 第一 turn 主 model 是 sonnet
     payload1 = {"session_id": "test-ups-model", "prompt": "first", "model": "claude-sonnet-4-6"}
     result1 = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.user_prompt_submit"],
+        [PYTHON, "-m", "pinrule.hooks.user_prompt_submit"],
         capture_output=True, text=True, input=json.dumps(payload1),
         cwd=PROJECT_ROOT,
     )
@@ -69,7 +69,7 @@ def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
     # 第二 turn 用户 /model opus 切换 — payload 含新 model
     payload2 = {"session_id": "test-ups-model", "prompt": "second", "model": "claude-opus-4-7"}
     result2 = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.user_prompt_submit"],
+        [PYTHON, "-m", "pinrule.hooks.user_prompt_submit"],
         capture_output=True, text=True, input=json.dumps(payload2),
         cwd=PROJECT_ROOT,
     )
@@ -83,25 +83,25 @@ def test_session_start_writes_model_to_state(tmp_path, monkeypatch):
     PostToolUse / Stop / Subagent* 都没）— SessionStart 是唯一路径写 state.model
     让后续 PostToolUse 中段注入按模型阈值 (Opus 80K / Sonnet 60K / Haiku 30K)。
     """
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = {
         "source": "startup",
         "session_id": "test-v0436-model",
         "model": "claude-opus-4-7",
     }
     result = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.session_start"],
+        [PYTHON, "-m", "pinrule.hooks.session_start"],
         capture_output=True,
         text=True,
         input=json.dumps(payload),
         cwd=PROJECT_ROOT,
-        env={**__import__("os").environ, "KARMA_HOME": str(tmp_path.parent)},
+        env={**__import__("os").environ, "PINRULE_HOME": str(tmp_path.parent)},
     )
     assert result.returncode == 0
     # 验证 state.model 写入（独立 .venv subprocess 不直接读 fixture，跑真 hook）
-    from karma import session_state
+    from pinrule import session_state
     state = session_state.load("test-v0436-model")
-    # 注意：subprocess 用了真 ~/.claude/karma 路径不是 tmp_path（env KARMA_HOME 不一定生效）
+    # 注意：subprocess 用了真 ~/.pinrule 路径不是 tmp_path（env PINRULE_HOME 不一定生效）
     # 真守护是 session_start.py 有 payload.get("model") 写 state 逻辑 — code path
     # 已经被本测试 exec 了一次，没异常 = 生效。state 写值由 dogfooding 复现验证（CHANGELOG 含证据）
     _ = state  # 声明使用避免 lint
@@ -116,7 +116,7 @@ def test_session_start_hook_resume():
     }
     
     result = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.session_start"],
+        [PYTHON, "-m", "pinrule.hooks.session_start"],
         capture_output=True,
         text=True,
         input=json.dumps(payload),
@@ -137,7 +137,7 @@ def test_pre_compact_hook_manual_allows():
     }
 
     result = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.pre_compact"],
+        [PYTHON, "-m", "pinrule.hooks.pre_compact"],
         capture_output=True,
         text=True,
         input=json.dumps(payload),
@@ -163,7 +163,7 @@ def test_hooks_graceful_fallback_on_sticky_error():
         }
         
         result = subprocess.run(
-            [PYTHON, "-m", f"karma.hooks.{hook_name}"],
+            [PYTHON, "-m", f"pinrule.hooks.{hook_name}"],
             capture_output=True,
             text=True,
             input=json.dumps(payload),
@@ -187,7 +187,7 @@ def test_subagent_start_hook():
     }
 
     result = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.subagent_start"],
+        [PYTHON, "-m", "pinrule.hooks.subagent_start"],
         capture_output=True,
         text=True,
         input=json.dumps(payload),
@@ -211,7 +211,7 @@ def test_subagent_hooks_output_real_chinese_not_unicode_escape():
     })
     for hook_name in ("subagent_start", "subagent_stop"):
         result = subprocess.run(
-            [PYTHON, "-m", f"karma.hooks.{hook_name}"],
+            [PYTHON, "-m", f"pinrule.hooks.{hook_name}"],
             capture_output=True,
             text=True,
             input=payload,
@@ -239,7 +239,7 @@ def test_subagent_stop_hook_emits_reminder():
     }
 
     result = subprocess.run(
-        [PYTHON, "-m", "karma.hooks.subagent_stop"],
+        [PYTHON, "-m", "pinrule.hooks.subagent_stop"],
         capture_output=True,
         text=True,
         input=json.dumps(payload),
@@ -249,9 +249,9 @@ def test_subagent_stop_hook_emits_reminder():
     assert result.returncode == 0
     output = json.loads(result.stdout)
     # v0.9.16 (codex Minor #5 fix): 2026-05-15 SubagentStop 协议不支持
-    # hookSpecificOutput → karma 改 passthrough {}. 严格 assert {} 不让条件分支
+    # hookSpecificOutput → pinrule 改 passthrough {}. 严格 assert {} 不让条件分支
     # 静默允许回归. 子 Agent state 销毁仍走 side effect (subagent_stop.main 内部),
-    # 主 Agent 透明度提醒由 Claude Code UI 自己显示, karma 不再 echo.
+    # 主 Agent 透明度提醒由 Claude Code UI 自己显示, pinrule 不再 echo.
     assert output == {}, (
         f"SubagentStop 必须严格 passthrough {{}} (Claude Code 协议不支持 "
         f"additionalContext on SubagentStop), 实际: {output!r}"

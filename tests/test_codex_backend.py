@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import tomllib
 
-from karma.backends import codex as codex_backend
-from karma.backends.codex import CodexBackend, codex_hook_trusted_hash
+from pinrule.backends import codex as codex_backend
+from pinrule.backends.codex import CodexBackend, codex_hook_trusted_hash
 
 
 def _fake_home(tmp_path, monkeypatch):
@@ -16,7 +16,7 @@ def _fake_home(tmp_path, monkeypatch):
 
 REAL_CODEX_SINGLE_FILE_ENVELOPE = (
     "*** Begin Patch\n"
-    "*** Update File: /tmp/karma-codex-toy.py\n"
+    "*** Update File: /tmp/pinrule-codex-toy.py\n"
     "@@\n"
     "+# v0.9.16 test\n"
     "*** End Patch\n"
@@ -25,7 +25,7 @@ REAL_CODEX_SINGLE_FILE_ENVELOPE = (
 REAL_CODEX_SESSION_START_PAYLOAD = {
     "session_id": "019e2fcc-redacted-session",
     "transcript_path": "/Users/jhz/.codex/sessions/2026/05/16/rollout-redacted.jsonl",
-    "cwd": "/Users/jhz/karma",
+    "cwd": "/Users/jhz/pinrule",
     "hook_event_name": "SessionStart",
     "model": "gpt-5.5",
     "permission_mode": "default",
@@ -59,11 +59,11 @@ def test_native_bash_tail_extracts_read_file_path():
 
 
 def test_exec_command_sed_n_cmd_key_extracts_read_file_path_for_desktop_shape():
-    out = _normalize({"cmd": "sed -n '1,200p' /Users/jhz/karma/karma/__init__.py"})
+    out = _normalize({"cmd": "sed -n '1,200p' /Users/jhz/pinrule/pinrule/__init__.py"})
     assert out == {
-        "cmd": "sed -n '1,200p' /Users/jhz/karma/karma/__init__.py",
-        "command": "sed -n '1,200p' /Users/jhz/karma/karma/__init__.py",
-        "read_file_paths": ["/Users/jhz/karma/karma/__init__.py"],
+        "cmd": "sed -n '1,200p' /Users/jhz/pinrule/pinrule/__init__.py",
+        "command": "sed -n '1,200p' /Users/jhz/pinrule/pinrule/__init__.py",
+        "read_file_paths": ["/Users/jhz/pinrule/pinrule/__init__.py"],
     }
 
 
@@ -136,22 +136,22 @@ def test_xargs_cat_not_recognized_documented_skip():
 
 def test_recursive_grep_not_recognized_documented_skip():
     """recursive grep reads a tree; directory prefixes do not satisfy read_first."""
-    command = "grep -R needle karma"
+    command = "grep -R needle pinrule"
     out = _normalize({"command": command})
     assert out == {"command": command}
 
 
 def test_exec_command_with_wildcard_does_not_extract_read_file_paths():
-    out = _normalize({"command": "tail -n 20 karma/*.py"})
-    assert out == {"command": "tail -n 20 karma/*.py"}
+    out = _normalize({"command": "tail -n 20 pinrule/*.py"})
+    assert out == {"command": "tail -n 20 pinrule/*.py"}
 
 
 def test_codex_apply_patch_envelope_still_synthesizes_edit_shape():
     out = CodexBackend().normalize_tool_input("apply_patch", REAL_CODEX_SINGLE_FILE_ENVELOPE, {})
     assert out == {
-        "file_path": "/tmp/karma-codex-toy.py",
+        "file_path": "/tmp/pinrule-codex-toy.py",
         "new_string": REAL_CODEX_SINGLE_FILE_ENVELOPE,
-        "multi_file_targets": [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}],
+        "multi_file_targets": [{"op": "Update", "path": "/tmp/pinrule-codex-toy.py"}],
     }
 
 
@@ -163,9 +163,9 @@ def test_codex_apply_patch_native_command_field_synthesizes_edit_shape_without_w
         {},
     )
     assert out == {
-        "file_path": "/tmp/karma-codex-toy.py",
+        "file_path": "/tmp/pinrule-codex-toy.py",
         "new_string": REAL_CODEX_SINGLE_FILE_ENVELOPE,
-        "multi_file_targets": [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}],
+        "multi_file_targets": [{"op": "Update", "path": "/tmp/pinrule-codex-toy.py"}],
     }
     captured = capsys.readouterr()
     assert captured.err == ""
@@ -179,7 +179,7 @@ def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
 
 def test_codex_emit_deny_permission_request_shape():
     out = CodexBackend().emit_deny(
-        "blocked by karma",
+        "blocked by pinrule",
         {"hook_event_name": "PermissionRequest"},
     )
     assert json.loads(out) == {
@@ -187,7 +187,7 @@ def test_codex_emit_deny_permission_request_shape():
             "hookEventName": "PermissionRequest",
             "decision": {
                 "behavior": "deny",
-                "message": "blocked by karma",
+                "message": "blocked by pinrule",
             },
         }
     }
@@ -195,24 +195,24 @@ def test_codex_emit_deny_permission_request_shape():
 
 def test_codex_emit_deny_pre_tool_use_shape_stays_permission_decision():
     out = CodexBackend().emit_deny(
-        "blocked by karma",
+        "blocked by pinrule",
         {"hook_event_name": "PreToolUse"},
     )
     assert json.loads(out) == {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": "blocked by karma",
+            "permissionDecisionReason": "blocked by pinrule",
         }
     }
 
 
 def test_codex_emit_context_injection_shape_is_native_hook_specific_output():
-    out = CodexBackend().emit_context_injection("SessionStart", "karma context", {})
+    out = CodexBackend().emit_context_injection("SessionStart", "pinrule context", {})
     assert json.loads(out) == {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
-            "additionalContext": "karma context",
+            "additionalContext": "pinrule context",
         }
     }
 
@@ -234,23 +234,23 @@ def test_module_docstring_contains_adr_001():
 
 
 def test_exec_command_grep_without_recursive_flag_extracts_single_file_path():
-    out = _normalize({"command": "grep -n 'needle' karma/backends/codex.py"})
-    assert out["read_file_paths"] == ["karma/backends/codex.py"]
+    out = _normalize({"command": "grep -n 'needle' pinrule/backends/codex.py"})
+    assert out["read_file_paths"] == ["pinrule/backends/codex.py"]
 
 
 def test_exec_command_find_xargs_combo_does_not_extract_read_file_paths():
-    out = _normalize({"command": "find karma -name '*.py' -print0 | xargs -0 grep needle"})
-    assert out == {"command": "find karma -name '*.py' -print0 | xargs -0 grep needle"}
+    out = _normalize({"command": "find pinrule -name '*.py' -print0 | xargs -0 grep needle"})
+    assert out == {"command": "find pinrule -name '*.py' -print0 | xargs -0 grep needle"}
 
 
 def test_exec_command_sed_print_delete_extracts_read_file_path():
-    out = _normalize({"command": "sed '1,120p;d' karma/backends/codex.py"})
-    assert out["read_file_paths"] == ["karma/backends/codex.py"]
+    out = _normalize({"command": "sed '1,120p;d' pinrule/backends/codex.py"})
+    assert out["read_file_paths"] == ["pinrule/backends/codex.py"]
 
 
 def test_exec_command_awk_default_read_extracts_single_file_path():
-    out = _normalize({"command": "awk '{print $1}' karma/backends/codex.py"})
-    assert out["read_file_paths"] == ["karma/backends/codex.py"]
+    out = _normalize({"command": "awk '{print $1}' pinrule/backends/codex.py"})
+    assert out["read_file_paths"] == ["pinrule/backends/codex.py"]
 
 
 def test_exec_command_stdin_operand_does_not_extract_read_file_paths():
@@ -289,12 +289,12 @@ def test_real_codex_session_start_payload_shape_matches_session_start_hook_contr
 def test_codex_hook_trusted_hash_matches_codex_0130_source_algorithm():
     assert codex_hook_trusted_hash(
         "post_tool_use",
-        "/Users/jhz/.codex/hooks/karma_post_tool_use.py",
+        "/Users/jhz/.codex/hooks/pinrule_post_tool_use.py",
         timeout=30,
-    ) == "sha256:f6f66e9020480b0d5f6cb44e0e9d8ab33774a5ea02933e3b98c1835090055126"
+    ) == "sha256:e33e88d486a7d25d1a210fc6dfe548bb65e57a330031a494f1b623679c537c15"
 
 
-def test_codex_save_settings_pretrusts_only_karma_hooks(tmp_path, monkeypatch):
+def test_codex_save_settings_pretrusts_only_pinrule_hooks(tmp_path, monkeypatch):
     fake_home = _fake_home(tmp_path, monkeypatch)
     b = CodexBackend()
     settings = {
@@ -323,7 +323,7 @@ def test_codex_save_settings_pretrusts_only_karma_hooks(tmp_path, monkeypatch):
         "enabled": True,
         "trusted_hash": codex_hook_trusted_hash(
             "session_start",
-            f"{fake_home}/.codex/hooks/karma_session_start.py",
+            f"{fake_home}/.codex/hooks/pinrule_session_start.py",
             timeout=30,
         ),
     }
@@ -331,7 +331,7 @@ def test_codex_save_settings_pretrusts_only_karma_hooks(tmp_path, monkeypatch):
         "enabled": True,
         "trusted_hash": codex_hook_trusted_hash(
             "user_prompt_submit",
-            f"{fake_home}/.codex/hooks/karma_user_prompt_submit.py",
+            f"{fake_home}/.codex/hooks/pinrule_user_prompt_submit.py",
             timeout=30,
         ),
     }
@@ -389,7 +389,7 @@ def test_codex_post_install_message_deduplicates_shared_wrapper_paths(tmp_path, 
     lines = CodexBackend().post_install_message()
     wrapper_lines = [line for line in lines if str(fake_home / ".codex" / "hooks") in line]
     assert len(wrapper_lines) == len(set(wrapper_lines))
-    assert sum("karma_pre_tool_use.py" in line for line in wrapper_lines) == 1
+    assert sum("pinrule_pre_tool_use.py" in line for line in wrapper_lines) == 1
 
 
 def test_codex_hook_state_timeout_matches_codex_min_one_behavior(tmp_path, monkeypatch):
@@ -400,7 +400,7 @@ def test_codex_hook_state_timeout_matches_codex_min_one_behavior(tmp_path, monke
             "PostToolUse": [{
                 "hooks": [{
                     "type": "command",
-                    "command": f"{fake_home}/.codex/hooks/karma_post_tool_use.py",
+                    "command": f"{fake_home}/.codex/hooks/pinrule_post_tool_use.py",
                     "timeout": 0,
                 }]
             }],
@@ -412,7 +412,7 @@ def test_codex_hook_state_timeout_matches_codex_min_one_behavior(tmp_path, monke
     key = f"{fake_home}/.codex/hooks.json:post_tool_use:0:0"
     assert state[key]["trusted_hash"] == codex_hook_trusted_hash(
         "post_tool_use",
-        f"{fake_home}/.codex/hooks/karma_post_tool_use.py",
+        f"{fake_home}/.codex/hooks/pinrule_post_tool_use.py",
         timeout=1,
     )
 
@@ -421,10 +421,10 @@ def test_codex_exec_command_pytest_records_bash_test_pass(tmp_path, monkeypatch)
     import io
     import sys
 
-    from karma import session_state
-    from karma.hooks import post_tool_use
+    from pinrule import session_state
+    from pinrule.hooks import post_tool_use
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="codex-bash-pytest")
     session_state.save(state, base_dir=tmp_path)
 
@@ -436,7 +436,7 @@ def test_codex_exec_command_pytest_records_bash_test_pass(tmp_path, monkeypatch)
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_post_tool_use.py"])
     assert post_tool_use.main() == 0
 
     reloaded = session_state.load("codex-bash-pytest", base_dir=tmp_path)
@@ -449,10 +449,10 @@ def test_codex_exec_command_sed_i_records_canonical_write_path(tmp_path, monkeyp
     import io
     import sys
 
-    from karma import session_state
-    from karma.hooks import post_tool_use
+    from pinrule import session_state
+    from pinrule.hooks import post_tool_use
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="codex-sed-write")
     session_state.save(state, base_dir=tmp_path)
 
@@ -464,7 +464,7 @@ def test_codex_exec_command_sed_i_records_canonical_write_path(tmp_path, monkeyp
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_post_tool_use.py"])
     assert post_tool_use.main() == 0
 
     reloaded = session_state.load("codex-sed-write", base_dir=tmp_path)
@@ -476,10 +476,10 @@ def test_codex_native_bash_records_canonical_read_path(tmp_path, monkeypatch):
     import io
     import sys
 
-    from karma import session_state
-    from karma.hooks import post_tool_use
+    from pinrule import session_state
+    from pinrule.hooks import post_tool_use
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="codex-native-bash-read")
     session_state.save(state, base_dir=tmp_path)
 
@@ -492,7 +492,7 @@ def test_codex_native_bash_records_canonical_read_path(tmp_path, monkeypatch):
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_post_tool_use.py"])
     assert post_tool_use.main() == 0
 
     reloaded = session_state.load("codex-native-bash-read", base_dir=tmp_path)

@@ -1,6 +1,6 @@
 ---
 name: Bug Report (English)
-about: Report a karma bug / false positive / install issue / hook malfunction
+about: Report a pinrule bug / false positive / install issue / hook malfunction
 title: '[Bug] '
 labels: bug
 assignees: ''
@@ -8,23 +8,23 @@ assignees: ''
 
 ## What did you encounter
 
-Brief description of the problem. For **false positives** (karma blocks legitimate operations), paste `karma audit` output with the `⚠️ possible false positive` markers.
+Brief description of the problem. For **false positives** (pinrule blocks legitimate operations), paste `pinrule audit` output with the `⚠️ possible false positive` markers.
 
 ## Reproduction steps
 
-1. Install via `karma install-hooks ...`
+1. Install via `pinrule install-hooks ...`
 2. ...
 3. Observed error / unexpected behavior
 
-## Real state (output of `karma doctor`)
+## Real state (output of `pinrule doctor`)
 
 ```
-(paste complete `karma doctor` output)
+(paste complete `pinrule doctor` output)
 ```
 
 ## Environment
 
-- karma version: (`karma --version`)
+- pinrule version: (`pinrule --version`)
 - AI client: Claude Code / Codex CLI / Gemini CLI (with version)
 - OS: macOS / Linux / WSL
 - Python: (`python --version`)

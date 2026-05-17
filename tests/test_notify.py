@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import patch, MagicMock
 
-from karma.notify import notify, _escape_for_osascript
+from pinrule.notify import notify, _escape_for_osascript
 
 
 def test_notify_macos_calls_osascript(monkeypatch):
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     mock_run = MagicMock(return_value=MagicMock(returncode=0))
     with patch("subprocess.run", mock_run):
@@ -24,7 +24,7 @@ def test_notify_macos_calls_osascript(monkeypatch):
 
 
 def test_notify_linux_calls_notify_send(monkeypatch):
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Linux")
     monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/notify-send" if name == "notify-send" else None)
     mock_run = MagicMock(return_value=MagicMock(returncode=0))
@@ -35,7 +35,7 @@ def test_notify_linux_calls_notify_send(monkeypatch):
 
 
 def test_notify_linux_missing_notify_send_returns_false(monkeypatch):
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Linux")
     monkeypatch.setattr("shutil.which", lambda name: None)
     result = notify("t", "m")
@@ -43,7 +43,7 @@ def test_notify_linux_missing_notify_send_returns_false(monkeypatch):
 
 
 def test_notify_disabled_by_env(monkeypatch):
-    monkeypatch.setenv("KARMA_NO_NOTIFY", "1")
+    monkeypatch.setenv("PINRULE_NO_NOTIFY", "1")
     mock_run = MagicMock()
     with patch("subprocess.run", mock_run):
         result = notify("t", "m")
@@ -52,14 +52,14 @@ def test_notify_disabled_by_env(monkeypatch):
 
 
 def test_notify_unsupported_platform_returns_false(monkeypatch):
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Plan9")
     result = notify("t", "m")
     assert result is False
 
 
 def test_notify_empty_input_returns_false(monkeypatch):
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     mock_run = MagicMock()
     with patch("subprocess.run", mock_run):
@@ -70,7 +70,7 @@ def test_notify_empty_input_returns_false(monkeypatch):
 
 def test_notify_handles_subprocess_failure(monkeypatch):
     """subprocess 抛 OSError → 返回 False 不抛（fail open）。"""
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     mock_run = MagicMock(side_effect=OSError("no osascript"))
     with patch("subprocess.run", mock_run):
@@ -81,7 +81,7 @@ def test_notify_handles_subprocess_failure(monkeypatch):
 def test_notify_handles_timeout(monkeypatch):
     """subprocess timeout → 返回 False 不抛。"""
     import subprocess as sp
-    monkeypatch.delenv("KARMA_NO_NOTIFY", raising=False)
+    monkeypatch.delenv("PINRULE_NO_NOTIFY", raising=False)
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     mock_run = MagicMock(side_effect=sp.TimeoutExpired(cmd="osascript", timeout=2))
     with patch("subprocess.run", mock_run):

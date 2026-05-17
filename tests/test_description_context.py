@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from karma.checks.description_context import is_description_context
+from pinrule.checks.description_context import is_description_context
 
 
 def test_markdown_doc_is_description():
@@ -14,16 +14,16 @@ def test_markdown_doc_is_description():
     assert is_description_context("Write", {"file_path": "x.adoc"})[0]
 
 
-def test_karma_impl_files_are_description():
-    """karma/checks/ 和 karma/hooks/ 下 .py 文件是检测器实现 — 必然要含触发
-    字面（pattern 定义 / docstring 描述）→ 豁免。任何 karma 用户都有这些文件，
+def test_pinrule_impl_files_are_description():
+    """pinrule/checks/ 和 pinrule/hooks/ 下 .py 文件是检测器实现 — 必然要含触发
+    字面（pattern 定义 / docstring 描述）→ 豁免。任何 pinrule 用户都有这些文件，
     不算针对作者作弊。"""
-    assert is_description_context("Write", {"file_path": "/x/karma/checks/long_term.py"})[0]
-    assert is_description_context("Edit", {"file_path": "/repo/karma/checks/bypass_karma.py"})[0]
-    assert is_description_context("Write", {"file_path": "/a/karma/hooks/stop.py"})[0]
-    # 但 karma/cli.py / karma/sticky.py 等非 checks/hooks 不豁免
-    assert not is_description_context("Write", {"file_path": "/x/karma/cli.py"})[0]
-    assert not is_description_context("Write", {"file_path": "/x/karma/sticky.py"})[0]
+    assert is_description_context("Write", {"file_path": "/x/pinrule/checks/long_term.py"})[0]
+    assert is_description_context("Edit", {"file_path": "/repo/pinrule/checks/bypass_pinrule.py"})[0]
+    assert is_description_context("Write", {"file_path": "/a/pinrule/hooks/stop.py"})[0]
+    # 但 pinrule/cli.py / pinrule/sticky.py 等非 checks/hooks 不豁免
+    assert not is_description_context("Write", {"file_path": "/x/pinrule/cli.py"})[0]
+    assert not is_description_context("Write", {"file_path": "/x/pinrule/sticky.py"})[0]
 
 
 def test_data_config_files_are_description():
@@ -53,14 +53,14 @@ def test_test_file_name_pattern():
 def test_tmp_scratch_files_are_description():
     """/tmp/ 下临时文件 / 文件名含 probe/scratch/sample 算探针。"""
     assert is_description_context("Write", {"file_path": "/tmp/x.py"})[0]
-    assert is_description_context("Write", {"file_path": "/x/karma_probe.py"})[0]
+    assert is_description_context("Write", {"file_path": "/x/pinrule_probe.py"})[0]
     assert is_description_context("Write", {"file_path": "/x/scratch.py"})[0]
     assert is_description_context("Write", {"file_path": "/x/sample_data.py"})[0]
 
 
 def test_normal_source_code_not_description():
     """正常源码不豁免。"""
-    assert not is_description_context("Write", {"file_path": "src/karma.py"})[0]
+    assert not is_description_context("Write", {"file_path": "src/pinrule.py"})[0]
     assert not is_description_context("Edit", {"file_path": "/repo/foo.py"})[0]
     assert not is_description_context("Write", {"file_path": "lib/handler.ts"})[0]
 

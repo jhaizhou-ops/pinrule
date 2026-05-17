@@ -1,6 +1,6 @@
 """跨 backend 契约自动验证 (v0.10.1) — 让加新 Agent 平台 backend 注册即自动覆盖.
 
-karma v0.10.0 形式化了 6-method backend 契约 (`karma/backends/_base.py:Backend`).
+pinrule v0.10.0 形式化了 6-method backend 契约 (`pinrule/backends/_base.py:Backend`).
 本测试对 REGISTRY 里**每个**已注册 backend 跑同一套抽象契约测试. 任何 backend
 （包括未来 Cursor / Copilot / Cline 等加入的）注册到 REGISTRY 后这里自动覆盖,
 不需要为每个 backend 写一遍同样的契约测试.
@@ -9,7 +9,7 @@ karma v0.10.0 形式化了 6-method backend 契约 (`karma/backends/_base.py:Bac
 apply_patch envelope / Cursor permission shape 等）归各自 backend.py
 单独测试，本文件只验「6 method 都 callable + 返回类型合理 + 不抛异常」.
 
-参考: [[karma-backend-ownership-split]] memory, docs/CODEX_BACKEND.md
+参考: [[pinrule-backend-ownership-split]] memory, docs/CODEX_BACKEND.md
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import json
 
 import pytest
 
-from karma.backends import REGISTRY
+from pinrule.backends import REGISTRY
 
 
 # pytest parametrize fixture — 跑所有已注册 backend
@@ -142,36 +142,36 @@ def test_build_event_entry_returns_valid_entry(backend):
     - Claude / Codex: nested `{"hooks": [{"type": "command", "command": "..."}]}`
     - Cursor (native, https://cursor.com/docs/hooks): flat `{"command": "..."}`
 
-    Contract 只验 dict 且至少有 karma wrapper 路径痕迹 — 具体 shape 各 backend 自己测.
+    Contract 只验 dict 且至少有 pinrule wrapper 路径痕迹 — 具体 shape 各 backend 自己测.
     """
     events = backend.hook_events()
     first_event, first_basename = next(iter(events.items()))
     entry = backend.build_event_entry(first_basename, first_event)
     assert isinstance(entry, dict)
-    # 至少有一条路径里能找到 karma_ wrapper 前缀 (nested 或 flat shape 都 OK)
+    # 至少有一条路径里能找到 pinrule_ wrapper 前缀 (nested 或 flat shape 都 OK)
     entry_str = str(entry)
-    assert "karma_" in entry_str, (
+    assert "pinrule_" in entry_str, (
         f"backend {backend.name!r} build_event_entry 返回 {entry!r} — "
-        f"没有 karma_ wrapper 路径痕迹 (uninstall 时 is_karma_entry 无法识别)"
+        f"没有 pinrule_ wrapper 路径痕迹 (uninstall 时 is_pinrule_entry 无法识别)"
     )
 
 
-def test_is_karma_entry_recognizes_own_entry(backend):
-    """build_event_entry 生成的 entry 必须被 is_karma_entry 识别（自循环契约）."""
+def test_is_pinrule_entry_recognizes_own_entry(backend):
+    """build_event_entry 生成的 entry 必须被 is_pinrule_entry 识别（自循环契约）."""
     events = backend.hook_events()
     first_event, first_basename = next(iter(events.items()))
     entry = backend.build_event_entry(first_basename, first_event)
-    assert backend.is_karma_entry(entry), (
+    assert backend.is_pinrule_entry(entry), (
         f"backend {backend.name!r} build_event_entry 生成的 entry 没被自己的 "
-        f"is_karma_entry 识别 — uninstall 时无法清理自己装的 entry"
+        f"is_pinrule_entry 识别 — uninstall 时无法清理自己装的 entry"
     )
 
 
-def test_is_karma_entry_rejects_random_entry(backend):
-    """is_karma_entry 必须拒认不含 karma_ 字面的 entry (避免误删用户其他 hook)."""
+def test_is_pinrule_entry_rejects_random_entry(backend):
+    """is_pinrule_entry 必须拒认不含 pinrule_ 字面的 entry (避免误删用户其他 hook)."""
     foreign = {"hooks": [{"type": "command", "command": "/path/to/some-other-hook.py"}]}
-    assert not backend.is_karma_entry(foreign), (
-        f"backend {backend.name!r} is_karma_entry 误认陌生 entry — 卸载会误删用户其他 hook"
+    assert not backend.is_pinrule_entry(foreign), (
+        f"backend {backend.name!r} is_pinrule_entry 误认陌生 entry — 卸载会误删用户其他 hook"
     )
 
 
@@ -187,7 +187,7 @@ def test_backend_has_name_and_display_name(backend):
 
 def test_skill_install_targets_returns_list(backend):
     """skill_install_targets 返回 list[(Path, format_str)] tuple."""
-    targets = backend.skill_install_targets("karma")
+    targets = backend.skill_install_targets("pinrule")
     assert isinstance(targets, list)
     for path, fmt in targets:
         assert hasattr(path, "parts"), f"{path} should be Path-like"

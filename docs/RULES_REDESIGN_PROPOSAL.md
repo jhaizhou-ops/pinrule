@@ -1,4 +1,4 @@
-# karma Rule Text Optimization Proposal v1 (Implemented in v0.4.42)
+# pinrule Rule Text Optimization Proposal v1 (Implemented in v0.4.42)
 
 **[🇬🇧 English (current)](./RULES_REDESIGN_PROPOSAL.md) · [🇨🇳 中文](./RULES_REDESIGN_PROPOSAL.zh.md)**
 
@@ -6,11 +6,11 @@
 
 ## Background
 
-LLMs facing rule-system tone ("you must always follow X" / "⚠️ violation") activate fight-or-flight defensive reactions and find workarounds rather than truly correct behavior. karma's empirical observation: switching to "collaborative agreement" tone ("the human user you're collaborating with hopes...") triggers cooperation reactions where the Agent's first response is "adjust to align" rather than "find workaround."
+LLMs facing rule-system tone ("you must always follow X" / "⚠️ violation") activate fight-or-flight defensive reactions and find workarounds rather than truly correct behavior. pinrule's empirical observation: switching to "collaborative agreement" tone ("the human user you're collaborating with hopes...") triggers cooperation reactions where the Agent's first response is "adjust to align" rather than "find workaround."
 
 ## 6 categories of problems (Agent-perspective self-audit)
 
-I (Claude) as a long-time karma-monitored Agent, recorded my real first-reactions when seeing the previous rule text:
+I (Claude) as a long-time pinrule-monitored Agent, recorded my real first-reactions when seeing the previous rule text:
 
 1. **Warning words activate defensive reactions instead of reflection**: "⚠️ Last violation!" red alert + "violation" wording first reaction is "I'm being scolded → defensive compensation" (stack Chinese characters to pad ratio / find rationalization for using jargon). Threat-style language activates fight-or-flight, biasing "circumvent / surface-satisfy" rather than "reflect on root cause."
 
@@ -32,7 +32,7 @@ I (Claude) as a long-time karma-monitored Agent, recorded my real first-reaction
 | Doesn't miss real violations | Doesn't easily rationalize | **Clear but no escape hatch** — reflective style with concrete examples |
 | Doesn't over-stimulate | Doesn't activate defense | **Remove warning words** — delete "⚠️ violation don't repeat" red words |
 | Agent truly changes behavior | Knows how to do right next time | **Add positive action template** — not just prohibit, demonstrate |
-| Long-term cooperation | Treats karma as partner not judge | **"Collaborative agreement" not "rule system"** |
+| Long-term cooperation | Treats pinrule as partner not judge | **"Collaborative agreement" not "rule system"** |
 
 ## 4 dimensions of changes (before-after samples)
 
@@ -64,14 +64,14 @@ I (Claude) as a long-time karma-monitored Agent, recorded my real first-reaction
 
 **Before**:
 ```
-[karma sticky — User's highest-priority directions, must always follow]
+[pinrule sticky — User's highest-priority directions, must always follow]
 1. Use most fundamental, longest-term...
 3. Use plain Chinese. Don't use English technical jargon (F1 / precision)  ⚠️ Last violation!
 ```
 
 **After**:
 ```
-[karma — Your long-term agreement with the user]
+[pinrule — Your long-term agreement with the user]
 You're collaborating with a real human user who listed several long-term priorities.
 This isn't rules and isn't a judgment — these are the collaborative agreements they hope to build with you.
 
@@ -86,7 +86,7 @@ This isn't rules and isn't a judgment — these are the collaborative agreements
 
 **Before** Stop hook reminder:
 ```
-[karma strong reminder — last response hit detection]
+[pinrule strong reminder — last response hit detection]
   - keep-pushing-no-stop: response purely statement-ending, no push signal
     → ...
 Apply fix immediately, don't repeat the same mistake.
@@ -94,7 +94,7 @@ Apply fix immediately, don't repeat the same mistake.
 
 **After**:
 ```
-[karma — Last response had some misalignment with user agreement]
+[pinrule — Last response had some misalignment with user agreement]
 Your last response had drift on some points; see if you can adjust this turn:
   ▸ keep-pushing-no-stop
     The user is fully-delegating — they expect immediate continuation after finishing...

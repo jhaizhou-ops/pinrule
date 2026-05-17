@@ -8,7 +8,7 @@ history 顶部累积久了会被稀释，需要更早补回完整规则维持 at
 
 from __future__ import annotations
 
-from karma.model_threshold import threshold_for_model, DEFAULT_THRESHOLD
+from pinrule.model_threshold import threshold_for_model, DEFAULT_THRESHOLD
 
 
 def test_opus_returns_60k():
@@ -59,7 +59,7 @@ def test_keyword_priority_long_matches_first():
 
 
 # v0.10.4: OpenAI / Codex 模型族阈值 — 用户研究 (2026-05-16) 后真发现 codex 用户
-# 跟 Claude 共用 karma 但 gpt-5.5 等大 context 模型全 fallback 到 DEFAULT 40K
+# 跟 Claude 共用 pinrule 但 gpt-5.5 等大 context 模型全 fallback 到 DEFAULT 40K
 # 太密扰动表达. 加 11 条阈值精确适配.
 
 def test_gpt_5_5_returns_120k_for_1m_context_window():
@@ -127,7 +127,7 @@ def test_model_from_payload_prefers_payload_model():
     Codex 官方文档明确说每个 hook stdin 含 model 字段是 active model slug,
     transcript_path 不是稳定 hook 接口. 所以优先 payload.model.
     """
-    from karma.model_threshold import model_from_payload
+    from pinrule.model_threshold import model_from_payload
     # payload 含 model → 直接用, 不读 transcript (即便 transcript_path 是坏路径)
     assert model_from_payload(
         {"model": "gpt-5.5", "transcript_path": "/nonexistent/bad"}
@@ -138,7 +138,7 @@ def test_model_from_payload_prefers_payload_model():
 
 def test_model_from_payload_falls_back_to_transcript_when_no_model_field(tmp_path):
     """Claude payload (除 SessionStart) 没 model 字段 → 走 transcript fallback."""
-    from karma.model_threshold import model_from_payload
+    from pinrule.model_threshold import model_from_payload
     # 写一条假 transcript jsonl 含 model
     transcript = tmp_path / "fake_transcript.jsonl"
     transcript.write_text(
@@ -152,7 +152,7 @@ def test_model_from_payload_falls_back_to_transcript_when_no_model_field(tmp_pat
 
 def test_model_from_payload_skips_synthetic_model_value():
     """model='<synthetic>' (Claude 内部生成 message) 不算真 model → fallback transcript."""
-    from karma.model_threshold import model_from_payload
+    from pinrule.model_threshold import model_from_payload
     assert model_from_payload({"model": "<synthetic>"}) is None
     assert model_from_payload({"model": ""}) is None
     assert model_from_payload({}) is None
@@ -160,7 +160,7 @@ def test_model_from_payload_skips_synthetic_model_value():
 
 def test_model_from_payload_empty_payload_returns_none():
     """完全空 payload → None (不抛)."""
-    from karma.model_threshold import model_from_payload
+    from pinrule.model_threshold import model_from_payload
     assert model_from_payload({}) is None
 
 
@@ -175,11 +175,11 @@ def test_session_start_writes_payload_model_to_state(tmp_path, monkeypatch):
     import io
     import json as _json
     import sys
-    from karma.hooks import session_start
-    from karma import session_state
+    from pinrule.hooks import session_start
+    from pinrule import session_state
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
-    monkeypatch.setattr("karma.paths.karma_home", lambda: tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.paths.pinrule_home", lambda: tmp_path)
     payload = {
         "session_id": "test-ss-model",
         "source": "startup",
@@ -206,12 +206,12 @@ def test_user_prompt_submit_writes_payload_model_to_state(tmp_path, monkeypatch)
     import io
     import json as _json
     import sys
-    from karma.hooks import user_prompt_submit
-    from karma import session_state
+    from pinrule.hooks import user_prompt_submit
+    from pinrule import session_state
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     # 模拟 CI clean home: 空 rules — 验证 model 推进不依赖 rules 存在
-    monkeypatch.setattr("karma.hooks.user_prompt_submit.load", lambda: [])
+    monkeypatch.setattr("pinrule.hooks.user_prompt_submit.load", lambda: [])
     payload = {
         "session_id": "test-ups-model",
         "prompt": "hi",
@@ -236,10 +236,10 @@ def test_post_tool_use_writes_payload_model_to_state(tmp_path, monkeypatch):
     import io
     import json as _json
     import sys
-    from karma.hooks import post_tool_use
-    from karma import session_state
+    from pinrule.hooks import post_tool_use
+    from pinrule import session_state
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     payload = {
         "session_id": "test-pt-model",
         "tool_name": "Bash",

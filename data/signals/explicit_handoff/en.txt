@@ -1,4 +1,4 @@
-# karma signal: Agent explicitly asking for user's call (English)
+# pinrule signal: Agent explicitly asking for user's call (English)
 # Hit → exempts the keep_pushing reflection nudge (rule #7 "explicit
 # user-in-the-loop" principle — this is a legitimate ask pattern, not
 # a silent stop-and-ask)

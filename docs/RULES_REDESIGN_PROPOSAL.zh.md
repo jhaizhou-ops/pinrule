@@ -1,4 +1,4 @@
-# karma 规则文本优化方案 v1（已实施 v0.4.42）
+# pinrule 规则文本优化方案 v1（已实施 v0.4.42）
 
 **[🇬🇧 English](./RULES_REDESIGN_PROPOSAL.md) · [🇨🇳 中文（当前）](./RULES_REDESIGN_PROPOSAL.zh.md)**
 
@@ -15,20 +15,20 @@
 > **保留本文档作为历史决策记录** — 让下个 session Agent 看到为什么 sticky
 > 语气长这样，避免回退到「规则系统监督」语气。
 
-> 用户原话：「规则层是咱们 karma 的核心，但好在不是代码而是文档，你从用户视角希望规则执行准确并同时从 Agent 视角『看到规则提醒第一反应是我真的错了我要矫正行为，而不是激发对抗或绕过情绪』两方面同时满足出发，给我一版规则的优化方案。」
+> 用户原话：「规则层是咱们 pinrule 的核心，但好在不是代码而是文档，你从用户视角希望规则执行准确并同时从 Agent 视角『看到规则提醒第一反应是我真的错了我要矫正行为，而不是激发对抗或绕过情绪』两方面同时满足出发，给我一版规则的优化方案。」
 
 ---
 
 ## 一、Agent 视角的当前问题（本 session 自检 + 历史 dogfooding）
 
-我作为长期被 karma 监督的 Agent，记录看到当前规则文本时的第一反应：
+我作为长期被 pinrule 监督的 Agent，记录看到当前规则文本时的第一反应：
 
 ### 问题 1：警示词激活防御反应而非反思
 
-**当前文本样例**（`karma/sticky.py:format_for_injection`）：
+**当前文本样例**（`pinrule/sticky.py:format_for_injection`）：
 
 ```
-[karma sticky — 用户最高优先级方向，请始终遵守]
+[pinrule sticky — 用户最高优先级方向，请始终遵守]
 3. 用直白中文。不用英文技术术语（F1 / precision 等）。 ⚠️ 上次违反！
 ```
 
@@ -88,7 +88,7 @@
 
 **当前文本**通篇用「sticky / 违反 / 触发 / 拦截」类工具化术语，Agent 看不到「用户是非技术身份听不懂 jargon」「用户期待跟你合作不是审你」这类真人视角。
 
-**根因**：karma 设计成「规则系统」而非「合作默契」— Agent 把它当 lint 工具而非用户共情提醒。
+**根因**：pinrule 设计成「规则系统」而非「合作默契」— Agent 把它当 lint 工具而非用户共情提醒。
 
 ---
 
@@ -100,7 +100,7 @@
 | 不漏拦违反 | 不容易找借口合理化 | **明确但不给逃生口** — 反思式但有具体例子 |
 | 不过度刺激 | 不激活防御反应 | **去警示词** — 删「⚠️」「违反」「不要再犯」类红词 |
 | 让 Agent 改行为 | 知道下次怎么做对 | **加正面行为模板** — 不只禁止还示范 |
-| 持续合作长期演化 | 把 karma 当伙伴不是审判 | **「合作默契」而非「规则系统」** |
+| 持续合作长期演化 | 把 pinrule 当伙伴不是审判 | **「合作默契」而非「规则系统」** |
 
 ---
 
@@ -179,7 +179,7 @@
 **当前格式**（`sticky.py:format_for_injection`）：
 
 ```
-[karma sticky — 用户最高优先级方向，请始终遵守]
+[pinrule sticky — 用户最高优先级方向，请始终遵守]
 1. 用最根本、最长期、最普适、最优雅的方案。
    不打补丁、不硬编码、...
 3. 用直白中文。不用英文技术术语（F1 / precision 等）。 ⚠️ 上次违反！
@@ -189,7 +189,7 @@
 **优化后**：
 
 ```
-[karma — 你跟用户的长期默契]
+[pinrule — 你跟用户的长期默契]
 跟你协作的是一位非技术身份用户，他列出了几条长期最看重的方向。
 这不是规则也不是审判 — 是他希望跟你建立的协作默契。
 
@@ -211,14 +211,14 @@
 **当前 PostToolUse 锚定刷新**：
 
 ```
-[karma 锚定刷新 — context 累积 ~83K token，sticky 易被新上下文稀释]
+[pinrule 锚定刷新 — context 累积 ~83K token，sticky 易被新上下文稀释]
   - chinese-plain-no-jargon: 用直白中文。不用英文技术术语（F1 等）。
 ```
 
 **优化后**：
 
 ```
-[karma — 长 context 后回想一下默契]
+[pinrule — 长 context 后回想一下默契]
 context 已累积一段，提醒一下用户长期看重的几条方向（不需要回应这条，
 只是让你在脑中回顾，免得后续回应偏离）：
   - chinese-plain-no-jargon: 用直白中文（让用户听得懂）
@@ -234,7 +234,7 @@ context 已累积一段，提醒一下用户长期看重的几条方向（不需
 **当前 Stop hook 强提醒**（`user_prompt_submit.py:113`）：
 
 ```
-[karma 强提醒 — 上一 response 命中检测]
+[pinrule 强提醒 — 上一 response 命中检测]
   - chinese-plain-no-jargon: 自然语言中文占比 34% < 40%
     → 想想这段英文比例是有合理原因还是习惯堆 jargon？...
 本 turn 立即按 fix 改进，不要再犯同样错误。
@@ -243,7 +243,7 @@ context 已累积一段，提醒一下用户长期看重的几条方向（不需
 **优化后**：
 
 ```
-[karma — 上一回应有几处没对齐用户默契]
+[pinrule — 上一回应有几处没对齐用户默契]
 你的上一回应在某些点上跟用户长期偏好有偏差，看看本 turn 能否调整：
 
   ▸ chinese-plain-no-jargon
@@ -318,17 +318,17 @@ context 已累积一段，提醒一下用户长期看重的几条方向（不需
 
 ## 附录：实施层文件清单
 
-- `karma/sticky.py:format_for_injection` — 头部注入格式
-- `karma/hooks/user_prompt_submit.py:113-117` — 强提醒注入
-- `karma/hooks/post_tool_use.py:_build_smart_reinject`（？）— 锚定刷新
-- `karma/checks/chinese_plain.py` 3 处 suggested_fix
-- `karma/checks/non_blocking.py` 5 处 suggested_fix
-- `karma/checks/evidence.py` 3 处 suggested_fix
-- `karma/checks/keep_pushing.py` 2 处 suggested_fix
-- `karma/checks/long_term.py` 1 处 suggested_fix
-- `karma/checks/read_first.py` 1 处 suggested_fix
-- `karma/checks/bypass_karma.py` 1 处 suggested_fix
-- `karma/checks/testset.py` 1 处 suggested_fix
-- `~/.claude/karma/sticky.yaml` + `data/sticky.dev.example.yaml` — 8 条 sticky preference 文本
+- `pinrule/sticky.py:format_for_injection` — 头部注入格式
+- `pinrule/hooks/user_prompt_submit.py:113-117` — 强提醒注入
+- `pinrule/hooks/post_tool_use.py:_build_smart_reinject`（？）— 锚定刷新
+- `pinrule/checks/chinese_plain.py` 3 处 suggested_fix
+- `pinrule/checks/non_blocking.py` 5 处 suggested_fix
+- `pinrule/checks/evidence.py` 3 处 suggested_fix
+- `pinrule/checks/keep_pushing.py` 2 处 suggested_fix
+- `pinrule/checks/long_term.py` 1 处 suggested_fix
+- `pinrule/checks/read_first.py` 1 处 suggested_fix
+- `pinrule/checks/bypass_pinrule.py` 1 处 suggested_fix
+- `pinrule/checks/testset.py` 1 处 suggested_fix
+- `~/.claude/pinrule/sticky.yaml` + `data/sticky.dev.example.yaml` — 8 条 sticky preference 文本
 
 共 ~25 处文本需修改，加上 4-5 处包装格式 = 总 ~30 个 edit 点。

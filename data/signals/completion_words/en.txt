@@ -1,4 +1,4 @@
-# karma signal: completion claim phrases (English) — used by evidence check
+# pinrule signal: completion claim phrases (English) — used by evidence check
 # Agent uses these to claim a code task is done; combined with
 # _ACTION_CONTEXT_RE the check verifies real test-pass evidence exists.
 # No evidence + completion phrase → triggers "loud-failure-with-evidence"

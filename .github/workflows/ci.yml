@@ -28,14 +28,14 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint (ruff)
-        run: ruff check karma/ tests/
+        run: ruff check pinrule/ tests/
 
       - name: Dead code scan (vulture, min-confidence 60)
-        run: vulture karma/ whitelist.py --min-confidence 60
+        run: vulture pinrule/ whitelist.py --min-confidence 60
 
       - name: Type check (mypy)
         run: |
-          mypy karma/
+          mypy pinrule/
           mypy tests/
 
       - name: Test
@@ -50,7 +50,7 @@ jobs:
         run: |
           python -c "
           import glob, zipfile, sys
-          wheels = glob.glob('dist/karma-*-py3-none-any.whl')
+          wheels = glob.glob('dist/pinrule-*-py3-none-any.whl')
           if not wheels: sys.exit('wheel build 失败 — dist/ 无 wheel')
           z = zipfile.ZipFile(wheels[0])
           names = z.namelist()
@@ -65,7 +65,7 @@ jobs:
               'data/locales/en.yaml',
               'data/locales/zh.yaml',
               'data/config.example.yaml',
-              'skills/karma/SKILL.md',
+              'skills/pinrule/SKILL.md',
               # v0.9.15: 7 个 signal type * 2 lang = 14 文件
               # 用 sampling 而非全列：每个 signal type 至少 1 个 lang 在
               'data/signals/weak_claims/en.txt',
@@ -86,10 +86,10 @@ jobs:
         # 真能编译出 non-empty regex（防 packaging path 错 / load 失败）.
         # codex GPT-5.5 推荐 smoke test pattern.
         run: |
-          python -m venv /tmp/karma-wheel-test
-          /tmp/karma-wheel-test/bin/pip install dist/karma-*-py3-none-any.whl
-          /tmp/karma-wheel-test/bin/python -c "
-          from karma.signals import compile_alternation
+          python -m venv /tmp/pinrule-wheel-test
+          /tmp/pinrule-wheel-test/bin/pip install dist/pinrule-*-py3-none-any.whl
+          /tmp/pinrule-wheel-test/bin/python -c "
+          from pinrule.signals import compile_alternation
           # 验证 4 个关键 signal 真编译成 working regex
           for sig in ('weak_claims', 'completion_words', 'push_signals', 'stop_hints'):
               pat = compile_alternation(sig)

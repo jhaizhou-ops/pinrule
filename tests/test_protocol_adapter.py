@@ -1,13 +1,13 @@
 """v0.9.15: cross-backend protocol adapter — tool_name 归一化 + output shape.
 
 Background: codex GPT-5.5 cross-model audit + WebFetch 官方文档 (Gemini hooks
-ref / Codex hooks docs) 双验证发现 karma 之前假设三家 backend「字段同名兼容」
+ref / Codex hooks docs) 双验证发现 pinrule 之前假设三家 backend「字段同名兼容」
 有 2 个 critical bug：
 
-1. Codex emit_allow 必须返 `{}` 不是 Claude `{hookSpecificOutput: {permissionDecision: allow}}` — karma v0.9.16 真测发现 codex 不接受 Claude shape
+1. Codex emit_allow 必须返 `{}` 不是 Claude `{hookSpecificOutput: {permissionDecision: allow}}` — pinrule v0.9.16 真测发现 codex 不接受 Claude shape
    拦截全失效（写 violation 但 tool 真执行）
 2. Codex 编辑用
-   `apply_patch` — karma checks 用 Claude `Bash`/`Read`/`Edit`/`Write` 比较，
+   `apply_patch` — pinrule checks 用 Claude `Bash`/`Read`/`Edit`/`Write` 比较，
    完全不识别 → 全部 checks 跳过
 
 protocol_adapter.py 修这个：input normalize + output shape 分流。本测试锁
@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import sys
 
-from karma.backends.protocol_adapter import (
+from pinrule.backends.protocol_adapter import (
     detect_backend,
     emit_allow,
     emit_deny,
@@ -28,7 +28,7 @@ from karma.backends.protocol_adapter import (
 )
 # v0.10.5: parse_apply_patch_envelope 从 codex.py 直接 import (codex 私货归位)
 # 不再从 protocol_adapter re-export (v0.9.16 back-compat 已不需要)
-from karma.backends.codex import parse_apply_patch_envelope
+from pinrule.backends.codex import parse_apply_patch_envelope
 
 
 # v0.9.16 Codex apply_patch envelope — 真捕获自本机 codex 0.130.0 + GPT-5.5
@@ -36,7 +36,7 @@ from karma.backends.codex import parse_apply_patch_envelope
 # 确保 parser 不退化.
 REAL_CODEX_SINGLE_FILE_ENVELOPE = (
     "*** Begin Patch\n"
-    "*** Update File: /tmp/karma-codex-toy.py\n"
+    "*** Update File: /tmp/pinrule-codex-toy.py\n"
     "@@\n"
     "+# v0.9.16 test\n"
     "*** End Patch\n"
@@ -99,7 +99,7 @@ def test_detect_backend_codex_by_wrapper_path(monkeypatch):
     不能 fallback 到 claude-code, 否则 emit_allow 走错 shape 让 codex 报
     'unsupported permissionDecision:allow' 失败. 这是 v0.9.15 假设错的根因 lockdown.
     """
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_pre_tool_use.py"])
     assert detect_backend({}) == "codex"
     assert detect_backend({"hook_event_name": "PreToolUse"}) == "codex"
 
@@ -112,7 +112,7 @@ def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
     真测试 2026-05-16 codex 0.130 cli 报: unsupported permissionDecision:allow.
     任何后续 PR 让 codex.emit_allow 退回 Claude hookSpecificOutput shape 必须挂.
     """
-    from karma.backends import REGISTRY as _REG
+    from pinrule.backends import REGISTRY as _REG
     out = _REG["codex"].emit_allow({})
     assert out == "{}", (
         f"Codex emit_allow 必须返 '{{}}' 让 codex 通过 fail-open 路径, "
@@ -122,9 +122,9 @@ def test_codex_emit_allow_returns_empty_dict_not_claude_shape():
 
 def test_codex_permission_request_routes_to_codex_deny_shape(monkeypatch):
     """PermissionRequest is Codex-only; wrapper path must route to Codex output shape."""
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_pre_tool_use.py"])
     out = emit_deny(
-        "blocked by karma",
+        "blocked by pinrule",
         {"hook_event_name": "PermissionRequest"},
     )
     assert json.loads(out) == {
@@ -132,7 +132,7 @@ def test_codex_permission_request_routes_to_codex_deny_shape(monkeypatch):
             "hookEventName": "PermissionRequest",
             "decision": {
                 "behavior": "deny",
-                "message": "blocked by karma",
+                "message": "blocked by pinrule",
             },
         }
     }
@@ -140,13 +140,13 @@ def test_codex_permission_request_routes_to_codex_deny_shape(monkeypatch):
 
 def test_normalize_tool_name_codex_apply_patch_to_edit(monkeypatch):
     """v0.9.15 critical fix: Codex apply_patch（编辑入口）归一化成 Edit 让
-    long_term / testset / bypass_karma 扫 tool_input.command 时真触发。
+    long_term / testset / bypass_pinrule 扫 tool_input.command 时真触发。
     之前 apply_patch 漏所有编辑型 check → evidence check 被绕过。
 
     v0.10.5 (Agent 2 F1 fix): mock sys.argv 让 detect_backend 路由到 codex,
     不再依赖删掉的「apply_patch 字面兜底」.
     """
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_pre_tool_use.py"])
     codex_payload = {"hook_event_name": "PreToolUse"}
     assert normalize_tool_name("apply_patch", codex_payload) == "Edit"
     # Codex Bash 已是 canonical
@@ -183,7 +183,7 @@ def test_emit_allow_claude_explicit_allow():
 
 def test_parse_apply_patch_real_codex_envelope_single_file():
     files = parse_apply_patch_envelope(REAL_CODEX_SINGLE_FILE_ENVELOPE)
-    assert files == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}], (
+    assert files == [{"op": "Update", "path": "/tmp/pinrule-codex-toy.py"}], (
         "真 codex envelope (本机捕获) parser 退化 → "
         "Codex apply_patch 单文件场景 read_first/record_edit 漏文件路径"
     )
@@ -208,34 +208,34 @@ def test_parse_apply_patch_empty_input_returns_empty_list():
 
 
 def test_normalize_tool_input_codex_apply_patch_synthesizes_edit_shape(monkeypatch):
-    """Codex apply_patch (string envelope) → karma canonical Edit dict.
+    """Codex apply_patch (string envelope) → pinrule canonical Edit dict.
 
     v0.10.5 (Agent 2 F1 fix): mock sys.argv 让 detect_backend 真路由 codex
     (sys.argv[0] 含 /.codex/ → backend = codex), 而不是依赖 protocol_adapter
     的 `apply_patch` 字面兜底 (那条已删让 protocol_adapter 真无 backend 字面).
     """
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_pre_tool_use.py"])
     codex_payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     out = normalize_tool_input("apply_patch", REAL_CODEX_SINGLE_FILE_ENVELOPE, codex_payload)
     assert isinstance(out, dict)
-    assert out["file_path"] == "/tmp/karma-codex-toy.py", (
+    assert out["file_path"] == "/tmp/pinrule-codex-toy.py", (
         "primary file_path 没提到第一条 Update — read_first 会用错路径"
     )
     assert out["new_string"] == REAL_CODEX_SINGLE_FILE_ENVELOPE, (
         "new_string 应该是整个 envelope 让 keyword scan 看到全部内容"
     )
-    assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
+    assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/pinrule-codex-toy.py"}]
 
 
 def test_normalize_tool_input_codex_apply_patch_dict_form_input_field(monkeypatch):
     """Codex hook payload 可能 wrap tool_input 成 dict 含 input 字段 — 兜底."""
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_pre_tool_use.py"])
     codex_payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     wrapped = {"input": REAL_CODEX_SINGLE_FILE_ENVELOPE}
     out = normalize_tool_input("apply_patch", wrapped, codex_payload)
     assert isinstance(out, dict)
-    assert out["file_path"] == "/tmp/karma-codex-toy.py"
-    assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/karma-codex-toy.py"}]
+    assert out["file_path"] == "/tmp/pinrule-codex-toy.py"
+    assert out["multi_file_targets"] == [{"op": "Update", "path": "/tmp/pinrule-codex-toy.py"}]
 
 
 def test_normalize_tool_input_non_apply_patch_passthrough():
@@ -247,7 +247,7 @@ def test_normalize_tool_input_non_apply_patch_passthrough():
 
 def test_normalize_tool_input_multi_file_primary_is_first_update(monkeypatch):
     """多文件 envelope: primary file_path = 第一条 Update path（不是 Add/Delete）."""
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_pre_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_pre_tool_use.py"])
     payload = {"hook_event_name": "PreToolUse", "tool_name": "apply_patch"}
     out = normalize_tool_input("apply_patch", SYNTHETIC_MULTI_FILE_ENVELOPE, payload)
     assert out["file_path"] == "/tmp/a.py"
@@ -267,8 +267,8 @@ def test_read_first_multi_file_blocks_when_any_update_unread(tmp_path, monkeypat
     集成测试 lockdown: protocol_adapter.normalize_tool_input + read_first.check
     联动让多文件 codex 编辑真覆盖 read_first，不只看 primary file_path.
     """
-    from karma import session_state
-    from karma.checks.read_first import check as read_first_check
+    from pinrule import session_state
+    from pinrule.checks.read_first import check as read_first_check
 
     state = session_state.SessionState(session_id="codex-multifile-test")
     # 只读了 /tmp/a.py，没读 /tmp/b.py
@@ -294,8 +294,8 @@ def test_read_first_multi_file_blocks_when_any_update_unread(tmp_path, monkeypat
 
 def test_read_first_multi_file_allows_when_all_updates_read(tmp_path):
     """v0.9.16: 所有 Update path 都 Read 过 → read_first 放过."""
-    from karma import session_state
-    from karma.checks.read_first import check as read_first_check
+    from pinrule import session_state
+    from pinrule.checks.read_first import check as read_first_check
 
     state = session_state.SessionState(session_id="codex-multifile-pass")
     state.record_read("/tmp/a.py")
@@ -327,10 +327,10 @@ def test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts(
     import io
     import json
     import sys
-    from karma.hooks import post_tool_use
-    from karma import session_state
+    from pinrule.hooks import post_tool_use
+    from pinrule import session_state
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="canonical-write-paths-test")
     session_state.save(state, base_dir=tmp_path)
 
@@ -347,7 +347,7 @@ def test_post_tool_use_records_canonical_write_file_paths_advances_last_edit_ts(
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(synth_payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_post_tool_use.py"])
     rc = post_tool_use.main()
     assert rc == 0
 
@@ -372,10 +372,10 @@ def test_post_tool_use_records_codex_shell_read_paths(tmp_path, monkeypatch):
     import io
     import json
     import sys
-    from karma.hooks import post_tool_use
-    from karma import session_state
+    from pinrule.hooks import post_tool_use
+    from pinrule import session_state
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="codex-shell-read-test")
     session_state.save(state, base_dir=tmp_path)
 
@@ -388,14 +388,14 @@ def test_post_tool_use_records_codex_shell_read_paths(tmp_path, monkeypatch):
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(codex_payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_post_tool_use.py"])
     rc = post_tool_use.main()
     assert rc == 0
 
     reloaded = session_state.load("codex-shell-read-test", base_dir=tmp_path)
     assert reloaded.has_read("/workspace/src/x.py"), (
         "codex tail exec_command 没穿透到通用 record_read — read_first 在 codex "
-        "下仍会假阳拦后续 Edit. v0.10.1 codex+karma 配套环节断了."
+        "下仍会假阳拦后续 Edit. v0.10.1 codex+pinrule 配套环节断了."
     )
 
 
@@ -409,10 +409,10 @@ def test_post_tool_use_records_all_update_paths_in_multi_file_patch(tmp_path, mo
     import io
     import json
     import sys
-    from karma.hooks import post_tool_use
-    from karma import session_state
+    from pinrule.hooks import post_tool_use
+    from pinrule import session_state
 
-    monkeypatch.setattr("karma.session_state.DEFAULT_DIR", tmp_path)
+    monkeypatch.setattr("pinrule.session_state.DEFAULT_DIR", tmp_path)
     state = session_state.SessionState(session_id="codex-multi-record")
     session_state.save(state, base_dir=tmp_path)
 
@@ -424,7 +424,7 @@ def test_post_tool_use_records_all_update_paths_in_multi_file_patch(tmp_path, mo
     }
     monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(codex_payload)))
     monkeypatch.setattr(sys, "stdout", io.StringIO())
-    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/karma_post_tool_use.py"])
+    monkeypatch.setattr(sys, "argv", ["/Users/jhz/.codex/hooks/pinrule_post_tool_use.py"])
     rc = post_tool_use.main()
     assert rc == 0
 

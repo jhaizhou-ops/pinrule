@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from karma.hooks._transcript import (
+from pinrule.hooks._transcript import (
     message_kind,
     read_last_message_text,
 )

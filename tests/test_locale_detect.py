@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from karma.locale_detect import detect_user_language, is_chinese_user
+from pinrule.locale_detect import detect_user_language, is_chinese_user
 
 
 @pytest.fixture(autouse=True)

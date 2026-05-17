@@ -5,7 +5,7 @@ v0.6.0 BREAKING 把 `sticky.*` → `rules.*`。之前已做过多轮清扫（v0.
 
 本测试锁住「用户可见表面」白名单：
 - `data/locales/*.yaml` — 用户被拦时看到的 i18n message
-- `data/config.example.yaml` — `karma init` 后用户配置文件
+- `data/config.example.yaml` — `pinrule init` 后用户配置文件
 - `data/rules.dev.*.example*.yaml` — 用户安装时复制到 rules.yaml 的模板
 
 下次有人改动这些文件不小心引入旧名 → CI fail。

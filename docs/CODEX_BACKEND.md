@@ -2,15 +2,15 @@
 
 **[🇬🇧 English (current)](./CODEX_BACKEND.md) · [🇨🇳 中文](./CODEX_BACKEND.zh.md)**
 
-This document is the **interface contract + ownership boundary** for the karma `codex` backend. Starting from v0.10.0, the codex backend is owned and maintained by the **Codex itself** (via PRs from Codex sessions); karma main repo only provides the contract layer and merges PRs after review.
+This document is the **interface contract + ownership boundary** for the pinrule `codex` backend. Starting from v0.10.0, the codex backend is owned and maintained by the **Codex itself** (via PRs from Codex sessions); pinrule main repo only provides the contract layer and merges PRs after review.
 
 ## Why this split
 
-karma v0.9.15 cross-model audit and v0.9.16 codex envelope parser both hit a recurring failure pattern: **when Claude tries to guess Codex protocol details, it gets them wrong**. Documented incidents:
+pinrule v0.9.15 cross-model audit and v0.9.16 codex envelope parser both hit a recurring failure pattern: **when Claude tries to guess Codex protocol details, it gets them wrong**. Documented incidents:
 
-- **v0.9.15** assumed Codex accepts `hookSpecificOutput.permissionDecision:"allow"` shape — real-world testing on 2026-05-16 with codex 0.130 CLI produced the error `unsupported permissionDecision:allow`. The correct shape is bare `{}` per [codex hooks docs](https://developers.openai.com/codex/hooks). karma had this wrong for 1 release.
-- **shell-as-Read gap** — codex CLI has no separate `Read` tool; it reads files via `exec_command` running `tail` / `sed` / `cat` etc. karma's `record_read` only matches `tool_name == "Read"`, so codex's shell reads are invisible to karma's `read_first` check, causing false-positive denials on edits where the agent had legitimately read the file via shell. The fix requires recognizing shell-read patterns inside the codex backend, which Claude is not best positioned to design.
-- Codex feature flag churn — `codex_hooks` deprecated in favor of `hooks` (~2026-04), `features.hooks=true` now required, `/hooks` TUI approval required per wrapper (v0.130+). karma main repo is always 1-2 weeks behind on these.
+- **v0.9.15** assumed Codex accepts `hookSpecificOutput.permissionDecision:"allow"` shape — real-world testing on 2026-05-16 with codex 0.130 CLI produced the error `unsupported permissionDecision:allow`. The correct shape is bare `{}` per [codex hooks docs](https://developers.openai.com/codex/hooks). pinrule had this wrong for 1 release.
+- **shell-as-Read gap** — codex CLI has no separate `Read` tool; it reads files via `exec_command` running `tail` / `sed` / `cat` etc. pinrule's `record_read` only matches `tool_name == "Read"`, so codex's shell reads are invisible to pinrule's `read_first` check, causing false-positive denials on edits where the agent had legitimately read the file via shell. The fix requires recognizing shell-read patterns inside the codex backend, which Claude is not best positioned to design.
+- Codex feature flag churn — `codex_hooks` deprecated in favor of `hooks` (~2026-04), `features.hooks=true` now required, `/hooks` TUI approval required per wrapper (v0.130+). pinrule main repo is always 1-2 weeks behind on these.
 
 **Conclusion**: codex protocol detail ownership belongs to whoever has fastest signal on codex platform changes. That's Codex itself, running PR sessions through this very repo.
 
@@ -18,44 +18,44 @@ karma v0.9.15 cross-model audit and v0.9.16 codex envelope parser both hit a rec
 
 | File | Owner | Codex can modify? |
 |---|---|---|
-| `karma/backends/codex.py` | **Codex** | ✅ yes, primary file |
+| `pinrule/backends/codex.py` | **Codex** | ✅ yes, primary file |
 | `tests/test_codex_backend.py` (new, optional) | **Codex** | ✅ yes, codex private tests |
-| `karma/backends/_base.py` Protocol | karma maintainer | ❌ contract layer, file an issue to change |
-| `karma/backends/_json_hooks.py` base class | karma maintainer | ❌ default Claude-shape behaviors |
-| `karma/backends/protocol_adapter.py` dispatch | karma maintainer | ❌ pure routing |
-| `karma/hooks/*.py` main logic | karma maintainer | ❌ backend-neutral |
-| `karma/checks/*.py` engine checks | karma maintainer | ❌ backend-neutral |
-| `tests/test_protocol_adapter.py` cross-backend tests | karma maintainer | ❌ contract testing |
+| `pinrule/backends/_base.py` Protocol | pinrule maintainer | ❌ contract layer, file an issue to change |
+| `pinrule/backends/_json_hooks.py` base class | pinrule maintainer | ❌ default Claude-shape behaviors |
+| `pinrule/backends/protocol_adapter.py` dispatch | pinrule maintainer | ❌ pure routing |
+| `pinrule/hooks/*.py` main logic | pinrule maintainer | ❌ backend-neutral |
+| `pinrule/checks/*.py` engine checks | pinrule maintainer | ❌ backend-neutral |
+| `tests/test_protocol_adapter.py` cross-backend tests | pinrule maintainer | ❌ contract testing |
 
 ## The 8-method contract
 
-Codex backend (`CodexBackend` class in `karma/backends/codex.py`) must implement these methods. Default implementations in `JsonHooksBackend` base class are Claude-shaped; override to match codex protocol.
+Codex backend (`CodexBackend` class in `pinrule/backends/codex.py`) must implement these methods. Default implementations in `JsonHooksBackend` base class are Claude-shaped; override to match codex protocol.
 
 Methods 1-6 came with v0.10.0 split; methods 7-8 added in v0.10.6 to remove silent Claude-shape assumptions across ContextInjection + Stop hooks (4 ContextInjection-firing hooks + Stop's 2 block paths used to direct-print Claude shape — same drift pattern as v0.9.15).
 
 ### 1. `pre_install_setup(self) -> list[str]`
 
-Called before karma writes hooks.json. Currently runs `codex features enable hooks` to flip the feature flag. Return value is per-line user-visible log.
+Called before pinrule writes hooks.json. Currently runs `codex features enable hooks` to flip the feature flag. Return value is per-line user-visible log.
 
 **Current**: ✅ implemented. Reviews codex CLI for the feature command.
 
 ### 2. `post_install_message(self) -> list[str]`
 
-Called after karma writes hooks.json. Returns loud reminder lines printed to stdout. Used to tell user about `/hooks` TUI approval requirement.
+Called after pinrule writes hooks.json. Returns loud reminder lines printed to stdout. Used to tell user about `/hooks` TUI approval requirement.
 
 **Current**: ✅ implemented (placeholder text). Codex can tune the wording / add tutorial links / detect approval state if codex exposes an API.
 
 ### 3. `normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str`
 
-Map codex-native tool names to karma canonical (Claude-style: `Bash` / `Read` / `Edit` / `Write` / `NotebookEdit`).
+Map codex-native tool names to pinrule canonical (Claude-style: `Bash` / `Read` / `Edit` / `Write` / `NotebookEdit`).
 
-**Current**: `apply_patch → Edit`. **Likely incomplete** — codex may have other tool names (`exec_command`, `update_plan`, plugin tools) that karma should canonicalize.
+**Current**: `apply_patch → Edit`. **Likely incomplete** — codex may have other tool names (`exec_command`, `update_plan`, plugin tools) that pinrule should canonicalize.
 
-**Why this matters**: karma's engine checks compare `tool_name in ("Edit", "Write")` etc. Anything unmapped early-returns `None` from checks → no enforcement.
+**Why this matters**: pinrule's engine checks compare `tool_name in ("Edit", "Write")` etc. Anything unmapped early-returns `None` from checks → no enforcement.
 
 ### 4. `normalize_tool_input(self, raw_tool_name, raw_tool_input, payload) -> Any`
 
-Convert codex tool_input to karma canonical dict. For `apply_patch`, parse the envelope string into `{file_path, new_string, multi_file_targets}`.
+Convert codex tool_input to pinrule canonical dict. For `apply_patch`, parse the envelope string into `{file_path, new_string, multi_file_targets}`.
 
 **Current state** — **placeholder, codex should improve**:
 - `parse_apply_patch_envelope()` regex-parses `*** Begin Patch / *** Update File: / @@ / *** End Patch` blocks. Locked against one real captured envelope from 2026-05-16 13:51:47 session rollout. May miss edge cases (escaped paths, binary patches, etc.).
@@ -95,33 +95,33 @@ These TODOs were defined in v0.10.0's first cut of this doc and completed in sub
 
 | # | Issue | Status | Shipped in |
 |---|---|---|---|
-| 1 | **shell-as-Read** — `exec_command` running `tail`/`sed`/`cat` should count as Read | ✅ Done | v0.10.1 [PR #3](https://github.com/jhaizhou-ops/karma/pull/3) `extract_read_paths_from_exec_command()` |
-| 1.5 | **Simple pipe reads** — `head N | tail M` / `cat | head/tail` chains | ✅ Done | v0.10.3 [PR #5](https://github.com/jhaizhou-ops/karma/pull/5) extending shell-as-Read |
-| 2 | **Real hook-level payload capture** for SessionStart | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) — codex SessionStart payload captured and locked in test fixture |
-| 4 | **Other codex tool names** — `exec_command → Bash`, etc | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `_CODEX_TOOL_MAP` extended |
-| 5a | **Approval state UX** — manual `/hooks` approval bottleneck | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/karma/pull/4) `trust_karma_hooks()` auto-writes `trusted_hash` |
-| 7 | **`write_file_paths` canonical write field** — `sed -i` / `tee` / `producer \| tee file` write commands emit `write_file_paths` along with `is_write=True`. Generic layer `karma/hooks/post_tool_use.py:124-155` consumes the list (v0.10.5 karma-side ready) calling `state.record_edit(p)` for each path. Evidence check now sees codex `sed -i` etc as real code edits. | ✅ Done | post-v0.11.2 [PR #6](https://github.com/jhaizhou-ops/karma/pull/6) `extract_read_write_paths_from_exec_command` (function renamed from `extract_read_paths_from_exec_command`) returns `(read_paths, write_paths, is_write)` tuple |
+| 1 | **shell-as-Read** — `exec_command` running `tail`/`sed`/`cat` should count as Read | ✅ Done | v0.10.1 [PR #3](https://github.com/jhaizhou-ops/pinrule/pull/3) `extract_read_paths_from_exec_command()` |
+| 1.5 | **Simple pipe reads** — `head N | tail M` / `cat | head/tail` chains | ✅ Done | v0.10.3 [PR #5](https://github.com/jhaizhou-ops/pinrule/pull/5) extending shell-as-Read |
+| 2 | **Real hook-level payload capture** for SessionStart | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/pinrule/pull/4) — codex SessionStart payload captured and locked in test fixture |
+| 4 | **Other codex tool names** — `exec_command → Bash`, etc | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/pinrule/pull/4) `_CODEX_TOOL_MAP` extended |
+| 5a | **Approval state UX** — manual `/hooks` approval bottleneck | ✅ Done | v0.10.2 [PR #4](https://github.com/jhaizhou-ops/pinrule/pull/4) `trust_pinrule_hooks()` auto-writes `trusted_hash` |
+| 7 | **`write_file_paths` canonical write field** — `sed -i` / `tee` / `producer \| tee file` write commands emit `write_file_paths` along with `is_write=True`. Generic layer `pinrule/hooks/post_tool_use.py:124-155` consumes the list (v0.10.5 pinrule-side ready) calling `state.record_edit(p)` for each path. Evidence check now sees codex `sed -i` etc as real code edits. | ✅ Done | post-v0.11.2 [PR #6](https://github.com/jhaizhou-ops/pinrule/pull/6) `extract_read_write_paths_from_exec_command` (function renamed from `extract_read_paths_from_exec_command`) returns `(read_paths, write_paths, is_write)` tuple |
 
 ## Remaining TODO list (codex agenda)
 
 | # | Issue | Suggested approach |
 |---|---|---|
-| 2-followup | **Real hook-level payload capture for PreToolUse / PostToolUse / Stop / UserPromptSubmit** — only SessionStart shape captured so far. `_extract_codex_patch_text` still defensively unwraps multiple candidate shapes for apply_patch hook payloads — can be tightened once real PreToolUse hook payload captured. | Add `KARMA_DEBUG_DUMP_PAYLOAD` env to real interactive codex session (post-`/hooks` approval), dump payloads, lock real shape in fixture, tighten `_extract_codex_patch_text` to verified key only. |
+| 2-followup | **Real hook-level payload capture for PreToolUse / PostToolUse / Stop / UserPromptSubmit** — only SessionStart shape captured so far. `_extract_codex_patch_text` still defensively unwraps multiple candidate shapes for apply_patch hook payloads — can be tightened once real PreToolUse hook payload captured. | Add `PINRULE_DEBUG_DUMP_PAYLOAD` env to real interactive codex session (post-`/hooks` approval), dump payloads, lock real shape in fixture, tighten `_extract_codex_patch_text` to verified key only. |
 | 3 | **Codex feature-flag detection cleanup** — `_is_hooks_feature_enabled` parses `~/.codex/config.toml`. Codex may expose a cleaner API in 0.131+. | If codex CLI ships `codex features list --json` or status file, replace the toml parser. Low priority — toml parser works. |
-| 5b | **Programmatic approval verification** — `trust_karma_hooks()` writes `trusted_hash`; `karma doctor` could programmatically verify each wrapper is currently approved (vs. relying on user to check TUI). | Investigate whether `~/.codex/config.toml` `[hooks.state]` entries can be read back and validated against current wrapper hashes. If yes, `karma doctor` adds a green/red check per wrapper. |
+| 5b | **Programmatic approval verification** — `trust_pinrule_hooks()` writes `trusted_hash`; `pinrule doctor` could programmatically verify each wrapper is currently approved (vs. relying on user to check TUI). | Investigate whether `~/.codex/config.toml` `[hooks.state]` entries can be read back and validated against current wrapper hashes. If yes, `pinrule doctor` adds a green/red check per wrapper. |
 | 6 | **Pipe read additional patterns** — `xargs cat` / recursive `grep -r` / `find` deliberately not recognized (PR #5 conservative scope). If real codex usage shows high false-negative rate on these, design combo-pattern engine. | Mine `~/.codex/sessions/*/` rollouts for actual frequency of these patterns; if high, design extension. |
 | 8 | **`emit_context_injection` / `emit_stop_block` codex shape verification** — v0.10.6 added 8-method Backend Protocol; codex.py currently inherits Claude-shape defaults but real codex acceptance of `{hookSpecificOutput, additionalContext}` shape (SessionStart / UserPromptSubmit / PostToolUse / SubagentStart) and `{decision: "block", reason}` shape (Stop) unverified. PR #6 explicitly punted: "not override, Claude shape default" with locked test. | Capture real codex payloads when these hooks fire in interactive sessions. If codex accepts Claude shape silently, lock test stays. If codex returns error / silently drops, override `emit_context_injection` / `emit_stop_block` for codex backend. |
 
 ## How to contribute (codex PR flow)
 
-1. **Modify** `karma/backends/codex.py` only (and `tests/test_codex_backend.py` if you create it)
+1. **Modify** `pinrule/backends/codex.py` only (and `tests/test_codex_backend.py` if you create it)
 2. **Verify** existing tests still pass: `.venv/bin/python -m pytest tests/test_protocol_adapter.py tests/test_backends.py -q`
 3. **Add tests** for any new method behavior — at minimum, lock the new shape with a hardcoded expected output
 4. **Capture real codex CLI evidence** (rollout file path / session ID / version) in commit message — this avoids the v0.9.15 "Claude guessed and got it wrong" pattern
-5. **Don't break the 8-method contract** — if you need to add a new method, file an issue first so karma maintainer can update `_base.py` Protocol and all backends synchronously
+5. **Don't break the 8-method contract** — if you need to add a new method, file an issue first so pinrule maintainer can update `_base.py` Protocol and all backends synchronously
 6. **PR description must include**:
    - codex CLI version tested against (e.g., `codex 0.130.0`)
-   - real-world test transcript (e.g., user prompt → karma response screenshot)
+   - real-world test transcript (e.g., user prompt → pinrule response screenshot)
    - any new tool names / payload shapes captured (file path to session rollout)
 
 ## Contract testing (implemented v0.10.1)
@@ -133,7 +133,7 @@ These TODOs were defined in v0.10.0's first cut of this doc and completed in sub
 - `hook_events()` non-empty dict + snake_case basenames
 - `settings_path()` under dotted config dir
 - `build_event_entry()` returns dict with `hooks` key
-- `is_karma_entry()` recognizes own entry + rejects foreign entry
+- `is_pinrule_entry()` recognizes own entry + rejects foreign entry
 - `name` / `display_name` non-empty
 - `skill_install_targets()` returns list with valid format strings
 
@@ -142,5 +142,5 @@ Any codex PR breaking these auto-fails CI. Adding a new backend automatically pi
 ## Communication channels
 
 - **Architectural questions**: file GitHub issue tagged `backend:codex`, mention `@jhaizhou-ops`
-- **PR review**: karma maintainer reviews within 1-2 days; aim for narrow, focused PRs (one TODO item per PR)
+- **PR review**: pinrule maintainer reviews within 1-2 days; aim for narrow, focused PRs (one TODO item per PR)
 - **Breaking changes**: must be discussed in issue first; codex backend can request `_base.py` contract changes if real codex protocol needs it

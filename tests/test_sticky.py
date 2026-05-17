@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from karma.rule import (
+from pinrule.rule import (
     HARD_MAX,
     Rule,
     RuleConfigError,
@@ -97,7 +97,7 @@ def test_load_real_example() -> None:
         "chinese-plain-no-jargon",
         "loud-failure-with-evidence",
         "no-testset-no-future-leakage",
-        "deep-fix-not-bypass",  # M4 末加 — 监管 Agent 绕开 karma 的元层规则
+        "deep-fix-not-bypass",  # M4 末加 — 监管 Agent 绕开 pinrule 的元层规则
         "read-before-write",
     }
     assert ids == expected
@@ -146,7 +146,7 @@ def test_format_for_injection_basic() -> None:
     ]
     out = format_for_injection(sticky)
     # 2026-05-15 重写：合作默契语气取代「规则系统」包装
-    assert "[karma" in out
+    assert "[pinrule" in out
     assert "默契" in out  # 头部合作语气关键字
     assert "1. [r1] 方向 1" in out
     assert "   细节" in out  # 多行缩进
@@ -170,14 +170,14 @@ def test_format_for_injection_empty_list() -> None:
 
 def test_format_anchor_only_basic() -> None:
     """v0.13.0: anchor 只列 violated rule (id + 第一行 preference, 无 marker 自动加)."""
-    from karma.rule import format_anchor_only
+    from pinrule.rule import format_anchor_only
     rules = [
         Rule(id="r1", preference="方向 1 的核心一句\n  详细说明 (anchor 不该含此行)"),
         Rule(id="r2", preference="方向 2 的核心"),
     ]
     # v0.13.0: 必须传 violated_rule_ids 才有 anchor 输出
     out = format_anchor_only(rules, violated_rule_ids={"r1", "r2"})
-    assert "[karma" in out
+    assert "[pinrule" in out
     assert "精简版" in out  # anchor 头部含「精简版」说明
     # 含规则 id (跟 format_for_injection 不同 — anchor 必须带 id)
     assert "[r1]" in out
@@ -191,7 +191,7 @@ def test_format_anchor_only_basic() -> None:
 
 def test_format_anchor_only_marks_recent_violation() -> None:
     """v0.13.0: anchor 里全是 violated rule 自动加 drift marker."""
-    from karma.rule import format_anchor_only
+    from pinrule.rule import format_anchor_only
     rules = [Rule(id="r1", preference="方向 1")]
     out = format_anchor_only(rules, violated_rule_ids={"r1": 12345})
     assert "偏离" in out
@@ -200,7 +200,7 @@ def test_format_anchor_only_marks_recent_violation() -> None:
 
 def test_format_anchor_only_token_savings_vs_full() -> None:
     """v0.9.0 设计意图: anchor 精简版应比 format_for_injection 全量版 token 少很多。"""
-    from karma.rule import format_anchor_only
+    from pinrule.rule import format_anchor_only
     rules = [
         Rule(id=f"r{i}", preference=f"方向 {i} 的核心\n   详细说明 1\n   详细说明 2\n   详细说明 3")
         for i in range(10)
@@ -213,23 +213,23 @@ def test_format_anchor_only_token_savings_vs_full() -> None:
 
 def test_format_anchor_only_empty_list() -> None:
     """空规则列表 → 空 anchor。"""
-    from karma.rule import format_anchor_only
+    from pinrule.rule import format_anchor_only
     assert format_anchor_only([]) == ""
 
 
 # -------- v0.6.0 deletion-lock tests --------
 
-def test_v0600_karma_sticky_module_removed():
-    """v0.6.0: import karma.sticky 应该抛 ModuleNotFoundError (整个 shim module 删了)."""
+def test_v0600_pinrule_sticky_module_removed():
+    """v0.6.0: import pinrule.sticky 应该抛 ModuleNotFoundError (整个 shim module 删了)."""
     import pytest
     with pytest.raises(ModuleNotFoundError):
-        import karma.sticky  # noqa: F401
+        import pinrule.sticky  # noqa: F401
 
 
 def test_v0600_violation_sticky_id_attribute_removed():
     """v0.6.0: Violation.sticky_id @property 删了 (用 .rule_id)."""
     import pytest
-    from karma.violations import Violation
+    from pinrule.violations import Violation
     v = Violation(ts=1, session_id="s", rule_id="r", trigger="x", snippet=".", turn=1)
     assert v.rule_id == "r"  # 新属性仍工作
     with pytest.raises(AttributeError):
@@ -239,7 +239,7 @@ def test_v0600_violation_sticky_id_attribute_removed():
 def test_v0600_check_hit_sticky_id_attribute_removed():
     """v0.6.0: CheckHit.sticky_id @property 删了 (用 .rule_id)."""
     import pytest
-    from karma.checks._types import CheckHit
+    from pinrule.checks._types import CheckHit
     h = CheckHit(rule_id="r", trigger="x", snippet=".", suggested_fix="y")
     assert h.rule_id == "r"
     with pytest.raises(AttributeError):
@@ -247,20 +247,20 @@ def test_v0600_check_hit_sticky_id_attribute_removed():
 
 
 def test_v0600_rule_module_aliases_removed():
-    """v0.6.0: karma.rule 里 Sticky / MAX_STICKY / StickyConfigError aliases 删了."""
-    import karma.rule as r
+    """v0.6.0: pinrule.rule 里 Sticky / MAX_STICKY / StickyConfigError aliases 删了."""
+    import pinrule.rule as r
     assert not hasattr(r, "Sticky")
     assert not hasattr(r, "MAX_STICKY")
     assert not hasattr(r, "StickyConfigError")
 
 
-def test_v0600_karma_sticky_cli_returns_unknown():
-    """v0.6.0: `karma sticky` CLI 子命令删了, 返 1 带「你是不是想用 karma rule」hint."""
+def test_v0600_pinrule_sticky_cli_returns_unknown():
+    """v0.6.0: `pinrule sticky` CLI 子命令删了, 返 1 带「你是不是想用 pinrule rule」hint."""
     import subprocess
     import sys
     result = subprocess.run(
-        [sys.executable, "-m", "karma.cli", "sticky", "list"],
+        [sys.executable, "-m", "pinrule.cli", "sticky", "list"],
         capture_output=True, text=True
     )
     assert result.returncode == 1
-    assert "karma rule" in result.stderr
+    assert "pinrule rule" in result.stderr

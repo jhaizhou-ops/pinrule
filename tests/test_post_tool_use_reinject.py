@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from karma.hooks.post_tool_use import _estimate_tokens, _build_smart_reinject
-from karma.session_state import SessionState
-from karma.rule import Rule as Sticky
+from pinrule.hooks.post_tool_use import _estimate_tokens, _build_smart_reinject
+from pinrule.session_state import SessionState
+from pinrule.rule import Rule as Sticky
 
 
 def _make_sticky(sid: str) -> Sticky:
@@ -60,9 +60,9 @@ def test_estimate_tokens_subagent_only_counts_main_visible():
 def test_no_reinject_when_below_threshold():
     """累积 token 未达阈值 → 不注入 + state 不动 (v0.9.0: sonnet 默认 40K)。"""
     state = _make_state(byte_seq=5000, last_reinject=0)  # 累积 5K < 40K sonnet 阈值
-    with patch("karma.hooks.post_tool_use._load_sticky", create=True), \
-         patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 2}):
+    with patch("pinrule.hooks.post_tool_use._load_sticky", create=True), \
+         patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 2}):
         result = _build_smart_reinject("test", state)
     assert result == ""
     assert state.last_reinject_byte_seq == 0  # 未达阈值不更新
@@ -75,11 +75,11 @@ def test_reinject_when_threshold_reached_and_sticky_triggered():
     注入 format_for_injection（含每条 preference 全文）抗稀释。
     """
     state = _make_state(byte_seq=50000, last_reinject=0)  # sonnet 40K 阈值，累积 50K 触发
-    with patch("karma.rule.load", return_value=[_make_sticky("r1"), _make_sticky("r2")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 2}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1"), _make_sticky("r2")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 2}):
         result = _build_smart_reinject("test", state)
     # v0.9.0: 全量注入 format_for_injection 输出 — 含 inject.header.title
-    assert "[karma" in result and "长期默契" in result
+    assert "[pinrule" in result and "长期默契" in result
     # 所有规则都在 (v0.9.0 全量) — r2 也应该出现
     assert "r1" in result
     assert "r2" in result
@@ -92,14 +92,14 @@ def test_threshold_resets_after_reinject():
     v0.9.0: sonnet 40K 阈值，累积 50K 触发首次，再加 5K 不再触发。
     """
     state = _make_state(byte_seq=50000, last_reinject=0)
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 1}):
         r1 = _build_smart_reinject("test", state)
     assert r1 != ""
     # 模拟下个 tool 累积 5K（55000-50000=5K < 40K sonnet 阈值）
     state.tool_byte_seq = 55000
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 1}):
         r2 = _build_smart_reinject("test", state)
     assert r2 == ""  # 未再达阈值不重复注入
 
@@ -111,12 +111,12 @@ def test_no_recent_violations_still_injects_full_baseline():
     v0.9.0 累积达阈值就全量注入（设计意图：抗稀释不依赖违反触发）。
     """
     state = _make_state(byte_seq=50000, last_reinject=0)  # sonnet 40K，50K 触发
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={}):
         result = _build_smart_reinject("test", state)
     # v0.9.0: 累积达阈值就全量注入，不管有没有最近违反
     assert result != ""
-    assert "[karma" in result and "长期默契" in result
+    assert "[pinrule" in result and "长期默契" in result
     # 节流：注入后更新位置防止下次立即重判
     assert state.last_reinject_byte_seq == 50000
 
@@ -124,28 +124,28 @@ def test_no_recent_violations_still_injects_full_baseline():
 def test_zero_turn_returns_empty():
     """turn=0 (session 起手未提 prompt) → 不注入。"""
     state = _make_state(turn=0, byte_seq=70000)
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]):
         assert _build_smart_reinject("test", state) == ""
 
 
 def test_threshold_adapts_to_opus_model():
     """v0.9.0: opus 阈值 60K（v0.4.35 是 80K），50K byte_seq 不触发，65K 触发。"""
     state = _make_state(byte_seq=50000, last_reinject=0, model="claude-opus-4-7")
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 1}):
         result = _build_smart_reinject("test", state)
     assert result == ""  # opus 阈值 60K，累积 50K 不触发
     state.tool_byte_seq = 65000
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 1}):
         result = _build_smart_reinject("test", state)
-    assert "[karma" in result and "长期默契" in result  # opus 累积 65K 触发
+    assert "[pinrule" in result and "长期默契" in result  # opus 累积 65K 触发
 
 
 def test_threshold_adapts_to_haiku_model():
     """haiku 模型阈值 30K（不变），35K byte_seq 触发。"""
     state = _make_state(byte_seq=35000, last_reinject=0, model="claude-haiku-4-5")
-    with patch("karma.rule.load", return_value=[_make_sticky("r1")]), \
-         patch("karma.violations.recent_turns", return_value={"r1": 1}):
+    with patch("pinrule.rule.load", return_value=[_make_sticky("r1")]), \
+         patch("pinrule.violations.recent_turns", return_value={"r1": 1}):
         result = _build_smart_reinject("test", state)
-    assert "[karma" in result and "长期默契" in result  # haiku 30K 阈值，35K 触发
+    assert "[pinrule" in result and "长期默契" in result  # haiku 30K 阈值，35K 触发

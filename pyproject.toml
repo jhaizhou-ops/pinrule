@@ -1,6 +1,6 @@
 [project]
-name = "karma"
-version = "0.15.1"
+name = "pinrule"
+version = "0.16.0"
 description = "Sticky core directional preferences for Claude / Codex / Cursor — keep Agent on track in long sessions"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,20 +26,20 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jhaizhou-ops/karma"
-Repository = "https://github.com/jhaizhou-ops/karma"
-Issues = "https://github.com/jhaizhou-ops/karma/issues"
-Changelog = "https://github.com/jhaizhou-ops/karma/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/jhaizhou-ops/pinrule"
+Repository = "https://github.com/jhaizhou-ops/pinrule"
+Issues = "https://github.com/jhaizhou-ops/pinrule/issues"
+Changelog = "https://github.com/jhaizhou-ops/pinrule/blob/main/CHANGELOG.md"
 
 [project.scripts]
-karma = "karma.cli:main"
+pinrule = "pinrule.cli:main"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
-    "vulture>=2.14",   # 死代码扫描 — 跑 `vulture karma/ --min-confidence 60`
-    "mypy>=1.10",      # 静态类型检查 — 跑 `mypy karma/`（ignore_missing_imports 已配 [tool.mypy]）
+    "vulture>=2.14",   # 死代码扫描 — 跑 `vulture pinrule/ --min-confidence 60`
+    "mypy>=1.10",      # 静态类型检查 — 跑 `mypy pinrule/`（ignore_missing_imports 已配 [tool.mypy]）
 ]
 
 [build-system]
@@ -47,7 +47,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["karma"]
+packages = ["pinrule"]
 artifacts = ["data/*.yaml"]
 
 [tool.hatch.build.targets.wheel.force-include]
@@ -65,7 +65,7 @@ artifacts = ["data/*.yaml"]
 # 影响所有 pip install 用户（含 Claude 主流场景）— 比 cross-backend bug
 # 还紧急. 用整目录 force-include 不是 globbing，避免漏新加的 signal type.
 "data/signals" = "data/signals"
-"skills/karma/SKILL.md" = "skills/karma/SKILL.md"
+"skills/pinrule/SKILL.md" = "skills/pinrule/SKILL.md"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -76,5 +76,5 @@ line-length = 100
 target-version = "py311"
 
 [tool.mypy]
-# PyYAML 没官方 stub（types-PyYAML 是社区维护），karma 不引入额外 stub 依赖
+# PyYAML 没官方 stub（types-PyYAML 是社区维护），pinrule 不引入额外 stub 依赖
 ignore_missing_imports = true
