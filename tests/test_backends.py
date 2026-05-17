@@ -17,9 +17,17 @@ from pinrule.backends._base import SettingsParseError
 
 @pytest.fixture
 def fake_home(tmp_path, monkeypatch):
-    """让 Path.home() 指向 tmp，让 backend 写到 tmp 不污染真 home。"""
+    """让 Path.home() / pinrule_install_root() 指向 tmp, backend 写 tmp 不污染真 home.
+
+    跨平台细节:
+    - Unix: Path.home() 读 $HOME
+    - Windows: Path.home() 读 $USERPROFILE (有时回退到 $HOMEDRIVE+$HOMEPATH)
+    - PINRULE_HOME (v0.16.11+ install_root sandbox 真路径): 优先级最高,
+      所有 backend 装机路径都走它, 设了就稳跨平台.
+    """
     monkeypatch.setenv("HOME", str(tmp_path))
-    # Path.home() 实际读 HOME 环境变量
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("PINRULE_HOME", str(tmp_path))
     return tmp_path
 
 
