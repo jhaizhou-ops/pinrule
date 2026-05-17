@@ -1,163 +1,168 @@
-# pinrule Hook 配置指南
+# pinrule Hook Configuration Guide
 
-`pinrule install-hooks` 把 hook 写进对应 AI 客户端的配置文件。本指南以 Claude 为例（8 个 hook 全覆盖最完整），Codex / Cursor 用相同命令切 `--backend`，hook 业务逻辑同源，仅 native event 数 + 写入路径不同。
+**[🇬🇧 English (current)](./HOOK_CONFIGURATION_GUIDE.md) · [🇨🇳 中文](./HOOK_CONFIGURATION_GUIDE.zh.md)**
 
-| Backend | install 命令 | 写入位置 | Native event 数 |
+`pinrule install-hooks` writes hooks into your AI client's settings file. This guide uses Claude as the running example (8 hooks — most complete coverage); Codex / Cursor use the same command with `--backend`, the hook business logic is shared, only the native-event count and write path differ.
+
+| Backend | Install command | Write location | Native event count |
 |---|---|---|---|
-| Claude（默认） | `pinrule install-hooks` | `~/.claude/settings.json` | 8 |
+| Claude (default) | `pinrule install-hooks` | `~/.claude/settings.json` | 8 |
 | Codex CLI | `pinrule install-hooks --backend codex` | `~/.codex/config.toml` | 6 |
 | Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `~/.cursor/hooks.json` | 12 |
 
-## 快速开始
+## Quick start
 
 ```bash
-pinrule init                                       # 创建 ~/.pinrule/ + 复制规则模板
-pinrule install-hooks                              # 默认 Claude（也可加 --backend codex/cursor 或 all）
-pinrule doctor                                     # 验证装机（自动扫所有装机的 backend）
+pinrule init                                       # Create ~/.pinrule/ + copy rule template
+pinrule install-hooks                              # Defaults to Claude (also accepts --backend codex/cursor or all)
+pinrule doctor                                     # Verify install (auto-scans every installed backend)
 ```
 
-装完重启 AI 客户端，hook 立即生效。规则在 `~/.pinrule/rules.yaml`（跨 backend 共享） — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
+Restart your AI client after install — hooks take effect immediately. Rules live in `~/.pinrule/rules.yaml` (shared across backends) — edit with `pinrule rule edit`, or invoke `/pinrule <natural language>` and let the skill write the rule for you.
 
 ---
 
-## 8 个 hook 速查
+## 8-hook cheat sheet
 
-| Hook | 何时触发 | 作用 | 用户感知 |
+| Hook | When it fires | What it does | User visibility |
 |---|---|---|---|
-| **UserPromptSubmit** | 你提交 prompt 前 | 注入精简 anchor（id + 第一行 + 偏离标记，~490 tok）— v0.9.0 新设计 | 后台工作，无通知 |
-| **PreToolUse** | Agent 调 tool 前 | 拦截违反核心方向的工具调用 | 命中时 ❌ 权限被拒（附理由） |
-| **PostToolUse** | tool 调用成功后 | 跟踪 session 状态；session 累积到模型衰减拐点（Opus 60K / Sonnet 40K / Haiku 30K）全量 reinject 完整规则抗稀释 | 后台跟踪，无通知 |
-| **Stop** | Agent 想停下前 | 检测违反 + 静默停止时启发继续推进 | ⚠️ stderr 提醒 + 桌面通知 |
-| **PreCompact** | 客户端自动 compact 前 | 完整规则状态落盘 snapshot | 后台落盘，无通知 |
-| **SessionStart** | session 起手 / compact 后重起 | **全量** baseline 注入完整规则（v0.9.0 唯一一次 ~1817 tok 注入进 history）；compact 重起时读 snapshot 强注入 | 后台注入，无通知 |
-| **SubagentStart** | 启动子 Agent 时 | 子 Agent 自动继承完整规则 + 维护独立监控状态 | 子 Agent 头部看到规则注入 |
-| **SubagentStop** | 子 Agent 结束时 | 子 Agent 临时状态自动销毁，不污染主 session | 后台清理，无通知 |
+| **UserPromptSubmit** | Before you submit a prompt | Injects compact anchor (id + first line + drift markers, ~490 tok) — v0.9.0 design | Background, no notification |
+| **PreToolUse** | Before Agent calls a tool | Intercepts tool calls that violate core directions | ❌ Permission denied (with reason) on hit |
+| **PostToolUse** | After tool call succeeds | Tracks session state; on hitting per-model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) full-reinjects rules to fight dilution | Background tracking, no notification |
+| **Stop** | Before Agent stops generating | Detects violations + nudges continuation on silent stop | ⚠️ stderr reminder + desktop notify |
+| **PreCompact** | Before client auto-compacts | Snapshots full rule state to disk | Background snapshot, no notification |
+| **SessionStart** | Session start / compact restart | **Full** baseline rule injection (the v0.9.0 one-and-only ~1817 tok inject into history); on compact-restart, reads the snapshot and force-injects | Background inject, no notification |
+| **SubagentStart** | When spawning a subagent | Subagent auto-inherits the full rule set + maintains independent monitoring state | Subagent sees rules in its header |
+| **SubagentStop** | When a subagent finishes | Subagent's temp state auto-destroys, doesn't pollute the main session | Background cleanup, no notification |
 
-所有 hook 输出严格按 Claude 官方协议 schema — 不会被客户端 UI 报错。
+All hook outputs strictly follow each client's official protocol schema — no client-side UI error popups.
 
 ---
 
-## 配置路径
+## File paths
 
-**跨 backend 共享**（用户级数据）：
+**Shared across backends** (user-level data):
 
 ```bash
-~/.pinrule/rules.yaml           # 你的核心方向（手工编辑或 /pinrule skill）
-~/.pinrule/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
-~/.pinrule/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
-~/.pinrule/session-state/       # 每个 session 一份 json（30 天自动清理）
-~/.pinrule/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
+~/.pinrule/rules.yaml           # Your core directions (manual edit or /pinrule skill)
+~/.pinrule/config.yaml          # Threshold config (DEFAULTS apply if missing)
+~/.pinrule/violations.jsonl     # Violation history (auto-rotate at 5000 lines)
+~/.pinrule/session-state/       # One JSON per session (30-day auto-cleanup)
+~/.pinrule/pre_compact_snapshot.md  # Pre-compact rule dump (SessionStart re-reads it)
 ```
 
-**每个 backend 各自的 hook wrapper + settings**：
+**Per-backend hook wrapper + settings**:
 
 ```bash
 # Claude
-~/.claude/hooks/pinrule_*.py          # 8 个 hook wrapper（install-hooks 自动生成）
-~/.claude/settings.json               # Claude 配置（pinrule 写入 hooks 段）
+~/.claude/hooks/pinrule_*.py          # 8 hook wrappers (install-hooks auto-generates)
+~/.claude/settings.json               # Claude config (pinrule writes hooks section)
 
 # Codex CLI
-~/.codex/hooks/pinrule_*.py           # 6 个 hook wrapper
-~/.codex/config.toml                  # Codex 配置（pinrule 写入 [hooks.*] 段 + trusted_hash）
+~/.codex/hooks/pinrule_*.py           # 6 hook wrappers
+~/.codex/config.toml                  # Codex config (pinrule writes [hooks.*] sections + trusted_hash)
 
 # Cursor 1.7+
-~/.cursor/hooks/pinrule_*.py          # 12 个 hook wrapper（含 4 个独立 gate）
-~/.cursor/hooks.json                  # Cursor 配置（pinrule 写入 hooks 段）
+~/.cursor/hooks/pinrule_*.py          # 12 hook wrappers (including 4 dedicated gates)
+~/.cursor/hooks.json                  # Cursor config (pinrule writes hooks section)
 ```
 
-> 设了 `PINRULE_HOME` 环境变量 → 上面所有路径都 anchor 在 `$PINRULE_HOME/` 下（真 sandbox 隔离，v0.16.11+）。试用 / CI / 多 profile 都用这个。
+> Set `PINRULE_HOME` → all paths above anchor under `$PINRULE_HOME/` (true sandbox isolation, v0.16.11+). Use this for trial / CI / multi-profile.
 
 ---
 
-## 典型场景
+## Typical scenarios
 
-### A. 长 session 跨 compact
+### A. Long session crossing compact
 
-**你在做**：多小时开发任务，Agent 累积 60K+ context。
+**What you're doing**: multi-hour development task, Agent accumulates 60K+ context.
 
-**发生的事**：
-1. Claude 自动触发 compact
-2. **PreCompact hook**：完整 `rules.yaml` 状态落盘到 `pre_compact_snapshot.md`
-3. compact 执行（Claude 自己的压缩）
-4. **SessionStart hook**（compact 后重起触发）：读 snapshot 强注入完整规则
+**What happens**:
+1. Claude auto-triggers compact
+2. **PreCompact hook**: full `rules.yaml` state snapshots to `pre_compact_snapshot.md`
+3. Compact runs (Claude's own compression)
+4. **SessionStart hook** (fires on compact-restart): reads snapshot, force-injects full rules
 
-**结果**：规则跨 compact 不丢，Agent 不会把核心方向压成模糊词。
-
----
-
-### B. 子 Agent 并发执行
-
-**你在做**：起 2 个子 Agent 并行搜索代码 + 改 bug。
-
-**发生的事**：
-1. **SubagentStart hook**：完整规则注入到子 Agent context
-2. 子 Agent 在自己 session 里仍然看得到约束 + 维护独立监控状态
-3. 子 Agent 完成
-4. **SubagentStop hook**：子 Agent 临时 session-state 自动销毁
-
-**结果**：子 Agent 跟主 Agent 同等监管力度；多次起子 Agent 不会让主 session 数据混乱。
+**Result**: rules survive compact, Agent doesn't compress your core directions into vague words.
 
 ---
 
-### C. 静默停止时被提示继续
+### B. Subagent parallel execution
 
-**你在做**：给 Agent 多个明确步骤的方向，期待自主推进。
+**What you're doing**: spawn 2 subagents to parallel-search code + fix a bug.
 
-**发生的事**：
-1. Agent 完成第 1 步，response 末尾纯陈述无下一步信号
-2. **Stop hook** 检测到静默停止 → 输出 `decision=block` + 启发继续提示
-3. Agent 看到提示后接着推进下一步
-4. Safeguard：单 turn 内累积 block ≥ 2 次（`stop_block_max_per_turn` 可调）后让 Agent 停下，防死循环
-5. 任务真饱和时 Agent 明说卡在哪 → pinrule 不再推
+**What happens**:
+1. **SubagentStart hook**: full rules inject into subagent context
+2. Subagent operates in its own session with constraints visible + independent monitoring state
+3. Subagent finishes
+4. **SubagentStop hook**: subagent's temp session-state auto-destroys
 
-**结果**：Agent 完成一波后立刻找下个推进点继续，不再「下一步做什么」反复问。
+**Result**: subagents get the same supervisory weight as the main Agent; spawning multiple subagents doesn't corrupt the main session's data.
 
 ---
 
-## 常见问题
+### C. Silent stop → continuation nudge
 
-### Q：Hook 拒了我的操作怎么办？
+**What you're doing**: gave the Agent a clear multi-step direction, expecting autonomous progress.
 
-看拒绝理由（stderr / 通知里都有）— 这通常说明你的规则认为这是违反。两种处理：
-- 修 `rules.yaml`（调整规则措辞 / keyword / engine check）
-- 明确告诉 Agent「绕一下先跑」（用户授权的例外）
+**What happens**:
+1. Agent finishes step 1, response ends with a pure statement / no next-step signal
+2. **Stop hook** detects silent stop → outputs `decision=block` + continuation prompt
+3. Agent sees the prompt and continues with the next step
+4. Safeguard: after ≥ 2 cumulative blocks in a single turn (`stop_block_max_per_turn` is tunable), the Agent is allowed to stop to prevent infinite loop
+5. If the Agent is genuinely saturated, it explicitly states where it's stuck → pinrule stops pushing
 
-如果你认为是 pinrule 误拦（假阳），跑 `pinrule audit` 看「⚠️ 可能假阳」标记，欢迎提 issue。
+**Result**: Agent finishes one wave and immediately finds the next push point; doesn't keep asking "what's next?".
 
-### Q：能关掉某个 hook 吗？
+---
 
-能。两种方式：
-- `pinrule uninstall-hooks`（也接 `--backend` 拆指定 backend，或 `all`）
-- 手工编辑对应 backend 的 settings 文件（`~/.claude/settings.json` / `~/.codex/config.toml` / `~/.cursor/hooks.json`），在 hooks 段删 / 注释掉对应 event
+## FAQ
 
-但建议先用一周看效果。
+### Q: A hook denied my operation, what now?
 
-### Q：子 Agent 能绕过规则吗？
+Read the rejection reason (stderr / notification both have it) — usually it means your rules consider this a violation. Two paths:
+- Edit `rules.yaml` (adjust wording / keyword / engine check)
+- Tell the Agent explicitly "skip this one, run it" (user-authorized exception)
 
-绕不了。`SubagentStart` 把完整规则注入子 Agent 头部，子 Agent 自己的 hook 也跑同样的检查。但**子 Agent 的状态隔离**意味着关键词检测是按子 session 独立计数 — 这是设计上的隐私 / 性能取舍。
+If you think this is a pinrule false positive, run `pinrule audit` and look for the "⚠️ likely false positive" tag — please file an issue.
 
-### Q：自定义阈值怎么配？
+### Q: Can I turn off specific hooks?
 
-`~/.pinrule/config.yaml`（不存在时走 `pinrule/config.py:DEFAULTS`）：
+Yes. Two ways:
+- `pinrule uninstall-hooks` (also accepts `--backend` to remove from a specific backend, or `all`)
+- Manually edit the backend's settings file (`~/.claude/settings.json` / `~/.codex/config.toml` / `~/.cursor/hooks.json`) and remove / comment out the event from the hooks section
+
+But try it for a week first.
+
+### Q: Can subagents bypass the rules?
+
+No. `SubagentStart` injects full rules into the subagent's header, and the subagent's own hooks run the same checks. But the **subagent's state is isolated** — keyword detection counts independently per subagent session. This is a privacy / performance tradeoff by design.
+
+### Q: How do I tune thresholds?
+
+Edit `~/.pinrule/config.yaml` (falls back to `pinrule/config.py:DEFAULTS` if missing):
 
 ```yaml
-recent_violation_turns: 5         # 偏离标记窗口
-stop_block_max_per_turn: 2        # Stop hook 单 turn 启发上限
-force_block_threshold: 5          # 累积强制查根因阈值
-session_state_max_age_days: 30    # session 状态自动清理周期
+recent_violation_turns: 5         # Drift-marker window
+stop_block_max_per_turn: 2        # Stop hook nudge cap per turn
+force_block_threshold: 5          # Cumulative force-rootcause threshold
+session_state_max_age_days: 30    # Session-state auto-cleanup period
 ```
 
-`pinrule doctor` 会显示当前生效的所有阈值。
+`pinrule doctor` shows the currently-effective thresholds.
 
 ---
 
-## 设计原则
+## Design principles
 
-1. **Fail open** — 配置错 / 加载失败 → hook 不会卡 Agent，静默继续
-2. **零 LLM** — 全工程化（regex / 关键词 / 计数），无外部依赖
-3. **可见化** — 拦截 / 启发都有 stderr + 桌面通知，不黑盒
-4. **可调** — 你改 `rules.yaml` 下个 turn 立即生效
+1. **Fail open** — config error / load failure → hook doesn't block the Agent, silently continues
+2. **Zero LLM** — pure engineering (regex / keywords / counting), no external dependencies
+3. **Visible** — interceptions / nudges all surface to stderr + desktop notify, not a black box
+4. **Tunable** — edit `rules.yaml`, next turn picks it up immediately
 
 ---
 
-**官方协议参考**：https://code.claude.com/docs/en/hooks
+**Official protocol references**:
+- Claude: https://code.claude.com/docs/en/hooks
+- Codex: https://developers.openai.com/codex/hooks
+- Cursor: https://cursor.com/docs/agent/hooks
