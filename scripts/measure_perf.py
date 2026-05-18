@@ -9,7 +9,7 @@
   1. Claude / Codex / Cursor 三家 wrapper 端到端 wall-clock latency
      (UserPromptSubmit + PreToolUse, n=50 次/wrapper).
   2. Anchor 注入字符数 / 典型 turn 字符数 (=token 占比 ballpark).
-     基于当前 rules.yaml + 典型 800 字 user prompt + 3000 字 agent reply.
+     基于当前 rules.json + 典型 800 字 user prompt + 3000 字 agent reply.
 
 复现 README "Performance" 段 ~50-70ms / ~2% token 这些数字的开源方法.
 没装的 backend 显示 "未装" 跳过, 没冲突.
@@ -102,10 +102,10 @@ def measure_token_overhead() -> None:
     print()
     rules = load_rules()
     if not rules:
-        print("(rules.yaml 没规则 — 跑 `pinrule init` 装 example 规则后再测)")
+        print("(rules.json 没规则 — 跑 `pinrule init` 装 example 规则后再测)")
         return
     rule_ids = [r.id for r in rules]
-    print(f"  当前 rules.yaml 装了 {len(rules)} 条规则: {', '.join(rule_ids[:3])}...")
+    print(f"  当前 rules.json 装了 {len(rules)} 条规则: {', '.join(rule_ids[:3])}...")
     print()
     print(f"{'violated_count':18}  {'anchor 字符':12}  {'占典型 turn':14}  {'场景':30}")
     print("-" * 80)

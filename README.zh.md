@@ -11,6 +11,8 @@
 
 > **把 5-10 条最重要的协作规则钉住，让 AI 在长任务里别漂。**
 > 纯工程 · 零 LLM · hook 通常 50-70ms · token 占比约 2%
+>
+> _性能数字测自作者本人 dogfood，测量口径见 [docs/EVALUATION.zh.md](./docs/EVALUATION.zh.md)。_
 
 ![pinrule 5 场景 demo — 动画 SVG](./assets/demo-zh.svg)
 
@@ -93,6 +95,7 @@ flowchart LR
 | | |
 |---|---|
 | **运行时依赖** | 0（只用 Python 标准库 — JSON / importlib，无第三方包） |
+| **规则数量** | 默认 7 条（开发场景预设）· 软上限 10 · 硬上限 12（超过拒绝加载） |
 | **hook 延迟** | 通常 50-70ms（机器相关；本机复现 `scripts/measure_perf.py`） |
 | **token 占比** | 真 dogfood 实测约 2%（测量口径见 [docs/EVALUATION.zh.md](./docs/EVALUATION.zh.md)） |
 | **测试** | 800+ 单元测试，[CI 6 矩阵全绿](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml)（ubuntu + macOS + Windows × Python 3.11 / 3.12） |

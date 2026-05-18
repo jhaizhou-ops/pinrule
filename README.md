@@ -11,6 +11,8 @@
 
 > **Pin the 5-10 rules your AI must not drift from during long tasks.**
 > Pure engineering · zero LLM · ~50-70ms hook · ~2% token overhead in typical dogfood.
+>
+> _Performance numbers measured on author self-use — methodology in [docs/EVALUATION.md](./docs/EVALUATION.md)._
 
 ![pinrule demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
@@ -92,6 +94,7 @@ Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable d
 | | |
 |---|---|
 | **Runtime deps** | 0 (Python stdlib only — JSON, no third-party packages) |
+| **Rule count** | 7 default (dev-scenario preset) · soft cap 10 · hard cap 12 (load refused beyond) |
 | **Hook latency** | ~50-70ms typical (machine-bound; reproduce via `scripts/measure_perf.py`) |
 | **Token overhead** | ~2% of conversation context in real dogfood (methodology: [docs/EVALUATION.md](./docs/EVALUATION.md)) |
 | **Tests** | 800+ unit tests, [green on 6-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu + macOS + Windows × Python 3.11 / 3.12) |
