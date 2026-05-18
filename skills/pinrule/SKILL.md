@@ -15,20 +15,40 @@ description: Natural-language pinrule rule input — handles two paths. (A) Sing
 - **Codex**: user invokes via `/skills` menu or inline `$pinrule <description>`; auto-trigger on description match
 - **Cursor**: project-scoped skill, invoked from inside an Agent session that has the project's `.cursor/skills/pinrule/` directory available
 
-**No-argument trigger** (v0.9.11+): when the user types `/pinrule` with **no description** (empty `$ARGUMENTS`), don't try to refine — instead, run `pinrule audit --by-check` and relay the output to the user. This gives them a quick "dogfood data dashboard": which engine checks fire most, real vs false-positive distribution, keyword-only fallback share. The user can then decide whether to tune any check or skip a rule. See "No-argument flow" section below.
+## 🚨 Fast-path: No-argument `/pinrule` — Bash direct, no synthesis
+
+**If `$ARGUMENTS` is empty, STOP reading this skill right now.** Do the following and exit:
+
+```bash
+pinrule audit --by-check
+```
+
+**Dump the output verbatim to the user**. Do NOT synthesize / summarize / add commentary / ask follow-up questions. This is pure engineering output — `pinrule audit --by-check` is the user's data dashboard, your job is to be a transparent pipe.
+
+The only exception: if the output is genuinely empty (no violations yet), tell the user "no violations recorded yet, come back after a few sessions". Otherwise — raw output, exit.
+
+This fast-path exists because no-argument `/pinrule` is a pure read operation, not creative work. Agent involvement adds latency + token cost + risk of paraphrasing the data wrong. The user typed `/pinrule` (no args) because they wanted the dashboard, not your interpretation of it.
+
+---
 
 ---
 
 ## Your job (Agent) — dispatch first
 
-When the user invokes `/pinrule <description>`, **first decide which path**:
+`/pinrule` is the user's **single command** for all pinrule interactions. They never need to remember `pinrule rule add` / `pinrule audit --by-check` / etc. — they just type `/pinrule <whatever>` and you dispatch.
+
+When the user invokes `/pinrule [args]`, **first decide which path**:
 
 | Path | Triggered by | Outcome |
 |---|---|---|
-| **A. Single rule** (default, ~80% of calls) | "我希望 X / I want Agent to do X / change rule Y / remove rule Z" — talks about **one** behavior | One rule added / modified / removed via the 7-step workflow below |
+| **0. Empty / no args** (`/pinrule`) | `$ARGUMENTS` is empty | Run `pinrule audit --by-check` and relay output as a "dogfood data dashboard" — see [No-argument flow](#no-argument-flow-v0911--pinrule-with-no-description) section |
+| **A. Single rule** (default, ~80% of args calls) | "我希望 X / I want Agent to do X / change rule Y / remove rule Z" — talks about **one** behavior | One rule added / modified / removed via Path A workflow |
 | **B. Scenario rule pack** | "我主要做 X / I mainly do X / set up rules for X scenario / switch to X / 切到 X 场景 / replace rule library for X" — names a **domain** | 5-7 new rules synthesized from local rule files + online best practices + Karpathy baseline + your session context |
 
-Vocabulary tells: "scenario / 场景 / switch / 切到 / mainly do / 主要做 / replace rule library / 替换规则库" → Path B. Otherwise Path A.
+Dispatch logic:
+1. If `$ARGUMENTS` empty → Path 0 (audit dashboard)
+2. Vocabulary tells: "scenario / 场景 / switch / 切到 / mainly do / 主要做 / replace rule library / 替换规则库" → Path B
+3. Otherwise → Path A
 
 If genuinely ambiguous, ask **once**, then proceed. Don't ping-pong.
 
@@ -41,6 +61,29 @@ If genuinely ambiguous, ask **once**, then proceed. Don't ping-pong.
 6. After adding, report: refined content + test passed + current rule library count + suggest deletions/modifications
 
 **Path B**: jump to [Path B: Scenario rule pack generation](#path-b-scenario-rule-pack-generation) — has its own workflow.
+
+---
+
+## Design principle: engineering-first, Agent doesn't reinvent
+
+This skill is a **workflow choreography document**, not a research assignment for the Agent. When pinrule has an engineering primitive that already solves a step (e.g., `pinrule doctor` for backend detection, `pinrule rule preview` for schema validation, `pinrule rule add` for atomic write), **call it directly via Bash** — don't reinvent the logic with `Read` + manual parsing.
+
+Real dogfood lesson (Path B Step 5.5): when SKILL.md said "Use Read tool to scan `~/.cursor/hooks.json`", the Agent missed a clearly-installed Cursor because it scanned the wrong path / made wrong inferences from file existence. The fix wasn't smarter prompting — it was redirecting to `pinrule doctor` which is the authoritative API pinrule already ships.
+
+**Default heuristic**: if the work the Agent needs to do has a corresponding `pinrule <subcommand>` already shipped, the SKILL.md should instruct the Agent to call that subcommand, parse output, and proceed. Reinventing logic is the failure mode.
+
+Agent free-form judgment belongs in:
+- Domain knowledge synthesis (Path B Step 3: composing rule content from session context + external sources)
+- Tone refinement (Path A Step 3: rephrasing into "collaborative agreement" tone)
+- Cross-scenario semantic mapping (Path B Step 7: mapping new rules to existing engine checks)
+- Source attribution (deciding which signal contributed what)
+
+Agent reinvention does NOT belong in:
+- Backend detection → call `pinrule doctor`
+- Schema validation → call `pinrule rule preview`
+- Rule write → call `pinrule rule add --from-json`
+- Existing rule library inspection → call `pinrule rule list`
+- Violation audit → call `pinrule audit --by-check`
 
 ## pinrule rule design principles (apply these when refining)
 
@@ -321,6 +364,31 @@ After `pinrule rule add` succeeds, summarize for the user:
 
 The user wants a **coherent rule pack** tailored to their scenario, not one rule. You will synthesize 5-7 rules by combining four signals (no opt-in prompt — all four are on by default; pinrule is opinionated):
 
+### Step 0.5 (Path B): Preflight — detect user's active backends FIRST
+
+**This is Path B's mandatory first action** — before Step 1 scenario interpretation, before Phase 1 content drafting, before anything else. Backend detection shapes Phase 1 content tone (e.g., Cursor CLI主战场用户的 Stop-hook 类规则需要更自包含 preference 文本) **and** Phase 2 mechanism advisory (engine check coverage table).
+
+**Run via Bash tool (NOT Read tool — see "Design principle" section above)**:
+
+```bash
+pinrule doctor
+```
+
+**Parse output for**:
+
+| Signal | What it means |
+|---|---|
+| `[claude-code]` section with `✓` marks | Claude Code installed |
+| `[codex]` section with `✓` marks | Codex CLI installed |
+| `[cursor]` section with `✓` marks | Cursor installed |
+| Cursor transcript section reports majority **non-null** `transcript_path` for `stop` / `afterAgentResponse` | **桌面 Agent 路径正常** ✅ |
+| Cursor transcript section reports majority **null** `transcript_path` | User mostly on CLI / privacy mode → response-level checks will silent-skip ⚠️ |
+| Cursor transcript section absent / no logs found | Cursor installed but no recent session → can't determine 桌面 vs CLI yet |
+
+**Store the results** — you'll use them in Step 3 (Phase 1 content adapt to backend constraints), Step 7 (Phase 2 engine check coverage table), and Step 11 (closing reminder).
+
+**Do NOT skip Step 0.5 to "save time"** — without it, Phase 1 content can't be backend-aware and Phase 2 coverage advisory becomes guesswork. Real dogfood (v4) showed Agent missing Step 5.5 entirely when it sat in Phase 2 region — that's why Step 0.5 is up front.
+
 ### Step 1 (Path B): Interpret scenario from session context — don't ping-pong
 
 You're working with the user *right now in this session*. You have context on:
@@ -426,8 +494,18 @@ This lets the user audit each rule's provenance before approving the *content*. 
 
 Show the user the **content** of the full proposed library + diff vs. current. Show no mechanism details yet — keep the review focused.
 
+**Required first line: backend detection summary.** Phase 1 preview MUST start with a one-line backend summary from Step 0.5. If you haven't run `pinrule doctor` yet, run it now and parse before continuing. This isn't decorative — it's the only way to enforce that Step 0.5 actually executed before Phase 2 needs the data. Format:
+
+```
+**Backends detected** (via `pinrule doctor`): Claude ✓ / Codex ✓ / Cursor ✓ (桌面 Agent transcripts OK)
+```
+
+If a backend isn't installed, show ✗. For Cursor specifically, also note 桌面 / CLI / mixed status based on `transcript_path` health (covered by `pinrule.cursor_transcript_doctor` parsed by `pinrule doctor` output).
+
 ```markdown
 ## Proposed scenario rule pack — research (7 rules) — CONTENT PREVIEW
+
+**Backends detected** (via `pinrule doctor`): Claude ✓ / Codex ✓ / Cursor ✓ (桌面 Agent)
 
 ### Carried over from current library (3 cross-scenario universals)
 - [loud-failure-with-evidence] — 完成时附证据
@@ -473,23 +551,7 @@ Don't ping-pong per-rule. User gives one structured reply, you commit the conten
 
 Now that the **rule list is locked**, you design the detection mechanism for each rule. This is pure schema engineering — no more domain debate.
 
-### Step 5.5 (Path B, Phase 2 prelude): Detect user's active backends
-
-Before mapping engine checks, detect which clients the user actually runs on. This shapes the Phase 2 backend coverage advisory (Step 7) and the closing reminder (after Step 11).
-
-Use `Read` tool to scan:
-```
-~/.claude/settings.json          → is Claude Code installed?
-~/.codex/hooks.json              → is Codex CLI installed?
-~/.cursor/hooks.json             → is Cursor installed?
-```
-
-**For Cursor specifically**, also infer 桌面 Agent (IDE Composer) vs CLI (`cursor agent`) usage. The simplest signal is to run `pinrule doctor` and look at its Cursor transcript section (powered by `pinrule.cursor_transcript_doctor` which parses `~/Library/Application Support/Cursor/logs/.../cursor.hooks*.log`):
-
-- If `pinrule doctor` reports `stop` / `afterAgentResponse` hooks with non-null `transcript_path` → **桌面 Agent 路径正常** ✅
-- If most hooks have null `transcript_path` → user mostly on CLI (or Cursor privacy mode); response-level checks (loud_failure / keep_pushing / chinese_plain / long_term Stop path) will silent-skip → ⚠️
-
-You don't need to ask the user — just run `pinrule doctor` and parse output. This becomes input to Step 7.
+**Note**: backend detection happened in **Step 0.5** (Path B Preflight, before Phase 1). The detection results should already be available — use them directly in Step 7 (coverage table) and Step 11 (closing reminder). If you skipped Step 0.5, go back and run `pinrule doctor` now — DO NOT proceed to Step 6/7 without backend data.
 
 ### Step 6 (Path B, Phase 2): Generate `violation_keywords` for each approved rule
 
@@ -819,38 +881,16 @@ After writing:
 
 ---
 
-## No-argument flow (v0.9.11+) — `/pinrule` with no description
+## No-argument flow — see fast-path at top of skill
 
-When the user types `/pinrule` with empty `$ARGUMENTS`, treat it as a request for the dogfood-data dashboard, not as an "add a rule" intent.
+This is fully handled by the **Fast-path** block at the very top of this skill (right after frontmatter). When `$ARGUMENTS` is empty:
 
-**What to do**:
+1. Run `pinrule audit --by-check` via Bash
+2. Dump output verbatim, no synthesis
+3. Exit — don't ask follow-ups
 
-1. Run `pinrule audit --by-check`. Capture stdout.
-2. Relay the output to the user as-is, then add a one-line interpretation:
-   - **High-firing checks** (top 1-2 rows of "按 check 函数聚合"): "Check X fires N% — this rule is the most-violated direction in your sessions."
-   - **High keyword-only ratio** (`keyword-only 兜底命中` > 70%): "Most violations are caught by the keyword fallback layer, not engine checks — the engine checks may need more sub-variants, or your specific rules don't have `violation_checks` attached."
-   - **High false-positive suspicion** (a sub-variant dominates a check): mention by name, suggest user observe whether it's matching real intent or just literal patterns.
-3. Ask: "Want to tune any check, drop a rule, or add a new one based on this data?"
+No business logic, no Agent interpretation, no second-guessing. Pure pass-through. This is the simplest possible flow on purpose — the user typed `/pinrule` with no args because they want the data, not your commentary.
 
-**Example response** (the user typed just `/pinrule`):
-
-> 这是你本机最近 187 条违反的分布：
->
-> ```
-> [paste pinrule audit --by-check output]
-> ```
->
-> 几个观察：
-> - `keep_pushing.default` 占 engine 命中的 69%（18/26）— 这是你 session 里最常被拦的方向，说明 keep-pushing 规则在你的工作流里很活跃
-> - 86% 违反走的是 keyword-only 兜底（没 engine check），说明大部分规则没附 `violation_checks` — 这是合理的（不是所有规则都需要 engine 检测）
->
-> 想根据这些数据调整哪条规则，还是加一条新规则？
-
-**Why this is the no-arg default** (not "show help"):
-- The user has already installed pinrule and seen the `pinrule init` summary (which already lists default rules).
-- The next most-useful thing isn't documentation — it's **observation data**: "is pinrule actually doing useful work for me?"
-- This closes the dogfood feedback loop: violations.jsonl → audit → user sees pattern → decides to tune.
-
-**Don't run `pinrule audit --by-check` in these cases**:
-- User typed `/pinrule <some description>` → take it as a rule-add intent, follow Steps 1-7 above
-- User typed `/pinrule help` or similar literal help-request → show a brief summary of what `/pinrule` does (refine new rule + show data when no-arg)
+**Edge cases** (rare):
+- User typed `/pinrule help` or similar literal help-request → show brief summary of `/pinrule` ({rule add | scenario switch | no-args → audit dashboard})
+- `pinrule audit --by-check` returns empty (no violations yet) → tell user "no violations recorded yet, come back after a few sessions"

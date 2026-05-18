@@ -48,7 +48,7 @@ def test_skill_path_a_workflow_intact(skill_text: str) -> None:
 
 
 def test_skill_path_b_workflow_intact(skill_text: str) -> None:
-    """Path B 场景规则集 workflow 必须齐 — 2 phase 共 11 步 + 4 信号源."""
+    """Path B 场景规则集 workflow 必须齐 — Step 0.5 Preflight + 2 phase 共 11 步 + 4 信号源."""
     assert "Path B: Scenario rule pack generation" in skill_text, \
         "丢了 Path B workflow 段头"
     # Phase 1 / Phase 2 分段
@@ -56,8 +56,8 @@ def test_skill_path_b_workflow_intact(skill_text: str) -> None:
         "Path B 丢了 Phase 1 (Content) 段头"
     assert "Phase 2 — Mechanism design" in skill_text, \
         "Path B 丢了 Phase 2 (Mechanism) 段头"
-    # 11 步骤都有标识
-    for step_marker in ("Step 1 (Path B)", "Step 2 (Path B)",
+    # 12 步骤都有标识 (Step 0.5 Preflight + Step 1-11)
+    for step_marker in ("Step 0.5 (Path B)", "Step 1 (Path B)", "Step 2 (Path B)",
                         "Step 3 (Path B, Phase 1)", "Step 4 (Path B, Phase 1)",
                         "Step 5 (Path B, Phase 1)",
                         "Step 6 (Path B, Phase 2)", "Step 7 (Path B, Phase 2)",
@@ -159,17 +159,76 @@ def test_skill_path_b_two_phase_mistakes_listed(skill_text: str) -> None:
 
 
 def test_skill_path_b_backend_detection_step(skill_text: str) -> None:
-    """Path B Phase 2 必须含 Step 5.5 backend detection (跨 backend 适配核心)."""
-    assert "Step 5.5 (Path B, Phase 2 prelude): Detect user's active backends" in skill_text, \
-        "Path B 丢了 Step 5.5 backend detection prelude step"
-    # 4 个 backend signal source 都要扫
-    assert "~/.claude/settings.json" in skill_text, "Step 5.5 没扫 Claude settings"
-    assert "~/.codex/hooks.json" in skill_text, "Step 5.5 没扫 Codex hooks"
-    assert "~/.cursor/hooks.json" in skill_text, "Step 5.5 没扫 Cursor hooks"
-    # 用现成的 cursor_transcript_doctor API
-    assert "pinrule doctor" in skill_text, "Step 5.5 没引用 pinrule doctor 做 Cursor transcript 检测"
-    assert "cursor_transcript_doctor" in skill_text, \
-        "Step 5.5 没引用 pinrule.cursor_transcript_doctor 模块"
+    """Path B Step 0.5 Preflight 必须含 backend detection (Path B 第一动作).
+
+    v4 dogfood 真发现: Step 5.5 放 Phase 2 区域时 Agent 严格按 spec 跳过整个步骤.
+    v5 dogfood 真发现: 改 Step 0.5 Phase 1 之前 + "mandatory first action" 警告 Agent 仍跳过.
+    Root cause: Agent 单 turn 模式天然把 backend detection 当 Phase 2 prep 推迟.
+    Real fix (v6+): Phase 1 preview 模板加 mandatory "Backends detected" 字段 — 工程约束
+    替代 prompt 约束让 Agent 不可不跑 pinrule doctor (要填字段必须先跑).
+    """
+    assert "Step 0.5 (Path B): Preflight — detect user's active backends FIRST" in skill_text, \
+        "Path B 丢了 Step 0.5 Preflight backend detection step"
+    # Step 0.5 必须明确「mandatory first action」
+    assert "Path B's mandatory first action" in skill_text, \
+        "Step 0.5 没明确「Path B 第一动作不可跳」"
+    # 必须明确「Run via Bash tool (NOT Read tool)」
+    assert "Run via Bash tool (NOT Read tool" in skill_text, \
+        "Step 0.5 没明确「用 Bash 跑 pinrule doctor 而不是 Read 文件」"
+
+
+def test_skill_path_b_phase1_preview_requires_backend_line(skill_text: str) -> None:
+    """Path B Phase 1 preview 必须强制含 "Backends detected" mandatory 字段.
+
+    v5 dogfood 真验证: prompt 约束 (Step 0.5 标 "mandatory" 警告) 不够稳, Agent 仍跳过.
+    工程约束 (Phase 1 preview 输出格式必须含 backend line) 才让 Agent 不可不跑 pinrule doctor.
+    """
+    assert "Required first line: backend detection summary" in skill_text, \
+        "Phase 1 Step 4 没明确「必填字段: backend detection」"
+    assert "**Backends detected**" in skill_text, \
+        "Phase 1 preview 模板没含 mandatory `Backends detected` 字段"
+    # 必须明确「Agent 没跑 doctor 现在就跑」
+    assert "If you haven't run `pinrule doctor` yet, run it now" in skill_text, \
+        "Step 4 没明确「Agent 没跑 doctor 必须立刻跑」"
+
+
+def test_skill_no_argument_fast_path(skill_text: str) -> None:
+    """SKILL.md 头部必须含无参数 /pinrule fast-path — 让 Agent 不在简单 path 加工.
+
+    用户 design 拍板: 无参数 /pinrule 是纯工程实现 (pinrule audit --by-check), Agent
+    不该转述 / 解读 / 加工. SKILL.md 头部强约束「STOP reading + Bash + raw output」.
+    """
+    assert "🚨 Fast-path: No-argument `/pinrule` — Bash direct, no synthesis" in skill_text, \
+        "SKILL.md 丢了无参数 fast-path 段头"
+    # 必须明确「STOP reading this skill」
+    assert "STOP reading this skill right now" in skill_text, \
+        "fast-path 没明确「立刻 STOP 不读 skill 后续」"
+    # 必须明确「Dump output verbatim」+「no synthesis」
+    assert "Dump the output verbatim to the user" in skill_text, \
+        "fast-path 没明确「verbatim raw output」"
+    assert "Do NOT synthesize / summarize / add commentary" in skill_text, \
+        "fast-path 没明确「不要 synthesize / summarize / commentary」"
+
+
+def test_skill_engineering_first_principle(skill_text: str) -> None:
+    """SKILL.md 必须含「engineering-first, Agent 不该 reinvent」根本设计原则.
+
+    Path B dogfood (v0.17.x) 真验证: 让 Agent 自己 Read 文件 reinvent backend detection,
+    Agent 漏检测真装的 Cursor. fix: SKILL.md 头部 design principle 明确「有 pinrule
+    subcommand 就直接调, Agent 创意空间留给 domain synthesis / 跨场景 semantic mapping
+    类真需要判断的工作」.
+    """
+    assert "Design principle: engineering-first, Agent doesn't reinvent" in skill_text, \
+        "SKILL.md 丢了根本 design principle 段头"
+    # 必须列出 Agent 不该 reinvent 的工作 (有 pinrule 工程化 primitive)
+    for primitive in ("pinrule doctor", "pinrule rule preview",
+                      "pinrule rule add", "pinrule rule list", "pinrule audit"):
+        assert primitive in skill_text, f"design principle 没列 pinrule 工程化 primitive: {primitive}"
+    # 必须区分「Agent 自由发挥 belongs in」vs「Agent reinvention does NOT belong in」
+    assert "Agent free-form judgment belongs in" in skill_text, \
+        "design principle 没明确「Agent 该自由发挥的地方」"
+    assert "Agent reinvention does NOT belong in" in skill_text, \
+        "design principle 没明确「Agent 不该 reinvent 的地方」"
 
 
 def test_skill_path_b_backend_coverage_table(skill_text: str) -> None:
