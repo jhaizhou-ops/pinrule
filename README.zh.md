@@ -52,6 +52,8 @@ pip install pinrule && pinrule init
 
 重启客户端或 CLI 后立即生效。
 
+**卸载** — `pinrule uninstall-hooks && cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json`。
+
 ---
 
 ## pinrule 做什么
@@ -108,26 +110,9 @@ flowchart LR
 
 ---
 
-## 各客户端装机 + 卸载
+## `/pinrule` — 一个命令做三件事
 
-| 客户端 | 命令 | 备注 |
-|---|---|---|
-| Claude（默认） | `pinrule install-hooks` | — |
-| Codex | `pinrule install-hooks --backend codex` | — |
-| Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `/pinrule` skill 仅 project-scoped（项目级） |
-
-```bash
-pinrule uninstall-hooks                                          # 拆 hook
-cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # 恢复
-```
-
-Codex 细节见 [docs/CODEX_BACKEND.zh.md](./docs/CODEX_BACKEND.zh.md)。Cursor 协议不暴露 home-level 全局 skill，需要把 `SKILL.md` 复制到每个目标项目的 `.cursor/skills/pinrule/` 下，装完会看到提示。
-
----
-
-## `/pinrule` — 一个命令干三件事
-
-你只需要记住一个命令，pinrule skill 按你输入的内容自动分发到三条路径：
+仅需记住一个命令 `/pinrule`，按您输入的自然语言内容自动分发到三条路径，pinrule 会指导你的 Agent 润色规则语气、校验格式、绑定监控，经您确认后写入规则库。
 
 | 你输入 | 自动走的路径 | 用时 |
 |---|---|---|
@@ -203,7 +188,7 @@ pinrule 的监控为了0 LLM依赖实现是**正则匹配 + 计数**，不是 LL
 
 <details>
 <summary><b>非开发场景规则集（写作 / 研究 / 法律 / UX）？</b></summary>
-v0.17.1 起一句话切：<code>/pinrule 我主要做 X 场景, 切到这个场景规则集</code>。Agent 综合 4 信号源（你本机已有规则文件 + 联网业界 best practice + Karpathy CLAUDE.md baseline + 跟你协作的 session 上下文）生成 5-7 条规则，两阶段确认后批量原子写入，每条带 source 标注 — 3-5 分钟切完。详见上面「<a href="#任何工作场景一句话切">任何工作场景一句话切</a>」段。
+v0.17.1 起一句话切：<code>/pinrule 我主要做 X 场景，切到这个场景规则集</code>。Agent 综合 4 信号源（你本机已有规则文件 + 联网业界 best practice + Karpathy CLAUDE.md baseline + 跟你协作的 session 上下文）生成 5-7 条规则，两阶段确认后批量原子写入，每条带 source 标注 — 3-5 分钟切完。详见上面「<a href="#任何工作场景一句话切">任何工作场景一句话切</a>」段。
 </details>
 
 <details>

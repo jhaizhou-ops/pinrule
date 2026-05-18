@@ -52,13 +52,9 @@ pip install pinrule && pinrule init
 
 `pinrule init` auto-installs hooks for any detected client (Claude / Codex / Cursor) + writes default rules to `~/.pinrule/`. If you install a new client later, run `pinrule install-hooks` to wire it up.
 
-Restart Claude / Codex / Cursor — default rules become active once hooks load. To add a personal rule:
+Restart Claude / Codex / Cursor — default rules become active once hooks load.
 
-```
-/pinrule When I say "done" I want test pass evidence attached.
-```
-
-The skill refines, validates, confirms with you, then writes — ~30 seconds.
+**Uninstall** — `pinrule uninstall-hooks && cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json`.
 
 > **Windows without Python**: `python --version` silently jumping to Microsoft Store means no real Python — install via `winget install Python.Python.3.12`, reopen PowerShell, then use `python -m pip install pinrule && python -m pinrule init` (the `python -m` form avoids needing `Scripts\` on PATH).
 
@@ -118,26 +114,9 @@ Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable d
 
 ---
 
-## Per-client install + uninstall
-
-| Client | Command | Note |
-|---|---|---|
-| Claude (default) | `pinrule install-hooks` | — |
-| Codex | `pinrule install-hooks --backend codex` | — |
-| Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `/pinrule` skill is project-scoped only |
-
-```bash
-pinrule uninstall-hooks                                          # remove
-cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # restore
-```
-
-Codex details: [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). Cursor's `/pinrule` skill is project-scoped (Cursor doesn't expose home-level global skills) — see post-install hint.
-
----
-
 ## `/pinrule` — one command, three jobs
 
-You only need to remember one command. The skill auto-dispatches based on what you type:
+You only need to remember one command — `/pinrule`. Based on the natural-language content you type, the pinrule skill auto-dispatches to one of three paths, guides your Agent through tone refinement, schema validation, and monitoring wiring, then writes to your rule library after your confirmation.
 
 | You type | Routes to | Wall time |
 |---|---|---|
