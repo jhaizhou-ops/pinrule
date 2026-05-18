@@ -24,12 +24,16 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 pip install pinrule && pinrule init && pinrule install-hooks
 ```
 
-> **Windows 用户**: 如果 `pip install` 后 `pinrule` 命令识别不了, 是因为 Python 的 `Scripts\` 目录默认不在 PATH (Windows Python 安装时不勾 "Add to PATH" 就这样). 用 module-form 等价绕过:
+> **Windows 用户**: Windows 默认不带 Python. 如果 `python --version` 没真版本号 (silent 跳 Microsoft Store), 先装 Python:
 > ```powershell
+> winget install Python.Python.3.12
+> # 关掉再开 PowerShell 让 PATH 刷新
+> python -m pip install pinrule
 > python -m pinrule init
 > python -m pinrule install-hooks
 > python -m pinrule doctor
 > ```
+> 用 `python -m pinrule` 形式不需要 Python 的 `Scripts\` 目录在 PATH 里 (Windows pip install 完默认不在 PATH).
 
 重启 Claude / Codex / Cursor，hook 加载后默认规则立即生效。添加一条个性化规则：
 
