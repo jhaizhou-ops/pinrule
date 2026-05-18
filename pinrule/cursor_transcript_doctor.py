@@ -106,13 +106,3 @@ def cursor_transcript_doctor_lines() -> list[str]:
         "    ~/.cursor/projects/<id>/agent-transcripts/*.jsonl 。无法用 CLI 可靠写入 Cursor 内部开关。",
     ])
     return lines
-
-
-def cursor_transcript_path_from_latest_log() -> str | None:
-    """Best-effort: last non-null transcript_path seen in hook log (debug)."""
-    log = _latest_hooks_log()
-    if not log:
-        return None
-    text = log.read_text(encoding="utf-8", errors="replace")
-    hits = re.findall(r'"transcript_path"\s*:\s*"(/[^"]+\.jsonl)"', text)
-    return hits[-1] if hits else None

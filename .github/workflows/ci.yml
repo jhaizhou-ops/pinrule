@@ -61,7 +61,7 @@ jobs:
           pip install build
           python -m build --wheel
 
-      - name: Verify wheel contains yaml templates AND signal data
+      - name: Verify wheel contains JSON templates AND signal data
         env:
           # Windows PowerShell 默认 cp1252 codec 不能 encode 中文 print 输出.
           # force utf-8 跨平台一致.
