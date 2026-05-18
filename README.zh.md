@@ -9,14 +9,9 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-**通用 AI 行为规则 runtime，预置开发场景规则包，其他场景由 Agent 现场生成。** 把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。
+**把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。** 预置 7 条开发场景规则包，切换到其他场景只需一句话：`/pinrule 我主要做 UX 用户研究，切到这个场景规则集`。
 
-**runtime** 是确定性工程：hook 注入、regex 检测、原子规则库。**规则包**是内容 —— pinrule 内置 7 条开发场景预设，其他场景由你的 Agent 现场生成：跟 Agent 说 `/pinrule 我主要做 UX 用户研究，切到这个场景规则集`，装好的 pinrule Agent skill 用你 Agent 现成工具 (WebSearch / Read / etc.) 综合生成规则包，再通过 pinrule 原子 CLI 写入。
-
-> pinrule runtime：**零 LLM · 零联网 · 零运行时依赖** · hook 通常 50-70ms · token 占比约 2%
-> 场景生成：用你 Agent 现成的推理 + WebSearch / WebFetch / Read 工具，不是 pinrule 自身能力。
->
-> _性能数字测自作者本人 dogfood，测量口径见 [docs/EVALUATION.zh.md](./docs/EVALUATION.zh.md)。_
+> 纯工程 · 零 LLM · 零联网 · 零运行时依赖 · hook 通常 50-70ms · token 占比约 2%
 
 ![pinrule 5 场景 demo — 动画 SVG](./assets/demo-zh.svg)
 
@@ -130,24 +125,22 @@ Path B 见下面「任何工作场景一句话切」段。
 
 ## 任何工作场景一句话切
 
-v0.17.1 起 pinrule 不再绑定开发场景。你做什么工作，Agent 替你研究出对应规则集：
+你做什么工作，Agent 替你研究出对应规则集：
 
 ```
 /pinrule 我主要做 UX 用户研究 + 用户访谈，切到这个场景规则集
 ```
 
-Agent 综合 4 信号源：
+Agent 综合 4 信号源生成 5-7 条规则包：
 
 | 信号源 | 内容 |
 |---|---|
-| **A. 你本机已有规则文件** | `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md` / 当前项目 `CLAUDE.md` / `.cursor/rules/*.mdc` — 你写过的偏好 |
-| **B. 联网业界 best practice** | `WebSearch` 找你场景的高 star GitHub repo / 业界 blog / 论文 |
-| **H. Karpathy CLAUDE.md baseline** | 跨场景适用的工程原则（explicit failure / minimal abstraction / 等） |
-| **S. 协作 session 上下文** | 你这个 session 做的什么、用什么术语、在意什么 |
+| **A. 本机已有规则文件** | `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md` / 当前项目 `CLAUDE.md` / `.cursor/rules/*.mdc` |
+| **B. 联网业界 best practice** | `WebSearch` 找高 star GitHub repo / 业界 blog / 论文 |
+| **H. Karpathy CLAUDE.md baseline** | 跨场景适用的工程原则 |
+| **S. 协作 session 上下文** | 你现在做的什么 |
 
-两阶段流程：**Phase 1** 内容预览（5-7 条带 source 标注）→ 你审批 → **Phase 2** 机制配置（keyword + engine check 跨场景语义映射 — 如 `read_before_write` **部分映射到**「设计前没读已有研究」, 不是真懂 UX 方法学的 operational pattern 类比）→ 你审批 → 原子批量写入 + 备份。详见 [SKILL.md Path B](./skills/pinrule/SKILL.md)。
-
-**pinrule 本身仍然 0 运行时依赖 / 0 联网 / 0 LLM** — 所有调研都在你 Agent 现成工具集里跑。
+两阶段审批（内容 → 机制），原子批量写入 + 备份。详见 [SKILL.md Path B](./skills/pinrule/SKILL.md)。
 
 ---
 

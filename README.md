@@ -9,14 +9,9 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-**A universal AI behavior-rule runtime, with a dev-scenario preset and Agent-generated scenario packs.** Pin your 5-10 most-important rules so your AI doesn't drift in long tasks.
+**Pin the 5-10 rules your AI must not drift from during long tasks.** Ships with a 7-rule dev preset; switch to any other scenario with one sentence: `/pinrule I mainly do X, switch to this scenario`.
 
-The **runtime** is deterministic engineering: hook injection, regex detection, atomic rule library. The **rule packs** are content — pinrule ships a 7-rule dev preset, and your Agent generates packs for other scenarios on demand: `/pinrule I mainly do X, switch to this scenario` invokes the installed pinrule Agent skill, which composes the pack through your Agent's existing toolset (WebSearch / Read / etc.) and writes it through pinrule's atomic CLI.
-
-> pinrule runtime: **zero LLM · zero network · zero runtime deps** · ~50-70ms hook · ~2% token overhead in typical dogfood.
-> Scenario generation: uses your Agent's existing reasoning + WebSearch / WebFetch / Read tools — not pinrule.
->
-> _Performance numbers measured on author self-use — methodology in [docs/EVALUATION.md](./docs/EVALUATION.md)._
+> Pure engineering · zero LLM · zero network · zero runtime deps · ~50-70ms hook · ~2% token overhead.
 
 ![pinrule demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
@@ -133,24 +128,22 @@ Path B: see next section.
 
 ## Switch any work scenario in one line
 
-Starting v0.17.1, pinrule isn't locked to dev scenarios. Whatever your work is, the Agent researches the matching rule pack:
+Whatever your work is, your Agent researches the matching rule pack:
 
 ```
 /pinrule I mainly do UX user research + interviews, switch to this scenario
 ```
 
-The Agent synthesizes 4 signals:
+The Agent synthesizes 4 signals into a 5-7 rule pack:
 
 | Signal | Content |
 |---|---|
-| **A. Your local rule files** | `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md` / project `CLAUDE.md` / `.cursor/rules/*.mdc` — preferences you've already written |
-| **B. Online best practices** | `WebSearch` finds high-star GitHub repos for your domain / industry blogs / papers |
-| **H. Karpathy CLAUDE.md baseline** | Cross-scenario principles (explicit failure / minimal abstraction / etc.) |
-| **S. Session context** | What you're doing this session, vocabulary, domain |
+| **A. Your local rule files** | `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md` / project `CLAUDE.md` / `.cursor/rules/*.mdc` |
+| **B. Online best practices** | `WebSearch` finds high-star GitHub repos / industry blogs / papers |
+| **H. Karpathy CLAUDE.md baseline** | Cross-scenario engineering principles |
+| **S. Session context** | What you're working on right now |
 
-Two-phase flow: **Phase 1** content preview (5-7 rules with source attribution) → you approve → **Phase 2** mechanism config (keywords + engine check semantic mapping — e.g. `read_before_write` **partially maps to** "design before reading research", not semantic understanding of UX methodology) → you approve → atomic batch write + backup. Full walkthrough: [SKILL.md Path B](./skills/pinrule/SKILL.md).
-
-**pinrule itself stays 0 runtime deps / 0 network / 0 LLM** — all research happens in your Agent's existing toolset.
+Two-phase approval (content → mechanism), then atomic batch write with backup. Full walkthrough: [SKILL.md Path B](./skills/pinrule/SKILL.md).
 
 ---
 
