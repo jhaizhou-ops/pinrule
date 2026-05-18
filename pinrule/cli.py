@@ -734,6 +734,121 @@ def cmd_rule_remove(rule_id: str) -> int:
     return 0
 
 
+def cmd_rule_import_pack(
+    json_path: str,
+    mode: str = "replace",
+    backup: bool = False,
+) -> int:
+    """原子批量导入规则包 — Path B 场景切换主入口。
+
+    用法:
+      pinrule rule import-pack --from-json <file> [--mode replace|append] [--backup]
+
+    流程 (engineering-first, 不让 Agent 串多条命令重新发明事务):
+      1. 读现有 rules.json (or empty list)
+      2. 读新 pack JSON (must be list of rule dicts)
+      3. 全量 schema validate (走 pinrule.rule.load 一致逻辑)
+      4. 检查 id 唯一性 / 软硬上限 / violation_checks 函数存在
+      5. 写 backup (如果 --backup)
+      6. 原子写: tmp 文件 + os.rename swap (任何一步挂 → rules.json 一字没动)
+
+    --mode replace: 整库替换 (Path B 场景切换默认)
+    --mode append: 追加到现有规则库 (会撞软上限 → 警告但仍写)
+    """
+    import json
+    import os
+    import tempfile
+    from datetime import datetime
+    from pinrule.checks import REGISTRY as CHECK_REGISTRY
+
+    # Step 1: 读新 pack
+    p = Path(json_path)
+    if not p.exists():
+        print(f"❌ JSON 文件不存在: {json_path}", file=sys.stderr)
+        return 1
+    try:
+        new_pack = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 解析失败: {e}", file=sys.stderr)
+        return 1
+    if not isinstance(new_pack, list):
+        print(f"❌ pack 必须是 list of rules, 实际 {type(new_pack).__name__}", file=sys.stderr)
+        return 1
+    if not new_pack:
+        print("❌ pack 是空 list — 拒绝写空规则库", file=sys.stderr)
+        return 1
+
+    # Step 2: 决定最终规则集 (replace 全量替换 / append 累加)
+    if mode not in ("replace", "append"):
+        print(f"❌ 未知 --mode {mode!r}, 必须是 'replace' or 'append'", file=sys.stderr)
+        return 1
+    if mode == "append":
+        if RULES_PATH.exists():
+            try:
+                existing = json.loads(RULES_PATH.read_text(encoding="utf-8")) or []
+            except json.JSONDecodeError as e:
+                print(f"❌ 现有 rules.json 解析失败: {e}", file=sys.stderr)
+                return 1
+        else:
+            existing = []
+        final = existing + new_pack
+    else:
+        final = new_pack
+
+    # Step 3: 全量 schema validate (写到 tmp 走 pinrule.rule.load)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+        json.dump(final, tmp, ensure_ascii=False, indent=2)
+        validate_path = Path(tmp.name)
+    try:
+        try:
+            validated = load_rules(validate_path)
+        except RuleConfigError as e:
+            print(f"❌ Schema 校验失败: {e}", file=sys.stderr)
+            print("   rules.json 一字没动 (atomic — 校验失败前不写)", file=sys.stderr)
+            return 1
+    finally:
+        validate_path.unlink(missing_ok=True)
+
+    # Step 4: id 唯一性 (load_rules 已经查) + violation_checks 函数存在
+    for rule in validated:
+        unknown = [c for c in rule.violation_checks if c not in CHECK_REGISTRY]
+        if unknown:
+            print(
+                f"❌ 规则 {rule.id!r} 引用未注册 check 函数: {unknown}\n"
+                f"   可用 check 函数: {sorted(CHECK_REGISTRY.keys())}\n"
+                f"   rules.json 一字没动",
+                file=sys.stderr,
+            )
+            return 1
+
+    # Step 5: 写 backup (atomic 之前)
+    if backup and RULES_PATH.exists():
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_path = RULES_PATH.parent / f"rules.json.before-scenario-{ts}"
+        backup_path.write_text(
+            RULES_PATH.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        print(f"  备份: {backup_path}")
+
+    # Step 6: 原子写 (tmp + rename)
+    RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp_write = RULES_PATH.with_suffix(".json.tmp")
+    tmp_write.write_text(
+        json.dumps(final, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(tmp_write, RULES_PATH)  # atomic on POSIX + Windows
+
+    # Step 7: 反馈
+    n_final = len(validated)
+    print(f"✓ Import pack 成功 ({mode} 模式) — 当前规则库 {n_final} 条")
+    soft_max = MAX_RULES
+    if n_final > soft_max:
+        print(f"⚠ 已超软上限 {soft_max} 条 — Claude 注意力可能下降, 建议精简")
+    return 0
+
+
 def cmd_reset_session() -> int:
     """清所有 session-state JSON — Agent 注意力漂移实验重启。
 
@@ -1714,7 +1829,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if cmd == "rule":
         if not args:
-            print(f"Usage: pinrule {cmd} <list|edit|remove|add|preview>", file=sys.stderr)
+            print(f"Usage: pinrule {cmd} <list|edit|remove|add|preview|import-pack>", file=sys.stderr)
             return 1
         if args[0] == "list":
             return cmd_rule_list()
@@ -1748,6 +1863,30 @@ def main(argv: list[str] | None = None) -> int:
                 if idx + 1 < len(sub):
                     json_path = sub[idx + 1]
             return cmd_rule_preview(json_path=json_path, stdin_json=stdin_json)
+        if args[0] == "import-pack":
+            # pinrule rule import-pack --from-json <file> [--mode replace|append] [--backup]
+            json_path = None
+            mode = "replace"
+            do_backup = False
+            sub = args[1:]
+            if "--from-json" in sub:
+                idx = sub.index("--from-json")
+                if idx + 1 < len(sub):
+                    json_path = sub[idx + 1]
+            if "--mode" in sub:
+                idx = sub.index("--mode")
+                if idx + 1 < len(sub):
+                    mode = sub[idx + 1]
+            if "--backup" in sub:
+                do_backup = True
+            if not json_path:
+                print(
+                    "Usage: pinrule rule import-pack --from-json <file> "
+                    "[--mode replace|append] [--backup]",
+                    file=sys.stderr,
+                )
+                return 1
+            return cmd_rule_import_pack(json_path=json_path, mode=mode, backup=do_backup)
         print(f"未知 {cmd} 子命令: {args[0]}", file=sys.stderr)
         return 1
     if cmd == "violations":

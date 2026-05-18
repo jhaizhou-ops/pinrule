@@ -222,13 +222,30 @@ def test_skill_engineering_first_principle(skill_text: str) -> None:
         "SKILL.md 丢了根本 design principle 段头"
     # 必须列出 Agent 不该 reinvent 的工作 (有 pinrule 工程化 primitive)
     for primitive in ("pinrule doctor", "pinrule rule preview",
-                      "pinrule rule add", "pinrule rule list", "pinrule audit"):
+                      "pinrule rule add", "pinrule rule list", "pinrule audit",
+                      "pinrule rule import-pack"):  # v0.18.0 真原子 batch write CLI
         assert primitive in skill_text, f"design principle 没列 pinrule 工程化 primitive: {primitive}"
     # 必须区分「Agent 自由发挥 belongs in」vs「Agent reinvention does NOT belong in」
     assert "Agent free-form judgment belongs in" in skill_text, \
         "design principle 没明确「Agent 该自由发挥的地方」"
     assert "Agent reinvention does NOT belong in" in skill_text, \
         "design principle 没明确「Agent 不该 reinvent 的地方」"
+
+
+def test_skill_path_b_step10_uses_import_pack(skill_text: str) -> None:
+    """Path B Step 10 必须用 pinrule rule import-pack (v0.18.0 原子 CLI)
+    而不是 Agent 串 shell 命令 — 朋友 review 抓的真原子性 gap fix.
+    """
+    # Step 10 段必须含 import-pack 引用
+    assert "import-pack" in skill_text, "Path B Step 10 丢了 pinrule rule import-pack 引用"
+    assert "--mode replace" in skill_text, "Step 10 没明示 --mode replace 默认"
+    assert "--backup" in skill_text, "Step 10 没 --backup flag 引用"
+    # 必须明确 atomic + 「all validation before any write」
+    assert "all validation before any write" in skill_text, \
+        "Step 10 没明确「先全量校验再写」atomic guarantee"
+    # 必须含「byte-for-byte unchanged」失败安全保证
+    assert "byte-for-byte unchanged" in skill_text, \
+        "Step 10 没明确「失败时 rules.json 一字没动」承诺"
 
 
 def test_skill_path_b_backend_coverage_table(skill_text: str) -> None:

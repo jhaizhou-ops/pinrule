@@ -79,7 +79,8 @@ Agent free-form judgment belongs in:
 Agent reinvention does NOT belong in:
 - Backend detection → call `pinrule doctor`
 - Schema validation → call `pinrule rule preview`
-- Rule write → call `pinrule rule add --from-json`
+- Single rule write → call `pinrule rule add --from-json`
+- **Atomic batch write (Path B Step 10)** → call `pinrule rule import-pack --from-json <pack> --mode replace --backup` (v0.18.0+ — one command, validates everything first, then atomic swap; no half-replaced state if any step fails)
 - Existing rule library inspection → call `pinrule rule list`
 - Violation audit → call `pinrule audit --by-check`
 
@@ -690,26 +691,41 @@ Don't re-debate content here — content was locked in Step 5. If user wants con
 
 ---
 
-## Step 10 (Path B): Backup + atomic-ish batch write
+## Step 10 (Path B): Atomic batch write — `pinrule rule import-pack`
 
-After both phases approved:
+After both phases approved, write the final rule pack as **one atomic command** (v0.18.0+):
 
 ```bash
-# 1. Backup current state
-cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-$(date +%Y%m%d-%H%M%S)
+# 1. Compose the final pack as a single JSON file (Phase 2 approved keywords + checks)
+cat > /tmp/pinrule-scenario-pack.json <<'EOF'
+[
+  {"id": "loud-failure-with-evidence", "preference": "...", "violation_keywords": [...], "violation_checks": ["loud_failure_with_evidence"]},
+  {"id": "read-before-write", "preference": "...", "violation_keywords": [...], "violation_checks": ["read_before_write"]},
+  {"id": "no-fabricated-user-voice", "preference": "...", "violation_keywords": [...], "violation_checks": []},
+  ...
+]
+EOF
 
-# 2. Remove rules that don't survive (default is replace for Path B; append only if user explicitly said so in Phase 1)
-pinrule rule remove <old_rule_1>
-pinrule rule remove <old_rule_2>
-...
-
-# 3. Add new rules with complete mechanism (Phase 2 approved keywords + checks)
-pinrule rule add --from-json /tmp/pinrule-new-rule-1.json
-pinrule rule add --from-json /tmp/pinrule-new-rule-2.json
-...
+# 2. Atomic import — replaces rule library in one shot, with backup
+pinrule rule import-pack --from-json /tmp/pinrule-scenario-pack.json --mode replace --backup
 ```
 
-If midway fails (rare — pinrule schema validates), tell the user to restore from `rules.json.before-scenario-*` backup.
+**Why a single command** (engineering-first principle): pinrule's `import-pack` does **all validation before any write**:
+1. Reads existing `rules.json`
+2. Parses + schema-validates the entire pack
+3. Verifies id uniqueness, soft/hard caps, `violation_checks` function existence
+4. Creates a backup (if `--backup`)
+5. Writes to `rules.json.tmp` + `os.rename` swap (atomic on POSIX + Windows)
+
+**If anything in steps 1-4 fails**, `rules.json` is **byte-for-byte unchanged**. This is real atomic, not the old `remove + add` shell chain which could leave the library half-replaced.
+
+**Modes**:
+- `--mode replace`: Default for Path B scenario switch. Entire rule library = new pack.
+- `--mode append`: Add new pack to existing rules. Only use if user explicitly said "追加 / append" in Phase 1.
+
+**Always pass `--backup`** for scenario switches — creates `~/.pinrule/rules.json.before-scenario-<YYYYMMDD-HHMMSS>` so the user can revert if they don't like the new pack after a few sessions.
+
+If `pinrule rule import-pack` fails (e.g., schema reject), tell the user the exact reason from stderr — `rules.json` is intact, just retry after fixing the rejected rule.
 
 ### Step 11 (Path B): Tell user this is v1 — iterate from real data
 
@@ -839,14 +855,11 @@ After writing:
 
 **Agent**:
 
-> [cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-20260518-153022]
-> [pinrule rule remove no-testset-no-future-leakage]
-> [pinrule rule remove long-term-fundamental]
-> [pinrule rule remove deep-fix-not-bypass]
-> [pinrule rule add --from-json /tmp/pinrule-no-fabricated-citation.json]
-> [pinrule rule add --from-json /tmp/pinrule-ablation-completeness.json]
-> [pinrule rule add --from-json /tmp/pinrule-eval-data-isolation.json]
-> [pinrule rule add --from-json /tmp/pinrule-assumption-explicit.json]
+> [组合 Phase 2 approved 8 条规则 → /tmp/pinrule-ml-research-pack.json]
+> [pinrule rule import-pack --from-json /tmp/pinrule-ml-research-pack.json --mode replace --backup]
+>
+> ✓ Import pack 成功 (replace 模式) — 当前规则库 8 条
+> 备份: ~/.pinrule/rules.json.before-scenario-20260518-153022
 >
 > ✓ 已切到 ML research 场景规则集 (8 条):
 >   - 4 条保留 (3 普适 + chinese-plain 按你要求)
