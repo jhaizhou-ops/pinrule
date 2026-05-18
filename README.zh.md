@@ -115,7 +115,7 @@ flowchart LR
 |---|---|---|
 | **`/pinrule`**（不带任何内容） | **数据面板** — 哪些 engine check 命中最多 / 真阳假阳分布 | <1 秒（纯 CLI，0 LLM 转述） |
 | **`/pinrule <单条规则描述>`** | **Path A: 单条规则增删改** — 7 步 skill 流程 | ~30 秒 |
-| **`/pinrule <场景描述，切到这个>`** | **Path B: 场景规则集生成**（v0.17.1 新）— 综合 4 信号源生成 5-7 条，两阶段确认后批量原子写入 | 3-5 分钟 |
+| **`/pinrule <场景描述，切到这个>`** | **Path B: 场景规则集生成** — 综合 4 信号源生成 5-7 条，两阶段确认后批量原子写入 | 3-5 分钟 |
 
 Path A: `/pinrule 我说「完成」的时候希望附上测试通过证据` → 30 秒端到端。
 
@@ -159,11 +159,13 @@ Agent 综合 4 信号源生成 5-7 条规则包：
 
 ## 诚实的工具边界
 
-pinrule 的监控为了0 LLM依赖实现是**正则匹配 + 计数**，不是 LLM 语义理解。
+pinrule 是**正则匹配 + 计数**实现 0 LLM 依赖，不是 LLM 语义理解。每类边界都有真回归测试，质疑随时本机复现：
 
-- **会有假阳性。** 表格里引用术语、`python -c` 字符串字面、commit message 描述违反字眼 — 都可能命中。`pinrule audit` 把疑似假阳标「⚠️ 可能假阳」。
-- **会有假阴性。** 正则分不出来用户是不是故意伪装。pinrule 假设你不会拿自己开玩笑。
-- **修后 0 触发不等于 fix 对。** 可能是 pattern 过宽把真 case 一并吃了。
+| 边界 | 复现脚本 |
+|---|---|
+| **会有假阳性**（表格里引用术语、`python -c` 字符串字面、commit message 描述违反字眼） | `pytest tests/test_check_fp_fixes_v0_16_13.py` — 锁住 4 处历史假阳真 fix（否定前缀 / fenced code block / 反引号包裹 / 全角标点字数）。`pinrule audit` 运行期把疑似假阳标「⚠️ 可能假阳」。 |
+| **会有假阴性**（Agent 故意伪装违反） | `pytest tests/test_false_negative_regression.py` — 30+ 假阴 case 钉死。正则读不出意图，pinrule 假设你不会拿自己开玩笑。 |
+| **修后 0 触发不等于 fix 对** | 可能是 pattern 过宽把真 case 一并吃了。用 `pinrule audit` 看真 session 数据，不要凭合成 prompt 验证。 |
 
 把 pinrule 想成介于 `git` 跟 lint 之间的工具 — 给信号，不给判决。
 
@@ -183,7 +185,7 @@ pinrule 的监控为了0 LLM依赖实现是**正则匹配 + 计数**，不是 LL
 
 <details>
 <summary><b>非开发场景规则集（写作 / 研究 / 法律 / UX）？</b></summary>
-v0.17.1 起一句话切：<code>/pinrule 我主要做 X 场景，切到这个场景规则集</code>。Agent 综合 4 信号源（你本机已有规则文件 + 联网业界 best practice + Karpathy CLAUDE.md baseline + 跟你协作的 session 上下文）生成 5-7 条规则，两阶段确认后批量原子写入，每条带 source 标注 — 3-5 分钟切完。详见上面「<a href="#任何工作场景一句话切">任何工作场景一句话切</a>」段。
+一句话切：<code>/pinrule 我主要做 X 场景，切到这个场景规则集</code>。Agent 综合 4 信号源（你本机已有规则文件 + 联网业界 best practice + Karpathy CLAUDE.md baseline + 跟你协作的 session 上下文）生成 5-7 条规则，两阶段确认后批量原子写入，每条带 source 标注 — 3-5 分钟切完。详见上面「<a href="#任何工作场景一句话切">任何工作场景一句话切</a>」段。
 </details>
 
 <details>

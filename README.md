@@ -118,7 +118,7 @@ You only need to remember one command — `/pinrule`. Based on the natural-langu
 |---|---|---|
 | **`/pinrule`** (no args) | **Data dashboard** — which engine checks fire most, real-vs-false-positive split | <1s (pure CLI, no LLM synthesis) |
 | **`/pinrule <single rule>`** | **Path A: add / modify / remove one rule** — 7-step skill flow | ~30s |
-| **`/pinrule <scenario, switch to this>`** | **Path B: scenario rule pack** (new in v0.17.1) — synthesize 5-7 rules from 4 signals, two-phase confirm, atomic batch write | 3-5 min |
+| **`/pinrule <scenario, switch to this>`** | **Path B: scenario rule pack** — synthesize 5-7 rules from 4 signals, two-phase confirm, atomic batch write | 3-5 min |
 
 Path A: `/pinrule When I say "done" I want test pass evidence attached` → 30s end-to-end.
 
@@ -162,11 +162,13 @@ Several ideas looked attractive but failed in practice. Recorded so the same pat
 
 ## Honest tool boundaries
 
-pinrule is **regex + counting**, not LLM semantic understanding.
+pinrule is **regex + counting**, not LLM semantic understanding. Each known failure mode has a regression test you can run yourself:
 
-- **False positives happen.** Table cells quoting a term, `python -c` literals, commit messages — all can hit. `pinrule audit` flags suspected false positives.
-- **False negatives happen.** Regex can't tell if you're disguising a violation. pinrule assumes you're not cheating yourself.
-- **Zero hits after a fix doesn't prove the fix is correct.** The pattern might just be too wide.
+| Failure mode | Evidence you can reproduce |
+|---|---|
+| **False positives** (table cells quoting a term, `python -c` literals, commit messages) | `pytest tests/test_check_fp_fixes_v0_16_13.py` — locks down 4 historical FP fixes (negation prefix, fenced code blocks, inline backticks, full-width punctuation). `pinrule audit` flags suspected FPs at runtime. |
+| **False negatives** (Agent disguising a violation) | `pytest tests/test_false_negative_regression.py` — 30+ FN cases pinned. Regex can't read intent — pinrule assumes you're not cheating yourself. |
+| **Zero hits ≠ fix correct** | Pattern may just be too wide. Cross-check with `pinrule audit` on real session data, not synthetic prompts. |
 
 Sits between `git` and a linter — signals, not verdicts.
 
@@ -186,7 +188,7 @@ Run <code>pinrule doctor</code> — checks hook events, rule loading, session st
 
 <details>
 <summary><b>Custom rule sets for non-dev scenarios (writing / research / legal / UX)?</b></summary>
-v0.17.1+: just say <code>/pinrule I mainly do X scenario, switch to this</code>. Agent synthesizes 5-7 rules from 4 signals (your local <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursor/rules</code>, online best practices via WebSearch, Karpathy baseline, session context), previews with source attribution, two-phase confirms, atomic batch write — 3-5 min end-to-end. See <a href="#switch-any-work-scenario-in-one-line">"Switch any work scenario"</a> above.
+Say <code>/pinrule I mainly do X scenario, switch to this</code>. Agent synthesizes 5-7 rules from 4 signals (your local <code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursor/rules</code>, online best practices via WebSearch, Karpathy baseline, session context), previews with source attribution, two-phase confirms, atomic batch write — 3-5 min end-to-end. See <a href="#switch-any-work-scenario-in-one-line">"Switch any work scenario"</a> above.
 </details>
 
 <details>

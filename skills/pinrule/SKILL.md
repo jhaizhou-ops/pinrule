@@ -80,7 +80,7 @@ Agent reinvention does NOT belong in:
 - Backend detection → call `pinrule doctor`
 - Schema validation → call `pinrule rule preview`
 - Single rule write → call `pinrule rule add --from-json`
-- **Atomic batch write (Path B Step 10)** → call `pinrule rule import-pack --from-json <pack> --mode replace --backup` (v0.18.0+ — one command, validates everything first, then atomic swap; no half-replaced state if any step fails)
+- **Atomic batch write (Path B Step 10)** → call `pinrule rule import-pack --from-json <pack> --mode replace --backup` (one command, validates everything first, then atomic swap; no half-replaced state if any step fails)
 - Existing rule library inspection → call `pinrule rule list`
 - Violation audit → call `pinrule audit --by-check`
 
@@ -727,7 +727,7 @@ Don't re-debate content here — content was locked in Step 5. If user wants con
 
 ## Step 10 (Path B): Atomic batch write — `pinrule rule import-pack`
 
-After both phases approved, write the final rule pack as **one atomic command** (v0.18.0+):
+After both phases approved, write the final rule pack as **one atomic command**:
 
 ```bash
 # 1. Compose the final pack as a single JSON file (Phase 2 approved keywords + checks)
@@ -787,7 +787,7 @@ After writing:
 
 ### Path B output format quick reference
 
-The format templates above (Step 4 Phase 1 preview, Step 8 Phase 2 mechanism preview) are the canonical structures. Don't copy verbatim — adapt to user's actual scenario from session context. For a verbose ML-research walkthrough with full mock outputs, see [SKILL.md history at commit before v0.18.2](https://github.com/jhaizhou-ops/pinrule/commits/main/skills/pinrule/SKILL.md). Phase 1 + Phase 2 + Step 10 import-pack flow is canonical regardless of scenario.
+The format templates above (Step 4 Phase 1 preview, Step 8 Phase 2 mechanism preview) are the canonical structures. Don't copy verbatim — adapt to user's actual scenario from session context. Phase 1 + Phase 2 + Step 10 import-pack flow is canonical regardless of scenario.
 
 ## Common mistakes to avoid
 
@@ -807,7 +807,7 @@ The format templates above (Step 4 Phase 1 preview, Step 8 Phase 2 mechanism pre
 - ❌ Don't ask user to opt into each signal source (A/B/H/S) — all four are default-on, pinrule is opinionated
 - ❌ Don't skip the **Source attribution** line in each rule preview — provenance is non-negotiable for user audit
 - ❌ Don't default to append for scenario rule pack (Path A default is append; Path B default is replace)
-- ❌ Don't skip the `--backup` flag when calling `pinrule rule import-pack` — pinrule auto-creates `~/.pinrule/rules.json.before-scenario-<ts>-<pid>-<random>` with this flag, atomic before the swap (v0.18.0+)
+- ❌ Don't skip the `--backup` flag when calling `pinrule rule import-pack` — pinrule auto-creates `~/.pinrule/rules.json.before-scenario-<ts>-<pid>-<random>` with this flag, atomic before the swap
 - ❌ Don't claim "I researched online" without actually running WebSearch / WebFetch — fabricating sources is worse than just synthesizing from training knowledge honestly
 - ❌ Don't include `pinrule rule add --from-json` for rules sourced from `~/.pinrule/rules.json` itself (self-reference loop — read user's *non-pinrule* files for signal)
 - ❌ Don't propose >10 rules in the pack (pinrule soft cap is 10; aim for 5-7 to leave room for user's later /pinrule additions)
