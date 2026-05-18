@@ -60,7 +60,7 @@ Per-hook lifecycle: see [ARCHITECTURE.md](./docs/ARCHITECTURE.md#backend-capabil
 
 ```mermaid
 flowchart LR
-    R[(rules.yaml<br/>5-10 core directions)]
+    R[(rules.json<br/>5-10 core directions)]
     K[pinrule engine<br/>regex + counting]
     A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>audit history)]
@@ -72,7 +72,7 @@ flowchart LR
     V -.->|next-turn drift marker| K
 ```
 
-`rules.yaml` is the only thing you maintain. The engine reads it, injects at the right hook points, watches Agent traffic for drift — no retrieval, no scoring, no LLM in the loop.
+`rules.json` is the only thing you maintain. The engine reads it, injects at the right hook points, watches Agent traffic for drift — no retrieval, no scoring, no LLM in the loop.
 
 ---
 
@@ -150,17 +150,17 @@ Run <code>pinrule doctor</code> — checks hook events, rule loading, session st
 
 <details>
 <summary><b>Too many false positives?</b></summary>
-<code>pinrule audit</code> shows triggers tagged "⚠️ possible false positive" — report via Issue. Disable a single rule: <code>pinrule rule remove &lt;id&gt;</code>, or edit <code>~/.pinrule/rules.yaml</code> and remove its <code>violation_keywords</code> / <code>violation_checks</code> fields.
+<code>pinrule audit</code> shows triggers tagged "⚠️ possible false positive" — report via Issue. Disable a single rule: <code>pinrule rule remove &lt;id&gt;</code>, or edit <code>~/.pinrule/rules.json</code> and remove its <code>violation_keywords</code> / <code>violation_checks</code> fields.
 </details>
 
 <details>
 <summary><b>Custom rule sets for non-dev scenarios (writing / research / legal)?</b></summary>
-The framework is cross-scenario; the 8 built-in <code>violation_checks</code> are dev-oriented. Write your own <code>rules.yaml</code> for other scenarios — preference text + custom keywords (no engine check needed).
+The framework is cross-scenario; the 8 built-in <code>violation_checks</code> are dev-oriented. Write your own <code>rules.json</code> for other scenarios — preference text + custom keywords (no engine check needed).
 </details>
 
 <details>
 <summary><b>How do I sync rules across devices?</b></summary>
-Ask the Agent to copy <code>~/.pinrule/rules.yaml</code>. <b>Safe to sync</b>: <code>rules.yaml</code> + <code>config.yaml</code>. <b>Never sync</b>: <code>violations.jsonl</code>, <code>session-state/</code> (runtime data, per-device — cloud-synced folders can corrupt cross-device state).
+Ask the Agent to copy <code>~/.pinrule/rules.json</code>. <b>Safe to sync</b>: <code>rules.json</code> + <code>config.json</code>. <b>Never sync</b>: <code>violations.jsonl</code>, <code>session-state/</code> (runtime data, per-device — cloud-synced folders can corrupt cross-device state).
 </details>
 
 <details>
@@ -184,7 +184,7 @@ Complementary. Karpathy's 12 rules are <b>universal coding principles</b> (cross
 
 > A rules file isn't a wishlist. It's a behavioral contract closing out failure modes you've actually observed. Each rule should answer: **what error is this rule preventing?**
 
-The 7 default rules in `data/rules.dev.example.yaml` are pain points from self-use, not a template to copy verbatim. Keep what matches your own failure scenes, replace the rest via `/pinrule <natural language>`.
+The 7 default rules in `data/rules.dev.example.json` are pain points from self-use, not a template to copy verbatim. Keep what matches your own failure scenes, replace the rest via `/pinrule <natural language>`.
 
 ---
 

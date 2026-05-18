@@ -13,7 +13,7 @@ Methodology behind the performance claims in README.
 The end-to-end time from the AI client invoking the hook subprocess to pinrule emitting its hook output JSON. Includes:
 
 - Python interpreter cold start (largest single factor — Python 3.11/3.12)
-- `pinrule` package import + rule loading from `~/.pinrule/rules.yaml`
+- `pinrule` package import + rule loading from `~/.pinrule/rules.json`
 - Hook handler dispatch
 - Engine check + state update + stdout write
 

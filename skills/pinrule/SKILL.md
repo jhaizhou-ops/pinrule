@@ -131,9 +131,9 @@ pinrule has no atomic `rule replace` command **on purpose** — modifying = `rem
 
 **The 3-step modify recipe** (use this when Step 2 says "modify"):
 
-1. **Draft the new yaml first** — write the full revised rule to `/tmp/pinrule-rule-<id>.yaml` (keep the original `id` so violation history stays linked, unless the rule's purpose genuinely changed)
-2. **Preview** — `pinrule rule preview --from-yaml /tmp/pinrule-rule-<id>.yaml` to confirm schema + injection text
-3. **Atomic-ish swap** — `pinrule rule remove <id> && pinrule rule add --from-yaml /tmp/pinrule-rule-<id>.yaml` (chain with `&&` so an `add` failure doesn't leave the library missing the rule)
+1. **Draft the new JSON first** — write the full revised rule to `/tmp/pinrule-rule-<id>.json` (keep the original `id` so violation history stays linked, unless the rule's purpose genuinely changed)
+2. **Preview** — `pinrule rule preview --from-json /tmp/pinrule-rule-<id>.json` to confirm schema + injection text
+3. **Atomic-ish swap** — `pinrule rule remove <id> && pinrule rule add --from-json /tmp/pinrule-rule-<id>.json` (chain with `&&` so an `add` failure doesn't leave the library missing the rule)
 
 **Common modify shapes**:
 
@@ -146,46 +146,47 @@ pinrule has no atomic `rule replace` command **on purpose** — modifying = `rem
 
 **Why not `pinrule rule edit`?** That command launches `$EDITOR` for the user to hand-edit `rules.json` — it's a user-facing escape hatch, not an Agent-automatable path. The Agent should always use the `remove` + `add` recipe so the user sees the diff in conversation.
 
-### Step 3: Refine into yaml
+### Step 3: Refine into JSON
 
-Draft a yaml snippet with:
+Draft a JSON snippet with:
 - `id` — kebab-case slug (e.g., `must-run-tests-before-done`)
-- `preference` — multi-line in collaborative-agreement tone (~3-5 lines)
+- `preference` — multi-line in collaborative-agreement tone (~3-5 lines; use `\n` for line breaks)
 - `violation_keywords` — intent-prefix + action format (3-8 entries)
 - `violation_checks` — pick 0 or 1 of the 8 built-in functions
 - `force_block_exempt` — usually omit (default false)
 
-**Show the draft to the user inline before saving to a temp file.** Don't go straight to `preview` — the user should have a chance to react to wording / structure choices in conversation, not face a finished yaml.
+**Show the draft to the user inline before saving to a temp file.** Don't go straight to `preview` — the user should have a chance to react to wording / structure choices in conversation, not face a finished JSON.
 
 A good flow:
 
 > "Here's a draft based on what you said:
 >
-> ```yaml
-> id: must-run-tests-before-done
-> preference: |
->   ...
-> violation_keywords: [...]
+> ```json
+> {
+>   "id": "must-run-tests-before-done",
+>   "preference": "...\nmulti-line via \\n escape...",
+>   "violation_keywords": ["...", "..."]
+> }
 > ```
 >
 > Look right? If yes I'll preview + add. If you want to adjust the wording / keywords / scope, say so now."
 
-If the user is OK or wants minor tweaks, then save to `/tmp/pinrule-new-rule.yaml` and move to Step 4.
+If the user is OK or wants minor tweaks, then save to `/tmp/pinrule-new-rule.json` and move to Step 4.
 
-**Locale-aware tone**: write `preference` in the language the user is talking to you in. Chinese user → Chinese preference text (using «协作默契» collaborative-agreement phrasing — see existing `data/rules.dev.example.zh.yaml` for reference patterns). English user → English text. Mixed-locale users typically prefer their primary language; if unsure, ask. The 8 built-in `violation_checks` function names stay English regardless (they're stable identifiers).
+**Locale-aware tone**: write `preference` in the language the user is talking to you in. Chinese user → Chinese preference text (using «协作默契» collaborative-agreement phrasing — see existing `data/rules.dev.example.zh.json` for reference patterns). English user → English text. Mixed-locale users typically prefer their primary language; if unsure, ask. The 8 built-in `violation_checks` function names stay English regardless (they're stable identifiers).
 
 ### Step 4: Preview test
 
 Run:
 ```bash
-pinrule rule preview --from-yaml /tmp/pinrule-new-rule.yaml
+pinrule rule preview --from-json /tmp/pinrule-new-rule.json
 ```
 
 Shows: schema validation + how the rule looks in the injection header.
 
 ### Step 5: Confirm with user
 
-Show the refined yaml + preview output. Ask:
+Show the refined JSON + preview output. Ask:
 - "Does this match your intent?"
 - "Want to adjust the wording, add keywords, or attach an engine-layer check?"
 
@@ -202,15 +203,15 @@ Once user confirms:
 
 **For a brand-new rule** (Step 2 said "no overlap"):
 ```bash
-pinrule rule add --from-yaml /tmp/pinrule-new-rule.yaml
+pinrule rule add --from-json /tmp/pinrule-new-rule.json
 ```
 
 **For modifying an existing rule** (Step 2 said "modify"):
 ```bash
 # Step 1: preview the new version BEFORE removing — catches schema/REGISTRY errors while old rule still exists
-pinrule rule preview --from-yaml /tmp/pinrule-rule-<id>.yaml
+pinrule rule preview --from-json /tmp/pinrule-rule-<id>.json
 # Step 2: only after preview passes, do the swap
-pinrule rule remove <id> && pinrule rule add --from-yaml /tmp/pinrule-rule-<id>.yaml
+pinrule rule remove <id> && pinrule rule add --from-json /tmp/pinrule-rule-<id>.json
 ```
 
 Both paths re-validate schema + check id conflicts + verify `violation_checks` exist in REGISTRY before touching `~/.claude/pinrule/rules.json`.
@@ -221,7 +222,7 @@ Both paths re-validate schema + check id conflicts + verify `violation_checks` e
 
 After `pinrule rule add` succeeds, summarize for the user:
 
-1. **What was added** — show the final yaml (refined from their natural language)
+1. **What was added** — show the final JSON (refined from their natural language)
 2. **pinrule tests passed** — schema validation + violation_checks existence verified
 3. **Current rule library count** — X of soft cap 10 / hard cap 12
 4. **When it takes effect** — "Takes effect on the next UserPromptSubmit. Send any new message (or restart Claude Code) to see it injected in the header." Don't make the user hunt for this.
@@ -240,26 +241,22 @@ After `pinrule rule add` succeeds, summarize for the user:
 >
 > [Runs `pinrule rule list`]
 >
-> I see you have `loud-failure-with-evidence` already, which partially covers this. But your new request adds specificity: "must attach actual test pass evidence." Let me refine into a yaml:
+> I see you have `loud-failure-with-evidence` already, which partially covers this. But your new request adds specificity: "must attach actual test pass evidence." Let me refine into JSON:
 >
-> ```yaml
-> - id: must-show-test-evidence-on-done
->   preference: |
->     The user trusts your "done" signal but needs to see actual evidence.
->     When you say "this is done" for code tasks, attach test-pass output /
->     build OK / data / screenshots so they can directly verify the result.
->     If you skipped a test or used mocks, honestly state it rather than
->     fake completion — this builds more trust than pretending.
->     Loud failure beats quiet covering-up.
->   violation_keywords:
->     - "this is done"
->     - "I'm done with this"
->     - "task complete"
->   violation_checks:
->     - loud_failure_with_evidence
+> ```json
+> {
+>   "id": "must-show-test-evidence-on-done",
+>   "preference": "The user trusts your \"done\" signal but needs to see actual evidence.\nWhen you say \"this is done\" for code tasks, attach test-pass output /\nbuild OK / data / screenshots so they can directly verify the result.\nIf you skipped a test or used mocks, honestly state it rather than\nfake completion — this builds more trust than pretending.\nLoud failure beats quiet covering-up.",
+>   "violation_keywords": [
+>     "this is done",
+>     "I'm done with this",
+>     "task complete"
+>   ],
+>   "violation_checks": ["loud_failure_with_evidence"]
+> }
 > ```
 >
-> [Runs `pinrule rule preview --from-yaml /tmp/...`]
+> [Runs `pinrule rule preview --from-json /tmp/...`]
 >
 > ✓ Schema validation passed. Here's the injection preview:
 >
@@ -277,7 +274,7 @@ After `pinrule rule add` succeeds, summarize for the user:
 
 **Agent**:
 
-> [Adds "all set" to violation_keywords, runs `pinrule rule add --from-yaml /tmp/...`]
+> [Adds "all set" to violation_keywords, runs `pinrule rule add --from-json /tmp/...`]
 >
 > ✓ Rule added. Summary:
 >

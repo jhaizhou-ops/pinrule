@@ -19,7 +19,7 @@ pinrule install-hooks                              # 默认 Claude（也可加 -
 pinrule doctor                                     # 验证装机（自动扫所有装机的 backend）
 ```
 
-装完重启 AI 客户端，hook 立即生效。规则在 `~/.pinrule/rules.yaml`（跨 backend 共享） — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
+装完重启 AI 客户端，hook 立即生效。规则在 `~/.pinrule/rules.json`（跨 backend 共享） — 用 `pinrule rule edit` 编辑，或 `/pinrule <自然语言>` 让 skill 替你写。
 
 ---
 
@@ -45,8 +45,8 @@ pinrule doctor                                     # 验证装机（自动扫所
 **跨 backend 共享**（用户级数据）：
 
 ```bash
-~/.pinrule/rules.yaml           # 你的核心方向（手工编辑或 /pinrule skill）
-~/.pinrule/config.yaml          # 阈值配置（不存在时走 DEFAULTS）
+~/.pinrule/rules.json           # 你的核心方向（手工编辑或 /pinrule skill）
+~/.pinrule/config.json          # 阈值配置（不存在时走 DEFAULTS）
 ~/.pinrule/violations.jsonl     # 违反历史（auto-rotate at 5000 行）
 ~/.pinrule/session-state/       # 每个 session 一份 json（30 天自动清理）
 ~/.pinrule/pre_compact_snapshot.md  # compact 前规则 dump（SessionStart 重读）
@@ -81,7 +81,7 @@ pinrule doctor                                     # 验证装机（自动扫所
 
 **发生的事**：
 1. Claude 自动触发 compact
-2. **PreCompact hook**：完整 `rules.yaml` 状态落盘到 `pre_compact_snapshot.md`
+2. **PreCompact hook**：完整 `rules.json` 状态落盘到 `pre_compact_snapshot.md`
 3. compact 执行（Claude 自己的压缩）
 4. **SessionStart hook**（compact 后重起触发）：读 snapshot 强注入完整规则
 
@@ -123,7 +123,7 @@ pinrule doctor                                     # 验证装机（自动扫所
 ### Q：Hook 拒了我的操作怎么办？
 
 看拒绝理由（stderr / 通知里都有）— 这通常说明你的规则认为这是违反。两种处理：
-- 修 `rules.yaml`（调整规则措辞 / keyword / engine check）
+- 修 `rules.json`（调整规则措辞 / keyword / engine check）
 - 明确告诉 Agent「绕一下先跑」（用户授权的例外）
 
 如果你认为是 pinrule 误拦（假阳），跑 `pinrule audit` 看「⚠️ 可能假阳」标记，欢迎提 issue。
@@ -142,9 +142,9 @@ pinrule doctor                                     # 验证装机（自动扫所
 
 ### Q：自定义阈值怎么配？
 
-`~/.pinrule/config.yaml`（不存在时走 `pinrule/config.py:DEFAULTS`）：
+`~/.pinrule/config.json`（不存在时走 `pinrule/config.py:DEFAULTS`）：
 
-```yaml
+```json
 recent_violation_turns: 5         # 偏离标记窗口
 stop_block_max_per_turn: 2        # Stop hook 单 turn 启发上限
 force_block_threshold: 5          # 累积强制查根因阈值
@@ -160,7 +160,7 @@ session_state_max_age_days: 30    # session 状态自动清理周期
 1. **Fail open** — 配置错 / 加载失败 → hook 不会卡 Agent，静默继续
 2. **零 LLM** — 全工程化（regex / 关键词 / 计数），无外部依赖
 3. **可见化** — 拦截 / 启发都有 stderr + 桌面通知，不黑盒
-4. **可调** — 你改 `rules.yaml` 下个 turn 立即生效
+4. **可调** — 你改 `rules.json` 下个 turn 立即生效
 
 ---
 

@@ -18,7 +18,7 @@ pinrule install-hooks                              # Defaults to Claude (also ac
 pinrule doctor                                     # Verify install (auto-scans every installed backend)
 ```
 
-Restart your AI client after install — hooks take effect immediately. Rules live in `~/.pinrule/rules.yaml` (shared across backends) — edit with `pinrule rule edit`, or invoke `/pinrule <natural language>` and let the skill write the rule for you.
+Restart your AI client after install — hooks take effect immediately. Rules live in `~/.pinrule/rules.json` (shared across backends) — edit with `pinrule rule edit`, or invoke `/pinrule <natural language>` and let the skill write the rule for you.
 
 ---
 
@@ -44,8 +44,8 @@ All hook outputs strictly follow each client's official protocol schema — no c
 **Shared across backends** (user-level data):
 
 ```bash
-~/.pinrule/rules.yaml           # Your core directions (manual edit or /pinrule skill)
-~/.pinrule/config.yaml          # Threshold config (DEFAULTS apply if missing)
+~/.pinrule/rules.json           # Your core directions (manual edit or /pinrule skill)
+~/.pinrule/config.json          # Threshold config (DEFAULTS apply if missing)
 ~/.pinrule/violations.jsonl     # Violation history (auto-rotate at 5000 lines)
 ~/.pinrule/session-state/       # One JSON per session (30-day auto-cleanup)
 ~/.pinrule/pre_compact_snapshot.md  # Pre-compact rule dump (SessionStart re-reads it)
@@ -80,7 +80,7 @@ All hook outputs strictly follow each client's official protocol schema — no c
 
 **What happens**:
 1. Claude auto-triggers compact
-2. **PreCompact hook**: full `rules.yaml` state snapshots to `pre_compact_snapshot.md`
+2. **PreCompact hook**: full `rules.json` state snapshots to `pre_compact_snapshot.md`
 3. Compact runs (Claude's own compression)
 4. **SessionStart hook** (fires on compact-restart): reads snapshot, force-injects full rules
 
@@ -122,7 +122,7 @@ All hook outputs strictly follow each client's official protocol schema — no c
 ### Q: A hook denied my operation, what now?
 
 Read the rejection reason (stderr / notification both have it) — usually it means your rules consider this a violation. Two paths:
-- Edit `rules.yaml` (adjust wording / keyword / engine check)
+- Edit `rules.json` (adjust wording / keyword / engine check)
 - Tell the Agent explicitly "skip this one, run it" (user-authorized exception)
 
 If you think this is a pinrule false positive, run `pinrule audit` and look for the "⚠️ likely false positive" tag — please file an issue.
@@ -141,9 +141,9 @@ No. `SubagentStart` injects full rules into the subagent's header, and the subag
 
 ### Q: How do I tune thresholds?
 
-Edit `~/.pinrule/config.yaml` (falls back to `pinrule/config.py:DEFAULTS` if missing):
+Edit `~/.pinrule/config.json` (falls back to `pinrule/config.py:DEFAULTS` if missing):
 
-```yaml
+```json
 recent_violation_turns: 5         # Drift-marker window
 stop_block_max_per_turn: 2        # Stop hook nudge cap per turn
 force_block_threshold: 5          # Cumulative force-rootcause threshold
@@ -159,7 +159,7 @@ session_state_max_age_days: 30    # Session-state auto-cleanup period
 1. **Fail open** — config error / load failure → hook doesn't block the Agent, silently continues
 2. **Zero LLM** — pure engineering (regex / keywords / counting), no external dependencies
 3. **Visible** — interceptions / nudges all surface to stderr + desktop notify, not a black box
-4. **Tunable** — edit `rules.yaml`, next turn picks it up immediately
+4. **Tunable** — edit `rules.json`, next turn picks it up immediately
 
 ---
 

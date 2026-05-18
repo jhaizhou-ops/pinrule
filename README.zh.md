@@ -21,8 +21,10 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 ## 10 秒上手
 
 ```bash
-pip install pinrule && pinrule init && pinrule install-hooks
+pip install pinrule && pinrule init
 ```
+
+`pinrule init` 在 `~/.pinrule/` 装默认规则 + 自动给所有检测到的客户端（Claude / Codex / Cursor）补装 hook。后面装了新客户端就跑 `pinrule install-hooks` 补上。
 
 > **Windows 用户**: Windows 默认不带 Python. 如果 `python --version` 没真版本号 (silent 跳 Microsoft Store), 先装 Python:
 > ```powershell
@@ -41,7 +43,7 @@ pip install pinrule && pinrule init && pinrule install-hooks
 /pinrule 我说「完成」的时候希望附上测试通过证据。
 ```
 
-pinrule skill 会帮你润色规则语气、校验格式，确认后写入 `rules.yaml`，约 30 秒完成。
+pinrule skill 会帮你润色规则语气、校验格式，确认后写入 `rules.json`，约 30 秒完成。
 
 ---
 
@@ -59,7 +61,7 @@ pinrule skill 会帮你润色规则语气、校验格式，确认后写入 `rule
 
 ```mermaid
 flowchart LR
-    R[(rules.yaml<br/>5-10 条核心方向)]
+    R[(rules.json<br/>5-10 条核心方向)]
     K[pinrule 引擎<br/>正则 + 计数]
     A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>违反历史)]
@@ -71,7 +73,7 @@ flowchart LR
     V -.->|下轮偏离标记| K
 ```
 
-`rules.yaml` 是你唯一维护的东西。引擎读它，在合适的 hook 触发点注入，监视 Agent 输出找漂移 — 不做向量检索、不做评分、整个循环不调 LLM。
+`rules.json` 是你唯一维护的东西。引擎读它，在合适的 hook 触发点注入，监视 Agent 输出找漂移 — 不做向量检索、不做评分、整个循环不调 LLM。
 
 ---
 
@@ -149,17 +151,17 @@ pinrule 是**正则匹配 + 计数**，不是 LLM 语义理解。
 
 <details>
 <summary><b>太多假阳？</b></summary>
-<code>pinrule audit</code> 看「⚠️ 可能假阳」标记，提 GitHub Issue 反馈。临时关掉一条规则：<code>pinrule rule remove &lt;id&gt;</code>，或者编辑 <code>~/.pinrule/rules.yaml</code> 把 <code>violation_keywords</code> / <code>violation_checks</code> 字段删掉。
+<code>pinrule audit</code> 看「⚠️ 可能假阳」标记，提 GitHub Issue 反馈。临时关掉一条规则：<code>pinrule rule remove &lt;id&gt;</code>，或者编辑 <code>~/.pinrule/rules.json</code> 把 <code>violation_keywords</code> / <code>violation_checks</code> 字段删掉。
 </details>
 
 <details>
 <summary><b>非开发场景规则集（写作 / 研究 / 法律）？</b></summary>
-框架跨场景，但 8 个内建工程层 <code>violation_checks</code> 偏开发。其他场景自己写 <code>rules.yaml</code> — 用偏好描述文本 + 自定义关键词（不依赖工程检查）。
+框架跨场景，但 8 个内建工程层 <code>violation_checks</code> 偏开发。其他场景自己写 <code>rules.json</code> — 用偏好描述文本 + 自定义关键词（不依赖工程检查）。
 </details>
 
 <details>
 <summary><b>多台设备怎么同步规则？</b></summary>
-让 Agent 帮你复制 <code>~/.pinrule/rules.yaml</code>。<b>可以同步</b>：<code>rules.yaml</code> + <code>config.yaml</code>。<b>绝对不能同步</b>：<code>violations.jsonl</code>、<code>session-state/</code>（运行时数据，每设备独立 — 云同步盘会让跨设备 state 互相覆盖）。
+让 Agent 帮你复制 <code>~/.pinrule/rules.json</code>。<b>可以同步</b>：<code>rules.json</code> + <code>config.json</code>。<b>绝对不能同步</b>：<code>violations.jsonl</code>、<code>session-state/</code>（运行时数据，每设备独立 — 云同步盘会让跨设备 state 互相覆盖）。
 </details>
 
 <details>
@@ -183,7 +185,7 @@ pinrule 是**正则匹配 + 计数**，不是 LLM 语义理解。
 
 > 规则文件不是许愿清单，是闭合特定失效模式的行为合约。每条规则都该回答：**这条规则预防的是什么错误？**
 
-`data/rules.dev.example.zh.yaml` 的 7 条默认规则是作者自用累积的痛点，不是给你照搬的模板。装完跑 `pinrule rule list` 看默认，留下映射到你自己翻车现场的，剩下的删掉换成你自己的（用 `/pinrule <自然语言>`）。
+`data/rules.dev.example.zh.json` 的 7 条默认规则是作者自用累积的痛点，不是给你照搬的模板。装完跑 `pinrule rule list` 看默认，留下映射到你自己翻车现场的，剩下的删掉换成你自己的（用 `/pinrule <自然语言>`）。
 
 ---
 

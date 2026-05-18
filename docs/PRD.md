@@ -73,13 +73,13 @@ pinrule does only **"core direction persistence + violation detection"** — one
 
 ### F1. Core direction configuration ✅
 
-- User defines 5-10 entries in `~/.pinrule/rules.yaml` (cap 10, over 12 refuses to load)
+- User defines 5-10 entries in `~/.pinrule/rules.json` (cap 10, over 12 refuses to load)
 - Fields: `id` / `preference` / `violation_keywords` / `violation_checks` (engine-layer check function name list)
 - pinrule CLI: `pinrule rule list / edit / remove`, `pinrule init`
 
 ### F2. user_prompt_submit hook ✅
 
-- Every user_prompt_submit, hook reads `rules.yaml`
+- Every user_prompt_submit, hook reads `rules.json`
 - Uses `additionalContext` injection into Claude context (doesn't modify user_text itself)
 - **v0.9.0**: per-turn injection is compact anchor (`format_anchor_only`: id + first-line preference + drift marker, ~490 tokens), NOT the full preference text
 - Full baseline (with every preference's complete multi-line body, ~1817 tokens) is injected once at SessionStart and persists in conversation history — see F2.5 below
@@ -130,7 +130,7 @@ Three hook feedback points:
 
 ### F5. Natural-language rule input via `/pinrule` skill ✅ (v0.5.16+ — first release where the skill actually triggers)
 
-**Triggering**: user types `/pinrule <natural language>` in any of Claude / Codex / Cursor. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft yaml inline → `pinrule rule preview` schema check → confirm with user → `pinrule rule add` write → report.
+**Triggering**: user types `/pinrule <natural language>` in any of Claude / Codex / Cursor. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft JSON inline → `pinrule rule preview` schema check → confirm with user → `pinrule rule add` write → report.
 
 **What the skill handles**:
 - Tone refinement (collaborative-agreement phrasing — LLMs respond with alignment instead of defensive argument)
@@ -141,8 +141,8 @@ Three hook feedback points:
 - Modify recipe (`remove + add` composition — no separate "replace" CLI needed)
 
 **Backing CLI** (callable independently from skill or scripts):
-- `pinrule rule add --from-yaml <file>` / `pinrule rule add --from-stdin` — Programmatic write with schema + id-conflict + REGISTRY validation
-- `pinrule rule preview --from-yaml/--from-stdin` — Dry-run validation + header-injection preview
+- `pinrule rule add --from-json <file>` / `pinrule rule add --from-stdin` — Programmatic write with schema + id-conflict + REGISTRY validation
+- `pinrule rule preview --from-json/--from-stdin` — Dry-run validation + header-injection preview
 
 **Multi-backend installation** (v0.5.16+):
 - Claude: `~/.claude/skills/pinrule/SKILL.md` (Markdown + YAML frontmatter)
@@ -156,16 +156,16 @@ pinrule has **two-way i18n**: speaking-side (what pinrule injects into the Agent
 
 **Speaking side — injection text** (v0.5.2+):
 - `pinrule/i18n.py` with `tr(key, **fmt)` lookup, `{placeholder}` interpolation, fail-open on missing keys
-- Locale resolution chain: `PINRULE_LOCALE` env > `config.yaml` `locale` field > auto-detect via `pinrule.locale_detect.is_chinese_user()` > `en` fallback
-- All hook injection text (header / drift marker / mid-injection / strong reminder / Stop reason / SessionStart variants / SubagentStart) + all 28 check `suggested_fix` strings + all 28 `CheckHit.trigger` audit labels switchable en/zh via `data/locales/{en,zh}.yaml`
+- Locale resolution chain: `PINRULE_LOCALE` env > `config.json` `locale` field > auto-detect via `pinrule.locale_detect.is_chinese_user()` > `en` fallback
+- All hook injection text (header / drift marker / mid-injection / strong reminder / Stop reason / SessionStart variants / SubagentStart) + all 28 check `suggested_fix` strings + all 28 `CheckHit.trigger` audit labels switchable en/zh via `data/locales/{en,zh}.json`
 - `Violation.trigger_key` + `CheckHit.trigger_key` (v0.5.7+) — locale-agnostic stable identifier for `pinrule audit` cross-locale grouping (users switching locale mid-week still see correct aggregation)
-- `pinrule init` selects rule template by detected locale (`rules.dev.example.zh.yaml` for Chinese users, English default otherwise)
+- `pinrule init` selects rule template by detected locale (`rules.dev.example.zh.json` for Chinese users, English default otherwise)
 
-**Listening side — detection signals** (v0.8.0 → v0.8.2):
-- `pinrule/signals.py` with `load_phrases()` (`.txt` flat phrases) + `load_patterns()` (`.yaml` Cartesian templates) + `compile_alternation()` union compile (long-phrase priority, `re.escape` literals vs raw regex templates)
-- All 7 detection signals externalized to `data/signals/<name>/{zh,en}.{txt,yaml}`:
+**Listening side — detection signals** (v0.8.0 → v0.8.2; v0.17.0 migrated YAML → Python module):
+- `pinrule/signals.py` with `load_phrases()` (`.txt` flat phrases) + `load_patterns()` (`.py` Cartesian templates) + `compile_alternation()` union compile (long-phrase priority, `re.escape` literals vs raw regex templates)
+- All 7 detection signals externalized to `data/signals/<name>/{zh,en}.{txt,py}`:
   - `.txt` flat: `user_stop_hints` / `agent_saturation` / `stop_hints` / `explicit_handoff` / `weak_claims` / `completion_words`
-  - `.yaml` Cartesian DSL (`templates` + `subjects`/`verbs` vocab + `phrases`): `push_signals`
+  - `.py` module Cartesian DSL (`DATA = {"templates": [...], "subjects": [...], "verbs": [...], "phrases": [...]}`): `push_signals`
 - Cross-language character sets don't overlap (Chinese vs Latin vs kana vs hangul) → no false matches
 - **Adding a new language = ~7 small files per signal directory, zero Python code, zero LLM in the loop**
 
@@ -191,7 +191,7 @@ Both categories live in `data/signals/user_stop_hints/{zh,en}.txt` (v0.8.0 exter
 
 - **Desktop notification** (`pinrule/notify.py`) — Cross-platform (macOS osascript / Linux notify-send / Windows msg), stop hook supplementary stderr-outside-view alerts when detecting violations
 - **Cumulative alerts on turn dimension** — Recent N turns with same rule violation ≥ M times → 🚨 severe notification (window / threshold configurable). By turn not human time — Agent attention drift accumulates by turn; user leaving for meetings vs. continuous operations is completely different Agent state
-- **Config system** (`pinrule/config.py` + `~/.pinrule/config.yaml`) — All thresholds centrally adjustable (notify toggle / rotation / purge / escalate); fail open (file missing / field null uses DEFAULTS)
+- **Config system** (`pinrule/config.py` + `~/.pinrule/config.json`) — All thresholds centrally adjustable (notify toggle / rotation / purge / escalate); fail open (file missing / field null uses DEFAULTS)
 - **`pinrule doctor` shows current effective config** — Lets user see all current thresholds clearly
 
 ## Validation criteria (v0)
@@ -217,9 +217,9 @@ This is denser / more real / faster feedback than "install and observe for a wee
 
 pinrule = **universal hook framework** + **scenario rule sets**.
 
-Current `data/rules.dev.example.yaml` / `.zh.yaml` are the "**software development scenario**" preset — 7 rules each, bilingual symmetry (v0.16.7) all targeting attention drift while writing code (long-term solutions / non-blocking parallel / plain language (EN, v0.16.8) or plain Chinese (zh) / completion evidence / no testset feedback / read before write / deep-fix not bypass). The 8 engine-layer violation_check functions (pytest / Edit / Write / Bash / bypass_pinrule / keep_pushing etc.) are also dev-scenario oriented.
+Current `data/rules.dev.example.json` / `.zh.json` are the "**software development scenario**" preset — 7 rules each, bilingual symmetry (v0.16.7) all targeting attention drift while writing code (long-term solutions / non-blocking parallel / plain language (EN, v0.16.8) or plain Chinese (zh) / completion evidence / no testset feedback / read before write / deep-fix not bypass). The 8 engine-layer violation_check functions (pytest / Edit / Write / Bash / bypass_pinrule / keep_pushing etc.) are also dev-scenario oriented.
 
-Other scenarios (writing / research / product / design / legal etc.) need different rule sets — users can customize rules.yaml, or community contributes presets. pinrule framework layer is cross-scenario universal.
+Other scenarios (writing / research / product / design / legal etc.) need different rule sets — users can customize rules.json, or community contributes presets. pinrule framework layer is cross-scenario universal.
 
 This positioning emerged as insight from M3 dogfooding — previously assumed "universal across users," actually "universal across users within same scenario."
 
@@ -233,7 +233,7 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 - ❌ Auto-distilling new rules
 - ❌ retrieval / cosine / scene routing
 - ❌ Multi-user collaboration / sync
-- ❌ Web UI / graphical config (CLI yaml editing is enough)
+- ❌ Web UI / graphical config (CLI editing is enough)
 - ❌ Evaluation system / accuracy metrics (self-use observation is enough)
 
 Cross-IDE / cross-AI client support already shipped: Claude / Codex / Cursor all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`pinrule/backends/HOWTO.md`](../pinrule/backends/HOWTO.md).
