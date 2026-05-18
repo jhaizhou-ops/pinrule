@@ -9,11 +9,10 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-**通用 AI 行为规则约束框架** — 把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。
+**通用 AI 行为规则约束框架** — 把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。纯工程 · 零 LLM · 零联网 · 零运行时依赖 · hook 通常 50-70ms · token 占比约 2%
 
-预置**开发场景适配**（默认 7 条规则 + 8 个引擎层检查）。其他场景（写作 / 研究 / 法律 / UX / 客户支持 / ...）跟你的 Agent 说 `/pinrule 我主要做 X, 切到这个场景` 一句话切。
+预置**开发场景适配**（默认 7 条规则 + 8 个引擎层检查）。其他场景（写作 / 研究 / 法律 / UX / 客户支持 / ...）跟你的 Agent 说 `/pinrule 我主要做 X, 切到这个场景` 一句话切，pinrule 会引导您的 Agent 按照您的场景需求，通过访问您沉淀的规则文件（如 Claude.md 文件）、回顾历史上下文、上网搜索 SOTA 规则来个性化为您生成合适您和场景使用的个性化规则库，并基于 pinrule 提供的监控框架和工具完成监控端适配。
 
-> 纯工程 · 零 LLM · 零联网 · 零运行时依赖 · hook 通常 50-70ms · token 占比约 2%
 >
 > _性能数字测自作者本人 dogfood，测量口径见 [docs/EVALUATION.zh.md](./docs/EVALUATION.zh.md)。_
 
@@ -52,14 +51,6 @@ pip install pinrule && pinrule init
 `pinrule init` 在 `~/.pinrule/` 装默认规则 + 自动给所有检测到的客户端（Claude / Codex / Cursor）装 hook。后续如果有新客户端就跑 `pinrule install-hooks` 补上 hook。
 
 重启客户端或 CLI 后立即生效。
-添加规则举例：
-
-```
-/pinrule 我说「完成」的时候希望附上测试通过证据。
-```
-
-pinrule skill 会帮你润色规则语气、校验格式，确认后写入 `rules.json`，约 30 秒完成。
-
 
 ---
 
@@ -188,7 +179,7 @@ Agent 综合 4 信号源：
 
 ## 诚实的工具边界
 
-pinrule 是**正则匹配 + 计数**，不是 LLM 语义理解。
+pinrule 的监控为了0 LLM依赖实现是**正则匹配 + 计数**，不是 LLM 语义理解。
 
 - **会有假阳性。** 表格里引用术语、`python -c` 字符串字面、commit message 描述违反字眼 — 都可能命中。`pinrule audit` 把疑似假阳标「⚠️ 可能假阳」。
 - **会有假阴性。** 正则分不出来用户是不是故意伪装。pinrule 假设你不会拿自己开玩笑。
