@@ -260,9 +260,12 @@ def test_v0600_pinrule_sticky_cli_returns_unknown():
     """v0.6.0: `pinrule sticky` CLI 子命令删了, 返 1 带「你是不是想用 pinrule rule」hint."""
     import subprocess
     import sys
+    # Windows default text= mode reads child output with cp1252, can't decode
+    # the deprecation message's Chinese chars → stderr=None. Force UTF-8 to
+    # match the child's force_utf8_stdio() output encoding (v0.16.18 fix).
     result = subprocess.run(
         [sys.executable, "-m", "pinrule.cli", "sticky", "list"],
-        capture_output=True, text=True
+        capture_output=True, text=True, encoding="utf-8"
     )
     assert result.returncode == 1
     assert "pinrule rule" in result.stderr
