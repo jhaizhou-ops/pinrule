@@ -9,8 +9,9 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-> **Pin the 5-10 rules your AI must not drift from during long tasks.**
-> Pure engineering · zero LLM · ~50-70ms hook · ~2% token overhead in typical dogfood.
+**A universal AI behavior rule framework** — pin your 5-10 most-important rules so your AI doesn't drift in long tasks.
+
+> Pure engineering · zero LLM · zero network · zero runtime deps · ~50-70ms hook · ~2% token overhead in typical dogfood.
 >
 > _Performance numbers measured on author self-use — methodology in [docs/EVALUATION.md](./docs/EVALUATION.md)._
 

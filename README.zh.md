@@ -9,8 +9,9 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-> **把 5-10 条最重要的协作规则钉住，让 AI 在长任务里别漂。**
-> 纯工程 · 零 LLM · hook 通常 50-70ms · token 占比约 2%
+**通用 AI 行为规则约束框架** — 把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。
+
+> 纯工程 · 零 LLM · 零联网 · 零运行时依赖 · hook 通常 50-70ms · token 占比约 2%
 >
 > _性能数字测自作者本人 dogfood，测量口径见 [docs/EVALUATION.zh.md](./docs/EVALUATION.zh.md)。_
 
