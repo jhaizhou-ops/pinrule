@@ -72,7 +72,7 @@ def test_skill_path_b_engine_check_mapping_table(skill_text: str) -> None:
     for check_name in ("read_before_write", "loud_failure_with_evidence",
                        "non_blocking_parallel", "keep_pushing_no_stop",
                        "long_term_fundamental", "no_testset_no_future_leakage",
-                       "deep_fix_not_bypass", "chinese_plain_no_jargon"):
+                       "bypass_pinrule_detection", "chinese_plain_no_jargon"):
         assert check_name in skill_text, \
             f"Path B engine check 映射表丢了 {check_name}"
     # 必须含跨场景复用的具体 example (UX / Legal / Writing / Research / Marketing)

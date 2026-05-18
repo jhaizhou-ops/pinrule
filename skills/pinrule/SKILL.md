@@ -31,8 +31,6 @@ This fast-path exists because no-argument `/pinrule` is a pure read operation, n
 
 ---
 
----
-
 ## Your job (Agent) — dispatch first
 
 `/pinrule` is the user's **single command** for all pinrule interactions. They never need to remember `pinrule rule add` / `pinrule audit --by-check` / etc. — they just type `/pinrule <whatever>` and you dispatch.
@@ -68,7 +66,7 @@ If genuinely ambiguous, ask **once**, then proceed. Don't ping-pong.
 
 This skill is a **workflow choreography document**, not a research assignment for the Agent. When pinrule has an engineering primitive that already solves a step (e.g., `pinrule doctor` for backend detection, `pinrule rule preview` for schema validation, `pinrule rule add` for atomic write), **call it directly via Bash** — don't reinvent the logic with `Read` + manual parsing.
 
-Real dogfood lesson (Path B Step 5.5): when SKILL.md said "Use Read tool to scan `~/.cursor/hooks.json`", the Agent missed a clearly-installed Cursor because it scanned the wrong path / made wrong inferences from file existence. The fix wasn't smarter prompting — it was redirecting to `pinrule doctor` which is the authoritative API pinrule already ships.
+Real dogfood lesson (Path B Step 0.5): when SKILL.md said "Use Read tool to scan `~/.cursor/hooks.json`", the Agent missed a clearly-installed Cursor because it scanned the wrong path / made wrong inferences from file existence. The fix wasn't smarter prompting — it was redirecting to `pinrule doctor` which is the authoritative API pinrule already ships.
 
 **Default heuristic**: if the work the Agent needs to do has a corresponding `pinrule <subcommand>` already shipped, the SKILL.md should instruct the Agent to call that subcommand, parse output, and proceed. Reinventing logic is the failure mode.
 
@@ -387,7 +385,7 @@ pinrule doctor
 
 **Store the results** — you'll use them in Step 3 (Phase 1 content adapt to backend constraints), Step 7 (Phase 2 engine check coverage table), and Step 11 (closing reminder).
 
-**Do NOT skip Step 0.5 to "save time"** — without it, Phase 1 content can't be backend-aware and Phase 2 coverage advisory becomes guesswork. Real dogfood (v4) showed Agent missing Step 5.5 entirely when it sat in Phase 2 region — that's why Step 0.5 is up front.
+**Do NOT skip Step 0.5 to "save time"** — without it, Phase 1 content can't be backend-aware and Phase 2 coverage advisory becomes guesswork. Real dogfood (v4) showed Agent missing Step 0.5 entirely when it sat in Phase 2 region — that's why Step 0.5 is up front.
 
 ### Step 1 (Path B): Interpret scenario from session context — don't ping-pong
 
@@ -441,6 +439,14 @@ Academic papers if scenario is research-adjacent
 ```
 
 **Source quality filter**: prefer GitHub repos with 1k+ stars, recognized company engineering blogs, peer-reviewed papers. Skip SEO listicles, low-effort medium posts.
+
+**🔒 Privacy boundary — non-negotiable**:
+- Search queries use **only scenario keywords** the user explicitly typed (e.g., "UX research best practices", "legal contract review rules")
+- **Do NOT include** in web queries: local rule file contents, private project names, repository paths, conversation transcripts, file paths under the user's home directory, or any session-specific detail
+- If you need to reference user-specific context in the synthesized rule pack, source it from **Source A / Source S** (local, never uploaded), not from web search queries
+- If the user explicitly says "search for X in the context of my project Y", you may include `Y` in queries — but flag it back to them: "I'll include `Y` in the search query, OK?"
+
+This isn't about pinrule's runtime (which is 0 network), it's about your Agent's WebSearch behavior — the user's local data must not leak through query strings.
 
 #### Source H — Karpathy CLAUDE.md baseline
 
@@ -589,16 +595,18 @@ Now evaluate whether each rule semantically matches one of the **8 built-in engi
 | "keep pushing / no silent stop" | `keep_pushing_no_stop` | Agent silent-stop with pending TODOs |
 | "no shortcut / 不糊弄" | `long_term_fundamental` | git `--no-verify` / hardcoded long-hash if-branch / TODO scaffolding |
 | "no testset leak / 评测干净" | `no_testset_no_future_leakage` | Eval data backfeeding training / cross-split copying |
-| "deep fix not bypass" | `deep_fix_not_bypass` | Bash command writing pinrule internal state |
+| "deep fix not bypass" | `bypass_pinrule_detection` | Bash command writing pinrule internal state |
 | "plain language" / 「直白沟通」 | `chinese_plain_no_jargon` | Chinese ratio < 40% / jargon terms |
 
-**Cross-scenario reuse examples** (this is the real unlock — 8 engine checks are generic behavior patterns, not dev-only):
+**Cross-scenario reuse examples** (8 engine checks **partially map** to generic behavior patterns — they don't semantically understand UX research / legal citations / writing outlines, they detect specific operational signals):
 
-- UX scenario 的 `understand-context-before-design` → `read_before_write` (设计前没读已有研究 ≡ Edit 前没 Read)
-- Legal scenario 的 `evidence-with-citation` → `loud_failure_with_evidence` (法律意见没附判决引用 ≡ claim 没附数据)
-- Writing scenario 的 `outline-before-prose` → `read_before_write` (写正文前没列大纲 ≡ Edit 前没 Read)
-- Research scenario 的 `validate-before-claim` → `loud_failure_with_evidence` (结论没附实验数据 ≡ claim 没附证据)
-- Marketing scenario 的 `data-driven-not-vibes` → `loud_failure_with_evidence` (策略主张没附数据 ≡ claim 没证据)
+- UX scenario 的 `understand-context-before-design` → `read_before_write` (设计前没读已有研究 partially maps to「Edit/Write tool 前没 Read 同 file」—— engine 真检测的是 tool-level 读写顺序，跨场景对应是部分映射不是语义等价)
+- Legal scenario 的 `evidence-with-citation` → `loud_failure_with_evidence` (法律意见没附判决引用 partially maps to 「完成 claim + session 缺测试通过 evidence」—— engine 不真验证判决书 citation，只检测 completion-language + missing-evidence 这一层)
+- Writing scenario 的 `outline-before-prose` → `read_before_write` (写正文前没列大纲 partially maps —— engine 不懂「大纲」概念，只检测 file 读写顺序)
+- Research scenario 的 `validate-before-claim` → `loud_failure_with_evidence` (结论没附实验数据 partially maps to claim-without-evidence operational signal)
+- Marketing scenario 的 `data-driven-not-vibes` → `loud_failure_with_evidence` (策略主张没附数据 partially maps)
+
+**Be honest about engine check limits**: `read_before_write` is file-IO-order detection, `loud_failure_with_evidence` is completion-language + session-evidence detection. They don't understand UX research methodology / legal citation standards / writing craft. Most cross-scenario rules end up as `preference-only` (Layer 1 header injection + Layer 1.5 keyword) — that's expected, not a failure.
 
 **If no engine check semantically fits** → leave `violation_checks: []`. The rule still gets header injection (Layer 1) + keyword detection (Layer 1.5), just no Layer 2 precision check. Many cross-scenario rules are fine as `preference-only`.
 
@@ -615,14 +623,14 @@ Each engine check fires at different hook event points. Coverage by backend (bas
 | `chinese_plain_no_jargon` | Stop | ✅ | ✅ | ✅ | ⚠️ |
 | `long_term_fundamental` | Stop + PreToolUse | ✅ | ✅ | ✅ Bash 路径; Stop 路径 ✅ | Bash ✅ / Stop ⚠️ |
 | `no_testset_no_future_leakage` | PreToolUse | ✅ | ✅ | ✅ | ✅ |
-| `deep_fix_not_bypass` | PreToolUse | ✅ | ✅ | ✅ | ✅ |
+| `bypass_pinrule_detection` | PreToolUse | ✅ | ✅ | ✅ | ✅ |
 
 **Read this carefully**:
 - **Cursor 桌面 Agent (IDE Composer) = 默认整列 ✅** —— transcript 自动写, 不需要用户开开关. **不要给桌面用户发任何 transcript advisory**, 那是 over-warning.
 - **Cursor CLI (`cursor agent` 终端) = 边缘场景, 部分 Stop-hook 类 check ⚠️** —— 这是 future feature, pinrule 当前不补齐 CLI null `transcript_path`. 检测到 CLI 主战场用户时再给警告.
 - **Claude / Codex = 整列 ✅** —— 不需要任何 backend-specific advisory.
 
-When assigning engine checks in Step 7, **based on Step 5.5 detected backend**, decide whether each rule's engine check is reliable:
+When assigning engine checks in Step 7, **based on Step 0.5 detected backend**, decide whether each rule's engine check is reliable:
 - 桌面 Agent 用户: 8 个 check 全可靠 → 直接 attach 适用的 check
 - Cursor CLI 主战场用户 (rare): Stop-hook 类 4 个 check 不稳 → 仍然 attach 但 Step 8 preview 标 ⚠️ + Step 11 末尾建议「主用桌面 Agent」
 
@@ -666,7 +674,7 @@ For each rule explicitly state:
 - Whether it has engine check
 - Which one + why (cross-scenario reuse rationale)
 - Or why no engine check (preference-only + keyword 已经够 / 没匹配的 pattern)
-- **Backend coverage line** showing which backends this engine check works on (based on Step 5.5 detection — only flag Cursor CLI advisory if user is detected as Cursor CLI主战场, otherwise just show Cursor 桌面 ✅)
+- **Backend coverage line** showing which backends this engine check works on (based on Step 0.5 detection — only flag Cursor CLI advisory if user is detected as Cursor CLI主战场, otherwise just show Cursor 桌面 ✅)
 
 ### Step 9 (Path B, Phase 2): Mechanism approval
 
@@ -720,7 +728,7 @@ After writing:
 >
 > 备份: ~/.pinrule/rules.json.before-scenario-<timestamp>
 
-**Backend-aware reminder** (conditional on Step 5.5 detection):
+**Backend-aware reminder** (conditional on Step 0.5 detection):
 
 - If user is **Cursor 桌面 Agent 主战场**: no extra warning needed — coverage is full (don't over-warn).
 - If user is **Cursor CLI 主战场** (rare, detected via `pinrule doctor` showing mostly null `transcript_path`): append:

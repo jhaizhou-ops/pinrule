@@ -54,7 +54,7 @@ If a week passes with no such cases → pinrule's hypothesis is wrong, redesign.
 Commit messages explain what was done and why. Brief and direct:
 
 ```
-feat: rules.yaml parser + schema validation
+feat: rules.json parser + schema validation
 
 Supports single-line / multi-line preference, violation_keywords array
 Schema validates 5-10 rule cap + id uniqueness

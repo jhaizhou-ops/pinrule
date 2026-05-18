@@ -9,10 +9,12 @@
 [![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
 
-**通用 AI 行为规则约束框架** — 把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。纯工程 · 零 LLM · 零联网 · 零运行时依赖 · hook 通常 50-70ms · token 占比约 2%
+**通用 AI 行为规则约束框架** — 把你最重要的 5-10 条规则钉住，让 AI 在长任务里别漂。
 
-预置**开发场景适配**（默认 7 条规则 + 8 个引擎层检查）。其他场景（写作 / 研究 / 法律 / UX / 客户支持 / ...）跟你的 Agent 说 `/pinrule 我主要做 X, 切到这个场景` 一句话切，pinrule 会引导您的 Agent 按照场景需求，通过访问沉淀的规则文件（如 Claude.md 文件）、回顾历史上下文、上网搜索 SOTA 规则来个性化生成合适您和场景使用的个性化规则库，并基于 pinrule 提供的监控框架和工具完成监控端适配。
+预置**开发场景规则包**。其他场景不用提前准备模板：跟你的 Agent 说 `/pinrule 我主要做 UX 用户研究，切到这个场景规则集` —— 装好的 pinrule Agent skill 引导你的 Agent 综合你本地规则文件、当前上下文和公开 best practice，生成一套 5-7 条规则；pinrule 把它们写入规则库并持续注入 / 监控。
 
+> pinrule runtime：**零 LLM · 零联网 · 零运行时依赖** · hook 通常 50-70ms · token 占比约 2%
+> 场景生成：用你 Agent 现成的推理 + WebSearch / WebFetch / Read 工具，不是 pinrule 自身能力。
 >
 > _性能数字测自作者本人 dogfood，测量口径见 [docs/EVALUATION.zh.md](./docs/EVALUATION.zh.md)。_
 
