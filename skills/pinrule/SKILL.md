@@ -522,15 +522,26 @@ This lets the user audit each rule's provenance before approving the *content*. 
 
 ### Step 4 (Path B, Phase 1): Content preview with diff
 
+**Output the Phase 1 preview directly — no self-introduction paragraph before it.** Don't write things like "现在进入 Phase 1 内容合成. 我会基于 …" — the user already knows from your `pinrule doctor` call + signal gathering that you're synthesizing. Lead with the structured preview block below.
+
 Show the user the **content** of the full proposed library + diff vs. current. Show no mechanism details yet — keep the review focused.
 
-**Required first line: backend detection summary.** Phase 1 preview MUST start with a one-line backend summary from Step 0.5. If you haven't run `pinrule doctor` yet, run it now and parse before continuing. This isn't decorative — it's the only way to enforce that Step 0.5 actually executed before Phase 2 needs the data. Format:
+**Required first line: backend detection summary (fixed format, all 3 backends MUST appear).** Phase 1 preview MUST start with a one-line backend summary from Step 0.5. If you haven't run `pinrule doctor` yet, run it now and parse before continuing. This isn't decorative — it's the only way to enforce that Step 0.5 actually executed before Phase 2 needs the data.
+
+**Exact template (3 backends always listed, never omit one)**:
 
 ```
-**Backends detected** (via `pinrule doctor`): Claude ✓ / Codex ✓ / Cursor ✓ (桌面 Agent transcripts OK)
+**Backends detected** (via `pinrule doctor`): Claude {✓|✗} / Codex {✓|✗} / Cursor {✓ (desktop transcripts OK) | ✓ (CLI mostly, response checks degraded) | ✗ (not installed)}
 ```
 
-If a backend isn't installed, show ✗. For Cursor specifically, also note 桌面 / CLI / mixed status based on `transcript_path` health (covered by `pinrule.cursor_transcript_doctor` parsed by `pinrule doctor` output).
+Examples:
+- All three installed, Cursor desktop: `**Backends detected** (via pinrule doctor): Claude ✓ / Codex ✓ / Cursor ✓ (desktop transcripts OK)`
+- No Cursor: `**Backends detected** (via pinrule doctor): Claude ✓ / Codex ✓ / Cursor ✗ (not installed)`
+- Cursor CLI dominant: `**Backends detected** (via pinrule doctor): Claude ✓ / Codex ✗ / Cursor ✓ (CLI mostly, response-level checks degraded)`
+
+**Never omit a backend line just because it's ✗** — the user needs to see all three states. haiku-grade models will skip Cursor if not explicitly required.
+
+**Source A honesty — don't imagine files that don't exist**: if you ran `Read ~/.claude/CLAUDE.md` and the file is empty / one-line `@RTK.md` / not found, **say so** in Source A summary: e.g. "Source A: `~/.claude/CLAUDE.md` 几乎无信号 (1 line `@RTK.md` import)". Don't write source attributions like "你 `~/.claude/CLAUDE.md` 「loud-failure-with-evidence」原则迁移" when you never actually read that content — fabricated source attribution destroys user trust. If Source A is empty, weight Source B (web) + Source H (Karpathy) + Source S (session) heavier and explicitly call it out.
 
 ```markdown
 ## Proposed scenario rule pack — research (7 rules) — CONTENT PREVIEW

@@ -182,6 +182,8 @@ def test_skill_path_b_phase1_preview_requires_backend_line(skill_text: str) -> N
 
     v5 dogfood 真验证: prompt 约束 (Step 0.5 标 "mandatory" 警告) 不够稳, Agent 仍跳过.
     工程约束 (Phase 1 preview 输出格式必须含 backend line) 才让 Agent 不可不跑 pinrule doctor.
+
+    v0.18.2 (haiku dogfood) 加强: 3 backends 必须全列 (haiku 漏 Cursor 行); 加 Source A 诚实警示.
     """
     assert "Required first line: backend detection summary" in skill_text, \
         "Phase 1 Step 4 没明确「必填字段: backend detection」"
@@ -190,6 +192,20 @@ def test_skill_path_b_phase1_preview_requires_backend_line(skill_text: str) -> N
     # 必须明确「Agent 没跑 doctor 现在就跑」
     assert "If you haven't run `pinrule doctor` yet, run it now" in skill_text, \
         "Step 4 没明确「Agent 没跑 doctor 必须立刻跑」"
+    # haiku stress test 后加: 3 backends 必须全列
+    assert "3 backends always listed, never omit one" in skill_text or \
+           "3 backends MUST appear" in skill_text, \
+        "haiku 漏 Cursor 行真发生过 — Step 4 必须强制 3 backends 全列"
+    assert "Never omit a backend line just because it's ✗" in skill_text, \
+        "Step 4 必须明确「✗ 状态的 backend 也要列出来」"
+    # Source A 诚实警示
+    assert "Source A honesty" in skill_text, \
+        "Step 4 缺 Source A 诚实警示 — haiku 真 imagine 不存在的 CLAUDE.md 内容当 source"
+    assert "don't imagine files that don't exist" in skill_text, \
+        "Source A 警示没明确「不要 imagine 不存在的文件」"
+    # 砍 self-introduction prefix
+    assert "no self-introduction paragraph before it" in skill_text, \
+        "Step 4 没禁止「我会基于 …」类 self-introduction prefix (haiku 真加这段)"
 
 
 def test_skill_no_argument_fast_path(skill_text: str) -> None:
