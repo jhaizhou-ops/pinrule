@@ -158,7 +158,7 @@ Run <code>pinrule doctor</code> — checks hook events, rule loading, session st
 
 <details>
 <summary><b>Custom rule sets for non-dev scenarios (writing / research / legal)?</b></summary>
-The framework is cross-scenario; the 8 built-in <code>violation_checks</code> are dev-oriented. Write your own <code>rules.json</code> for other scenarios — preference text + custom keywords (no engine check needed).
+Just tell your Agent: <code>/pinrule 我主要做 X 场景, 切到 X 场景规则集</code> (or English equivalent). The Agent synthesizes 5-7 tailored rules from four signals — your existing local rule files (<code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursor/rules</code>), online best practices (WebSearch), Karpathy CLAUDE.md baseline, and the session context it shares with you — then previews with full source attribution before writing. pinrule itself stays 0-runtime-deps / 0-network / 0-LLM; all research happens in your Agent's existing toolset.
 </details>
 
 <details>

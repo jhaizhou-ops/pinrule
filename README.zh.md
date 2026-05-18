@@ -159,7 +159,7 @@ pinrule 是**正则匹配 + 计数**，不是 LLM 语义理解。
 
 <details>
 <summary><b>非开发场景规则集（写作 / 研究 / 法律）？</b></summary>
-框架跨场景，但 8 个内建工程层 <code>violation_checks</code> 偏开发。其他场景自己写 <code>rules.json</code> — 用偏好描述文本 + 自定义关键词（不依赖工程检查）。
+跟你的 Agent 说: <code>/pinrule 我主要做 X 场景, 切到 X 场景规则集</code>. Agent 会综合四个信号源 — 你本机已有的规则文件 (<code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursor/rules</code>)、联网搜的业界 best practice、Karpathy CLAUDE.md baseline、Agent 跟你协作的 session 上下文 — 起草 5-7 条规则, 标好来源后让你审批再写入. pinrule 本身仍然 0 运行时依赖 / 0 联网 / 0 LLM, 所有调研都在你 Agent 现成的工具集里跑.
 </details>
 
 <details>

@@ -1,6 +1,6 @@
 ---
 name: pinrule
-description: Natural-language pinrule rule input — refine user's plain description into pinrule's validated rule structure, preview, confirm, and add to rules.json. Use when the user types `/pinrule <natural language describing a rule preference>`.
+description: Natural-language pinrule rule input — handles two paths. (A) Single rule add/modify/remove from user's plain description. (B) Scenario rule pack generation — when user names a domain ("I mainly do research / writing / legal / data analysis"), synthesize 5-7 tailored rules by combining their existing local rule files (CLAUDE.md / AGENTS.md / .cursor/rules), online best practices (WebSearch), Karpathy CLAUDE.md baseline, and your session context with the user. Use when the user types `/pinrule <natural language>` — either a single rule or a scenario description.
 ---
 
 # pinrule skill — Natural-language rule input
@@ -19,17 +19,28 @@ description: Natural-language pinrule rule input — refine user's plain descrip
 
 ---
 
-## Your job (Agent)
+## Your job (Agent) — dispatch first
 
-When the user invokes `/pinrule <description>`, you (the Agent) refine their natural-language description into pinrule's validated structure, test it, then add to their rules.json.
+When the user invokes `/pinrule <description>`, **first decide which path**:
 
-**Critical constraints — do NOT skip any step**:
+| Path | Triggered by | Outcome |
+|---|---|---|
+| **A. Single rule** (default, ~80% of calls) | "我希望 X / I want Agent to do X / change rule Y / remove rule Z" — talks about **one** behavior | One rule added / modified / removed via the 7-step workflow below |
+| **B. Scenario rule pack** | "我主要做 X / I mainly do X / set up rules for X scenario / switch to X / 切到 X 场景 / replace rule library for X" — names a **domain** | 5-7 new rules synthesized from local rule files + online best practices + Karpathy baseline + your session context |
+
+Vocabulary tells: "scenario / 场景 / switch / 切到 / mainly do / 主要做 / replace rule library / 替换规则库" → Path B. Otherwise Path A.
+
+If genuinely ambiguous, ask **once**, then proceed. Don't ping-pong.
+
+**Path A constraints — do NOT skip any step**:
 1. Refine user's natural language into pinrule's "collaborative agreement" tone (not rule-system tone)
 2. Format `violation_keywords` (if any) in "intent-prefix + action" format (e.g., "I'll skip this" not "skip")
 3. Decide whether to attach `violation_checks` (engine-layer hook detection) — this is **optional**
 4. Test via `pinrule rule preview` before writing
 5. Confirm with user before calling `pinrule rule add`
 6. After adding, report: refined content + test passed + current rule library count + suggest deletions/modifications
+
+**Path B**: jump to [Path B: Scenario rule pack generation](#path-b-scenario-rule-pack-generation) — has its own workflow.
 
 ## pinrule rule design principles (apply these when refining)
 
@@ -87,7 +98,7 @@ pinrule has 8 built-in engine-layer check functions. Attach one if the rule fits
 
 Set `force_block_exempt: true` only for "should keep pushing / non-blocking" type rules where cumulative penalty would be self-contradictory (e.g., `non-blocking-parallel`, `keep-pushing-no-stop`).
 
-## Workflow when user invokes `/pinrule <description>`
+## Path A: Single-rule workflow (when user describes one behavior)
 
 ### Step 1: Understand intent
 
@@ -299,6 +310,268 @@ After `pinrule rule add` succeeds, summarize for the user:
 >
 > 💡 **Suggestion**: You're at 8 of soft cap 10. The new rule overlaps with `loud-failure-with-evidence` in concept (both about evidence). If you find one redundant after a few days of use, consider running `pinrule rule remove <id>`. Want to do that now?
 
+## Path B: Scenario rule pack generation
+
+**Triggered when** the user names a domain rather than describing a single behavior:
+- "我主要做科研 / 写作 / 数据分析 / 法律 / 教学 / 客户支持"
+- "I mainly do research / writing / data analysis / legal / teaching"
+- "Set up rules for X scenario / 给 X 场景定规则"
+- "Switch to X / 切到 X 场景"
+- "Replace rule library for X / 替换为 X 场景规则集"
+
+The user wants a **coherent rule pack** tailored to their scenario, not one rule. You will synthesize 5-7 rules by combining four signals (no opt-in prompt — all four are on by default; pinrule is opinionated):
+
+### Step 1 (Path B): Interpret scenario from session context — don't ping-pong
+
+You're working with the user *right now in this session*. You have context on:
+- What files they've opened
+- What tasks they've asked you to do
+- The vocabulary / frameworks / tools they use
+- Their domain language
+
+**Infer the subscenario silently** — don't ask "is your research theoretical or experimental?". The user gave you a scenario *because they want you to figure out the rest from working with them*.
+
+**Exception**: brand new session with zero prior task history *and* the scenario word is genuinely ambiguous (e.g., just "research" with no other context) → **one** clarifying question is OK, then proceed.
+
+### Step 2 (Path B): Gather signal from four sources (all on, no opt-in)
+
+#### Source A — User's existing local rule files (highest signal)
+
+Use the `Read` tool to scan these paths, in order:
+
+```
+~/.claude/CLAUDE.md                          # Claude Code home-level (user's global preferences)
+~/.codex/AGENTS.md                           # Codex home-level
+<cwd>/CLAUDE.md                              # current project, Claude Code
+<cwd>/AGENTS.md                              # current project, Codex
+<cwd>/.cursor/rules/*.mdc                    # Cursor project rules
+<cwd>/.cursorrules                           # Cursor legacy
+<cwd>/.github/copilot-instructions.md        # GitHub Copilot
+<cwd>/CONTRIBUTING.md                        # Project collaboration norms
+<cwd>/README.md                              # Project context / style hints
+```
+
+**Skip pinrule-generated files** (self-reference noise):
+- `.cursor/rules/pinrule-*.mdc`
+- `.cursor/rules/karma-*.mdc` (legacy v1 name)
+- `~/.pinrule/rules.json` (current pinrule state, not source material)
+
+If a file exists but is empty / tiny (e.g., just `@RTK.md` import), skip it.
+
+These are highest signal because **the user wrote them** — they reflect real pain points, not theoretical best practice.
+
+#### Source B — Online best practices for the scenario
+
+Use `WebSearch` and `WebFetch` (your client's tools) to find:
+
+```
+"awesome-claude-md" / "awesome-cursor-rules" aggregator repos on GitHub
+"<scenario> + claude.md" / "<scenario> + AI agent rules" GitHub search
+High-star (1k+) GitHub repos in the user's domain with quality CLAUDE.md / AGENTS.md
+Anthropic / Cursor / OpenAI official prompt engineering writeups
+Academic papers if scenario is research-adjacent
+```
+
+**Source quality filter**: prefer GitHub repos with 1k+ stars, recognized company engineering blogs, peer-reviewed papers. Skip SEO listicles, low-effort medium posts.
+
+#### Source H — Karpathy CLAUDE.md baseline
+
+Reference Andrej Karpathy's [CLAUDE.md template](https://github.com/forrestchang/andrej-karpathy-skills). Several of his principles transfer across scenarios (test coverage / explicit failure / minimal abstraction). Pull principles that fit the user's scenario; skip ones that don't.
+
+#### Source S — Your session context (the one signal nobody else has)
+
+You've been working with this user. You know:
+- What they actually do day-to-day
+- What mistakes they've corrected you on
+- What tone they prefer
+- What they care about (speed vs. correctness vs. clarity)
+
+This is the **synthesis** signal — it's how you decide which Source-A/B/H candidates fit *this* user vs. *anyone* doing this scenario.
+
+### Step 3 (Path B): Synthesize 5-7 rules
+
+Compose the rule pack:
+
+- **Preserve cross-scenario universals from current pinrule defaults** (if installed): `loud-failure-with-evidence`, `read-before-write`, `non-blocking-parallel` apply to *any* scenario. Strongly recommend keeping them.
+- **Drop dev-specific rules that don't apply**: e.g., `chinese-plain-no-jargon`, `no-testset-no-future-leakage`, `long-term-fundamental` (anti-shortcut for code) — drop if scenario isn't dev.
+- **Add 3-5 scenario-specific rules** synthesized from Source A/B/H, filtered through Source S.
+
+**Each rule MUST have source attribution** in the preview. Format:
+
+```
+[research-no-fabricated-citation] ✓ preference-only
+  preference: ...
+  Source: 源自 your ~/.claude/CLAUDE.md L42-45 + ICLR 2024 reviewer guidelines
+```
+
+This lets the user audit each rule's provenance before approving.
+
+### Step 4 (Path B): Preview the complete pack with diff
+
+Show the user the full proposed library + diff vs. current:
+
+```markdown
+## Proposed scenario rule pack — research (7 rules)
+
+### Carried over from current library (3 cross-scenario universals)
+- [loud-failure-with-evidence] ✓ engine — 完成时附证据
+- [read-before-write] ✓ engine — 改前先读
+- [non-blocking-parallel] ✓ engine — 非阻塞推进
+
+### New (4 scenario-specific)
+- [no-fabricated-citation] preference-only
+  preference: <full text>
+  Source: 源自 your ~/.claude/CLAUDE.md L42 + ICLR 2024 reviewer guidelines
+
+- [assumption-vs-conclusion] ✓ engine (loud_failure_with_evidence)
+  preference: <full text>
+  Source: 源自 nature.com/articles/research-integrity-guide-2023 + Karpathy principle 7
+
+- ...
+
+### Removed from current library (4 — dev-specific, don't apply to research)
+- [chinese-plain-no-jargon] — language-style preference, not domain rule
+- [no-testset-no-future-leakage] — ML-eval specific
+- [long-term-fundamental] — anti-shortcut for code refactoring
+- [deep-fix-not-bypass] — pinrule-meta rule for dev work
+```
+
+### Step 5 (Path B): Ask for approval — one prompt, not per-rule
+
+```
+"以上 7 条规则替换你现有规则库, 来源已标注. 用一行回复:
+   - '应用' / 'apply' → 立刻写入
+   - '应用但保留 [X / Y]' → 我保留你 call out 的现有规则一起加
+   - '换 [Z] 为 [...]' → 我替换某条
+   - '不要 [W]' → 我去掉某条
+   - '追加不替换 / append' → 仅加新规则, 现有全保留 (会超软上限)"
+```
+
+Don't ping-pong per-rule. User gives one structured reply, you act.
+
+### Step 6 (Path B): Replace vs. append — default REPLACE
+
+For scenario rule pack, **default is replace** (not append like Path A):
+- User said "switch to X scenario / replace for X" → they want a fresh pack
+- Append-by-default would balloon over soft cap 10 quickly
+
+**Exception**: user explicitly said "追加 / append / keep my current ones too" → append instead.
+
+### Step 7 (Path B): Backup + atomic-ish batch write
+
+```bash
+# 1. Backup current state
+cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-$(date +%Y%m%d-%H%M%S)
+
+# 2. Remove rules that don't survive (if replacing)
+pinrule rule remove <old_rule_1>
+pinrule rule remove <old_rule_2>
+...
+
+# 3. Add new rules
+pinrule rule add --from-json /tmp/pinrule-new-rule-1.json
+pinrule rule add --from-json /tmp/pinrule-new-rule-2.json
+...
+```
+
+If midway fails (rare — pinrule schema validates), tell the user to restore from `rules.json.before-scenario-*` backup.
+
+### Step 8 (Path B): Tell user this is v1 — iterate from real data
+
+After writing:
+
+> ✓ 已切到「<scenario>」规则集 (X 条). 这是基于以下信号综合起草的初稿:
+>   - 你本机已有规则文件 (扫了 ~/.claude/CLAUDE.md + 项目 CLAUDE.md)
+>   - 业界 best practice (从 [X / Y repos] 拉了 N 条参考)
+>   - Karpathy CLAUDE.md baseline (用了 N 条 principle)
+>   - 我跟你协作的 session 上下文
+>
+> 建议跑 1-2 周后:
+>   - `pinrule audit --by-check` 看哪些规则真触发 / 哪些没触发
+>   - 真触发但你觉得是假阳 → `pinrule rule remove <id>` 删
+>   - 真有用的方向但当前规则措辞不够 → `/pinrule <自然语言>` 加调整规则
+>
+> 备份: ~/.pinrule/rules.json.before-scenario-<timestamp>
+
+### Path B example walkthrough — research scenario
+
+**User**: `/pinrule 我主要做 ML 论文 + 数据分析, 切到这个场景规则集`
+
+**Agent** (you):
+
+> 收到. 我帮你综合 4 个信号源生成研究场景规则集 — 先扫信号源.
+>
+> [Read ~/.claude/CLAUDE.md] → 你写了 8 条偏好, 跟 ML 相关的有: ...
+> [Read 当前项目 CLAUDE.md] → 项目协作约定有: ...
+> [WebSearch "ICLR research integrity AI agent"] → 找到: arxiv.org/abs/... + github.com/...
+> [WebFetch github.com/awesome-claude-md/research/CLAUDE.md] → 借鉴 3 条原则
+> [Karpathy CLAUDE.md] → 适用 ML 场景: 原则 3 (explicit failure) / 原则 7 (single-source-of-truth)
+> [Session context] → 我看你这个 session 做的是 transformer model 训练 + ablation 实验, 偏 experimental ML
+>
+> ## 提议规则集 — ML research / data analysis (7 条)
+>
+> ### 保留现有 (3 条普适)
+> - [loud-failure-with-evidence] ✓ engine
+> - [read-before-write] ✓ engine
+> - [non-blocking-parallel] ✓ engine
+>
+> ### 新加 (4 条 ML research 特化)
+>
+> - [no-fabricated-citation] preference-only
+>   preference: 用户做 ML 研究, 引用论文 / dataset / 结果时必须真存在 ...
+>   Source: 源自 ICLR 2024 reviewer guidelines + your ~/.claude/CLAUDE.md L23
+>
+> - [ablation-completeness] ✓ engine (loud_failure_with_evidence)
+>   preference: 报实验结果时必须含 ablation / baseline 对比, 不能只报主结果 ...
+>   Source: 源自 github.com/google/papers-with-code best practice + your project CLAUDE.md L8
+>
+> - [eval-data-isolation] ✓ engine (no_testset_no_future_leakage)
+>   preference: 模型 eval / hyperparam search 严格分离 train/val/test ...
+>   Source: 源自 your previous `no-testset-no-future-leakage` 规则 (保留改名) + Karpathy 原则 5
+>
+> - [assumption-explicit] preference-only
+>   preference: 写论文 claim 时区分「数据支持的结论 vs 还在假设阶段的推测」 ...
+>   Source: 源自 Karpathy 原则 7 + arxiv.org/abs/2306.research-integrity
+>
+> ### 删掉 (4 条 dev-specific)
+> - [chinese-plain-no-jargon] — 语言风格偏好, 不是 ML 域规则
+> - [no-testset-no-future-leakage] → 被 [eval-data-isolation] 替换 (改名更贴 ML)
+> - [long-term-fundamental] — anti-shortcut for code refactor, ML 实验代码迭代很快不适用
+> - [deep-fix-not-bypass] — pinrule-meta 规则, 给 dev 用的
+>
+> 一行回复:
+>   - '应用' → 立刻替换
+>   - '应用但保留 [...]' → 保留你指定的现有规则一起加
+>   - '不要 [Y]' → 去掉某条
+>   - '追加不替换' → 仅加新的, 不删现有
+
+**User**: 应用, 但保留 chinese-plain-no-jargon
+
+**Agent**:
+
+> [cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-20260518-153022]
+> [pinrule rule remove no-testset-no-future-leakage]
+> [pinrule rule remove long-term-fundamental]
+> [pinrule rule remove deep-fix-not-bypass]
+> [pinrule rule add --from-json /tmp/pinrule-no-fabricated-citation.json]
+> [pinrule rule add --from-json /tmp/pinrule-ablation-completeness.json]
+> [pinrule rule add --from-json /tmp/pinrule-eval-data-isolation.json]
+> [pinrule rule add --from-json /tmp/pinrule-assumption-explicit.json]
+>
+> ✓ 已切到 ML research 场景规则集 (8 条):
+>   - loud-failure-with-evidence (保留)
+>   - read-before-write (保留)
+>   - non-blocking-parallel (保留)
+>   - chinese-plain-no-jargon (按你要求保留)
+>   - no-fabricated-citation (新)
+>   - ablation-completeness (新)
+>   - eval-data-isolation (新)
+>   - assumption-explicit (新)
+>
+> 备份: ~/.pinrule/rules.json.before-scenario-20260518-153022
+>
+> 跑 1-2 周后 `pinrule audit --by-check` 看真触发分布, 据此调整.
+
 ## Common mistakes to avoid
 
 - ❌ Don't write rules in "rule-system" tone ("you must always...")
@@ -310,6 +583,17 @@ After `pinrule rule add` succeeds, summarize for the user:
 - ❌ Don't silently treat scoped-sounding requests ("during X, do Y") as scoped — pinrule is always-on. Surface the ambiguity in Step 1.
 - ❌ Don't write English `preference` text when the user is talking to you in Chinese (or vice versa) — match the user's language. Only `violation_checks` function names stay English (stable identifiers).
 - ❌ Don't go straight from Step 1 → Step 4 preview without showing the user a draft inline in Step 3 — they should react to wording before it's written to disk.
+
+### Path B specific mistakes
+
+- ❌ Don't ping-pong with subscenario questions when session context already tells you (Step 1)
+- ❌ Don't ask user to opt into each signal source (A/B/H/S) — all four are default-on, pinrule is opinionated
+- ❌ Don't skip the **Source attribution** line in each rule preview — provenance is non-negotiable for user audit
+- ❌ Don't default to append for scenario rule pack (Path A default is append; Path B default is replace)
+- ❌ Don't skip the backup step before batch write — `cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-*` is the rollback path if anything fails
+- ❌ Don't claim "I researched online" without actually running WebSearch / WebFetch — fabricating sources is worse than just synthesizing from training knowledge honestly
+- ❌ Don't include `pinrule rule add --from-json` for rules sourced from `~/.pinrule/rules.json` itself (self-reference loop — read user's *non-pinrule* files for signal)
+- ❌ Don't propose >10 rules in the pack (pinrule soft cap is 10; aim for 5-7 to leave room for user's later /pinrule additions)
 
 ---
 
