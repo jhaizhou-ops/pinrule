@@ -11,6 +11,8 @@
 
 **A universal AI behavior rule framework** — pin your 5-10 most-important rules so your AI doesn't drift in long tasks.
 
+Ships with a **dev-scenario rule pack preset** (7 default rules + 8 engine-layer checks). For any other scenario (writing / research / legal / UX / customer support / ...), tell your Agent `/pinrule I mainly do X, switch to this scenario` — a one-line switch.
+
 > Pure engineering · zero LLM · zero network · zero runtime deps · ~50-70ms hook · ~2% token overhead in typical dogfood.
 >
 > _Performance numbers measured on author self-use — methodology in [docs/EVALUATION.md](./docs/EVALUATION.md)._
