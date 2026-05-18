@@ -10,18 +10,19 @@ pinrule 的 regex 检测对象是「用户跟 Agent 的对话文本」— 用户
    适合: user_stop_hints / agent_saturation / stop_hints / explicit_handoff /
    weak_claims 这类纯短语列表
 
-2. `.yaml`（v0.8.1）— cartesian 模板 + 词集 + 平面短语混合
+2. `.py` Python 模块（v0.17.0 起，前身 v0.8.1 的 .yaml）— cartesian 模板 +
+   词集 + 平面短语混合
    适合: push_signals 这类「主语 + 动词」笛卡尔积大的信号
-   yaml schema:
+   模块 schema (DATA dict):
      templates: ["{subject}\\s+{verb}"]      # 模板列表，{key} 占位符
      subjects: [我, 我现在, ...]              # 占位符词集
      verbs: [做, 改, ...]
      phrases: [继续推进, 开始做, ...]         # 不需 cartesian 的平面字眼
 
 设计：
-- 加载时把目录下所有语言文件（.txt + .yaml 都扫）的字眼 union
+- 加载时把目录下所有语言文件（.txt + .py 都扫）的字眼 union
 - 不同语言字符集不重叠（中文 vs 拉丁 vs 假名）→ 天然无误命中
-- 加新语言零代码：社区只需提交一个 `xx.txt` 或 `xx.yaml`
+- 加新语言零代码：社区只需提交一个 `xx.txt` 或 `xx.py`
 
 跟 `pinrule/i18n.py` 的关系（双向 i18n）：
 - `i18n.py` — pinrule 说给 Agent 听的注入文本（hook header / suggested_fix）
@@ -142,8 +143,8 @@ def load_phrases(signal_name: str) -> tuple[str, ...]:
     返回 tuple 是为了 lru_cache 安全。signal_name 对应 `data/signals/<name>/`
     目录名（如 `user_stop_hints` / `push_signals`）。
 
-    注意：本函数只返回 `.txt` 文件的字面字眼，不含 `.yaml` cartesian 展开。
-    `.yaml` 字眼通过 `load_patterns()` 拿（已含 regex 元字符）。
+    注意：本函数只返回 `.txt` 文件的字面字眼，不含 `.py` cartesian 展开。
+    `.py` 字眼通过 `load_patterns()` 拿（已含 regex 元字符）。
     `compile_alternation()` 把两者合并编译成单 regex。
     """
     signal_dir = _SIGNALS_DIR / signal_name

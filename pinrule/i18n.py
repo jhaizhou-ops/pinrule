@@ -1,19 +1,20 @@
-"""pinrule i18n — Simple yaml-dict translation lookup.
+"""pinrule i18n — Simple JSON-dict translation lookup.
 
-v0.5.2 i18n infrastructure. User-visible text (hook injection headers,
-suggested_fix, CLI output) goes through ``tr(key)`` lookup. Locale resolved:
+v0.5.2 i18n infrastructure (v0.17.0: switched from YAML to JSON). User-visible
+text (hook injection headers, suggested_fix, CLI output) goes through ``tr(key)``
+lookup. Locale resolved:
 
-  config.yaml ``locale`` field:
+  config.json ``locale`` field:
     - "en" → English (default for new users)
     - "zh" → Chinese
     - "auto" → ``pinrule.locale_detect.is_chinese_user()`` decides
 
-Translations live in ``data/locales/<lang>.yaml`` as flat key → value dict.
+Translations live in ``data/locales/<lang>.json`` as flat key → value dict.
 Missing key → return the key itself (fail-open, never crash hook).
 Missing locale file → fall back to English.
 
 Designed for early-stage simplicity: no gettext, no .po files. Translators
-edit yaml directly. Once translation coverage stabilizes, can migrate to
+edit JSON directly. Once translation coverage stabilizes, can migrate to
 gettext for tooling support — but not now.
 """
 

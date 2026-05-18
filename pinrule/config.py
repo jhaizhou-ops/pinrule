@@ -1,6 +1,6 @@
 """pinrule 配置系统 — 让用户调阈值不用改代码。
 
-读 ~/.pinrule/config.yaml，缺失字段用 DEFAULTS。
+读 ~/.pinrule/config.json，缺失字段用 DEFAULTS。
 每次调用 load() 实时读（hook 进程 ephemeral，无 cache 担忧）。
 
 字段:
@@ -52,13 +52,13 @@ DEFAULTS: dict[str, Any] = {
     "force_block_threshold": 5,
     # v0.9.16: 中段 sticky reinject 累积 token 阈值. None → 按 state.model 自适应
     # （threshold_for_model 表）. 用户设数字 → 强制覆盖. 之前漏 DEFAULTS 让用户
-    # config.yaml 里写的值被 load() 的「只认 DEFAULTS keys」逻辑无声丢弃.
+    # config.json 里写的值被 load() 的「只认 DEFAULTS keys」逻辑无声丢弃.
     "reinject_every_n_tokens": None,
 }
 
 
 def load(path: Path | None = None) -> dict[str, Any]:
-    """读 config.yaml，缺失字段用 DEFAULTS。
+    """读 config.json，缺失字段用 DEFAULTS。
 
     文件不存在 / 解析失败 → 完全返回 DEFAULTS 副本（fail open）。
     用户配置文件里有不认识的字段 → 忽略（不报错）。

@@ -27,7 +27,7 @@ SHARED_PINRULE_HOME = Path.home() / ".pinrule"
 
 
 def pinrule_home() -> Path:
-    """pinrule 状态根目录 (data: rules.yaml / violations / session-state).
+    """pinrule 状态根目录 (data: rules.json / violations / session-state).
 
     `PINRULE_HOME` env 可 override; 否则 `~/.pinrule/`.
     """

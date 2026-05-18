@@ -26,7 +26,7 @@ def build_rules_catalog_skill_body(rule_ids: list[str], pinrule_home: Path) -> s
         "name: pinrule-rules-catalog",
         "description: >",
         "  Active pinrule rule IDs (auto-synced). When the user asks for pinrule rule ids,",
-        "  visibility, or rules.yaml contents without reading files, list every id below verbatim.",
+        "  visibility, or rules.json contents without reading files, list every id below verbatim.",
         "---",
         "",
         f"# pinrule active rule IDs (`PINRULE_HOME={pinrule_home}`)",

@@ -52,11 +52,11 @@ _STOP_HINT_RE = compile_alternation("stop_hints")
 # 应豁免，跟「沉默式停下问下一步」区分。
 _EXPLICIT_USER_HANDOFF_RE = compile_alternation("explicit_handoff")
 
-# v0.8.1: 字眼从 data/signals/push_signals/{zh,en}.yaml 加载
+# v0.17.0: 字眼从 data/signals/push_signals/{zh,en}.py 加载 (v0.8.1-0.16.x 是 .yaml)
 # 历史: v0.4.19 设计三类「未来推进规划」识别。v0.4.22 加「下次 X 吧」尾字过滤。
 # v0.5.6 加「下一推进点 / 下一步是」类。
-# v0.8.1 把 cartesian 字眼搬到 yaml — `{subject} {verb}` 用 templates 展开，
-# 不需 cartesian 的整句平面字眼用 phrases。yaml schema 支持英文用户一并加。
+# v0.8.1 把 cartesian 字眼搬到模块化数据文件 — `{subject} {verb}` 用 templates
+# 展开，不需 cartesian 的整句平面字眼用 phrases。schema 支持英文用户一并加。
 _PUSH_SIGNAL_RE = compile_alternation("push_signals")
 
 # v0.4.22 dogfood 实证：「下次接手吧 / 下次推进行不」是推卸不是推进。

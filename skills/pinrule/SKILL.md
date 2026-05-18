@@ -1,6 +1,6 @@
 ---
 name: pinrule
-description: Natural-language pinrule rule input — refine user's plain description into pinrule's validated rule structure, preview, confirm, and add to rules.yaml. Use when the user types `/pinrule <natural language describing a rule preference>`.
+description: Natural-language pinrule rule input — refine user's plain description into pinrule's validated rule structure, preview, confirm, and add to rules.json. Use when the user types `/pinrule <natural language describing a rule preference>`.
 ---
 
 # pinrule skill — Natural-language rule input
@@ -21,7 +21,7 @@ description: Natural-language pinrule rule input — refine user's plain descrip
 
 ## Your job (Agent)
 
-When the user invokes `/pinrule <description>`, you (the Agent) refine their natural-language description into pinrule's validated structure, test it, then add to their rules.yaml.
+When the user invokes `/pinrule <description>`, you (the Agent) refine their natural-language description into pinrule's validated structure, test it, then add to their rules.json.
 
 **Critical constraints — do NOT skip any step**:
 1. Refine user's natural language into pinrule's "collaborative agreement" tone (not rule-system tone)
@@ -144,7 +144,7 @@ pinrule has no atomic `rule replace` command **on purpose** — modifying = `rem
 | **Merge** (fold rule B into rule A) | A absorbs B's intent; B removed | Keep A's id, then `pinrule rule remove <B-id>` |
 | **Genuine purpose change** | New rule is a different concern | Use new id (rare — usually means a fresh rule, not a modify) |
 
-**Why not `pinrule rule edit`?** That command launches `$EDITOR` for the user to hand-edit `rules.yaml` — it's a user-facing escape hatch, not an Agent-automatable path. The Agent should always use the `remove` + `add` recipe so the user sees the diff in conversation.
+**Why not `pinrule rule edit`?** That command launches `$EDITOR` for the user to hand-edit `rules.json` — it's a user-facing escape hatch, not an Agent-automatable path. The Agent should always use the `remove` + `add` recipe so the user sees the diff in conversation.
 
 ### Step 3: Refine into yaml
 
@@ -196,7 +196,7 @@ If user wants changes, iterate (back to Step 3).
 - "This overlaps semantically with existing rule `[id]` — want me to merge / replace, or keep both?"
 - "Current library is at N/10 — adding this puts you at N+1. After ~10, LLM attention to individual rules drops. Consider removing [Y] if it's redundant."
 
-### Step 6: Write to rules.yaml
+### Step 6: Write to rules.json
 
 Once user confirms:
 
@@ -213,9 +213,9 @@ pinrule rule preview --from-yaml /tmp/pinrule-rule-<id>.yaml
 pinrule rule remove <id> && pinrule rule add --from-yaml /tmp/pinrule-rule-<id>.yaml
 ```
 
-Both paths re-validate schema + check id conflicts + verify `violation_checks` exist in REGISTRY before touching `~/.claude/pinrule/rules.yaml`.
+Both paths re-validate schema + check id conflicts + verify `violation_checks` exist in REGISTRY before touching `~/.claude/pinrule/rules.json`.
 
-**Honest caveat on atomicity**: `remove && add` is *not* a true transaction — if `add` fails (e.g., disk full, permission error) after `remove` succeeded, the rule is gone. That's why preview-first matters: it surfaces schema errors before the destructive `remove` step. For paranoid scenarios, `cp ~/.claude/pinrule/rules.yaml ~/.claude/pinrule/rules.yaml.bak` before the swap is the cheap insurance.
+**Honest caveat on atomicity**: `remove && add` is *not* a true transaction — if `add` fails (e.g., disk full, permission error) after `remove` succeeded, the rule is gone. That's why preview-first matters: it surfaces schema errors before the destructive `remove` step. For paranoid scenarios, `cp ~/.claude/pinrule/rules.json ~/.claude/pinrule/rules.json.bak` before the swap is the cheap insurance.
 
 ### Step 7: Report results
 

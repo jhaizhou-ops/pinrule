@@ -162,7 +162,7 @@ def _handle_force_block(
     reason = (
         f"pinrule 强制干预：累积违反 {over_threshold} 共 {sum(counts_force[s] for s in over_threshold)} 次。"
         f"必须 fix 原因（深挖 pattern / 工程 bug / 协议）或显式让用户介入。"
-        f"禁止继续绕（手动改 pinrule 状态 / 临时改 rules.yaml）。"
+        f"禁止继续绕（手动改 pinrule 状态 / 临时改 rules.json）。"
     )
     # v0.10.6 (Agent 2 F3 fix): 走 protocol_adapter.emit_stop_block —
     # Cursor stop 用 followup_message; backend 自己决定 fail-open shape.

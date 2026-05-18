@@ -53,7 +53,7 @@
   },
   {
     "id": "deep-fix-not-bypass",
-    "preference": "pinrule 拦截发生时，先停下深挖**为什么拦** — 是违反还是 pinrule 自身 bug。\n禁止通过手动改 ~/.claude/pinrule/session-state/ / 临时改 rules.yaml /\nhack 字面 等方式绕开检测。\n经典 anti-pattern：被拦 → 手动改内部状态让 commit 通过。\n正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修原因。\n例外：用户明确说「绕一下先 commit」→ 才能绕。\n",
+    "preference": "pinrule 拦截发生时，先停下深挖**为什么拦** — 是违反还是 pinrule 自身 bug。\n禁止通过手动改 ~/.claude/pinrule/session-state/ / 临时改 rules.json /\nhack 字面 等方式绕开检测。\n经典 anti-pattern：被拦 → 手动改内部状态让 commit 通过。\n正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修原因。\n例外：用户明确说「绕一下先 commit」→ 才能绕。\n",
     "violation_keywords": [
       "强制接证据",
       "手动接入",

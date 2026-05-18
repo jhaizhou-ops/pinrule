@@ -316,7 +316,7 @@ def recent_turns(
     if path is None:
         path = DEFAULT_PATH
     # v0.9.13 fix off-by-one: 之前 cutoff = current_turn - window_turns 让
-    # turn >= cutoff 匹配 [cur-window, cur] 共 window+1 个 turn，跟 config.yaml
+    # turn >= cutoff 匹配 [cur-window, cur] 共 window+1 个 turn，跟 config.json
     # 用户面文案「最近 N turn 内」字面意思（N 个 turn）不一致。force_block
     # 累积阈值会被多 1 turn 历史误算 → 假阳干预。Now 真匹配 N 个 turn：
     # cutoff = current - (window - 1) 让 [cur-(window-1), cur] 共 window 个 turn.

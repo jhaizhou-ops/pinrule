@@ -5,7 +5,7 @@
 
 返回 None = 无违反；CheckHit = 违反详情。
 
-rules.yaml 的 violation_checks 字段值对应 REGISTRY 的 key。
+rules.json 的 violation_checks 字段值对应 REGISTRY 的 key。
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def run_checks(
 ) -> list[CheckHit]:
     """跑一组 check 函数，返回所有命中。
 
-    缺失的 check 名静默跳过（防 rules.yaml 写错名 deny 所有 tool）。
+    缺失的 check 名静默跳过（防 rules.json 写错名 deny 所有 tool）。
     check 函数自己崩了静默吞错（不阻塞 hook），但 `PINRULE_DEBUG=1` 时往
     stderr 打 traceback 让用户能调试自定义 check / 内部 bug。
     """

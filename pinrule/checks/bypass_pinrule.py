@@ -77,7 +77,7 @@ def _build_state_path_re() -> re.Pattern[str]:
 _PINRULE_STATE_PATH_RE = _build_state_path_re()
 
 # 写文件操作信号 — 不含 cp/mv/rm 这种「合法备份 / 清老 rotation」操作。
-# 用户 `cp ~/.claude/pinrule/sticky.yaml ~/backup/` / `rm ~/pinrule/violations.jsonl.3`
+# 用户 `cp ~/.claude/pinrule/rules.json ~/backup/` / `rm ~/pinrule/violations.jsonl.3`
 # 是日常 pinrule 状态自治，不是绕开检测。攻击者 hack 用 cp/mv 改 pinrule 状态
 # 是极少数 case；为它拦合法操作得不偿失。真 hack 路径（echo > file / python
 # 直接写）仍能 catch。

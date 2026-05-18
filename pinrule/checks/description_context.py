@@ -25,7 +25,7 @@ from pathlib import PurePosixPath
 
 _DOC_SUFFIXES = (".md", ".rst", ".txt", ".markdown", ".adoc")
 # 数据 / 配置文件 — 内容是描述性数据不是执行字面
-# 例：rules.yaml 列违反字面、production config 含黑名单数据
+# 例：rules.json 列违反字面、production config 含黑名单数据
 _DATA_SUFFIXES = (".yaml", ".yml", ".json", ".toml", ".ini", ".csv", ".tsv")
 _TEST_FILE_RE = re.compile(r"(?:^|[/_])test_[\w\-]+\.\w+$|[\w\-]+_test\.\w+$")
 # pinrule 检测器实现路径 — 这些文件**必须**含触发字面（pattern 定义 / docstring 描述）

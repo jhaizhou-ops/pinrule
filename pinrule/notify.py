@@ -23,7 +23,7 @@ def _escape_for_osascript(s: str) -> str:
 
 
 def _sanitize_argv_text(s: str, max_len: int = 200) -> str:
-    """notify-send / msg 等命令行工具的参数清洗 — rules.yaml 的
+    """notify-send / msg 等命令行工具的参数清洗 — rules.json 的
     violation_keywords 是用户自定义不可信输入，传 argv 时可能含 `--icon=...`
     类伪 flag 被 notifier 错误当 flag 处理。剥前导 `-`、合并换行、限长。
     """
@@ -88,7 +88,7 @@ def notify(title: str, message: str) -> bool:
 
     关闭方式（任一即生效）：
     - PINRULE_NO_NOTIFY=1 环境变量（CI / 静音场景）
-    - config.yaml 的 notify_enabled: false
+    - config.json 的 notify_enabled: false
     title / message 长度建议 < 100 字（macOS 通知中心截断）。
     """
     if os.environ.get("PINRULE_NO_NOTIFY"):

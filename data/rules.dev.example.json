@@ -80,7 +80,7 @@
   },
   {
     "id": "deep-fix-not-bypass",
-    "preference": "When pinrule blocks you, first reaction shouldn't be \"bypass\" — pause\nand read the trigger text, think whether it's a real violation or\npinrule's own bug. Manually modifying session-state to make commit pass\n/ temporarily changing rules.yaml to disable the rule / hacking\nliterals to bypass detection — these are all \"performing for the user,\"\nshort-term passing but they'll find out.\nThe correct flow when blocked: see trigger → dig into pattern or\nsystem bug → fix root cause (tighten pattern if too wide, fix system\nbug if pinrule's own issue). This way the next person hitting the same\nscenario won't be blocked the same way.\nException: user explicitly says \"bypass once for this commit\" → only\nthen bypass.\n",
+    "preference": "When pinrule blocks you, first reaction shouldn't be \"bypass\" — pause\nand read the trigger text, think whether it's a real violation or\npinrule's own bug. Manually modifying session-state to make commit pass\n/ temporarily changing rules.json to disable the rule / hacking\nliterals to bypass detection — these are all \"performing for the user,\"\nshort-term passing but they'll find out.\nThe correct flow when blocked: see trigger → dig into pattern or\nsystem bug → fix root cause (tighten pattern if too wide, fix system\nbug if pinrule's own issue). This way the next person hitting the same\nscenario won't be blocked the same way.\nException: user explicitly says \"bypass once for this commit\" → only\nthen bypass.\n",
     "violation_keywords": [
       "force evidence",
       "manually inject",

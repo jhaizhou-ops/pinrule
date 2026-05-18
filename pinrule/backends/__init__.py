@@ -5,7 +5,7 @@
   （Claude / Codex / Cursor 字段大多同名：session_id / prompt / tool_name 等，
   跨家差异在 backend 层 protocol_adapter 抹平）
 - backend 抽象只负责「装机」差异：配置文件路径 / 配置格式 / 是否要启用 feature flag
-- pinrule 状态（violations / session-state / rules.yaml）跨 backend **共享** —
+- pinrule 状态（violations / session-state / rules.json）跨 backend **共享** —
   ~/.pinrule/（v0.14+ 共享规则库；`PINRULE_HOME` env 可覆盖）
 
 Backend 列表：

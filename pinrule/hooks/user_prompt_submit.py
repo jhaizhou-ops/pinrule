@@ -187,7 +187,7 @@ def _main_inner() -> int:
     # 顺便 catchup pending background 任务（task #8：catchup 之前只在 PostToolUse
     # 跑，bg 完成后第一个触发的 hook 可能是这里 / pre_tool_use，要多 hook 都跑）
     #
-    # v0.11.2 fix: turn / model telemetry 早于 rules.yaml 加载. pinrule 系统级
+    # v0.11.2 fix: turn / model telemetry 早于 rules.json 加载. pinrule 系统级
     # 状态 (turn_count / model / pending_bg_tasks) 跟用户有没有装 rules 无关 —
     # 即使 rules 为空也要推进, 否则空 rules 用户的所有 model-aware reinject 阈值 +
     # turn-based 违反窗口都失效. 上一版顺序错: 没 rules 就早 return, model 永远

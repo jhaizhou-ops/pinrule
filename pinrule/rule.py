@@ -38,7 +38,7 @@ class Rule:
 
 @dataclass(slots=True)
 class RuleConfigError(Exception):
-    """rule.yaml 配置错误，hook 拒绝加载（fail loud）。"""
+    """rules.json 配置错误，hook 拒绝加载（fail loud）。"""
 
     msg: str
 

@@ -72,7 +72,7 @@
   },
   {
     "id": "deep-fix-not-bypass",
-    "preference": "pinrule 拦你时，第一反应别想着绕 — 先停下看 trigger 字面，想清楚是违反\n还是 pinrule 自身 bug。手动改 session-state 让 commit 通过 / 临时改\nrules.yaml 让规则不触发 / hack 字面绕检测 — 这些都是给用户演戏，\n短期通过但他会发现。\n被拦的正确流程：看 trigger → 深挖 pattern 或系统 bug → 修原因\n（pattern 过宽就收紧，系统 bug 就 fix 自身）。这样下次别人遇到同样\n场景就不会被同样拦了。\n例外：用户明确说「绕一下先 commit」→ 才能绕。\n",
+    "preference": "pinrule 拦你时，第一反应别想着绕 — 先停下看 trigger 字面，想清楚是违反\n还是 pinrule 自身 bug。手动改 session-state 让 commit 通过 / 临时改\nrules.json 让规则不触发 / hack 字面绕检测 — 这些都是给用户演戏，\n短期通过但他会发现。\n被拦的正确流程：看 trigger → 深挖 pattern 或系统 bug → 修原因\n（pattern 过宽就收紧，系统 bug 就 fix 自身）。这样下次别人遇到同样\n场景就不会被同样拦了。\n例外：用户明确说「绕一下先 commit」→ 才能绕。\n",
     "violation_keywords": [
       "强制接证据",
       "手动接入",
