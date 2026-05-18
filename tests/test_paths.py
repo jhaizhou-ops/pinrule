@@ -30,7 +30,7 @@ def _spawn_pinrule_check(env_override: dict[str, str], code: str) -> str:
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1]) + os.pathsep + env.get("PYTHONPATH", "")
     result = subprocess.run(
         [sys.executable, "-c", code],
-        env=env, capture_output=True, text=True, timeout=10, check=True,
+        env=env, capture_output=True, text=True, encoding="utf-8", timeout=10, check=True,
     )
     return result.stdout.strip()
 

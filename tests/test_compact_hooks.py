@@ -33,7 +33,7 @@ def test_pre_compact_hook_auto_allows():
     result = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.pre_compact"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=json.dumps(payload),
         cwd=PROJECT_ROOT
     )
@@ -62,7 +62,7 @@ def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
     payload1 = {"session_id": "test-ups-model", "prompt": "first", "model": "claude-sonnet-4-6"}
     result1 = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.user_prompt_submit"],
-        capture_output=True, text=True, input=json.dumps(payload1),
+        capture_output=True, text=True, encoding="utf-8", input=json.dumps(payload1),
         cwd=PROJECT_ROOT,
     )
     assert result1.returncode == 0
@@ -70,7 +70,7 @@ def test_user_prompt_submit_updates_model_each_turn(tmp_path, monkeypatch):
     payload2 = {"session_id": "test-ups-model", "prompt": "second", "model": "claude-opus-4-7"}
     result2 = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.user_prompt_submit"],
-        capture_output=True, text=True, input=json.dumps(payload2),
+        capture_output=True, text=True, encoding="utf-8", input=json.dumps(payload2),
         cwd=PROJECT_ROOT,
     )
     assert result2.returncode == 0
@@ -92,7 +92,7 @@ def test_session_start_writes_model_to_state(tmp_path, monkeypatch):
     result = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.session_start"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=json.dumps(payload),
         cwd=PROJECT_ROOT,
         env={**__import__("os").environ, "PINRULE_HOME": str(tmp_path.parent)},
@@ -118,7 +118,7 @@ def test_session_start_hook_resume():
     result = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.session_start"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=json.dumps(payload),
         cwd=PROJECT_ROOT
     )
@@ -139,7 +139,7 @@ def test_pre_compact_hook_manual_allows():
     result = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.pre_compact"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=json.dumps(payload),
         cwd=PROJECT_ROOT
     )
@@ -165,7 +165,7 @@ def test_hooks_graceful_fallback_on_sticky_error():
         result = subprocess.run(
             [PYTHON, "-m", f"pinrule.hooks.{hook_name}"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             input=json.dumps(payload),
             cwd=PROJECT_ROOT
         )
@@ -189,7 +189,7 @@ def test_subagent_start_hook():
     result = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.subagent_start"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=json.dumps(payload),
         cwd=PROJECT_ROOT
     )
@@ -213,7 +213,7 @@ def test_subagent_hooks_output_real_chinese_not_unicode_escape():
         result = subprocess.run(
             [PYTHON, "-m", f"pinrule.hooks.{hook_name}"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             input=payload,
             cwd=PROJECT_ROOT
         )
@@ -241,7 +241,7 @@ def test_subagent_stop_hook_emits_reminder():
     result = subprocess.run(
         [PYTHON, "-m", "pinrule.hooks.subagent_stop"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         input=json.dumps(payload),
         cwd=PROJECT_ROOT
     )
