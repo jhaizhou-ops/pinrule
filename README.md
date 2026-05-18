@@ -11,7 +11,7 @@
 
 **Pin the 5-10 rules your AI must not drift from during long tasks.** Ships with a 7-rule dev preset; switch to any other scenario with one sentence: `/pinrule I mainly do X, switch to this scenario`.
 
-> Pure engineering · zero LLM · zero network · zero runtime deps · ~50-70ms hook · ~2% token overhead.
+> **Runtime**: pure engineering · zero LLM · zero network · zero runtime deps · ~50-70ms hook · ~2% token overhead. (Scenario rule pack generation runs in your Agent — see Path B below.)
 
 ![pinrule demo — 5 scenes, animated SVG](./assets/demo-en.svg)
 
@@ -144,6 +144,8 @@ The Agent synthesizes 4 signals into a 5-7 rule pack:
 | **S. Session context** | What you're working on right now |
 
 Two-phase approval (content → mechanism), then atomic batch write with backup. Full walkthrough: [SKILL.md Path B](./skills/pinrule/SKILL.md).
+
+> **Boundary**: pinrule runtime does not call LLMs or the network. Your Agent does the scenario research; pinrule validates and runs the resulting rules locally.
 
 ---
 

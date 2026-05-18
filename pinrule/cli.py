@@ -750,7 +750,7 @@ def cmd_rule_import_pack(
       3. 全量 schema validate (走 pinrule.rule.load 一致逻辑)
       4. 检查 id 唯一性 / 软硬上限 / violation_checks 函数存在
       5. 写 backup (如果 --backup)
-      6. 原子写: tmp 文件 + os.rename swap (任何一步挂 → rules.json 一字没动)
+      6. 原子写: tmp 文件 + os.replace swap + fsync (任何一步挂 → rules.json 一字没动)
 
     --mode replace: 整库替换 (Path B 场景切换默认)
     --mode append: 追加到现有规则库 (会撞软上限 → 警告但仍写)
