@@ -48,7 +48,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pinrule"]
-artifacts = ["data/*.yaml"]
+# v0.17.0 起所有 data 资产用 force-include 显式列, 不再需要 artifacts glob
 
 [tool.hatch.build.targets.wheel.force-include]
 "data/rules.dev.example.json" = "data/rules.dev.example.json"
@@ -76,5 +76,6 @@ line-length = 100
 target-version = "py311"
 
 [tool.mypy]
-# PyYAML 没官方 stub（types-PyYAML 是社区维护），pinrule 不引入额外 stub 依赖
+# pinrule v0.17.0+ 0 runtime deps. 这条防御性 ignore 给 dev 工具
+# (pytest 等) 偶尔缺 stub 兜底, 不影响生产代码类型检查严格度.
 ignore_missing_imports = true
