@@ -49,7 +49,7 @@ Called after pinrule writes hooks.json. Returns loud reminder lines printed to s
 
 Map codex-native tool names to pinrule canonical (Claude-style: `Bash` / `Read` / `Edit` / `Write` / `NotebookEdit`).
 
-**Current**: `apply_patch → Edit`. **Likely incomplete** — codex may have other tool names (`exec_command`, `update_plan`, plugin tools) that pinrule should canonicalize.
+**Current**: ✅ implemented via `_CODEX_TOOL_MAP` — `apply_patch → Edit`, `exec_command → Bash` (v0.10.2). Other codex tool names (`update_plan`, plugin tools) passthrough unchanged; if pinrule check enforcement on those is needed, extend `_CODEX_TOOL_MAP`.
 
 **Why this matters**: pinrule's engine checks compare `tool_name in ("Edit", "Write")` etc. Anything unmapped early-returns `None` from checks → no enforcement.
 
@@ -57,10 +57,10 @@ Map codex-native tool names to pinrule canonical (Claude-style: `Bash` / `Read` 
 
 Convert codex tool_input to pinrule canonical dict. For `apply_patch`, parse the envelope string into `{file_path, new_string, multi_file_targets}`.
 
-**Current state** — **placeholder, codex should improve**:
-- `parse_apply_patch_envelope()` regex-parses `*** Begin Patch / *** Update File: / @@ / *** End Patch` blocks. Locked against one real captured envelope from 2026-05-16 13:51:47 session rollout. May miss edge cases (escaped paths, binary patches, etc.).
-- `_extract_codex_patch_text()` defensively handles bare-string and dict-wrap input forms. Real hook-level payload schema was never captured (codex `exec` mode doesn't fire hooks; interactive `codex` hook payload not dumped yet). **Codex should capture and lock the real hook payload shape**.
-- **shell-as-Read gap not implemented** — when `raw_tool_name == "exec_command"` and command matches read-only patterns (`tail`, `sed -n`, `cat`, `head`, `less`, `more`, `wc`, `file`, `grep -l`), this method should output something like `{"read_file_paths": [...]}` and `post_tool_use` will need a corresponding handler. Codex owns the design here because shell-read pattern detection has high false-positive risk and codex has fastest signal on real-world `exec_command` patterns.
+**Current state** — ✅ implemented, remaining risk is payload-shape coverage / real interactive coverage:
+- `parse_apply_patch_envelope()` regex-parses `*** Begin Patch / *** Update File: / @@ / *** End Patch` blocks. Locked against one real captured envelope from 2026-05-16 13:51:47 session rollout. May still miss edge cases (escaped paths, binary patches, etc.).
+- `_extract_codex_patch_text()` defensively handles bare-string and dict-wrap input forms. Real hook-level payload schema captured for SessionStart (v0.10.2 PR #4); PreToolUse / PostToolUse / Stop / UserPromptSubmit interactive payloads still not all locked — see Remaining TODO #2-followup.
+- **shell-as-Read implemented** (v0.10.1 PR #3 + v0.10.3 PR #5 + v0.11.2 PR #6) — `extract_read_write_paths_from_exec_command()` recognizes `tail` / `sed -n` / `cat` / `head` / `less` / `more` / `wc` / `file` / `grep -l` (+ simple pipe chains `head N | tail M`) as reads, and `sed -i` / `tee` / `producer | tee file` as writes. Returns `(read_paths, write_paths, is_write)` tuple consumed by generic `post_tool_use` layer. Remaining false-negative on `xargs cat` / recursive `grep -r` / `find` — see Remaining TODO #6.
 
 ### 5. `emit_deny(self, reason: str, payload: dict) -> str`
 
@@ -81,13 +81,13 @@ Return JSON string for "allow this tool call". **Codex does NOT accept `hookSpec
 
 Return JSON string for "inject additional context into the Agent's view" (SessionStart / UserPromptSubmit / PostToolUse / SubagentStart). Claude shape is `{hookSpecificOutput: {hookEventName: event_name, additionalContext: additional_context}}`.
 
-**Current**: inherits Claude-shape default from `JsonHooksBackend`. **Real codex acceptance unverified** — see Remaining TODO #8. If codex returns error or silently drops the injection, override to match codex's real shape.
+**Current**: ✅ implemented via native override (`codex.py::emit_context_injection`) following [codex hooks docs](https://developers.openai.com/codex/hooks) — SessionStart / UserPromptSubmit / PostToolUse all accept `hookSpecificOutput.additionalContext`. Empty context returns `{}` (clean passthrough rather than empty envelope). Remaining risk is payload-shape coverage on real interactive codex sessions — see Remaining TODO #8.
 
 ### 8. `emit_stop_block(self, reason: str, payload: dict) -> str`
 
-Return JSON string for "block the Agent's stop" (Stop hook force_block / keep_pushing_block paths). Claude shape is `{decision: "block", reason: reason}`. Gemini overrides to `{}` because AfterAgent has no block semantics — returning empty fails open instead of silently rejecting.
+Return JSON string for "block the Agent's stop" (Stop hook force_block / keep_pushing_block paths). Claude shape is `{decision: "block", reason: reason}`.
 
-**Current**: inherits Claude-shape default. **Real codex acceptance unverified** — see Remaining TODO #8.
+**Current**: inherits Claude-shape default from `JsonHooksBackend`. **Real codex acceptance unverified** — see Remaining TODO #8. If codex returns error or silently drops the stop-block, override to match codex's real shape.
 
 ## Completed TODOs (v0.10.x)
 

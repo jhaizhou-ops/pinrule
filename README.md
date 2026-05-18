@@ -91,7 +91,7 @@ Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable d
 
 | | |
 |---|---|
-| **External deps** | 0 (only PyYAML, a Python-standard library) |
+| **Runtime deps** | 1 small dependency: PyYAML |
 | **Hook latency** | ~50-70ms typical (machine-bound; reproduce via `scripts/measure_perf.py`) |
 | **Token overhead** | ~2% of conversation context in real dogfood (methodology: [docs/EVALUATION.md](./docs/EVALUATION.md)) |
 | **Tests** | 800+ unit tests, [green on 6-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu + macOS + Windows × Python 3.11 / 3.12) |
