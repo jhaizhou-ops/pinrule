@@ -57,21 +57,16 @@ The 2% is **(pinrule injected tokens) / (total conversation tokens)** averaged a
 
 The 0-anchor passthrough is what makes the average low — most working turns don't trigger any rule, so the per-turn cost is essentially zero. Only when the Agent actually drifts does the next turn's anchor list the drifted rule.
 
-### How to reproduce
+### How the numbers were measured
 
-Each session writes anchor token counts into `~/.pinrule/violations.jsonl`. To compute the ratio on your own data:
+These figures come from the author's own dogfood during pinrule development — 30 working sessions over ~2 weeks, hand-counted from `~/.pinrule/session-state/*.json` (each file records `tool_byte_seq` accumulation, drift events, reinject triggers) and Claude Code's conversation logs.
 
-```bash
-pinrule audit --token-ratio    # planned helper; until then, scripts/measure_token_overhead.py works
-```
+**There is no `pinrule audit --token-ratio` helper yet** — automating this is on the roadmap but no user has asked for it, so it stays manual. If you want to measure your own data, the inputs are:
 
-Or compute directly from logs (one-liner):
+- `~/.pinrule/session-state/<session_id>.json` — per-session pinrule state (read/edit files, byte accumulation, reinject marks)
+- Your AI client's conversation log — authoritative source for total token count, since pinrule doesn't track that
 
-```bash
-python scripts/measure_token_overhead.py --sessions ~/.pinrule/session-state/
-```
-
-The script reports per-session breakdown (baseline-only vs anchor vs reinject) + conversation-context ratio.
+If you measure your own ratio and want a reproducible script for it, [file an Issue](https://github.com/jhaizhou-ops/pinrule/issues) — that's the trigger to actually build the helper.
 
 ---
 
