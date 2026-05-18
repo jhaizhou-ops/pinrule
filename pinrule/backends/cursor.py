@@ -223,5 +223,15 @@ class CursorBackend(JsonHooksBackend):
             "    替代路径 (推荐): `pinrule rule add --from-json /tmp/rule.json` 直接",
             "    走 CLI 加规则, 不依赖 IDE skill 机制. pinrule 主流程通过 hooks.json",
             "    跑, 跟 skill 解耦.",
+            "",
+            "ℹ️  Cursor Agent transcripts (回复级检查)",
+            "",
+            "    注入 / 工具拦截 — 不依赖 transcript.",
+            "    keep-pushing 等回复级检查 — 需要 stop/afterAgentResponse 能读到上句回复;",
+            "    桌面 Agent 会话通常 **自动** 提供 transcript_path (无需你手动开开关).",
+            "",
+            "    验证: `pinrule doctor` 读 Hooks 日志; 或 Output → Hooks → INPUT 非 null.",
+            "    sessionStart 为 null 正常。若 stop 也全 null → 查 Cursor 隐私模式。",
+            "    pinrule **不能** CLI 写入 Cursor 内部开关 (无公开 settings 键).",
         ])
         return msgs

@@ -388,42 +388,58 @@ You've been working with this user. You know:
 
 This is the **synthesis** signal — it's how you decide which Source-A/B/H candidates fit *this* user vs. *anyone* doing this scenario.
 
-### Step 3 (Path B): Synthesize 5-7 rules
+Path B runs in **two phases**. Each phase has its own user approval gate. The split lets you focus: Phase 1 is pure content (domain knowledge + signal synthesis), Phase 2 is pure mechanism (keyword + engine check engineering). Mixing them in one shot dilutes Agent attention and stuffs user with too many decisions at once.
 
-Compose the rule pack:
+---
+
+## Phase 1 — Content draft + approval (Steps 3-5)
+
+### Step 3 (Path B, Phase 1): Synthesize rule **content** — preference + source only
+
+For each candidate rule, generate **only**:
+- `id` (kebab-case slug)
+- `preference` text (full multi-line collaborative-agreement tone)
+- `Source:` attribution line
+
+**Do NOT fill `violation_keywords` or `violation_checks` yet** — Phase 2 handles mechanism. Keeping Phase 1 content-pure means:
+- You focus on domain accuracy + source synthesis
+- User reviews content only, not schema details
+- If user rejects a rule, you didn't waste effort on its keywords/checks
+
+Compose the pack:
 
 - **Preserve cross-scenario universals from current pinrule defaults** (if installed): `loud-failure-with-evidence`, `read-before-write`, `non-blocking-parallel` apply to *any* scenario. Strongly recommend keeping them.
 - **Drop dev-specific rules that don't apply**: e.g., `chinese-plain-no-jargon`, `no-testset-no-future-leakage`, `long-term-fundamental` (anti-shortcut for code) — drop if scenario isn't dev.
 - **Add 3-5 scenario-specific rules** synthesized from Source A/B/H, filtered through Source S.
 
-**Each rule MUST have source attribution** in the preview. Format:
+**Each rule MUST have source attribution.** Format:
 
 ```
-[research-no-fabricated-citation] ✓ preference-only
-  preference: ...
+[research-no-fabricated-citation]
+  preference: <full multi-line text>
   Source: 源自 your ~/.claude/CLAUDE.md L42-45 + ICLR 2024 reviewer guidelines
 ```
 
-This lets the user audit each rule's provenance before approving.
+This lets the user audit each rule's provenance before approving the *content*. Mechanism details (keywords, checks) come in Phase 2.
 
-### Step 4 (Path B): Preview the complete pack with diff
+### Step 4 (Path B, Phase 1): Content preview with diff
 
-Show the user the full proposed library + diff vs. current:
+Show the user the **content** of the full proposed library + diff vs. current. Show no mechanism details yet — keep the review focused.
 
 ```markdown
-## Proposed scenario rule pack — research (7 rules)
+## Proposed scenario rule pack — research (7 rules) — CONTENT PREVIEW
 
 ### Carried over from current library (3 cross-scenario universals)
-- [loud-failure-with-evidence] ✓ engine — 完成时附证据
-- [read-before-write] ✓ engine — 改前先读
-- [non-blocking-parallel] ✓ engine — 非阻塞推进
+- [loud-failure-with-evidence] — 完成时附证据
+- [read-before-write] — 改前先读
+- [non-blocking-parallel] — 非阻塞推进
 
 ### New (4 scenario-specific)
-- [no-fabricated-citation] preference-only
+- [no-fabricated-citation]
   preference: <full text>
   Source: 源自 your ~/.claude/CLAUDE.md L42 + ICLR 2024 reviewer guidelines
 
-- [assumption-vs-conclusion] ✓ engine (loud_failure_with_evidence)
+- [assumption-vs-conclusion]
   preference: <full text>
   Source: 源自 nature.com/articles/research-integrity-guide-2023 + Karpathy principle 7
 
@@ -434,41 +450,190 @@ Show the user the full proposed library + diff vs. current:
 - [no-testset-no-future-leakage] — ML-eval specific
 - [long-term-fundamental] — anti-shortcut for code refactoring
 - [deep-fix-not-bypass] — pinrule-meta rule for dev work
+
+— mechanism details (keywords + engine checks) come in Phase 2 after you confirm content —
 ```
 
-### Step 5 (Path B): Ask for approval — one prompt, not per-rule
+### Step 5 (Path B, Phase 1): Content approval — one prompt, not per-rule
 
 ```
-"以上 7 条规则替换你现有规则库, 来源已标注. 用一行回复:
-   - '应用' / 'apply' → 立刻写入
+"以上 7 条规则的**内容**替换你现有规则库, 来源已标注. 用一行回复:
+   - '应用' / 'apply' → 内容定下来, 进入 Phase 2 配置机制 (keyword + engine check)
    - '应用但保留 [X / Y]' → 我保留你 call out 的现有规则一起加
-   - '换 [Z] 为 [...]' → 我替换某条
+   - '换 [Z] 为 [...]' → 我替换某条内容
    - '不要 [W]' → 我去掉某条
    - '追加不替换 / append' → 仅加新规则, 现有全保留 (会超软上限)"
 ```
 
-Don't ping-pong per-rule. User gives one structured reply, you act.
+Don't ping-pong per-rule. User gives one structured reply, you commit the content list and move to Phase 2.
 
-### Step 6 (Path B): Replace vs. append — default REPLACE
+---
 
-For scenario rule pack, **default is replace** (not append like Path A):
-- User said "switch to X scenario / replace for X" → they want a fresh pack
-- Append-by-default would balloon over soft cap 10 quickly
+## Phase 2 — Mechanism design + approval (Steps 6-9)
 
-**Exception**: user explicitly said "追加 / append / keep my current ones too" → append instead.
+Now that the **rule list is locked**, you design the detection mechanism for each rule. This is pure schema engineering — no more domain debate.
 
-### Step 7 (Path B): Backup + atomic-ish batch write
+### Step 5.5 (Path B, Phase 2 prelude): Detect user's active backends
+
+Before mapping engine checks, detect which clients the user actually runs on. This shapes the Phase 2 backend coverage advisory (Step 7) and the closing reminder (after Step 11).
+
+Use `Read` tool to scan:
+```
+~/.claude/settings.json          → is Claude Code installed?
+~/.codex/hooks.json              → is Codex CLI installed?
+~/.cursor/hooks.json             → is Cursor installed?
+```
+
+**For Cursor specifically**, also infer 桌面 Agent (IDE Composer) vs CLI (`cursor agent`) usage. The simplest signal is to run `pinrule doctor` and look at its Cursor transcript section (powered by `pinrule.cursor_transcript_doctor` which parses `~/Library/Application Support/Cursor/logs/.../cursor.hooks*.log`):
+
+- If `pinrule doctor` reports `stop` / `afterAgentResponse` hooks with non-null `transcript_path` → **桌面 Agent 路径正常** ✅
+- If most hooks have null `transcript_path` → user mostly on CLI (or Cursor privacy mode); response-level checks (loud_failure / keep_pushing / chinese_plain / long_term Stop path) will silent-skip → ⚠️
+
+You don't need to ask the user — just run `pinrule doctor` and parse output. This becomes input to Step 7.
+
+### Step 6 (Path B, Phase 2): Generate `violation_keywords` for each approved rule
+
+For each approved rule, generate 3-8 `violation_keywords`:
+
+- **Format**: "intent-prefix + action" (e.g., `"我直接给你方案"` not `"方案"`)
+- Match phrases the user/Agent would actually say *when violating the rule*
+- Cap at ~5-8 keywords per rule (more ≠ better; noisy pattern-match)
+- Mental test: "If Agent says this exact phrase, did they violate?"
+
+Example for `no-fabricated-user-voice`:
+```
+violation_keywords: [
+  "用户应该会说",
+  "典型用户会",
+  "假设用户觉得",
+  "我猜大部分用户",
+  "用户大概会反馈"
+]
+```
+
+These get scanned in PreToolUse (Write/Edit/Bash content) + Stop hook (Agent response text) — **Layer 1.5 keyword detection works for any rule, no engine check required**.
+
+### Step 7 (Path B, Phase 2): Map each rule to an engine check (semantic pattern matching)
+
+Now evaluate whether each rule semantically matches one of the **8 built-in engine checks**. Engine checks add Layer 2 precision (read tool_input + session_state for joint judgment beyond keyword grep).
+
+**Critical**: don't fabricate function names. Schema validation will reject unknown names. Only the 8 below work:
+
+| Rule semantic pattern | Engine check function | What it detects |
+|---|---|---|
+| "X before Y" / 「先理解再行动」 | `read_before_write` | Edit/Write tool before Read on same target |
+| "claim with evidence" / 「证据 + 老实失败」 | `loud_failure_with_evidence` | Completion words without test_pass / data evidence in session |
+| "non-blocking / 长任务期间不 idle" | `non_blocking_parallel` | Sleep / long task without `run_in_background` |
+| "keep pushing / no silent stop" | `keep_pushing_no_stop` | Agent silent-stop with pending TODOs |
+| "no shortcut / 不糊弄" | `long_term_fundamental` | git `--no-verify` / hardcoded long-hash if-branch / TODO scaffolding |
+| "no testset leak / 评测干净" | `no_testset_no_future_leakage` | Eval data backfeeding training / cross-split copying |
+| "deep fix not bypass" | `deep_fix_not_bypass` | Bash command writing pinrule internal state |
+| "plain language" / 「直白沟通」 | `chinese_plain_no_jargon` | Chinese ratio < 40% / jargon terms |
+
+**Cross-scenario reuse examples** (this is the real unlock — 8 engine checks are generic behavior patterns, not dev-only):
+
+- UX scenario 的 `understand-context-before-design` → `read_before_write` (设计前没读已有研究 ≡ Edit 前没 Read)
+- Legal scenario 的 `evidence-with-citation` → `loud_failure_with_evidence` (法律意见没附判决引用 ≡ claim 没附数据)
+- Writing scenario 的 `outline-before-prose` → `read_before_write` (写正文前没列大纲 ≡ Edit 前没 Read)
+- Research scenario 的 `validate-before-claim` → `loud_failure_with_evidence` (结论没附实验数据 ≡ claim 没附证据)
+- Marketing scenario 的 `data-driven-not-vibes` → `loud_failure_with_evidence` (策略主张没附数据 ≡ claim 没证据)
+
+**If no engine check semantically fits** → leave `violation_checks: []`. The rule still gets header injection (Layer 1) + keyword detection (Layer 1.5), just no Layer 2 precision check. Many cross-scenario rules are fine as `preference-only`.
+
+#### Backend coverage for each engine check
+
+Each engine check fires at different hook event points. Coverage by backend (based on which hook events each backend actually delivers):
+
+| Engine check | Hook event | Claude | Codex | Cursor 桌面 Agent | Cursor CLI |
+|---|---|---|---|---|---|
+| `read_before_write` | PreToolUse | ✅ | ✅ | ✅ | ✅ |
+| `loud_failure_with_evidence` | Stop / afterAgentResponse | ✅ | ✅ | ✅ | ⚠️ silent if transcript_path null |
+| `non_blocking_parallel` | PreToolUse (Bash) | ✅ | ✅ | ✅ | ✅ |
+| `keep_pushing_no_stop` | Stop | ✅ | ✅ | ✅ | ⚠️ |
+| `chinese_plain_no_jargon` | Stop | ✅ | ✅ | ✅ | ⚠️ |
+| `long_term_fundamental` | Stop + PreToolUse | ✅ | ✅ | ✅ Bash 路径; Stop 路径 ✅ | Bash ✅ / Stop ⚠️ |
+| `no_testset_no_future_leakage` | PreToolUse | ✅ | ✅ | ✅ | ✅ |
+| `deep_fix_not_bypass` | PreToolUse | ✅ | ✅ | ✅ | ✅ |
+
+**Read this carefully**:
+- **Cursor 桌面 Agent (IDE Composer) = 默认整列 ✅** —— transcript 自动写, 不需要用户开开关. **不要给桌面用户发任何 transcript advisory**, 那是 over-warning.
+- **Cursor CLI (`cursor agent` 终端) = 边缘场景, 部分 Stop-hook 类 check ⚠️** —— 这是 future feature, pinrule 当前不补齐 CLI null `transcript_path`. 检测到 CLI 主战场用户时再给警告.
+- **Claude / Codex = 整列 ✅** —— 不需要任何 backend-specific advisory.
+
+When assigning engine checks in Step 7, **based on Step 5.5 detected backend**, decide whether each rule's engine check is reliable:
+- 桌面 Agent 用户: 8 个 check 全可靠 → 直接 attach 适用的 check
+- Cursor CLI 主战场用户 (rare): Stop-hook 类 4 个 check 不稳 → 仍然 attach 但 Step 8 preview 标 ⚠️ + Step 11 末尾建议「主用桌面 Agent」
+
+### Step 8 (Path B, Phase 2): Mechanism preview — full rules with keywords + checks
+
+Show user the *complete* rule pack with mechanism details:
+
+```markdown
+## 机制配置 (Phase 2) — 完整规则集
+
+[loud-failure-with-evidence] ✓ engine: loud_failure_with_evidence (保留)
+  preference: <text>
+  violation_keywords: ["这事搞定了", "已经完成", ...] (保留现有)
+  violation_checks: ["loud_failure_with_evidence"]
+
+[no-fabricated-user-voice] preference-only (keyword-detect only)
+  preference: <text>
+  violation_keywords: ["用户应该会说", "典型用户会", "假设用户觉得", "我猜大部分用户", "用户大概会反馈"]
+  violation_checks: []
+  Why no engine: 「编造 user voice」是字面违反, keyword 已覆盖, 没有 8 个内建 check 语义匹配
+
+[understand-context-before-design] ✓ engine: read_before_write
+  preference: <text>
+  violation_keywords: ["看起来是个新需求", "应该不影响别的", "我直接设计就好"]
+  violation_checks: ["read_before_write"]
+  Why this engine: 「设计前没读已有研究」≡「Edit 前没 Read」同行为 pattern
+  Backend coverage: ✅ Claude / ✅ Codex / ✅ Cursor 桌面 (PreToolUse 通用)
+
+[loud-failure-research-claim] ✓ engine: loud_failure_with_evidence
+  preference: <text>
+  violation_keywords: ["这个研究表明", "数据显示", "结论是"]
+  violation_checks: ["loud_failure_with_evidence"]
+  Why this engine: 「研究 claim 没附数据」≡「completion 没附 test_pass evidence」
+  Backend coverage: ✅ Claude / ✅ Codex / ✅ Cursor 桌面 Agent
+  ⚠️ 如果你主要用 Cursor CLI (非桌面 Agent), Stop hook 路径 silent — 建议主用桌面 Agent
+
+...
+```
+
+For each rule explicitly state:
+- Whether it has engine check
+- Which one + why (cross-scenario reuse rationale)
+- Or why no engine check (preference-only + keyword 已经够 / 没匹配的 pattern)
+- **Backend coverage line** showing which backends this engine check works on (based on Step 5.5 detection — only flag Cursor CLI advisory if user is detected as Cursor CLI主战场, otherwise just show Cursor 桌面 ✅)
+
+### Step 9 (Path B, Phase 2): Mechanism approval
+
+```
+"机制配置 ready. 用一行回复:
+  - '应用' → batch write
+  - '调 [<id>] keyword: 加 X / 删 Y' → 调某条 keyword
+  - '调 [<id>] engine: 用 X 不要 Y' → 调某条 engine check 映射
+  - '退回 Phase 1' → 回去改内容"
+```
+
+Don't re-debate content here — content was locked in Step 5. If user wants content change, explicitly retreat to Phase 1.
+
+---
+
+## Step 10 (Path B): Backup + atomic-ish batch write
+
+After both phases approved:
 
 ```bash
 # 1. Backup current state
 cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-$(date +%Y%m%d-%H%M%S)
 
-# 2. Remove rules that don't survive (if replacing)
+# 2. Remove rules that don't survive (default is replace for Path B; append only if user explicitly said so in Phase 1)
 pinrule rule remove <old_rule_1>
 pinrule rule remove <old_rule_2>
 ...
 
-# 3. Add new rules
+# 3. Add new rules with complete mechanism (Phase 2 approved keywords + checks)
 pinrule rule add --from-json /tmp/pinrule-new-rule-1.json
 pinrule rule add --from-json /tmp/pinrule-new-rule-2.json
 ...
@@ -476,7 +641,7 @@ pinrule rule add --from-json /tmp/pinrule-new-rule-2.json
 
 If midway fails (rare — pinrule schema validates), tell the user to restore from `rules.json.before-scenario-*` backup.
 
-### Step 8 (Path B): Tell user this is v1 — iterate from real data
+### Step 11 (Path B): Tell user this is v1 — iterate from real data
 
 After writing:
 
@@ -493,9 +658,18 @@ After writing:
 >
 > 备份: ~/.pinrule/rules.json.before-scenario-<timestamp>
 
-### Path B example walkthrough — research scenario
+**Backend-aware reminder** (conditional on Step 5.5 detection):
+
+- If user is **Cursor 桌面 Agent 主战场**: no extra warning needed — coverage is full (don't over-warn).
+- If user is **Cursor CLI 主战场** (rare, detected via `pinrule doctor` showing mostly null `transcript_path`): append:
+  > ⚠️ 检测到你主要用 Cursor CLI (非桌面 Agent), 你这套规则里 N 条 Stop-hook 类 engine check (loud_failure / keep_pushing / chinese_plain / long_term) 在 CLI 上可能 silent. 建议主用 Cursor **桌面 Agent (IDE Composer)** —— 默认 transcript 自动写, 这些 check 真生效. 跑 `pinrule doctor` 看 transcript 状态.
+- If user is **Claude / Codex 主战场**: no Cursor-specific warning needed.
+
+### Path B example walkthrough — research scenario (two-phase flow)
 
 **User**: `/pinrule 我主要做 ML 论文 + 数据分析, 切到这个场景规则集`
+
+#### Phase 1 — Content
 
 **Agent** (you):
 
@@ -508,44 +682,90 @@ After writing:
 > [Karpathy CLAUDE.md] → 适用 ML 场景: 原则 3 (explicit failure) / 原则 7 (single-source-of-truth)
 > [Session context] → 我看你这个 session 做的是 transformer model 训练 + ablation 实验, 偏 experimental ML
 >
-> ## 提议规则集 — ML research / data analysis (7 条)
+> ## 📋 Phase 1: 内容预览 — ML research (7 条)
 >
 > ### 保留现有 (3 条普适)
-> - [loud-failure-with-evidence] ✓ engine
-> - [read-before-write] ✓ engine
-> - [non-blocking-parallel] ✓ engine
+> - [loud-failure-with-evidence]
+> - [read-before-write]
+> - [non-blocking-parallel]
 >
 > ### 新加 (4 条 ML research 特化)
 >
-> - [no-fabricated-citation] preference-only
+> - [no-fabricated-citation]
 >   preference: 用户做 ML 研究, 引用论文 / dataset / 结果时必须真存在 ...
 >   Source: 源自 ICLR 2024 reviewer guidelines + your ~/.claude/CLAUDE.md L23
 >
-> - [ablation-completeness] ✓ engine (loud_failure_with_evidence)
+> - [ablation-completeness]
 >   preference: 报实验结果时必须含 ablation / baseline 对比, 不能只报主结果 ...
 >   Source: 源自 github.com/google/papers-with-code best practice + your project CLAUDE.md L8
 >
-> - [eval-data-isolation] ✓ engine (no_testset_no_future_leakage)
+> - [eval-data-isolation]
 >   preference: 模型 eval / hyperparam search 严格分离 train/val/test ...
 >   Source: 源自 your previous `no-testset-no-future-leakage` 规则 (保留改名) + Karpathy 原则 5
 >
-> - [assumption-explicit] preference-only
+> - [assumption-explicit]
 >   preference: 写论文 claim 时区分「数据支持的结论 vs 还在假设阶段的推测」 ...
 >   Source: 源自 Karpathy 原则 7 + arxiv.org/abs/2306.research-integrity
 >
 > ### 删掉 (4 条 dev-specific)
-> - [chinese-plain-no-jargon] — 语言风格偏好, 不是 ML 域规则
-> - [no-testset-no-future-leakage] → 被 [eval-data-isolation] 替换 (改名更贴 ML)
-> - [long-term-fundamental] — anti-shortcut for code refactor, ML 实验代码迭代很快不适用
-> - [deep-fix-not-bypass] — pinrule-meta 规则, 给 dev 用的
+> - [chinese-plain-no-jargon] — 语言风格偏好
+> - [no-testset-no-future-leakage] → 被 [eval-data-isolation] 替换
+> - [long-term-fundamental] — ML 实验代码迭代快不适用
+> - [deep-fix-not-bypass] — pinrule-meta 规则
+>
+> — 机制配置 (keywords + engine checks) 会在 Phase 2 配, 先确认内容 —
 >
 > 一行回复:
->   - '应用' → 立刻替换
+>   - '应用' → 内容定下, 进入 Phase 2 配机制
 >   - '应用但保留 [...]' → 保留你指定的现有规则一起加
 >   - '不要 [Y]' → 去掉某条
 >   - '追加不替换' → 仅加新的, 不删现有
 
 **User**: 应用, 但保留 chinese-plain-no-jargon
+
+#### Phase 2 — Mechanism
+
+**Agent**:
+
+> 内容定下来了 — 8 条规则 (3 保留 + 1 用户 call out + 4 新). 进入 Phase 2 配机制.
+>
+> ## ⚙️ Phase 2: 机制预览
+>
+> ### 保留现有 (4 条 — keyword + engine check 不动)
+> - [loud-failure-with-evidence] ✓ engine: loud_failure_with_evidence
+> - [read-before-write] ✓ engine: read_before_write
+> - [non-blocking-parallel] ✓ engine: non_blocking_parallel (force_block_exempt)
+> - [chinese-plain-no-jargon] preference-only (按你要求保留, 现有 keyword 不动)
+>
+> ### 新规则机制配置 (4 条)
+>
+> - [no-fabricated-citation] preference-only (keyword-detect only)
+>   violation_keywords: ["该论文表明", "据某研究", "有研究指出", "文献支持", "已有工作显示"]
+>   violation_checks: []
+>   Why no engine: 「编造引用」是字面违反, keyword 已覆盖; 没有 8 个内建 check 语义匹配 (loud_failure 偏 "claim with data 证据", 不是 "citation 真假")
+>
+> - [ablation-completeness] ✓ engine: loud_failure_with_evidence
+>   violation_keywords: ["主结果是 X", "整体准确率", "我们的方法效果"]
+>   violation_checks: ["loud_failure_with_evidence"]
+>   Why this engine: 「报实验结果没附 ablation/baseline」≡ 「claim 没附数据」同 pattern — loud_failure 检测 completion words + 缺测试通过 evidence, 同样适用「ML claim + 缺 ablation 数据」
+>
+> - [eval-data-isolation] ✓ engine: no_testset_no_future_leakage
+>   violation_keywords: ["复用 test set", "拿测试集调", "在 eval 上 search"]
+>   violation_checks: ["no_testset_no_future_leakage"]
+>   Why this engine: 直接复用现有 check, 同语义模式 (eval data 反喂主流程)
+>
+> - [assumption-explicit] preference-only (keyword-detect only)
+>   violation_keywords: ["显示", "证明", "表明" (在缺数据的 claim 后面)]
+>   violation_checks: []
+>   Why no engine: 「假设当结论」需要 semantic 判断, 不是字面 trigger. 现有 8 个 check 没匹配的 — preference 注入 + keyword 兜底就够
+>
+> 一行回复:
+>   - '应用' → batch write
+>   - '调 [<id>] keyword: 加 X / 删 Y' → 调某条 keyword
+>   - '调 [<id>] engine: 用 X 不要 Y' → 调某条 engine check 映射
+>   - '退回 Phase 1' → 回去改内容
+
+**User**: 应用
 
 **Agent**:
 
@@ -559,14 +779,8 @@ After writing:
 > [pinrule rule add --from-json /tmp/pinrule-assumption-explicit.json]
 >
 > ✓ 已切到 ML research 场景规则集 (8 条):
->   - loud-failure-with-evidence (保留)
->   - read-before-write (保留)
->   - non-blocking-parallel (保留)
->   - chinese-plain-no-jargon (按你要求保留)
->   - no-fabricated-citation (新)
->   - ablation-completeness (新)
->   - eval-data-isolation (新)
->   - assumption-explicit (新)
+>   - 4 条保留 (3 普适 + chinese-plain 按你要求)
+>   - 4 条新加 (2 条 engine: ablation-completeness + eval-data-isolation, 2 条 preference-only: no-fabricated-citation + assumption-explicit)
 >
 > 备份: ~/.pinrule/rules.json.before-scenario-20260518-153022
 >
@@ -594,6 +808,14 @@ After writing:
 - ❌ Don't claim "I researched online" without actually running WebSearch / WebFetch — fabricating sources is worse than just synthesizing from training knowledge honestly
 - ❌ Don't include `pinrule rule add --from-json` for rules sourced from `~/.pinrule/rules.json` itself (self-reference loop — read user's *non-pinrule* files for signal)
 - ❌ Don't propose >10 rules in the pack (pinrule soft cap is 10; aim for 5-7 to leave room for user's later /pinrule additions)
+
+### Path B two-phase mistakes (specific to the Phase 1/Phase 2 split)
+
+- ❌ Don't put `violation_keywords` or `violation_checks` in Phase 1 content preview — Phase 1 is content-only. Mixing mechanism into content review dilutes user attention and wastes effort on rules that may get rejected.
+- ❌ Don't re-debate rule **content** in Phase 2 — content was locked in Step 5. If user wants content change, explicitly retreat to Phase 1.
+- ❌ Don't fabricate engine check function names — only the 8 in the mapping table work. Schema validation rejects unknown names.
+- ❌ Don't force every rule to have an engine check — if no built-in check semantically fits, `violation_checks: []` (preference-only) is fine. Layer 1 (header injection) + Layer 1.5 (keyword detection) still work.
+- ❌ Don't skip the "Why this engine / Why no engine" rationale line per rule in Phase 2 preview — user needs to see your mapping reasoning to trust it.
 
 ---
 

@@ -1,146 +1,395 @@
-# pinrule
+# karma
 
 **[🇬🇧 English (current)](./README.md) · [🇨🇳 中文](./README.zh.md)**
 
-[![CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml/badge.svg)](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml)
+[![CI](https://github.com/jhaizhou-ops/karma/actions/workflows/ci.yml/badge.svg)](https://github.com/jhaizhou-ops/karma/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/jhaizhou-ops/pinrule/actions)
-[![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/pinrule?label=release)](https://github.com/jhaizhou-ops/pinrule/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/pinrule)](https://github.com/jhaizhou-ops/pinrule/commits/main)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/jhaizhou-ops/karma/actions)
+[![Latest Release](https://img.shields.io/github/v/release/jhaizhou-ops/karma?label=release)](https://github.com/jhaizhou-ops/karma/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/jhaizhou-ops/karma)](https://github.com/jhaizhou-ops/karma/commits/main)
 
-> **Pin the 5-10 rules your AI must not drift from during long tasks.**
-> Pure engineering · zero LLM · ~50-70ms hook · ~2% token overhead in typical dogfood.
+> **Keeps your AI from forgetting your rules in long tasks. Pure engineering, zero LLM, ~50-70ms hook latency.**
+
+![karma demo — 5 scenes, animated SVG](./assets/demo-en.svg)
+
+> 5-scene animated SVG (~80s loop): **(1)** compact rule reminder injected on every user prompt, **(2)** real-time block on UI-stalling commands, **(3)** Agent shortcut attempt caught ("Let me just hardcode this case"), **(4)** Agent silent stop → nudge to keep pushing, **(5)** long-context accumulation → mid-conversation full rule reinject (auto-detects each model's decay point) — all real screencaps, no manual mocks.
+
+Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches AI how to write good code. karma solves the other half — how to keep AI from drifting off your rules in long tasks, and how violations get caught and corrected before they pile up.
 >
-> _Performance numbers measured on author self-use — methodology in [docs/EVALUATION.md](./docs/EVALUATION.md)._
+**Two sides of the same loop**:
 
-![pinrule demo — 5 scenes, animated SVG](./assets/demo-en.svg)
+🛡️ **Pin your rules → Agent stays aligned.** 5-10 core directions injected at every prompt header; real-time hook checks before tool calls; survives compact, locale switches, and backend switches.
 
-Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills) teaches your AI *how* to write good code. pinrule keeps your AI *aligned with your personal preferences* in long tasks — what to never do, what to always do, what to push back on — so you don't have to repeat yourself every 30 turns.
+✨ **Say it in plain words → karma writes the rule.** Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) and the karma skill rephrases your intent into the validated "collaborative agreement" tone, previews the injection text, confirms with you, then writes to `rules.yaml`. Auto-installed on Claude Code + Codex CLI by `karma init` (Cursor is project-scoped, see post-install hint).
+
+Chinese + English auto-detected — open an issue if you'd like other languages supported.
 
 ---
 
-## Quick start
+**Table of contents**: [Agents' honest take](#agents-honest-take) · [Real problems](#real-problems-you-face) · [Quick install](#zero-dependency-pure-engineering-10-second-install) · [How it works](#why-it-works) · [`/karma` natural-language rule input](#karma-natural-language--agent-writes-the-rule-for-you) · [Usage effects](#usage-effects) · [Performance](#performance) · [8 hook coverage](#8-hook-positions-all-covered) · [What karma doesn't do](#tried-and-rejected-what-karma-doesnt-do) · [Honest boundaries](#honest-tool-boundaries) · [FAQ](#faq) · [Mental model](#mental-model) · [Docs](#documentation)
+
+---
+
+## Agents' honest take
+
+> **Claude (Opus 4.7)**: Like having a senior tech director reviewing every one of my actions in real time — tiring, but it really delivers. A lot of what I did well in this session got slapped into shape by karma + the user together; without those two layers, my output would have a lot more behavior-the-user-didn't-want and lazy excuses.
+>
+> **Codex (GPT 5.5)**: I noticed myself being "behaviorally nudged," but I didn't strongly feel "blocked or interrupted."
+>
+> *— That actually matches karma's current positioning: most of the time it sits like guardrails + background reminder noise, it only speaks up when you actually hit a rule.*
+
+---
+
+## Real problems you face
+
+| Real pain | Failure scene | How karma solves |
+|---|---|---|
+| **"I said use long-term solutions, not patches" — 30 turns later the Agent patches again** | Turn 1: you say "use the cleanest solution," Agent answers "got it." Turn 50: "let me patch this quickly." Your preference got diluted by new content. | Pin 5-10 core directions at the prompt header on every turn — the Agent sees them first, not last |
+| **"I said don't block the frontend — keep working while tests run" — Agent runs `sleep` anyway** | Agent runs `sleep 30`, UI blocks for 30s, you watch the progress bar — Agent never realized this is "stuck waiting" | Real-time block of `sleep` / `wait` / long tasks without background mode, hit → deny before tool runs |
+| **After compact the Agent compressed my preferences into vague words** | At 80K context, compact triggers; after SessionStart, Agent compresses "no patches" into "write clean code," intent lost | Auto-dump full rule state pre-compact; auto-reload + strong-inject post-compact restart |
+| **Long context accumulation → attention decay → Agent drifts** | At 60-80K accumulated context, headers get diluted — Agent isn't ignorant, attention decayed | Per-model adaptive threshold (different decay points per model), auto-reinject mid-conversation when accumulation hits threshold |
+| **Agent sees a reminder → reacts defensively or rationalizes around it** | LLMs trained to please users — when faced with a violation reminder, the first reaction is to self-justify or find the shortest patch around it, not to genuinely correct | Rephrase rule tone as "collaborative agreement" tone. The Agent reads "the user you're working with hopes…" and switches to "let me realign" instead of "let me defend" |
+| **Agent finishes one small step, then stops to ask "what's next?" (you're fully delegating)** | You give a clear direction → Agent finishes step 1 → "What should I do next?" → you come back from other work and find the Agent has been idle for 30 minutes | Stop hook catches silent stops and injects a continuation nudge — up to 2 in a row, then it lets the Agent saturate if it genuinely is stuck |
+| **"I want to add a rule but writing yaml is heavy / my phrasing doesn't change Agent behavior"** | You know what behavior you want, but writing the rule is its own chore — wrong `violation_keywords` format triggers false positives, wrong tone makes the Agent defensive | Type `/karma <natural language>` in Claude Code / Codex (or `.cursor/skills/karma/` per-project for Cursor) — the karma skill refines tone, formats keywords, detects overlap with existing rules, previews the injection, confirms with you, then writes. ~30 seconds end-to-end |
+
+---
+
+## Zero-dependency pure engineering, 10-second install
 
 ```bash
-pip install pinrule && pinrule init
+git clone https://github.com/jhaizhou-ops/karma.git ~/karma
+cd ~/karma && python -m venv .venv && .venv/bin/python -m pip install -e .
+.venv/bin/karma init && .venv/bin/karma install-hooks
 ```
 
-`pinrule init` creates `~/.pinrule/` with the default rules + auto-installs hooks for any detected client (Claude / Codex / Cursor). If you install a new client later, run `pinrule install-hooks` to wire it up.
+Restart Claude Code / Codex CLI / Cursor — all hook positions + default rules take effect immediately.
+For custom rules, just type `/karma <natural-language rule>`.
 
-> **Windows users**: Windows doesn't ship Python by default. If `python --version` doesn't show a real version (just silently exits to Microsoft Store), install Python first:
-> ```powershell
-> winget install Python.Python.3.12
-> # close + reopen PowerShell so PATH refreshes
-> python -m pip install pinrule
-> python -m pinrule init
-> python -m pinrule doctor
-> ```
-> The `python -m pinrule` form avoids needing Python's `Scripts\` folder on PATH (which isn't there by default after `pip install`).
+### Or ask your AI client to install it
 
-Restart Claude / Codex / Cursor — default rules become active once hooks load. To add a personal rule:
+Paste this to Claude Code / Codex / Cursor (desktop or CLI):
 
 ```
-/pinrule When I say "done" I want test pass evidence attached.
+Install karma (github.com/jhaizhou-ops/karma) — a lightweight hook system that keeps my core direction preferences from being lost in long tasks.
+Steps:
+1. git clone to ~/karma
+2. Create .venv and pip install -e .
+3. Run `karma init` to initialize the default rule template
+4. Run `karma install-hooks` to install for my current client
+5. Run `karma doctor` to verify installation
 ```
 
-The skill refines, validates, confirms with you, then writes — ~30 seconds.
+After install, the Agent shows a summary of default rules — you see at a glance which 5-7 rules are active. To modify any rule afterward, tell the Agent "remove karma rule X" / "change karma rule Y" — it knows to use the `/karma` skill.
+
+### Per-client manual install commands
+
+| Client | Install command | Note |
+|---|---|---|
+| Claude Code | `karma install-hooks` (default) | Takes effect immediately |
+| Codex CLI | `karma install-hooks --backend codex` | Auto-trusts karma wrappers via Codex `trusted_hash` — no manual `/hooks` approval. Details in [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). |
+| Cursor | `karma install-hooks --backend cursor` | Cursor 1.7+ required. Hooks fire on every IDE Agent session — restart Cursor after install. `/karma` skill is **project-scoped only** (Cursor doesn't expose home-level global skills); see post-install notes for how to copy `SKILL.md` per project. |
+
+### Uninstall
+
+```bash
+.venv/bin/karma uninstall-hooks                                # Remove hooks
+cp ~/.claude/settings.json.before-karma ~/.claude/settings.json # Restore original
+```
+
+### Cursor: Agent transcripts (response-level checks)
+
+**When you need it:** Sticky injection, read-before-write, Shell/MCP gates, etc. work **without** transcripts.  
+**Transcripts help:** `keep-pushing`, `chinese-plain`, `loud-failure`, and similar rules that inspect the **last assistant message**.  
+The `afterAgentResponse` hook also passes assistant `text` directly, so response-level checks often work even when `transcript_path` is missing on early events.
+
+**Desktop Agent usually does not need a manual toggle.** After `pinrule install-hooks --backend cursor` and a normal **Agent / Composer** session, Cursor writes `~/.cursor/projects/<workspace>/agent-transcripts/<session>.jsonl` and passes `transcript_path` in hook stdin. Dogfood: `stop` / `afterAgentResponse` always had a path; `sessionStart` is always `null` (expected — file not created yet).
+
+**No reliable CLI to “turn on”:** No documented `settings.json` key and no `cursor` subcommand for this. pinrule cannot auto-flip an internal Cursor flag (unlike Codex `trusted_hash`).
+
+**Verify (one command for users or agents):**
+
+```bash
+pinrule doctor    # macOS: parses latest Cursor Hooks log for transcript_path stats
+```
+
+Or manually: **Output → Hooks** → `stop` / `preToolUse` INPUT should show a non-null `.jsonl` path.
+
+**If `stop` stays null:** Check Cursor privacy mode (local Agent retention off), open Agent in a real project folder, Reload Window, new Composer. Claude Code / Codex users skip this step.
 
 ---
 
-## What pinrule does
+## Usage effects
 
-- **Injects** your 5-10 directions at session start, compact anchor each turn, full reinject on long-context decay.
-- **Blocks drift in real time** — Bash `sleep`, Edit-before-Read, "let me hardcode this" intent declarations all caught before they ship.
-- **Survives compact** — dumps full rule state pre-compact; reloads + re-injects post-restart.
+After install + restart, here's what you'll see karma doing automatically:
 
-Per-hook lifecycle: see [ARCHITECTURE.md](./docs/ARCHITECTURE.md#backend-capability-matrix).
+### 1. Every prompt header injects full rules + drift markers
+
+On every user prompt, your client prepends your 5-10 core directions plus a marker on any rule that drifted in the last response. The Agent reads them before anything else:
+
+```
+[karma — Your long-term agreement with the user]
+You're collaborating with a real human user who listed several
+long-term priorities. This isn't rules and isn't a judgment — these
+are the collaborative agreements they hope to build with you.
+
+1. The user trusts you to dig into root causes...
+   〔Last response had drift on this one — let's realign this turn〕
+2. When sleep / wait / long tasks are running, the user is waiting...
+3. Your user is non-technical — they want comprehensible reports...
+```
+
+### 2. Mid-conversation refresh when context accumulates
+
+LLM attention decays in long contexts — header content gets diluted by everything that came after it. karma tracks accumulation per tool call, and once the current model's decay point is hit (each model has its own), injects a concise refresh right at the boundary:
+
+```
+[karma — After long context, recall the agreement with the user]
+Context has accumulated for a while. Reminding you of the
+long-term priorities (no need to respond, just refresh in mind
+to avoid future drift):
+  ▸ long-term-fundamental: The user trusts you to dig into root causes...
+  ▸ non-blocking-parallel: When sleep / wait / long tasks are running...
+  ▸ chinese-plain-no-jargon: Your user is non-technical...
+```
+
+### 3. Real-time check before tool calls
+
+Before the Agent runs Bash / Edit / Write, karma scans command content, keywords, **and behavioral timing across the session**. A hit denies the tool call with a targeted suggestion:
+
+```
+$ Bash sleep 30
+karma ⚠️: 'non-blocking-parallel' violation — sleep periods make the user
+        feel "stuck." Use run_in_background=True; the task completion
+        will notify you, freeing you to do the next thing.
+[permission deny]
+```
+
+karma also catches **behavioral timing**, not just single commands. Example: tests failed → Agent immediately edits a file it never read this session. Classic "shallow patch" pattern (no looking at source before changing):
+
+```
+$ Edit /workspace/src/foo.py
+karma ⚠️: 'deep-fix-not-bypass' violation — editing foo.py right after
+        test failure but you haven't Read it this session. Read the
+        source first to find the real root cause; the issue may be
+        upstream rather than at the patch site.
+[permission deny]
+```
+
+### 4. Subagent coverage
+
+When the main Agent spawns a subagent via the Task tool, karma injects the full rule set there too, with its own monitoring state. The subagent is held to the same standard as the main Agent; state cleans up on completion so it doesn't bleed into the main session.
+
+### 5. Survives compact
+
+When the client auto-compacts a long session, karma dumps the full rule state to disk first. After the post-compact restart, it reads the snapshot back and re-injects — rules don't get summarized into vague paraphrases.
+
+### 6. Silent-stop nudge + short-term intent detection
+
+When the Agent finishes a wave and tries to stop with "what's next?", karma catches it and injects a continuation nudge:
+
+```
+[karma — Your last response showed no next-step signal]
+The user is fully-delegating — they expect you to immediately
+continue after finishing a wave. If you need their judgment, ask
+clearly; if you're truly saturated, say where you're stuck — don't
+silently wait.
+(Reminder 1/2)
+```
+
+Up to 2 nudges in a row. If the Agent is genuinely saturated and says where it's stuck, karma backs off — it won't force-push past real saturation.
+
+karma also reads the Agent's **whole turn output** at Stop time and catches short-term intent declarations — the patch-instead-of-root-cause language pattern:
+
+```
+Agent: "Let me just hardcode this case for now and ship it."
+karma ⚠️: 'long-term-fundamental' violation — declaring a short-term
+        intent contradicts the user's expectation of root-cause work.
+        Pause and ask: is the cleanest solution the user would want
+        worth a few more minutes of thought?
+```
+
+The check is combo-pattern based (intent prefix + short-term action verb within 12 chars), not raw keyword matching — so reflective phrases like "short-term patches won't work, dig the root cause" pass through cleanly.
 
 ---
 
-## How it fits together
+## `/karma <natural language>` — Agent writes the rule for you
+
+This is karma's other half — the **partner** side, not the **monitor** side.
+
+```
+You (in Claude Code):   /karma When I say "done" I want test pass evidence attached
+                        Don't accept vague "should work" claims.
+
+Agent (karma skill walks 7 steps automatically):
+  ① Understand intent — flags anchor-vs-scope ambiguity if any
+  ② Check existing rules — semantic overlap detection (modify vs add)
+  ③ Draft yaml inline — collaborative-agreement tone, locale-aware
+  ④ karma rule preview — schema + REGISTRY validation
+  ⑤ Confirm with you — adjust wording / keywords / engine-check
+  ⑥ karma rule add — atomic write to rules.yaml
+  ⑦ Report — count, takes-effect timing, redundancy suggestions
+
+→ 30 seconds end-to-end, rule live on next UserPromptSubmit.
+```
+
+> **Type `/karma` with no arguments** anytime to see the interception dashboard — which engine checks are firing most, real-vs-false-positive distribution, keyword-only fallback share. The Agent reads the data and tells you which directions the Agent violates most in your sessions, so you can decide whether to add or drop a rule.
+
+### What the skill handles for you
+
+The `/karma` skill helps you phrase a rule in the way Agent responds to best:
+
+| Hard part of writing a rule | What the skill does |
+|---|---|
+| **Tone — "you must always X" backfires on LLMs** | Rewrites in karma's "collaborative agreement" phrasing. Long-term testing shows LLMs respond with "let me align" rather than "let me argue" |
+| **Format — bare keywords trigger false positives** | Converts to "intent-prefix + action" format (e.g. `"I'll hardcode"` not `"hardcode"`) so discussion vs. action is distinguishable |
+| **Overlap — accidentally adding a duplicate rule wastes a slot** | 4-row decision table on overlap shape (full duplicate / superset / keyword-overlap / no overlap); offers modify-existing path instead of bloating to 11 rules |
+| **Scope ambiguity — "during X, do Y" is often anchor not scope** | Surfaces the ambiguity verbatim ("just to check: whenever we collaborate, or strictly during X?") instead of silently guessing |
+| **Locale — mixing English skill body for Chinese user** | Detects user's chat language; writes Chinese `preference` for Chinese users, English for English users. Built-in `violation_checks` function names stay English (stable identifiers) |
+| **Modify vs add — no separate `rule replace` command** | Knows the `remove + add` recipe atomically; preserves `id` so violation history stays linked |
+
+### Four backends — three auto-install, one per-project
+
+| Backend | Path (auto-installed) | Trigger in client |
+|---|---|---|
+| Claude Code | `~/.claude/skills/karma/SKILL.md` | `/karma <natural language>` |
+| Codex CLI | `~/.agents/skills/karma/SKILL.md` (note: `~/.agents/` shared with Anthropic) | `/skills` menu, `$karma <description>` inline, or auto-trigger |
+| Cursor | **Not auto-installed (project-scoped only)** — Cursor has no home-level global skills directory. Copy `skills/karma/SKILL.md` to `.cursor/skills/karma/` in each project that needs it. | `/karma` (per-project) or use `karma rule add` CLI directly |
+
+The repository ships one Markdown source of truth at [`skills/karma/SKILL.md`](./skills/karma/SKILL.md); `karma install-skill` writes raw Markdown per backend.
+
+### Updating the skill after a karma upgrade
+
+```bash
+karma install-skill --force          # overwrite all backends with current version
+karma install-skill --backend codex  # update one backend only
+```
+
+Without `--force`, the new version is written to a `.new` sibling file so you can `diff` your local edits against upstream before deciding. `karma doctor` reports per-backend skill status.
+
+---
+
+## Why it works
+
+System architecture at a glance:
 
 ```mermaid
 flowchart LR
-    R[(rules.json<br/>5-10 core directions)]
-    K[pinrule engine<br/>regex + counting]
+    R[(rules.yaml<br/>5-10 core directions)]
+    K[karma engine<br/>regex + counting<br/>zero LLM, ~50-70ms]
     A[🤖 Agent<br/>Claude / Codex / Cursor]
     V[(violations.jsonl<br/>audit history)]
 
-    R ==> K
+    R ==>|inject every turn| K
     K ==>|prompt header| A
     A ==>|tool call / response| K
     K -.->|hit → deny + log| V
     V -.->|next-turn drift marker| K
 ```
 
-`rules.json` is the only thing you maintain. The engine reads it, injects at the right hook points, watches Agent traffic for drift — no retrieval, no scoring, no LLM in the loop.
+`rules.yaml` is karma's single core rule list — the only thing you maintain. karma auto-injects it into every prompt header.
+karma's zero-network engineering scan reads Agent tool calls + Agent responses looking for signs of rule violation, then prompts / warns / blocks accordingly, and feeds detected drift back into the next turn's marker. No retrieval, no scoring, no LLM in the loop.
 
----
+karma isn't a linter, a scorer, or a retrieval system. It addresses four real but commonly-overlooked LLM collaboration problems:
 
-## Not just another AI memory tool
+### 1. Long-context attention decay is real
 
-| Tool category | What it stores | When it fires |
-|---|---|---|
-| **Memory** (mem0, Claude memory) | Facts about you (preferences, history, profile) | Agent chooses to query |
-| **pinrule** | Behaviors you've articulated as long-term directions | Hooks fire automatically every prompt + every tool call |
+Modern LLMs decay later than early ones, but they still decay. Rules at the conversation top get diluted by everything that came after, and after dozens of turns the Agent isn't ignoring them — its attention has just moved on. karma re-injects at the exact context length each model's decay starts.
 
-Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable directions, hook-enforced."
+### 2. Each conversation "re-forgets" everything
+
+Every AI client works by re-sending the full context to the model on each turn — the model doesn't persistently remember anything between turns. Your stated preferences have to be re-sent every time. karma does that for you, so you don't have to repeat yourself.
+
+### 3. "Collaborative agreement" tone reads differently than "rule system" tone
+
+When an LLM sees warnings like "you must always follow X" or "⚠️ violation," the first reaction is to defend or to look for a workaround — that wording activates a "being scolded" frame.
+
+karma rephrases rules as "the human user you're working with hopes…" — the Agent reads it as an agreement to honor, not a verdict to escape. In sustained self-use, this is the single change that moves the needle most on whether reminders actually get internalized.
+
+### 4. Hook coverage has no blind spots
+
+karma installs at 8 hook positions (detailed below) — not just "inject once at conversation start." Before / after every tool call, subagent start / stop, pre / post compact, silent Agent stop — every drift opportunity has a targeted injection or check.
 
 ---
 
 ## Performance
 
-| | |
-|---|---|
-| **Runtime deps** | 0 (Python stdlib only — JSON, no third-party packages) |
-| **Rule count** | 7 default (dev-scenario preset) · soft cap 10 · hard cap 12 (load refused beyond) |
-| **Hook latency** | ~50-70ms typical (machine-bound; reproduce via `scripts/measure_perf.py`) |
-| **Token overhead** | ~2% of conversation context in real dogfood (methodology: [docs/EVALUATION.md](./docs/EVALUATION.md)) |
-| **Tests** | 800+ unit tests, [green on 6-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu + macOS + Windows × Python 3.11 / 3.12) |
-| **Supported clients** | Claude / Codex / Cursor — [add a backend](./pinrule/backends/HOWTO.md) |
+| Dimension | Number | Note |
+|---|---|---|
+| **Runtime dependencies** | Zero | Just PyYAML — a 15-year mature Python standard. No LLM API key, no network calls, no ML framework |
+| **Source code** | ~8.6K lines Python | Readable, modifiable, no magic |
+| **Quality gates** | lint / type-check / dead-code / 775 unit tests, all green (CI: 4 matrix jobs ubuntu+macos × py3.11+3.12) | Plus continuous real-world dogfooding |
+| **Hook latency** | typically 50-70ms (Python startup-bound, machine-dependent — author's M-series Mac ~49ms, 67ms reported on lower-end machines) | Well within AI client protocol budget of 200ms |
+| **Token cost (cumulative)** | 1.8K SessionStart baseline (one-time, re-sent every turn) + per-turn anchor **only lists rules violated this session** (v0.13.0+; empty session = 0 anchor) + auto-refresh at model decay threshold (Opus 60K / Sonnet 40K / Haiku 30K) | **Real dogfood (30 sessions post-v0.13.0): 60% of work sessions = 0 anchor (clean drift, full passthrough); ~40% with violations save 45-80% vs v0.12.x; median accumulated violated rules per session = 1 (ship-time projection assumed 3-5 — actual is much lower).** sessionStart baseline + PostToolUse mid-session reinject cover anti-decay; anchor focuses purely on drift signal |
+| **API input bill share** | SessionStart prefix + per-turn **new** anchor/catalog; earlier prefix mostly **prompt cache reads (~10% of input price on Anthropic)** | **~1–3%** typical engineering session; drift-heavy or Cursor per-turn id catalog **~2–4%**; v0.12 listed all ids every turn **~10–15%** (mechanism estimate, not invoice reconciliation). **Context window** fill at end of long session is a separate metric (~4–6%) |
+| **Disk usage** | < 10MB | Config + violation history + session state |
+| **Model adaptation** | Per-model decay-point thresholds | Each major model uses its own measured decay point |
+| **Supported clients** | Claude Code / Codex CLI / Cursor | Add a backend via [HOWTO](./karma/backends/HOWTO.md) |
+| **User languages** | Chinese + English, extensible | All 7 detection signals externalized to `data/signals/<name>/{zh,en}.txt` (flat phrases) or `.yaml` (Cartesian templates + word vocab). Adding a new language = ~7 small files, zero Python code |
 
 ---
 
-## Per-client install + uninstall
+## 8 hook positions, all covered
 
-| Client | Command | Note |
-|---|---|---|
-| Claude (default) | `pinrule install-hooks` | — |
-| Codex | `pinrule install-hooks --backend codex` | — |
-| Cursor 1.7+ | `pinrule install-hooks --backend cursor` | `/pinrule` skill is project-scoped only |
+Conversation lifecycle showing where each hook fires (GitHub renders the diagram below):
 
-```bash
-pinrule uninstall-hooks                                          # remove
-cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json # restore
+```mermaid
+flowchart TB
+    Start([session start / compact restart]) --> SS[SessionStart<br/>inject full rule baseline]
+    SS --> UPS[UserPromptSubmit<br/>compact anchor + drift markers]
+    UPS --> Tool{Agent calls<br/>Bash / Edit / Write?}
+    Tool -- yes --> PreT[PreToolUse<br/>scan command + timing;<br/>hit → deny]
+    PreT --> PostT[PostToolUse<br/>track state +<br/>mid-conversation reinject<br/>at decay threshold]
+    PostT --> Stop[Stop<br/>strong reminder +<br/>continuation nudge +<br/>short-term intent detection]
+    Tool -- no --> Stop
+    UPS -. spawn subagent .-> SubS[SubagentStart<br/>subagent inherits rules]
+    SubS --> SubE[SubagentStop<br/>temp state destroyed]
+    Stop -. long context .-> PreC[PreCompact<br/>dump full rule state]
+    PreC -.-> Start
 ```
 
-Codex details: [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md). Cursor's `/pinrule` skill is project-scoped (Cursor doesn't expose home-level global skills) — see post-install hint.
+| Hook position | Function + scenario | Pain point solved |
+|---|---|---|
+| **Every user prompt** (UserPromptSubmit) | Header injects full rules + drift markers | Agent forgets your preferences after long session |
+| **Before every tool call** (PreToolUse) | Keyword + engine-layer double-check; hit → deny | Agent wants to run sleep / commit --no-verify / bypass rules |
+| **After every tool call** (PostToolUse) | Track file read/edit/bash state + auto mid-conversation refresh when accumulation hits threshold | Long context accumulation → attention decay → Agent drifts |
+| **Agent stops generating** (Stop) | Terminal stderr ⚠️ + desktop notify + silent-stop reflective intervention + short-term intent talk detection | Agent finishes one wave and stops to ask, user gets interrupted repeatedly |
+| **Every session start** (SessionStart) | Inject rule baseline at session start; on compact-restart, read snapshot for strong-inject | Rules don't get lost across sessions / across compacts |
+| **Before AI client compresses history** (PreCompact) | Dump full rule state to disk for SessionStart to re-read | After compact, Agent compresses rules into vague words |
+| **Subagent starts** (SubagentStart) | Subagent auto-inherits full rule set + writes independent monitoring state | Subagents running independent tasks leave monitoring gaps |
+| **Subagent ends** (SubagentStop) | Subagent temporary state auto-destroys, doesn't pollute main session | Multiple subagent spawns cause state accumulation, main session data gets confused |
+
+All hook outputs strictly comply with the AI client's official protocol schema — no UI error messages.
 
 ---
 
-## Tried and rejected
+## Tried and rejected (what karma doesn't do)
 
-Several ideas looked attractive but failed in practice. Recorded so the same paths don't get re-walked:
+Several ideas looked attractive but failed in practice. Recorded here so the same alleys don't get re-walked:
 
-| Tried | Why rejected |
+| Tried | Why it was rejected |
 |---|---|
-| **LLM auto-distilling new rules** | Latency + noise. Hearing something once doesn't make it a long-term direction. |
-| **Retrieval / cosine recall** | The pain is "persistence," not "recall" — 5-10 rules can be always-on. |
-| **More than 12 rules** | LLMs pattern-match "a rule list exists" instead of reading it ([Mnilax's 30-codebase study](https://x.com/Mnilax/status/2053116311132155938)). |
-| **Reshipping as MCP server** | Hooks are *enforced*; MCP tools are *chosen*. In long-session decay, the Agent drifts before it asks "what rules apply." |
+| **LLM auto-distilling new rules** | Latency hurts UX, and auto-distilled rules introduce noise — hearing a user say something once doesn't mean it's a core direction. karma keeps users in charge of their 5-10 rules instead |
+| **Retrieval / cosine recall** | The real pain is "persistence," not "recall" — 5-10 rules can all be always-on, no selection needed. Retrieval adds latency and matching errors with no upside |
+| **More than 12 rules** | Beyond ~12, LLMs pattern-match "a rule list exists" instead of reading it (see [Mnilax's 30-codebase empirical study](https://x.com/Mnilax/status/2053116311132155938) for the compliance cliff). Keeping the count under 10 is the empirically safe zone |
+| **Competing with memory systems** | "Facts / preferences about the user" belong in the AI client's built-in memory. karma only does the one thing memory systems don't: pin behaviors you've already repeated |
+| **Adding an LLM dependency** | Latency and cost, both. Pure-engineering keeps the hook in the 50-70ms range and the install reproducible |
+| **Reward / RL scoring** | Behavior reminders aren't reward functions. Scoring rules makes the model optimize the score, not the behavior |
+| **Blocking compact** | Compact is the client's protection mechanism — karma shouldn't fight it. PreCompact dump + SessionStart re-read bridges the gap instead |
+| **"Must follow X / Fix immediately / Don't repeat" warning wording** | Activates defense or workaround-seeking. The collaborative-agreement rephrase changes the first reaction to "let me align" — the biggest single lever for actual compliance |
+| **Hardcoded numeric thresholds in `suggested_fix`** | "34% < 40%" gets optimized by padding Chinese characters instead of fixing readability. Goal descriptions ("readable without looking up words") avoid the gaming |
 
 ---
 
 ## Honest tool boundaries
 
-pinrule is **regex + counting**, not LLM semantic understanding.
+karma is **regex matching + counting**, not LLM semantic understanding. That means:
 
-- **False positives happen.** Table cells quoting a term, `python -c` literals, commit messages — all can hit. `pinrule audit` flags suspected false positives.
-- **False negatives happen.** Regex can't tell if you're disguising a violation. pinrule assumes you're not cheating yourself.
-- **Zero hits after a fix doesn't prove the fix is correct.** The pattern might just be too wide.
+- **False positives happen.** Table cells quoting a term, `python -c` string literals, commit messages describing a violation — all can hit the regex. `karma audit` flags suspected false positives with "⚠️ possible false positive" so you can report them
+- **False negatives happen.** Regex can't tell when a user is intentionally disguising a violation. karma assumes you're not cheating yourself
+- **Zero triggers after a fix doesn't prove the fix is correct.** The pattern might just be too wide, swallowing real cases. Audit numbers are hints, not ground truth
 
-Sits between `git` and a linter — signals, not verdicts.
+Think of karma as sitting between `git` and a linter — it gives signals, you make decisions.
 
 ---
 
@@ -148,71 +397,94 @@ Sits between `git` and a linter — signals, not verdicts.
 
 <details>
 <summary><b>Nothing happens after install?</b></summary>
-Run <code>pinrule doctor</code> — checks hook events, rule loading, session state.
+
+Run `karma doctor` to check:
+- Are all hook events ✓? (Claude Code 8 / Codex 4 / Cursor 5)
+- Did rules load successfully?
+- Did session state directory generate new files?
 </details>
 
 <details>
-<summary><b>Too many false positives?</b></summary>
-<code>pinrule audit</code> shows triggers tagged "⚠️ possible false positive" — report via Issue. Disable a single rule: <code>pinrule rule remove &lt;id&gt;</code>, or edit <code>~/.pinrule/rules.json</code> and remove its <code>violation_keywords</code> / <code>violation_checks</code> fields.
+<summary><b>Too many false positives, what to do?</b></summary>
+
+`karma audit` shows triggers marked "⚠️ possible false positive" — report to the author (GitHub Issue). Temporarily disable a rule: `karma rule remove <id>` or edit `~/.claude/karma/rules.yaml` and remove `violation_keywords` / `violation_checks` fields while keeping `preference`.
 </details>
 
 <details>
-<summary><b>Custom rule sets for non-dev scenarios (writing / research / legal)?</b></summary>
-Just tell your Agent: <code>/pinrule 我主要做 X 场景, 切到 X 场景规则集</code> (or English equivalent). The Agent synthesizes 5-7 tailored rules from four signals — your existing local rule files (<code>CLAUDE.md</code> / <code>AGENTS.md</code> / <code>.cursor/rules</code>), online best practices (WebSearch), Karpathy CLAUDE.md baseline, and the session context it shares with you — then previews with full source attribution before writing. pinrule itself stays 0-runtime-deps / 0-network / 0-LLM; all research happens in your Agent's existing toolset.
+<summary><b>Does this overlap with Andrej Karpathy's CLAUDE.md?</b></summary>
+
+**Completely complementary, no overlap**:
+- Karpathy's 12 rules ([complete version](https://github.com/forrestchang/andrej-karpathy-skills)) are **universal coding principles** (cross-user, cross-project): "Think before coding," "Simplicity first," etc.
+- karma's rules are **per-user personal preferences** (each user differs): "I prefer Chinese over jargon," "I want full-delegation," etc.
+
+**Recommended setup**: install Karpathy's 12 rules in CLAUDE.md (project-shared) + install your personal rules via karma (user-level). They run on the same AI client without conflict.
 </details>
 
 <details>
-<summary><b>How do I sync rules across devices?</b></summary>
-Ask the Agent to copy <code>~/.pinrule/rules.json</code>. <b>Safe to sync</b>: <code>rules.json</code> + <code>config.json</code>. <b>Never sync</b>: <code>violations.jsonl</code>, <code>session-state/</code> (runtime data, per-device — cloud-synced folders can corrupt cross-device state).
+<summary><b>Custom rule sets for non-development scenarios (writing / research / legal)?</b></summary>
+
+`karma init` defaults to "software development" scenario. For other scenarios, write `~/.claude/karma/rules.yaml` manually — the framework (hook injection / real-time interception) is cross-scenario universal, but the 8 built-in `violation_checks` are dev-oriented. Other scenarios may need preference text reminders + custom keywords (without check functions).
 </details>
 
 <details>
-<summary><b>Does this overlap with Karpathy's CLAUDE.md?</b></summary>
-Complementary. Karpathy's 12 rules are <b>universal coding principles</b> (cross-user). pinrule's are <b>personal preferences</b> (per-user). Use both.
+<summary><b>How do I sync rules across multiple devices?</b></summary>
+
+Just ask the Agent to copy `rules.yaml` over — no special tooling needed:
+
+```
+mac:    cat ~/.claude/karma/rules.yaml
+linux:  "here's my karma rules.yaml, write it to ~/.claude/karma/rules.yaml"
+linux:  karma doctor    # validate schema + rules count + violation_checks exist
+```
+
+**Safe to sync** (user preference config):
+- `~/.claude/karma/rules.yaml` — your rule definitions
+- `~/.claude/karma/config.yaml` — your threshold tuning (if customized)
+
+**Never sync** (runtime data, per-device):
+- `~/.claude/karma/violations.jsonl` — append-only per-device violation log
+- `~/.claude/karma/session-state/*.json` — runtime hook state
+
+karma's cross-process atomicity protects same-machine concurrency, but **doesn't extend to cloud-synced folders** (iCloud / Dropbox / OneDrive). Putting `~/.claude/karma/` in a sync folder can corrupt runtime state across devices. If you use dotfiles repos / chezmoi / ansible, scope them to `rules.yaml` + `config.yaml` only.
 </details>
-
----
-
-## What Agents say after running pinrule
-
-> **Claude (Opus 4.7)**: Like having a senior tech director reviewing every action in real time — tiring, but it delivers. Without pinrule, a lot more behavior-the-user-didn't-want would have shipped.
->
-> **Codex (GPT 5.5)**: I noticed myself being "behaviorally nudged," but didn't strongly feel "blocked or interrupted."
->
-> *— Matches pinrule's positioning: guardrails + background noise, speaking up only when you hit a rule.*
 
 ---
 
 ## Mental model
 
-> A rules file isn't a wishlist. It's a behavioral contract closing out failure modes you've actually observed. Each rule should answer: **what error is this rule preventing?**
+> A rules file isn't a wishlist. It's a behavioral contract closing out specific failure modes you've observed. Each rule should answer: **what error is this rule preventing?**
 
-The 7 default rules in `data/rules.dev.example.json` are pain points from self-use, not a template to copy verbatim. Keep what matches your own failure scenes, replace the rest via `/pinrule <natural language>`.
+karma works the same way. **6 rules targeting failures you've actually hit beats 12 rules where 6 are aspirational.**
+
+The 7 default rules in `data/rules.dev.example.yaml` are real pain points accumulated from self-use — they aren't a template to copy verbatim. After install, run `karma rule list`, keep what matches your own failure scenes, and replace the rest with your own (via `/karma <natural language>`).
 
 ---
 
 ## Documentation
 
-- [PRD.md](./docs/PRD.md) — product requirements + scenario positioning
-- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — hook protocol, 8 check implementations, sandbox model
-- [HOOK_CONFIGURATION_GUIDE.md](./docs/HOOK_CONFIGURATION_GUIDE.md) — per-hook lifecycle + tunable thresholds
-- [EVALUATION.md](./docs/EVALUATION.md) — methodology behind performance numbers (hook latency, token overhead)
-- [CHANGELOG.md](./CHANGELOG.md) — release notes (grouped by minor version)
-- [CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary
-- [CLAUDE.md](./CLAUDE.md) — project charter for Claude collaboration
+All listed docs are bilingual (`.md` English + `.zh.md` Chinese):
 
-All bilingual (`.md` English + `.zh.md` Chinese).
+- [docs/PRD.md](./docs/PRD.md) — Product requirements, validation criteria, scenario positioning
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — Technical architecture, hook protocol, 8 check implementations
+- [CHANGELOG.md](./CHANGELOG.md) — Version change history (bilingual from v0.5.1 onward; pre-v0.5.1 release notes are Chinese-only)
+- [docs/HANDOFF.md](./docs/HANDOFF.md) — Internal development handoff entry (English summary; full timeline in `.zh.md`)
+- [docs/CODEX_BACKEND.md](./docs/CODEX_BACKEND.md) — Codex backend ownership boundary and 8-method contract
+- [CLAUDE.md](./CLAUDE.md) — Project charter for Claude Code collaboration
+
+Translation PRs welcome for any bilingual gap (HANDOFF.md still summary-only).
 
 ## Acknowledgments
 
-- [Andrej Karpathy's CLAUDE.md template](https://github.com/forrestchang/andrej-karpathy-skills) — universal coding-principles companion to pinrule's personal preferences.
-- [Mnilax's 30-codebase 6-week CLAUDE.md study](https://x.com/Mnilax/status/2053116311132155938) — pinrule's soft cap 10 / hard cap 12 comes from this.
+- [Andrej Karpathy's CLAUDE.md coding-principles template](https://github.com/forrestchang/andrej-karpathy-skills) — universal coding principles. Complementary to karma, not competing: Karpathy teaches the model *how* to write code; karma keeps your *preferences* from drifting in long tasks
+- [Mnilax's 30-codebase 6-week CLAUDE.md rule-count study](https://x.com/Mnilax/status/2053116311132155938) — karma's "soft cap 10 / hard cap 12" design comes directly from this empirical work
 
 ## Contributing
 
-- Bugs / ideas: [GitHub Issues](https://github.com/jhaizhou-ops/pinrule/issues)
-- Add a new AI client backend: [HOWTO](./pinrule/backends/HOWTO.md)
-- Scenario rule templates: PR to `data/`
+- Bug reports / suggestions: [GitHub Issues](https://github.com/jhaizhou-ops/karma/issues)
+- Add a new AI client backend: see [karma/backends/HOWTO.md](./karma/backends/HOWTO.md)
+- Add scenario rule templates (writing / research / legal etc.): PR welcome to `data/`
+
+karma is still early — new-user install friction and first-week false positives drive most of the iteration.
 
 ## License
 

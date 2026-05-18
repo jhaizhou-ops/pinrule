@@ -48,14 +48,52 @@ def test_skill_path_a_workflow_intact(skill_text: str) -> None:
 
 
 def test_skill_path_b_workflow_intact(skill_text: str) -> None:
-    """Path B 场景规则集 workflow 必须齐 — 8 步 + 4 信号源."""
+    """Path B 场景规则集 workflow 必须齐 — 2 phase 共 11 步 + 4 信号源."""
     assert "Path B: Scenario rule pack generation" in skill_text, \
         "丢了 Path B workflow 段头"
-    # 8 步骤都有标识
-    for step_marker in ("Step 1 (Path B)", "Step 2 (Path B)", "Step 3 (Path B)",
-                        "Step 4 (Path B)", "Step 5 (Path B)", "Step 6 (Path B)",
-                        "Step 7 (Path B)", "Step 8 (Path B)"):
+    # Phase 1 / Phase 2 分段
+    assert "Phase 1 — Content draft" in skill_text, \
+        "Path B 丢了 Phase 1 (Content) 段头"
+    assert "Phase 2 — Mechanism design" in skill_text, \
+        "Path B 丢了 Phase 2 (Mechanism) 段头"
+    # 11 步骤都有标识
+    for step_marker in ("Step 1 (Path B)", "Step 2 (Path B)",
+                        "Step 3 (Path B, Phase 1)", "Step 4 (Path B, Phase 1)",
+                        "Step 5 (Path B, Phase 1)",
+                        "Step 6 (Path B, Phase 2)", "Step 7 (Path B, Phase 2)",
+                        "Step 8 (Path B, Phase 2)", "Step 9 (Path B, Phase 2)",
+                        "Step 10 (Path B)", "Step 11 (Path B)"):
         assert step_marker in skill_text, f"Path B 丢了步骤: {step_marker}"
+
+
+def test_skill_path_b_engine_check_mapping_table(skill_text: str) -> None:
+    """Path B Step 7 必须含 8 个 engine check 的语义模式映射表 — Agent 跨场景复用的核心."""
+    # 8 个内建 check 函数名都必须列出
+    for check_name in ("read_before_write", "loud_failure_with_evidence",
+                       "non_blocking_parallel", "keep_pushing_no_stop",
+                       "long_term_fundamental", "no_testset_no_future_leakage",
+                       "deep_fix_not_bypass", "chinese_plain_no_jargon"):
+        assert check_name in skill_text, \
+            f"Path B engine check 映射表丢了 {check_name}"
+    # 必须含跨场景复用的具体 example (UX / Legal / Writing / Research / Marketing)
+    assert "Cross-scenario reuse examples" in skill_text, \
+        "Path B 丢了「跨场景复用 example」段头"
+    # 至少 3 个不同非 dev 场景的复用 example
+    cross_scenario_keywords = ["UX scenario", "Legal scenario", "Writing scenario",
+                                "Research scenario", "Marketing scenario"]
+    found = sum(1 for kw in cross_scenario_keywords if kw in skill_text)
+    assert found >= 3, \
+        f"Path B 跨场景复用 example 不足 (找到 {found}, 至少要 3 个不同场景)"
+
+
+def test_skill_path_b_phase_1_content_only(skill_text: str) -> None:
+    """Path B Phase 1 必须强调「只生成 content 不填 keyword/check」— 分阶段核心."""
+    # Phase 1 必须明确「不填 keyword / check」
+    assert "Do NOT fill `violation_keywords` or `violation_checks` yet" in skill_text, \
+        "Phase 1 没明确「暂不填 keyword/check」"
+    # Phase 2 配机制时必须强调「不再 debate 内容」
+    assert "content was locked in Step 5" in skill_text, \
+        "Phase 2 没明确「content 已锁定不再 debate」"
 
 
 def test_skill_path_b_four_signal_sources(skill_text: str) -> None:
@@ -107,6 +145,44 @@ def test_skill_path_b_backup_before_batch_write(skill_text: str) -> None:
         "Path B 没要求 backup 到 ~/.pinrule/rules.json.before-scenario-* 路径"
     assert "Backup" in skill_text or "backup" in skill_text, \
         "Path B 没明确 backup 步骤"
+
+
+def test_skill_path_b_two_phase_mistakes_listed(skill_text: str) -> None:
+    """Path B 两阶段 specific mistakes 段必须存在 — 让 Agent 知道 Phase 1/2 边界."""
+    assert "Path B two-phase mistakes" in skill_text, \
+        "Path B 丢了两阶段 mistakes 段头"
+    # 关键反模式必须被列
+    assert "Don't put `violation_keywords` or `violation_checks` in Phase 1" in skill_text, \
+        "Phase 1 反模式没列「不要在 Phase 1 填 keyword/check」"
+    assert "re-debate rule **content** in Phase 2" in skill_text, \
+        "Phase 2 反模式没列「不要在 Phase 2 重新 debate 内容」"
+
+
+def test_skill_path_b_backend_detection_step(skill_text: str) -> None:
+    """Path B Phase 2 必须含 Step 5.5 backend detection (跨 backend 适配核心)."""
+    assert "Step 5.5 (Path B, Phase 2 prelude): Detect user's active backends" in skill_text, \
+        "Path B 丢了 Step 5.5 backend detection prelude step"
+    # 4 个 backend signal source 都要扫
+    assert "~/.claude/settings.json" in skill_text, "Step 5.5 没扫 Claude settings"
+    assert "~/.codex/hooks.json" in skill_text, "Step 5.5 没扫 Codex hooks"
+    assert "~/.cursor/hooks.json" in skill_text, "Step 5.5 没扫 Cursor hooks"
+    # 用现成的 cursor_transcript_doctor API
+    assert "pinrule doctor" in skill_text, "Step 5.5 没引用 pinrule doctor 做 Cursor transcript 检测"
+    assert "cursor_transcript_doctor" in skill_text, \
+        "Step 5.5 没引用 pinrule.cursor_transcript_doctor 模块"
+
+
+def test_skill_path_b_backend_coverage_table(skill_text: str) -> None:
+    """Path B Step 7 必须含 backend coverage table 区分 Claude / Codex / Cursor 桌面 / Cursor CLI."""
+    # 必须含 4 列 backend
+    assert "Cursor 桌面 Agent" in skill_text, "backend coverage table 缺 Cursor 桌面 Agent 列"
+    assert "Cursor CLI" in skill_text, "backend coverage table 缺 Cursor CLI 列"
+    # 必须明确「桌面用户不需要 over-warning」
+    assert "不要给桌面用户发任何 transcript advisory" in skill_text, \
+        "没强调「桌面 Agent 用户不需要 over-warning」(否则 Agent 会无脑给桌面用户也发警告)"
+    # 必须含 backend-aware reminder
+    assert "Backend-aware reminder" in skill_text, \
+        "Path B 丢了 Step 11 末尾 backend-aware reminder"
 
 
 def test_skill_no_extra_subscenario_pingpong(skill_text: str) -> None:

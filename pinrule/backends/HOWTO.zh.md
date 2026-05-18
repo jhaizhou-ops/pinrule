@@ -182,7 +182,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 |---|---|---|
 | Claude | `~/.claude/settings.json` | ✓ v0.1.0 起 |
 | Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
-| Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/pinrule` skill 仅 project-scoped — Cursor 没 home-level global skills 目录） |
+| Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/pinrule` skill 仅 project-scoped — Cursor 没 home-level global skills 目录）。**回复级 check** 需用户开 Agent transcripts — 见 README「Cursor：开启 Agent Transcripts」 |
 | Factory | `~/.factory/settings.json` | 待装 + 实测 |
 | Qoder | `~/.qoder/settings.json` | 待装 + 实测 |
 | GitHub Copilot | `~/.copilot/config.json` | 待装 + 实测（可能没 hook 协议） |

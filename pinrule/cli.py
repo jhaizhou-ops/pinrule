@@ -1386,6 +1386,13 @@ def cmd_doctor() -> int:
                     print(f"           {wrapper}")
                 print("")
                 print("     ▶ 验证: codex 改一个没先 Read 的文件 → 应被 pinrule 🛑 拦.")
+
+    if "cursor" in _BACKENDS and _BACKENDS["cursor"].client_installed():
+        from pinrule.cursor_transcript_doctor import cursor_transcript_doctor_lines
+
+        for line in cursor_transcript_doctor_lines():
+            if line.strip():
+                print(line)
     return 0 if all_ok else 1
 
 
