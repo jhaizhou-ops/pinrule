@@ -25,22 +25,32 @@ Andrej Karpathy 的 [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-
 
 ## 10 秒上手
 
+### 让 Agent 帮你装（推荐 — 最省事）
+
+你既然在用 Claude Code / Codex / Cursor（不然不需要 pinrule），直接把这段话发给 Agent：
+
+```
+帮我装 pinrule (github.com/jhaizhou-ops/pinrule) — 通用 AI 行为规则约束框架,
+让我的长任务规则不被淹没. 步骤:
+
+1. 先确认 python 是否真装了 (Windows: 跑 `python --version` 看是不是 silent 跳
+   Microsoft Store, 是的话先 `winget install Python.Python.3.12` 然后重开 PowerShell).
+   Windows 上用 `python -m pinrule` 形式跑命令避免 PATH 问题.
+2. pip install pinrule
+3. pinrule init      # 自动装默认规则 + 给每个检测到的客户端补装 hook
+4. pinrule doctor    # 确认装机成功
+5. 展示给我看默认 7 条规则 + 怎么通过 /pinrule 加我自己的规则
+```
+
+Agent 会自己判断你的 OS、Python 状态、装了哪些客户端。装完重启客户端规则立即生效。
+
+### 手动安装
+
 ```bash
 pip install pinrule && pinrule init
 ```
 
 `pinrule init` 在 `~/.pinrule/` 装默认规则 + 自动给所有检测到的客户端（Claude / Codex / Cursor）补装 hook。后面装了新客户端就跑 `pinrule install-hooks` 补上。
-
-> **Windows 用户**: Windows 默认不带 Python. 如果 `python --version` 没真版本号 (silent 跳 Microsoft Store), 先装 Python:
-> ```powershell
-> winget install Python.Python.3.12
-> # 关掉再开 PowerShell 让 PATH 刷新
-> python -m pip install pinrule
-> python -m pinrule init
-> python -m pinrule install-hooks
-> python -m pinrule doctor
-> ```
-> 用 `python -m pinrule` 形式不需要 Python 的 `Scripts\` 目录在 PATH 里 (Windows pip install 完默认不在 PATH).
 
 重启 Claude / Codex / Cursor，hook 加载后默认规则立即生效。添加一条个性化规则：
 
@@ -49,6 +59,8 @@ pip install pinrule && pinrule init
 ```
 
 pinrule skill 会帮你润色规则语气、校验格式，确认后写入 `rules.json`，约 30 秒完成。
+
+> **Windows 没装 Python**: `python --version` silent 跳 Microsoft Store 意味着没真 Python — 跑 `winget install Python.Python.3.12`、重开 PowerShell，然后 `python -m pip install pinrule && python -m pinrule init`（`python -m` 形式不需要 `Scripts\` 在 PATH 里）。
 
 ---
 

@@ -25,21 +25,32 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 
 ## Quick start
 
+### Let your Agent install it (recommended — least friction)
+
+Since you're already using Claude Code / Codex / Cursor (otherwise you wouldn't need pinrule), paste this prompt to your Agent:
+
+```
+Install pinrule (github.com/jhaizhou-ops/pinrule) — a universal AI behavior rule
+framework that keeps my long-task rules from being lost. Steps:
+
+1. Verify Python is actually installed (Windows: run `python --version` — if it
+   silently exits to Microsoft Store, first `winget install Python.Python.3.12`
+   and reopen PowerShell). Use `python -m pinrule` form on Windows to avoid PATH issues.
+2. pip install pinrule
+3. pinrule init      # auto-installs default rules + hooks for every detected client
+4. pinrule doctor    # verify install
+5. Show me the 7 default rules + how to add my own via /pinrule
+```
+
+The Agent figures out your OS, Python state, and which clients you have. After install, restart your client and rules take effect.
+
+### Manual install
+
 ```bash
 pip install pinrule && pinrule init
 ```
 
-`pinrule init` creates `~/.pinrule/` with the default rules + auto-installs hooks for any detected client (Claude / Codex / Cursor). If you install a new client later, run `pinrule install-hooks` to wire it up.
-
-> **Windows users**: Windows doesn't ship Python by default. If `python --version` doesn't show a real version (just silently exits to Microsoft Store), install Python first:
-> ```powershell
-> winget install Python.Python.3.12
-> # close + reopen PowerShell so PATH refreshes
-> python -m pip install pinrule
-> python -m pinrule init
-> python -m pinrule doctor
-> ```
-> The `python -m pinrule` form avoids needing Python's `Scripts\` folder on PATH (which isn't there by default after `pip install`).
+`pinrule init` auto-installs hooks for any detected client (Claude / Codex / Cursor) + writes default rules to `~/.pinrule/`. If you install a new client later, run `pinrule install-hooks` to wire it up.
 
 Restart Claude / Codex / Cursor — default rules become active once hooks load. To add a personal rule:
 
@@ -48,6 +59,8 @@ Restart Claude / Codex / Cursor — default rules become active once hooks load.
 ```
 
 The skill refines, validates, confirms with you, then writes — ~30 seconds.
+
+> **Windows without Python**: `python --version` silently jumping to Microsoft Store means no real Python — install via `winget install Python.Python.3.12`, reopen PowerShell, then use `python -m pip install pinrule && python -m pinrule init` (the `python -m` form avoids needing `Scripts\` on PATH).
 
 ---
 
