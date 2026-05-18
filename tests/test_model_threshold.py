@@ -199,7 +199,7 @@ def test_session_start_writes_payload_model_to_state(tmp_path, monkeypatch):
 def test_user_prompt_submit_writes_payload_model_to_state(tmp_path, monkeypatch):
     """v0.10.6: user_prompt_submit.py 真把 payload.model 写进 state.model.
 
-    v0.11.2 加强: 显式 mock 空 rules.yaml — turn/model 推进必须早于 sticky_list
+    v0.11.2 加强: 显式 mock 空 rules.json — turn/model 推进必须早于 sticky_list
     加载检查, 不能因为没装 rules 就跳过. CI 干净 home 下空 rules 是常态,
     这个 case 必须 hold. 上一版 fail 因为 main() 在 sticky_list 空时早 return.
     """

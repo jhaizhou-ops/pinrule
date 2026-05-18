@@ -996,7 +996,7 @@ def test_read_first_ignores_non_edit_tool():
 # -------- run_checks 注册表测试 --------
 
 def test_run_checks_unknown_function_silently_skipped():
-    """sticky.yaml 写错 check 名应该静默跳过，不要 crash hook。"""
+    """sticky.json 写错 check 名应该静默跳过，不要 crash hook。"""
     hits = run_checks(
         ["nonexistent_check_name"],
         tool_name="Bash",
@@ -1050,7 +1050,7 @@ def test_run_checks_check_exception_prints_traceback_under_debug(monkeypatch, ca
 
 
 def test_run_checks_unknown_name_prints_under_debug(monkeypatch, capsys):
-    """PINRULE_DEBUG=1 时未知 check 名也打提示 — sticky.yaml 写错时能立刻发现。"""
+    """PINRULE_DEBUG=1 时未知 check 名也打提示 — sticky.json 写错时能立刻发现。"""
     monkeypatch.setenv("PINRULE_DEBUG", "1")
     hits = run_checks(["nonexistent_xyz_check"])
     assert hits == []

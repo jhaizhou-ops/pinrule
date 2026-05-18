@@ -225,7 +225,7 @@ def test_parse_redirect_empty_string():
     ("/repo/tests/test_foo.py", False),
     ("/repo/pyproject.toml", False),
     ("/repo/pinrule/config.py", False),
-    ("/repo/data/rules.yaml", False),
+    ("/repo/data/rules.json", False),
     ("/repo/CHANGELOG.zh.md", True),
     ("/repo/.gitignore", True),
     ("/repo/.editorconfig", True),

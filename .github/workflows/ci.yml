@@ -79,17 +79,19 @@ jobs:
           # evidence / keep_pushing / non_blocking 等 keyword 层失效.
           # codex GPT-5.5 cross-model audit 抓到. 影响所有 pip install 用户.
           expected = [
-              'data/rules.dev.example.yaml',
-              'data/rules.dev.example.zh.yaml',
-              'data/locales/en.yaml',
-              'data/locales/zh.yaml',
-              'data/config.example.yaml',
+              # v0.17.0: PyYAML drop, 全部资产改 JSON / Python 模块. 0 runtime deps.
+              'data/rules.dev.example.json',
+              'data/rules.dev.example.zh.json',
+              'data/locales/en.json',
+              'data/locales/zh.json',
+              'data/config.example.json',
               'skills/pinrule/SKILL.md',
               # v0.9.15: 7 个 signal type * 2 lang = 14 文件
               # 用 sampling 而非全列：每个 signal type 至少 1 个 lang 在
               'data/signals/weak_claims/en.txt',
               'data/signals/completion_words/en.txt',
-              'data/signals/push_signals/en.yaml',
+              # v0.17.0: push_signals 从 yaml 转 Python 模块 (cartesian 嵌套语义)
+              'data/signals/push_signals/en.py',
               'data/signals/stop_hints/en.txt',
               'data/signals/agent_saturation/zh.txt',
               'data/signals/explicit_handoff/zh.txt',

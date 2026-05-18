@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from pinrule.cursor_visibility import build_rules_catalog_skill_body, sync_claude_skills_catalog
@@ -18,10 +19,10 @@ def test_build_rules_catalog_skill_lists_ids():
 
 
 def test_sync_claude_skills_catalog_writes_file(monkeypatch, tmp_path):
-    rules_file = tmp_path / "rules.yaml"
+    rules_file = tmp_path / "rules.json"
     monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", rules_file)
     rules_file.write_text(
-        "- id: dogfood-marker-cursor-v12\n  preference: |\n    marker\n",
+        json.dumps([{"id": "dogfood-marker-cursor-v12", "preference": "marker"}], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     monkeypatch.setattr(

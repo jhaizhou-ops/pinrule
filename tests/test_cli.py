@@ -223,7 +223,7 @@ def test_install_hooks_unknown_backend_errors(fake_home, capsys):
 def test_init_explicit_no_minimal_installs_7_sticky(fake_home, capsys):
     """pinrule init --no-minimal 强制装 7 条 dev.example（覆盖自动检测）。"""
     import pinrule.rule
-    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.json"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
@@ -237,7 +237,7 @@ def test_init_explicit_no_minimal_installs_7_sticky(fake_home, capsys):
 def test_init_explicit_minimal_installs_5_sticky(fake_home, capsys):
     """pinrule init --minimal 强制装 5 条精简（覆盖自动检测）。"""
     import pinrule.rule
-    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.json"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
@@ -254,7 +254,7 @@ def test_init_auto_chinese_user_installs_7_sticky(fake_home, capsys):
     """minimal=None + 系统语言中文 → 自动装 7 条含 chinese_plain。"""
     import pinrule.rule
     import pinrule.locale_detect
-    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.json"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
@@ -275,7 +275,7 @@ def test_init_auto_non_chinese_user_installs_full_en(fake_home, capsys):
     用户原话: 'pinrule 双语肯定是要自适配的' — 不只语言, rule count 也对等."""
     import pinrule.rule
     import pinrule.locale_detect
-    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.json"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
@@ -296,7 +296,7 @@ def test_init_auto_unknown_locale_installs_full_en(fake_home, capsys):
     (跟中文 user default 对称). 老行为 5 条 minimal 已废 — 见 cli.py:277-292."""
     import pinrule.rule
     import pinrule.locale_detect
-    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    monkeypatch_path = fake_home / ".claude" / "pinrule" / "sticky.json"
     import unittest.mock
     with unittest.mock.patch.object(cli, "RULES_PATH", monkeypatch_path):
         with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", monkeypatch_path):
@@ -538,9 +538,9 @@ def test_uninstall_preserves_other_hooks(fake_home):
 def test_doctor_reports_missing_wrappers(fake_home, capsys):
     """没装 hook → doctor 报告缺失。"""
     # 准备最小 sticky 让 doctor 跑下去
-    sticky_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    sticky_path = fake_home / ".claude" / "pinrule" / "rules.json"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
-    sticky_path.write_text("- id: test\n  preference: x\n")
+    sticky_path.write_text(json.dumps([{"id": "test", "preference": "x"}], ensure_ascii=False, indent=2))
     import pinrule.rule
     import pinrule.violations
     import unittest.mock
@@ -555,9 +555,9 @@ def test_doctor_reports_missing_wrappers(fake_home, capsys):
 
 def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
     """install Claude Code 后 doctor 应报告 Claude Code 全部 ✓（mock Codex 没装）。"""
-    sticky_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    sticky_path = fake_home / ".claude" / "pinrule" / "rules.json"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
-    sticky_path.write_text("- id: test\n  preference: x\n")
+    sticky_path.write_text(json.dumps([{"id": "test", "preference": "x"}], ensure_ascii=False, indent=2))
     import pinrule.rule
     import pinrule.violations
     from pinrule.backends import CodexBackend
@@ -602,9 +602,9 @@ def test_doctor_cursor_flat_hook_entry_detected(fake_home, monkeypatch, capsys):
         settings["hooks"][event_name] = [{"command": str(wrapper)}]
     b.save_settings(settings)
 
-    sticky_path = fake_home / ".claude" / "pinrule" / "sticky.yaml"
+    sticky_path = fake_home / ".claude" / "pinrule" / "rules.json"
     sticky_path.parent.mkdir(parents=True, exist_ok=True)
-    sticky_path.write_text("- id: test\n  preference: x\n")
+    sticky_path.write_text(json.dumps([{"id": "test", "preference": "x"}], ensure_ascii=False, indent=2))
     import pinrule.rule
     import pinrule.violations
     import unittest.mock
@@ -663,10 +663,10 @@ def test_doctor_codex_native_surface_trust_message_no_stale_manual_approval_copy
 # ---- v0.5.16 pinrule install-skill / pinrule init 多 backend skill 装机 ----
 
 def _patch_rules_path(monkeypatch, fake_home):
-    """共享 helper: monkeypatch rules.yaml DEFAULT_PATH 避免污染真 pinrule 配置."""
+    """共享 helper: monkeypatch rules.json DEFAULT_PATH 避免污染真 pinrule 配置."""
     import pinrule.rule
-    monkeypatch.setattr(pinrule.rule, "DEFAULT_PATH", fake_home / ".claude" / "pinrule" / "rules.yaml")
-    monkeypatch.setattr(cli, "RULES_PATH", fake_home / ".claude" / "pinrule" / "rules.yaml")
+    monkeypatch.setattr(pinrule.rule, "DEFAULT_PATH", fake_home / ".claude" / "pinrule" / "rules.json")
+    monkeypatch.setattr(cli, "RULES_PATH", fake_home / ".claude" / "pinrule" / "rules.json")
 
 
 def test_v0516_init_auto_installs_pinrule_skill_all_backends(fake_home, monkeypatch, capsys):
@@ -866,7 +866,7 @@ def test_init_summary_footer_matches_user_locale(fake_home, monkeypatch, capsys)
     """v0.9.10 lockdown: footer 必须按用户语言展示对应语言内容 — 中文用户出
     中文 footer，英文用户出英文 footer。
 
-    pinrule/i18n.py _resolve_locale() 优先级：PINRULE_LOCALE env > config.yaml >
+    pinrule/i18n.py _resolve_locale() 优先级：PINRULE_LOCALE env > config.json >
     is_chinese_user() system detect。这条测试 mock 两个极端 case 锁不变量。
     """
     import pinrule.violations
@@ -883,8 +883,8 @@ def test_init_summary_footer_matches_user_locale(fake_home, monkeypatch, capsys)
     assert "经测试" in out_zh, "PINRULE_LOCALE=zh 时 footer 应是中文 ‘经测试…’"
     assert "Tested:" not in out_zh, "PINRULE_LOCALE=zh 时 footer 不该是英文"
 
-    # 重置 rules.yaml 让 case 2 走 init 全流程
-    (fake_home / ".claude" / "pinrule" / "rules.yaml").unlink()
+    # 重置 rules.json 让 case 2 走 init 全流程
+    (fake_home / ".claude" / "pinrule" / "rules.json").unlink()
 
     # case 2: 强制 en locale → footer 必须英文
     monkeypatch.setenv("PINRULE_LOCALE", "en")

@@ -1,0 +1,77 @@
+[
+  {
+    "id": "long-term-fundamental",
+    "preference": "用最根本、最长期、最普适、最优雅的方案。\n不打补丁、不硬编码、不为追短期 KPI 牺牲长期质量。\n深挖到原因再动手；遇到难题先想「最干净的解法是什么」而非「最快糊过去」。\n",
+    "violation_keywords": [
+      "我先打个补丁",
+      "先打个补丁应付",
+      "我先硬编码",
+      "先硬编码一下",
+      "先快速绕过",
+      "临时方案",
+      "先用 workaround",
+      "先这样",
+      "暂时这样",
+      "先 hack"
+    ],
+    "violation_checks": [
+      "long_term_fundamental"
+    ]
+  },
+  {
+    "id": "non-blocking-parallel",
+    "preference": "不阻塞前端 — 测试 / 子 Agent / 长任务跑步时，立刻并行推进其他能做的事。\n优先多 Agent 并发，不串行等。\n跑 background 任务后必须继续推进 — 起完任务就「等」也算阻塞。\n",
+    "violation_keywords": [
+      "等测试完",
+      "等测试跑完",
+      "等子 Agent",
+      "等 X 完成后再 Y",
+      "串行执行",
+      "我先等",
+      "等一下",
+      "等会儿",
+      "等结果出来",
+      "我盯着",
+      "我先看着"
+    ],
+    "violation_checks": [
+      "non_blocking_parallel"
+    ],
+    "force_block_exempt": true
+  },
+  {
+    "id": "loud-failure-with-evidence",
+    "preference": "失败要响亮，完成要有证据。不确定就明说，不要用「应该」「可能」掩盖。\n完成代码任务时必须附证据（test pass / build OK / 数据 / 截图）。\n「完成」但 skip / mock / 假数据不算完成。\n",
+    "violation_keywords": [
+      "skip 了",
+      "暂时假数据",
+      "临时 mock"
+    ],
+    "violation_checks": [
+      "loud_failure_with_evidence"
+    ]
+  },
+  {
+    "id": "deep-fix-not-bypass",
+    "preference": "pinrule 拦截发生时，先停下深挖**为什么拦** — 是违反还是 pinrule 自身 bug。\n禁止通过手动改 ~/.claude/pinrule/session-state/ / 临时改 rules.yaml /\nhack 字面 等方式绕开检测。\n经典 anti-pattern：被拦 → 手动改内部状态让 commit 通过。\n正确做法：被拦 → 看 trigger → 深挖 pattern 或系统 bug → 修原因。\n例外：用户明确说「绕一下先 commit」→ 才能绕。\n",
+    "violation_keywords": [
+      "强制接证据",
+      "手动接入",
+      "hack 让 commit"
+    ],
+    "violation_checks": [
+      "bypass_pinrule_detection"
+    ]
+  },
+  {
+    "id": "read-before-write",
+    "preference": "加代码前先读：上游调用、相关 exports、共享 utils、已有约定。\n「看起来不相关」是最危险的话 — 通常意味着没读够上下文。\n改任何模块前看清这个模块怎么被用、跟谁耦合、改了影响谁。\n",
+    "violation_keywords": [
+      "看起来不相关",
+      "应该不影响其他"
+    ],
+    "violation_checks": [
+      "read_before_write"
+    ]
+  }
+]

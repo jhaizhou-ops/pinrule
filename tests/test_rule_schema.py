@@ -25,7 +25,7 @@
 from __future__ import annotations
 
 import pytest
-import yaml
+import json
 
 from pinrule.rule import HARD_MAX, MAX_RULES, Rule, RuleConfigError, load
 
@@ -41,8 +41,8 @@ def _rule(rid: str, pref: str = "合法方向", **extra) -> dict:
 
 
 def _write_rules(tmp_path, rules: list[dict]) -> object:
-    p = tmp_path / "rules.yaml"
-    p.write_text(yaml.safe_dump(rules, allow_unicode=True), encoding="utf-8")
+    p = tmp_path / "rules.json"
+    p.write_text(json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
     return p
 
 
@@ -131,15 +131,15 @@ def test_load_valid_slug_formats_succeed(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_missing_id_raises(tmp_path):
-    p = tmp_path / "rules.yaml"
-    p.write_text(yaml.safe_dump([{"preference": "方向"}]), encoding="utf-8")
+    p = tmp_path / "rules.json"
+    p.write_text(json.dumps([{"preference": "方向"}], ensure_ascii=False, indent=2), encoding="utf-8")
     with pytest.raises(RuleConfigError, match="id"):
         load(p)
 
 
 def test_load_empty_id_raises(tmp_path):
-    p = tmp_path / "rules.yaml"
-    p.write_text(yaml.safe_dump([{"id": "", "preference": "方向"}]), encoding="utf-8")
+    p = tmp_path / "rules.json"
+    p.write_text(json.dumps([{"id": "", "preference": "方向"}], ensure_ascii=False, indent=2), encoding="utf-8")
     with pytest.raises(RuleConfigError):
         load(p)
 
@@ -216,19 +216,22 @@ def test_load_force_block_exempt_false_default(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_empty_file_returns_empty(tmp_path):
-    p = tmp_path / "rules.yaml"
+    """空文件解析失败按 JSON 走会抛 RuleConfigError — 这是合理 fail-loud，老 yaml 行为是
+    json.loads('') → JSONDecodeError. 现在测真期望: 抛 RuleConfigError."""
+    p = tmp_path / "rules.json"
     p.write_text("", encoding="utf-8")
-    assert load(p) == []
+    with pytest.raises(RuleConfigError, match="JSON"):
+        load(p)
 
 
-def test_load_null_yaml_returns_empty(tmp_path):
-    p = tmp_path / "rules.yaml"
-    p.write_text("null\n", encoding="utf-8")
+def test_load_null_returns_empty(tmp_path):
+    p = tmp_path / "rules.json"
+    p.write_text("null", encoding="utf-8")
     assert load(p) == []
 
 
 def test_load_missing_file_returns_empty(tmp_path):
-    p = tmp_path / "rules.yaml"
+    p = tmp_path / "rules.json"
     assert load(p) == []
 
 
@@ -236,10 +239,10 @@ def test_load_missing_file_returns_empty(tmp_path):
 # 解析失败 → RuleConfigError
 # ---------------------------------------------------------------------------
 
-def test_load_bad_yaml_raises(tmp_path):
-    p = tmp_path / "rules.yaml"
-    p.write_text("- { bad yaml {{ }}", encoding="utf-8")
-    with pytest.raises(RuleConfigError, match="YAML"):
+def test_load_bad_json_raises(tmp_path):
+    p = tmp_path / "rules.json"
+    p.write_text("- { bad json {{ }}", encoding="utf-8")
+    with pytest.raises(RuleConfigError, match="JSON"):
         load(p)
 
 
@@ -248,8 +251,8 @@ def test_load_bad_yaml_raises(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_top_level_dict_raises(tmp_path):
-    p = tmp_path / "rules.yaml"
-    p.write_text("id: my-rule\npreference: x\n", encoding="utf-8")
+    p = tmp_path / "rules.json"
+    p.write_text(json.dumps({"id": "my-rule", "preference": "x"}), encoding="utf-8")
     with pytest.raises(RuleConfigError, match="list"):
         load(p)
 
@@ -259,8 +262,8 @@ def test_load_top_level_dict_raises(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_item_not_dict_raises(tmp_path):
-    p = tmp_path / "rules.yaml"
-    p.write_text("- 'not a dict'\n", encoding="utf-8")
+    p = tmp_path / "rules.json"
+    p.write_text(json.dumps(["not a dict"]), encoding="utf-8")
     with pytest.raises(RuleConfigError, match="dict"):
         load(p)
 

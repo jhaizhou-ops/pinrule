@@ -1,0 +1,10 @@
+{
+  "notify_enabled": true,
+  "recent_violation_turns": 5,
+  "escalate_window_turns": 3,
+  "escalate_threshold": 3,
+  "violations_max_lines": 5000,
+  "violations_keep_history": 3,
+  "session_state_max_age_days": 30,
+  "max_recent_bash": 15
+}

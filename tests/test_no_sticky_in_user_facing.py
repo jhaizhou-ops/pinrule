@@ -6,11 +6,11 @@ v0.6.0 BREAKING 把 `sticky.*` → `rules.*`。之前已做过多轮清扫（v0.
 本测试锁住「用户可见表面」白名单：
 - `data/locales/*.yaml` — 用户被拦时看到的 i18n message
 - `data/config.example.yaml` — `pinrule init` 后用户配置文件
-- `data/rules.dev.*.example*.yaml` — 用户安装时复制到 rules.yaml 的模板
+- `data/rules.dev.*.example*.yaml` — 用户安装时复制到 rules.json 的模板
 
 下次有人改动这些文件不小心引入旧名 → CI fail。
 
-允许的例外（讲历史 / migration / 教用户「不要绕 sticky.yaml」是合法保留）通过显式
+允许的例外（讲历史 / migration / 教用户「不要绕 sticky.json」是合法保留）通过显式
 白名单允许 —— 但白名单是「这一行字面」精确匹配，不是「整文件免检」。
 
 dev-facing docstring / 注释 / tests 里的 sticky 残留是 cosmetic，留到 v0.10.x
@@ -28,10 +28,10 @@ USER_FACING_FILES = [
     DATA_DIR / "locales" / "zh.yaml",
     DATA_DIR / "locales" / "en.yaml",
     DATA_DIR / "config.example.yaml",
-    DATA_DIR / "rules.dev.example.yaml",
-    DATA_DIR / "rules.dev.example.zh.yaml",
-    DATA_DIR / "rules.dev.minimal.example.yaml",
-    DATA_DIR / "rules.dev.minimal.example.zh.yaml",
+    DATA_DIR / "rules.dev.example.json",
+    DATA_DIR / "rules.dev.example.zh.json",
+    DATA_DIR / "rules.dev.minimal.example.json",
+    DATA_DIR / "rules.dev.minimal.example.zh.json",
 ]
 
 # 允许的例外字面 —— 精确字符串匹配，不是子串

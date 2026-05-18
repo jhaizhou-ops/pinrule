@@ -6,7 +6,6 @@ import io
 import json
 from pathlib import Path
 
-import yaml
 
 from pinrule.hooks import post_tool_use, pre_tool_use, stop, user_prompt_submit
 from pinrule import session_state
@@ -16,17 +15,17 @@ from tests.conftest import np
 
 def _patch_paths(monkeypatch, tmp_path: Path, sticky_items: list[dict] | None = None):
     """让 hook 用 tmp 目录的 sticky/violations 文件。"""
-    sticky_path = tmp_path / "sticky.yaml"
+    sticky_path = tmp_path / "sticky.json"
     violations_path = tmp_path / "violations.jsonl"
     if sticky_items is not None:
-        sticky_path.write_text(yaml.safe_dump(sticky_items, allow_unicode=True), encoding="utf-8")
+        sticky_path.write_text(json.dumps(sticky_items, ensure_ascii=False, indent=2), encoding="utf-8")
     monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", sticky_path)
     monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", violations_path)
     return sticky_path, violations_path
 
 
 def test_user_prompt_submit_no_sticky_passthrough(monkeypatch, tmp_path, capsys):
-    """sticky.yaml 不存在 → 输出空 JSON（无 additionalContext）。"""
+    """sticky.json 不存在 → 输出空 JSON（无 additionalContext）。"""
     _patch_paths(monkeypatch, tmp_path, sticky_items=None)
     payload = json.dumps({"prompt": "你好", "session_id": "s"})
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))
@@ -64,8 +63,8 @@ def test_user_prompt_submit_passthrough_when_no_violations(monkeypatch, tmp_path
 
 
 def test_user_prompt_submit_handles_bad_yaml(monkeypatch, tmp_path, capsys):
-    """sticky.yaml 配置错 → stderr 报错，输出 passthrough（空 JSON）。"""
-    sticky_path = tmp_path / "sticky.yaml"
+    """sticky.json 配置错 → stderr 报错，输出 passthrough（空 JSON）。"""
+    sticky_path = tmp_path / "sticky.json"
     sticky_path.write_text("- {{ this is not valid yaml", encoding="utf-8")
     monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", sticky_path)
     monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", tmp_path / "violations.jsonl")
@@ -372,7 +371,7 @@ def test_post_tool_use_yaml_write_does_not_push_last_edit_ts(monkeypatch, tmp_pa
     payload = json.dumps({
         "session_id": "yaml_write",
         "tool_name": "Write",
-        "tool_input": {"file_path": "/x/config.yaml", "content": "key: value\n"},
+        "tool_input": {"file_path": "/x/config.json", "content": "key: value\n"},
         "tool_response": "ok",
     })
     monkeypatch.setattr("sys.stdin", io.StringIO(payload))

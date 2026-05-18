@@ -1,11 +1,11 @@
-"""sticky.yaml 加载 + schema 验证 + 注入渲染。"""
+"""sticky.json 加载 + schema 验证 + 注入渲染。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-import yaml
+import json
 
 from pinrule.rule import (
     HARD_MAX,
@@ -17,8 +17,8 @@ from pinrule.rule import (
 
 
 def _write_yaml(tmp_path: Path, items: list[dict]) -> Path:
-    p = tmp_path / "sticky.yaml"
-    p.write_text(yaml.safe_dump(items, allow_unicode=True), encoding="utf-8")
+    p = tmp_path / "sticky.json"
+    p.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
     return p
 
 
@@ -85,9 +85,9 @@ def test_load_rejects_over_hard_max(tmp_path: Path) -> None:
 
 
 def test_load_real_example() -> None:
-    """data/rules.dev.example.yaml 必须能加载，且是 7 条种子 sticky（开发场景预设）。"""
+    """data/rules.dev.example.json 必须能加载，且是 7 条种子 sticky（开发场景预设）。"""
     repo_root = Path(__file__).resolve().parents[1]
-    example = repo_root / "data" / "rules.dev.example.yaml"
+    example = repo_root / "data" / "rules.dev.example.json"
     sticky = load(example)
     assert len(sticky) == 7
     ids = {s.id for s in sticky}
@@ -114,14 +114,14 @@ def test_load_real_example() -> None:
 
 
 def test_load_real_minimal_example() -> None:
-    """data/rules.dev.minimal.example.yaml 5 条跨用户中性核心 — 砍场景化两条。
+    """data/rules.dev.minimal.example.json 5 条跨用户中性核心 — 砍场景化两条。
 
     评审 C Agent 痛点：默认 7 条含 chinese-plain（中文用户偏好）+
     no-testset（ML 场景）违反 CLAUDE.md「不针对当前用户作弊」原则。这个
     精简版让英文母语 / 非 ML 用户拿到中性默认。
     """
     repo_root = Path(__file__).resolve().parents[1]
-    example = repo_root / "data" / "rules.dev.minimal.example.yaml"
+    example = repo_root / "data" / "rules.dev.minimal.example.json"
     sticky = load(example)
     assert len(sticky) == 5
     ids = {s.id for s in sticky}

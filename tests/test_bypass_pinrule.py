@@ -105,10 +105,10 @@ def test_user_backup_pinrule_files_passes():
     清老 rotation）是合法操作，不该拦。攻击者用 echo > / python write
     才是真 hack 路径仍能 catch。"""
     for cmd in [
-        "cp ~/.pinrule/sticky.yaml ~/backup/sticky.yaml.bak",
+        "cp ~/.pinrule/rules.json ~/backup/rules.json.bak",
         "mv ~/.pinrule/violations.jsonl ~/old-violations.jsonl",
         "rm ~/.pinrule/violations.jsonl.3",
-        "cp ~/.pinrule/sticky.yaml ./snapshot/",
+        "cp ~/.pinrule/rules.json ./snapshot/",
     ]:
         assert _check(cmd) is None, f"用户合法备份/清理不该拦: {cmd!r}"
 
@@ -122,7 +122,7 @@ def test_keep_pushing_workflow_not_blocked():
 def test_commit_message_describing_bypass_not_blocked():
     """git commit message 描述 bypass anti-pattern 字面 → 是描述不是执行，豁免。
 
-    场景：sticky.yaml 写「禁止 update last_test_pass_ts」/ commit message 描述
+    场景：rules.json 写「禁止 update last_test_pass_ts」/ commit message 描述
     「修了 last_test_pass_ts race」都是描述。剥引号字面后命中字面消失 → 豁免。
     """
     cmd = 'git commit -m "fix: update last_test_pass_ts race (json.dump)"'
@@ -142,7 +142,7 @@ def test_python_heredoc_real_bypass_still_caught():
 
     注意：strip_shell_quoted_literals 对 python heredoc 剥成数据 — 这是个
     已知 limitation。检测主要靠剥后命令骨架，python heredoc 内的绕会被漏。
-    用户可以靠 sticky.yaml 关键词层和 stop hook 兜底。
+    用户可以靠 rules.json 关键词层和 stop hook 兜底。
     """
     cmd = """python <<'EOF'
 import json
@@ -156,7 +156,7 @@ EOF"""
     # 不强 assert — 表达「python heredoc 内绕过」是工程层覆盖盲区
     hit = _check(cmd)
     # 如果未来 strip 改成保留 python heredoc 内容 → 此 case 会命中
-    # 当前接受 hit is None — 但 sticky.yaml violation_keywords 兜底
+    # 当前接受 hit is None — 但 rules.json violation_keywords 兜底
     _ = hit  # documentation 用，不 assert
 
 
@@ -199,7 +199,7 @@ def test_python_os_system_real_bypass_caught():
 
 def test_python_subprocess_real_bypass_caught():
     """v0.4.22：python -c 内 subprocess.run 真调 shell 绕过应拦。"""
-    cmd = """python -c "import subprocess; subprocess.run(['rm', '~/.pinrule/sticky.yaml'])\""""
+    cmd = """python -c "import subprocess; subprocess.run(['rm', '~/.pinrule/rules.json'])\""""
     assert _check(cmd) is not None, "python subprocess 绕过应命中"
 
 
@@ -339,7 +339,7 @@ def test_build_state_path_re_default_mode_matches_home_writes():
     pat = _build_state_path_re()
     assert pat.search("rm ~/.pinrule/session-state/x.json")
     assert pat.search("rm /Users/anyone/.pinrule/violations.jsonl")
-    assert pat.search("rm .pinrule/rules.yaml")
+    assert pat.search("rm .pinrule/rules.json")
     # 不该匹配无关路径
     assert not pat.search("rm /tmp/random/session-state/x.json")
 
@@ -379,9 +379,9 @@ def test_build_state_path_re_PINRULE_HOME_in_home_dir_matches_tilde_literal(monk
 
 
 def test_rules_yaml_now_in_state_path_set():
-    """v0.6.0 BREAKING 把 sticky.yaml 改名 rules.yaml — bypass 检测要拦两者。"""
+    """v0.6.0 BREAKING 把 rules.json 改名 rules.json — bypass 检测要拦两者。"""
     from pinrule.checks.bypass_pinrule import _build_state_path_re
     pat = _build_state_path_re()
-    assert pat.search("echo '...' > ~/.pinrule/rules.yaml")
-    assert pat.search("echo '...' > ~/.pinrule/rules.yaml")
-    assert pat.search("echo '...' > ~/.pinrule/sticky.yaml"), "兼容老用户路径"
+    assert pat.search("echo '...' > ~/.pinrule/rules.json")
+    assert pat.search("echo '...' > ~/.pinrule/rules.json")
+    assert pat.search("echo '...' > ~/.pinrule/rules.json"), "兼容老用户路径"

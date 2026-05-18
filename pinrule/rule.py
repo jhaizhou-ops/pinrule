@@ -1,24 +1,22 @@
-"""rule.yaml 加载 + schema 验证.
+"""rules.json 加载 + schema 验证.
 
-设计: 纯工程, 无 LLM. yaml 文件足够小所以全量读, 不需要 cache.
+设计: 纯工程, 无 LLM, 0 runtime deps. 文件足够小所以全量读, 不需要 cache.
 
-v0.12.2 (2026-05-17): 砍 sticky.yaml legacy fallback — pinrule v2 pre-launch,
-没有公开 v0.5.0 之前用户, 没必要维护 sticky.yaml 兼容代码. rules.yaml 是
-唯一规则文件名.
+v0.17.0 (2026-05-18): 砍 PyYAML — rules 由 LLM 通过 `pinrule rule add` 维护,
+YAML 多行字符串/注释友好度优势没在被消费. JSON 是 Python 标准库, 0 依赖.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 from pinrule.i18n import tr
 from pinrule.paths import pinrule_home
 
-DEFAULT_PATH = pinrule_home() / "rules.yaml"
+DEFAULT_PATH = pinrule_home() / "rules.json"
 MAX_RULES = 10  # 软上限，超过 12 抛错
 HARD_MAX = 12  # 注意力拐点，硬上限
 
@@ -49,7 +47,7 @@ class RuleConfigError(Exception):
 
 
 def load(path: Path | None = None) -> list[Rule]:
-    """从 yaml 加载 + 验证。返回不可变 Rule 列表。
+    """从 JSON 加载 + 验证。返回不可变 Rule 列表。
 
     文件不存在返回 []（用户还没配置，hook 静默 passthrough）。
     schema 错误抛 RuleConfigError（hook 应该 fail loud 让用户看见）。
@@ -61,9 +59,9 @@ def load(path: Path | None = None) -> list[Rule]:
     if not path.exists():
         return []
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as e:
-        raise RuleConfigError(f"YAML 解析失败: {e}") from e
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise RuleConfigError(f"JSON 解析失败: {e}") from e
     if raw is None:
         return []
     if not isinstance(raw, list):

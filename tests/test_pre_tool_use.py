@@ -6,14 +6,13 @@ import io
 import json
 from pathlib import Path
 
-import yaml
 
 from pinrule.hooks import pre_tool_use
 
 
 def _patch(monkeypatch, tmp_path: Path, sticky_items: list[dict]) -> tuple[Path, Path]:
-    sticky_path = tmp_path / "sticky.yaml"
-    sticky_path.write_text(yaml.safe_dump(sticky_items, allow_unicode=True), encoding="utf-8")
+    sticky_path = tmp_path / "sticky.json"
+    sticky_path.write_text(json.dumps(sticky_items, ensure_ascii=False, indent=2), encoding="utf-8")
     violations_path = tmp_path / "violations.jsonl"
     monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", sticky_path)
     monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", violations_path)
@@ -31,7 +30,7 @@ def _run_hook(monkeypatch, payload: dict) -> dict:
 
 
 def test_allow_when_no_sticky(monkeypatch, tmp_path):
-    monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", tmp_path / "sticky.yaml")
+    monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", tmp_path / "sticky.json")
     monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", tmp_path / "v.jsonl")
     out = _run_hook(monkeypatch, {
         "tool_name": "Bash",
@@ -190,8 +189,8 @@ def test_description_context_exempts_engine_checks(monkeypatch, tmp_path):
 
 
 def test_fail_open_on_bad_yaml(monkeypatch, tmp_path):
-    """sticky.yaml 配置错 → 不阻塞 tool（fail open）。"""
-    sticky_path = tmp_path / "sticky.yaml"
+    """sticky.json 配置错 → 不阻塞 tool（fail open）。"""
+    sticky_path = tmp_path / "sticky.json"
     sticky_path.write_text("- {{ bad yaml")
     monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", sticky_path)
     monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", tmp_path / "v.jsonl")
@@ -205,7 +204,7 @@ def test_fail_open_on_bad_yaml(monkeypatch, tmp_path):
 
 def test_fail_open_on_bad_payload(monkeypatch, tmp_path):
     """payload JSON 解析失败 → fail open。"""
-    monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", tmp_path / "sticky.yaml")
+    monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", tmp_path / "sticky.json")
     monkeypatch.setattr("pinrule.violations.DEFAULT_PATH", tmp_path / "v.jsonl")
     import io
     monkeypatch.setattr("sys.stdin", io.StringIO("not json"))

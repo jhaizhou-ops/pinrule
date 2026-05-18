@@ -26,12 +26,12 @@ Usage:
     pinrule doctor                   检查环境 + hook 装机 + 当前生效 config
 
     pinrule rule list                列出所有 rule 规则
-    pinrule rule edit                用 $EDITOR 编辑 rules.yaml
+    pinrule rule edit                用 $EDITOR 编辑 rules.json
     pinrule rule remove <id>         移除某条
-    pinrule rule add --from-yaml <file>       从 yaml 文件追加一条新 rule
-    pinrule rule add --from-stdin             从 stdin 读 yaml 追加 (Claude Code skill 用)
-    pinrule rule preview --from-yaml <file>   预览注入头部样子 (不写入)
-    pinrule rule preview --from-stdin         预览 stdin yaml (不写入)
+    pinrule rule add --from-json <file>       从 JSON 文件追加一条新 rule
+    pinrule rule add --from-stdin             从 stdin 读 JSON 追加 (Claude Code skill 用)
+    pinrule rule preview --from-json <file>   预览注入头部样子 (不写入)
+    pinrule rule preview --from-stdin         预览 stdin JSON (不写入)
 
     pinrule stats                    每条规则违反计数（含本 session 最近 5 turn）
     pinrule violations recent [N]    最近 N 条违反详情（默认 20）
@@ -66,11 +66,11 @@ from pinrule.paths import pinrule_home
 
 PINRULE_DIR = pinrule_home()
 _DATA_DIR = Path(__file__).parent.parent / "data"
-EXAMPLE_RULES_EN = _DATA_DIR / "rules.dev.example.yaml"        # English default
-EXAMPLE_RULES_ZH = _DATA_DIR / "rules.dev.example.zh.yaml"     # 中文
-EXAMPLE_RULES_MINIMAL_EN = _DATA_DIR / "rules.dev.minimal.example.yaml"
-EXAMPLE_RULES_MINIMAL_ZH = _DATA_DIR / "rules.dev.minimal.example.zh.yaml"
-EXAMPLE_CONFIG = _DATA_DIR / "config.example.yaml"
+EXAMPLE_RULES_EN = _DATA_DIR / "rules.dev.example.json"        # English default
+EXAMPLE_RULES_ZH = _DATA_DIR / "rules.dev.example.zh.json"     # 中文
+EXAMPLE_RULES_MINIMAL_EN = _DATA_DIR / "rules.dev.minimal.example.json"
+EXAMPLE_RULES_MINIMAL_ZH = _DATA_DIR / "rules.dev.minimal.example.zh.json"
+EXAMPLE_CONFIG = _DATA_DIR / "config.example.json"
 # v0.5.16: pinrule skill source — Markdown source of truth; auto-installed to
 # all detected backends (Claude / Codex / Cursor). v0.13.2 dropped Gemini backend +
 # the Markdown→TOML conversion path that used to feed it.
@@ -79,7 +79,7 @@ PINRULE_SKILL_SRC = _SKILLS_DIR / "pinrule" / "SKILL.md"
 
 
 def _select_rule_template(minimal: bool) -> Path:
-    """按系统语言 detect 选模板（中文用户 .zh.yaml / 其他英文 default）。"""
+    """按系统语言 detect 选模板（中文用户 .zh.json / 其他英文 default）。"""
     from pinrule.locale_detect import is_chinese_user
     if is_chinese_user():
         return EXAMPLE_RULES_MINIMAL_ZH if minimal else EXAMPLE_RULES_ZH
@@ -320,12 +320,12 @@ def cmd_init(minimal: bool | None = None) -> int:
         shutil.copyfile(template, rules_path)
         print(f"创建 {rules_path.name}: {rules_path} ({label}) {auto_chose}".rstrip())
     # config 模板
-    config_path = PINRULE_DIR / "config.yaml"
+    config_path = PINRULE_DIR / "config.json"
     if config_path.exists():
-        print(f"config.yaml 已存在: {config_path}")
+        print(f"config.json 已存在: {config_path}")
     elif EXAMPLE_CONFIG.exists():
         shutil.copyfile(EXAMPLE_CONFIG, config_path)
-        print(f"创建 config.yaml: {config_path}")
+        print(f"创建 config.json: {config_path}")
     print(f"编辑用: pinrule rule edit  /  vim {config_path}")
     if auto_chose:
         override_flag = "--no-minimal" if minimal else "--minimal"
@@ -470,7 +470,7 @@ def _print_default_rules_summary() -> None:
     print()
     print(tr("init.summary.header", count=len(rules), soft_max=MAX_RULES))
     for r in rules:
-        # 首段 = split 第一个空行（"\n\n"）。yaml `|` block 段间用空行分隔
+        # 首段 = split 第一个空行（"\n\n"）。preference 多段间用空行分隔
         # 一个完整意思单元；段内 visual wrap 多行属于同一段。
         first_paragraph = r.preference.strip().split("\n\n")[0]
         print(f"  ▸ [{r.id}]")
@@ -504,7 +504,7 @@ def cmd_rule_list() -> int:
 
 def cmd_rule_edit() -> int:
     if not RULES_PATH.exists():
-        print("rules.yaml 不存在，先 'pinrule init'", file=sys.stderr)
+        print("rules.json 不存在，先 'pinrule init'", file=sys.stderr)
         return 1
     editor = os.environ.get("EDITOR", "vim")
     subprocess.run([editor, str(RULES_PATH)])
@@ -518,37 +518,37 @@ def cmd_rule_edit() -> int:
     return 0
 
 
-def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
-    """添加新 rule 到 rules.yaml — 测试通过才写入.
+def cmd_rule_add(json_path: str | None = None, stdin_json: bool = False) -> int:
+    """添加新 rule 到 rules.json — 测试通过才写入.
 
     用法:
-    - pinrule rule add --from-yaml <file>  # 从 yaml 文件读
-    - pinrule rule add --from-stdin        # 从 stdin 读 yaml (Claude Code skill 用)
+    - pinrule rule add --from-json <file>  # 从 JSON 文件读
+    - pinrule rule add --from-stdin        # 从 stdin 读 JSON (Claude Code skill 用)
 
     流程:
-    1. 读 yaml 输入 (一条新 rule 的 dict, 跟 rules.yaml 内单条格式一致)
+    1. 读 JSON 输入 (一条新 rule 的 dict, 跟 rules.json 内单条格式一致)
     2. Schema validate (用 pinrule.rule.load 一致的校验逻辑)
     3. 检测 id 是否跟现有 rule 重复
     4. 检测软上限 (10 条) / 硬上限 (12 条) 不超
     5. 如果含 violation_checks, 验证 check 函数在 REGISTRY 注册
-    6. 追加到 rules.yaml + 写回
+    6. 追加到 rules.json + 写回
     7. 反馈: 优化成什么 / 通过测试 / 当前规则库总数 / 是否有冲突建议删改
     """
-    import yaml
+    import json
     from pinrule.checks import REGISTRY as CHECK_REGISTRY
 
     # Step 1: 读 input
-    if stdin_yaml:
+    if stdin_json:
         raw = sys.stdin.read()
-    elif yaml_path:
-        p = Path(yaml_path)
+    elif json_path:
+        p = Path(json_path)
         if not p.exists():
-            print(f"❌ yaml 文件不存在: {yaml_path}", file=sys.stderr)
+            print(f"❌ JSON 文件不存在: {json_path}", file=sys.stderr)
             return 1
         raw = p.read_text(encoding="utf-8")
     else:
         print(
-            "用法: pinrule rule add --from-yaml <file>  或  --from-stdin\n"
+            "用法: pinrule rule add --from-json <file>  或  --from-stdin\n"
             "建议: 在 Claude / Codex / Cursor 里发 '/pinrule <自然语言描述>' 让 Agent "
             "用 pinrule skill 优化结构后调本命令",
             file=sys.stderr,
@@ -556,26 +556,26 @@ def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
         return 1
 
     try:
-        new_rule = yaml.safe_load(raw)
-    except yaml.YAMLError as e:
-        print(f"❌ YAML 解析失败: {e}", file=sys.stderr)
+        new_rule = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 解析失败: {e}", file=sys.stderr)
         return 1
 
     # 支持 dict (单条) 或 list (多条, 取第一条)
     if isinstance(new_rule, list):
         if not new_rule:
-            print("❌ yaml 是空 list", file=sys.stderr)
+            print("❌ JSON 是空 list", file=sys.stderr)
             return 1
         new_rule = new_rule[0]
 
     if not isinstance(new_rule, dict):
-        print(f"❌ 期望 yaml 是 dict (一条 rule), 实际 {type(new_rule).__name__}", file=sys.stderr)
+        print(f"❌ 期望 JSON 是 dict (一条 rule), 实际 {type(new_rule).__name__}", file=sys.stderr)
         return 1
 
     # Step 2: Schema validate (拼一个临时 list 复用 pinrule.rule.load 校验逻辑)
     import tempfile
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as tmp:
-        yaml.safe_dump([new_rule], tmp, allow_unicode=True, sort_keys=False)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+        json.dump([new_rule], tmp, ensure_ascii=False, indent=2)
         tmp_path = Path(tmp.name)
     try:
         try:
@@ -594,7 +594,7 @@ def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
     try:
         existing = load_rules()
     except RuleConfigError as e:
-        print(f"❌ 现有 rules.yaml 配置错误: {e}", file=sys.stderr)
+        print(f"❌ 现有 rules.json 配置错误: {e}", file=sys.stderr)
         return 1
 
     existing_ids = {r.id for r in existing}
@@ -619,18 +619,18 @@ def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
         )
         return 1
 
-    # Step 6: 追加写回 rules.yaml
+    # Step 6: 追加写回 rules.json
     try:
-        raw_existing = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8")) if RULES_PATH.exists() else []
-    except yaml.YAMLError as e:
-        print(f"❌ 读 rules.yaml 失败: {e}", file=sys.stderr)
+        raw_existing = json.loads(RULES_PATH.read_text(encoding="utf-8")) if RULES_PATH.exists() else []
+    except json.JSONDecodeError as e:
+        print(f"❌ 读 rules.json 失败: {e}", file=sys.stderr)
         return 1
     if not isinstance(raw_existing, list):
         raw_existing = []
     raw_existing.append(new_rule)
     RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
     RULES_PATH.write_text(
-        yaml.safe_dump(raw_existing, allow_unicode=True, sort_keys=False),
+        json.dumps(raw_existing, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -661,40 +661,40 @@ def cmd_rule_add(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
     return 0
 
 
-def cmd_rule_preview(yaml_path: str | None = None, stdin_yaml: bool = False) -> int:
+def cmd_rule_preview(json_path: str | None = None, stdin_json: bool = False) -> int:
     """预览新 rule 注入到头部的样子 — schema 校验 + 不写入.
 
     用 Claude Code skill 在让用户确认前调这个看效果.
     """
-    import yaml
+    import json
 
-    if stdin_yaml:
+    if stdin_json:
         raw = sys.stdin.read()
-    elif yaml_path:
-        p = Path(yaml_path)
+    elif json_path:
+        p = Path(json_path)
         if not p.exists():
-            print(f"❌ yaml 文件不存在: {yaml_path}", file=sys.stderr)
+            print(f"❌ JSON 文件不存在: {json_path}", file=sys.stderr)
             return 1
         raw = p.read_text(encoding="utf-8")
     else:
-        print("用法: pinrule rule preview --from-yaml <file>  或  --from-stdin", file=sys.stderr)
+        print("用法: pinrule rule preview --from-json <file>  或  --from-stdin", file=sys.stderr)
         return 1
 
     try:
-        new_rule = yaml.safe_load(raw)
-    except yaml.YAMLError as e:
-        print(f"❌ YAML 解析失败: {e}", file=sys.stderr)
+        new_rule = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON 解析失败: {e}", file=sys.stderr)
         return 1
 
     if isinstance(new_rule, list):
         if not new_rule:
-            print("❌ yaml 是空 list", file=sys.stderr)
+            print("❌ JSON 是空 list", file=sys.stderr)
             return 1
         new_rule = new_rule[0]
 
     import tempfile
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as tmp:
-        yaml.safe_dump([new_rule], tmp, allow_unicode=True, sort_keys=False)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+        json.dump([new_rule], tmp, ensure_ascii=False, indent=2)
         tmp_path = Path(tmp.name)
     try:
         try:
@@ -711,23 +711,23 @@ def cmd_rule_preview(yaml_path: str | None = None, stdin_yaml: bool = False) -> 
     print(format_for_injection(validated))
     print("--- end ---")
     print()
-    print("用 `pinrule rule add --from-yaml <file>` 写入 rules.yaml")
+    print("用 `pinrule rule add --from-json <file>` 写入 rules.json")
     return 0
 
 
 def cmd_rule_remove(rule_id: str) -> int:
-    """简单删除 — 读 yaml，过滤，写回。"""
-    import yaml
+    """简单删除 — 读 JSON，过滤，写回。"""
+    import json
     if not RULES_PATH.exists():
-        print("rules.yaml 不存在", file=sys.stderr)
+        print("rules.json 不存在", file=sys.stderr)
         return 1
-    raw = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8")) or []
+    raw = json.loads(RULES_PATH.read_text(encoding="utf-8")) or []
     filtered = [item for item in raw if item.get("id") != rule_id]
     if len(filtered) == len(raw):
         print(f"没找到 id={rule_id!r}", file=sys.stderr)
         return 1
     RULES_PATH.write_text(
-        yaml.safe_dump(filtered, allow_unicode=True, sort_keys=False),
+        json.dumps(filtered, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(f"已删除规则 {rule_id!r} ({len(filtered)} 条剩余)")
@@ -738,7 +738,7 @@ def cmd_reset_session() -> int:
     """清所有 session-state JSON — Agent 注意力漂移实验重启。
 
     用法场景：观察「干净 session 起步」vs「累积 N turn 后」Agent 行为差异。
-    不动 violations.jsonl（历史保留）+ 不动 rules.yaml / config.yaml。
+    不动 violations.jsonl（历史保留）+ 不动 rules.json / config.json。
     """
     from pinrule.session_state import DEFAULT_DIR as SS_DIR
     if not SS_DIR.exists():
@@ -758,7 +758,7 @@ def cmd_reset_session() -> int:
 def _check_file_last_commit_ts(sticky_id: str, sticky_list) -> int | None:
     """查 sticky 对应 check 文件最新 git commit 时间戳（dogfooding fix 时间线用）。
 
-    用 rules.yaml 的 violation_checks 字段反查 REGISTRY[func_name].__module__
+    用 rules.json 的 violation_checks 字段反查 REGISTRY[func_name].__module__
     → check 文件路径 → `git log -1 --format=%ct -- <path>`。
 
     返回 None 的情况：不在 pinrule 仓库 cwd / git 不可用 / sticky 没工程 check
@@ -1215,10 +1215,10 @@ def _sync_cursor_rules_if_installed() -> None:
 def cmd_doctor() -> int:
     print(f"pinrule v{__version__} doctor")
     print(f"  PINRULE_DIR: {PINRULE_DIR} ({'存在' if PINRULE_DIR.exists() else '不存在'})")
-    print(f"  rules.yaml: {RULES_PATH} ({'存在' if RULES_PATH.exists() else '不存在'})")
+    print(f"  rules.json: {RULES_PATH} ({'存在' if RULES_PATH.exists() else '不存在'})")
     print(f"  violations.jsonl: {VIOLATIONS_PATH} ({'存在' if VIOLATIONS_PATH.exists() else '不存在'})")
-    config_path = PINRULE_DIR / "config.yaml"
-    print(f"  config.yaml: {config_path} ({'存在' if config_path.exists() else '不存在 (用默认值)'})")
+    config_path = PINRULE_DIR / "config.json"
+    print(f"  config.json: {config_path} ({'存在' if config_path.exists() else '不存在 (用默认值)'})")
     # v0.5.16: skill 装机状态 — multi-backend, /pinrule <NL> 流程依赖
     print("  pinrule skill 装机 (多 backend):")
     from pinrule.backends import REGISTRY as _BACKENDS_FOR_SKILL
@@ -1492,7 +1492,7 @@ def cmd_sync_cursor_visibility() -> int:
 
 
 def cmd_sync_cursor_rules() -> int:
-    """把当前 rules.yaml 同步到 Cursor native alwaysApply rule 文件."""
+    """把当前 rules.json 同步到 Cursor native alwaysApply rule 文件."""
     from pinrule.cursor_rules_sync import sync_cursor_rules
 
     written, logs = sync_cursor_rules(user=True, project_root=Path.cwd())
@@ -1719,28 +1719,28 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             return cmd_rule_remove(args[1])
         if args[0] == "add":
-            # pinrule rule add --from-yaml <file>  或  --from-stdin
-            yaml_path = None
-            stdin_yaml = False
+            # pinrule rule add --from-json <file>  或  --from-stdin
+            json_path = None
+            stdin_json = False
             sub = args[1:]
             if "--from-stdin" in sub:
-                stdin_yaml = True
-            elif "--from-yaml" in sub:
-                idx = sub.index("--from-yaml")
+                stdin_json = True
+            elif "--from-json" in sub:
+                idx = sub.index("--from-json")
                 if idx + 1 < len(sub):
-                    yaml_path = sub[idx + 1]
-            return cmd_rule_add(yaml_path=yaml_path, stdin_yaml=stdin_yaml)
+                    json_path = sub[idx + 1]
+            return cmd_rule_add(json_path=json_path, stdin_json=stdin_json)
         if args[0] == "preview":
-            yaml_path = None
-            stdin_yaml = False
+            json_path = None
+            stdin_json = False
             sub = args[1:]
             if "--from-stdin" in sub:
-                stdin_yaml = True
-            elif "--from-yaml" in sub:
-                idx = sub.index("--from-yaml")
+                stdin_json = True
+            elif "--from-json" in sub:
+                idx = sub.index("--from-json")
                 if idx + 1 < len(sub):
-                    yaml_path = sub[idx + 1]
-            return cmd_rule_preview(yaml_path=yaml_path, stdin_yaml=stdin_yaml)
+                    json_path = sub[idx + 1]
+            return cmd_rule_preview(json_path=json_path, stdin_json=stdin_json)
         print(f"未知 {cmd} 子命令: {args[0]}", file=sys.stderr)
         return 1
     if cmd == "violations":

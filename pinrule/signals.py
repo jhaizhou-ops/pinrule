@@ -30,12 +30,11 @@ pinrule 的 regex 检测对象是「用户跟 Agent 的对话文本」— 用户
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from functools import lru_cache
 from itertools import product
 from pathlib import Path
-
-import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SIGNALS_DIR = _REPO_ROOT / "data" / "signals"
@@ -54,22 +53,27 @@ def _read_lines(path: Path) -> list[str]:
     return out
 
 
-def _expand_yaml_signals(path: Path) -> list[str]:
-    """读 .yaml 信号文件，展开 cartesian + 加平面 phrases。
+def _expand_python_signals(path: Path) -> list[str]:
+    """读 .py 信号模块（取 `DATA` dict），展开 cartesian + 加平面 phrases。
 
-    yaml schema:
+    模块 schema (DATA dict):
       templates: list of pattern strings with {placeholder} tokens
       <plural_name>: list of values to fill (e.g. subjects / verbs)
       phrases: list of non-cartesian flat phrases
 
-    模板占位符 `{subject}` 自动匹配复数 yaml 字段 `subjects`（DSL 约定：
-    模板里用单数语义读起来自然，yaml list 字段用复数命名是惯例）。
+    模板占位符 `{subject}` 自动匹配复数字段 `subjects`（DSL 约定：
+    模板里用单数语义读起来自然，list 字段用复数命名是惯例）。
 
     返回展开后的字眼列表（templates × cartesian + phrases），去重保序。
     """
     if not path.exists():
         return []
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    spec = importlib.util.spec_from_file_location(f"_pinrule_signal_{path.stem}", path)
+    if spec is None or spec.loader is None:
+        return []
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    data = getattr(module, "DATA", None) or {}
     if not isinstance(data, dict):
         return []
 
@@ -158,24 +162,20 @@ def load_phrases(signal_name: str) -> tuple[str, ...]:
 
 @lru_cache(maxsize=None)
 def load_patterns(signal_name: str) -> tuple[str, ...]:
-    """加载某信号下 `.yaml` 文件的「raw regex pattern」union (v0.8.1)。
+    """加载某信号下 `.py` 模块的「raw regex pattern」union (v0.17.0+)。
 
-    yaml templates 字段可含 regex 元字符（`\\s+` `\\s*` 等），cartesian
-    展开后得到的字眼**保留**为 regex pattern（不被 escape）。
+    Python 模块 `DATA` dict 里 templates 字段可含 regex 元字符（`\\s+` `\\s*` 等），
+    cartesian 展开后得到的字眼**保留**为 regex pattern（不被 escape）。
     """
     signal_dir = _SIGNALS_DIR / signal_name
     if not signal_dir.is_dir():
         return ()
     seen: set[str] = set()
     out: list[str] = []
-    for lang_file in sorted(signal_dir.glob("*.yaml")):
-        for phrase in _expand_yaml_signals(lang_file):
-            if phrase in seen:
-                continue
-            seen.add(phrase)
-            out.append(phrase)
-    for lang_file in sorted(signal_dir.glob("*.yml")):
-        for phrase in _expand_yaml_signals(lang_file):
+    for lang_file in sorted(signal_dir.glob("*.py")):
+        if lang_file.name.startswith("_") or lang_file.name == "__init__.py":
+            continue
+        for phrase in _expand_python_signals(lang_file):
             if phrase in seen:
                 continue
             seen.add(phrase)
@@ -188,7 +188,7 @@ def compile_alternation(signal_name: str, *, flags: int = re.IGNORECASE) -> re.P
     """把某信号的所有字眼 + yaml 模板编译成 `(?:a|b|c)` regex。
 
     - `.txt` 字面字眼 → `re.escape` 后加入 alternation（防特殊字符当 regex 元字符）
-    - `.yaml` 模板展开的 pattern → **不 escape**，直接当 regex 字面（支持 `\\s+` 等）
+    - `.py` 模板展开的 pattern → **不 escape**，直接当 regex 字面（支持 `\\s+` 等）
     - 全部按长度倒序排（贪婪匹配长字眼优先，避免 `OK` 抢 `OK 了` 前面命中）
     - 空集合返回永远不匹配的 pattern
     """

@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import json
 
 from pinrule.config import DEFAULTS, get, load
 
 
 def test_load_missing_returns_defaults(tmp_path):
-    cfg = load(tmp_path / "no.yaml")
+    cfg = load(tmp_path / "no.json")
     assert cfg == DEFAULTS
 
 
 def test_load_partial_user_config_merges_with_defaults(tmp_path):
     """用户只配了部分字段 → 其他字段用 DEFAULTS。"""
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: false\nescalate_threshold: 5\n")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": False, "escalate_threshold": 5}))
     cfg = load(p)
     assert cfg["notify_enabled"] is False
     assert cfg["escalate_threshold"] == 5
@@ -24,23 +25,23 @@ def test_load_partial_user_config_merges_with_defaults(tmp_path):
 
 def test_load_unknown_field_ignored(tmp_path):
     """不认识的字段忽略 — 不报错，DEFAULTS 不被污染。"""
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: false\nweird_field: 42\n")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": False, "weird_field": 42}))
     cfg = load(p)
     assert cfg["notify_enabled"] is False
     assert "weird_field" not in cfg
 
 
-def test_load_bad_yaml_returns_defaults(tmp_path):
-    """yaml 解析失败 → 返回 DEFAULTS，不抛错（fail open）。"""
-    p = tmp_path / "config.yaml"
-    p.write_text("not: [valid yaml: {{ broken")
+def test_load_bad_json_returns_defaults(tmp_path):
+    """JSON 解析失败 → 返回 DEFAULTS，不抛错（fail open）。"""
+    p = tmp_path / "config.json"
+    p.write_text("not: [valid json: {{ broken")
     cfg = load(p)
     assert cfg == DEFAULTS
 
 
 def test_load_empty_file_returns_defaults(tmp_path):
-    p = tmp_path / "config.yaml"
+    p = tmp_path / "config.json"
     p.write_text("")
     cfg = load(p)
     assert cfg == DEFAULTS
@@ -48,16 +49,16 @@ def test_load_empty_file_returns_defaults(tmp_path):
 
 def test_load_null_value_uses_default(tmp_path):
     """user_cfg 字段值为 null → 用 default 不覆盖。"""
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: null\nescalate_threshold: 5\n")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": None, "escalate_threshold": 5}))
     cfg = load(p)
     assert cfg["notify_enabled"] is True  # null 不覆盖 DEFAULTS
     assert cfg["escalate_threshold"] == 5
 
 
 def test_get_returns_single_field(tmp_path):
-    p = tmp_path / "config.yaml"
-    p.write_text("escalate_threshold: 7\n")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"escalate_threshold": 7}))
     assert get("escalate_threshold", p) == 7
     assert get("notify_enabled", p) == DEFAULTS["notify_enabled"]
 
@@ -65,7 +66,7 @@ def test_get_returns_single_field(tmp_path):
 def test_reinject_every_n_tokens_in_defaults_and_user_override(tmp_path):
     """v0.9.16: reinject_every_n_tokens 必须在 DEFAULTS — load() 只认 DEFAULTS keys.
 
-    之前漏 DEFAULTS 让用户 config.yaml 写 reinject_every_n_tokens: 4000 也被
+    之前漏 DEFAULTS 让用户 config.json 写 reinject_every_n_tokens: 4000 也被
     load() 的「for key in DEFAULTS」循环静默丢弃 → 用户调阈值不生效.
     """
     # DEFAULTS 有这个 key
@@ -73,7 +74,7 @@ def test_reinject_every_n_tokens_in_defaults_and_user_override(tmp_path):
     assert DEFAULTS["reinject_every_n_tokens"] is None  # 默认 None → 按模型自适应
 
     # 用户写数字必须被读到
-    p = tmp_path / "config.yaml"
-    p.write_text("reinject_every_n_tokens: 4000\n")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"reinject_every_n_tokens": 4000}))
     cfg = load(p)
     assert cfg["reinject_every_n_tokens"] == 4000

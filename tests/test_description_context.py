@@ -28,7 +28,7 @@ def test_pinrule_impl_files_are_description():
 
 def test_data_config_files_are_description():
     """yaml/json/toml 等数据文件 — 内容是描述性数据不是执行字面。"""
-    assert is_description_context("Write", {"file_path": "/x/sticky.yaml"})[0]
+    assert is_description_context("Write", {"file_path": "/x/sticky.json"})[0]
     assert is_description_context("Write", {"file_path": "/x/config.yml"})[0]
     assert is_description_context("Write", {"file_path": "/x/data.json"})[0]
     assert is_description_context("Write", {"file_path": "/x/pyproject.toml"})[0]

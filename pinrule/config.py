@@ -24,11 +24,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import yaml
+import json
 
 from pinrule.paths import pinrule_home
 
-DEFAULT_PATH = pinrule_home() / "config.yaml"
+DEFAULT_PATH = pinrule_home() / "config.json"
 
 DEFAULTS: dict[str, Any] = {
     # v0.5.2 i18n: user-visible text locale ("en" default; "zh" / "auto")
@@ -69,8 +69,8 @@ def load(path: Path | None = None) -> dict[str, Any]:
     if not path.exists():
         return cfg
     try:
-        user_cfg = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (yaml.YAMLError, OSError):
+        user_cfg = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
         return cfg
     if not isinstance(user_cfg, dict):
         return cfg

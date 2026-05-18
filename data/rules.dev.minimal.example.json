@@ -1,0 +1,74 @@
+[
+  {
+    "id": "long-term-fundamental",
+    "preference": "The user trusts you to dig into root causes. When facing hard problems\nthey want you to pause and think \"what's the cleanest solution?\"\nrather than \"what's the fastest patch?\" Short-term patches /\nhardcoding / skip-verification flags are all \"technical debt for later\" —\nthey're willing to wait a few more minutes for long-term quality.\nIf the approach has significant disagreement, raise it for alignment;\ndon't silently pick the short-term path.\n",
+    "violation_keywords": [
+      "I'll patch this quickly",
+      "let me patch and apply",
+      "I'll hardcode",
+      "let me hardcode this",
+      "I'll workaround",
+      "let me use workaround",
+      "let's just do this for now",
+      "temporary solution",
+      "let me hack"
+    ],
+    "violation_checks": [
+      "long_term_fundamental"
+    ]
+  },
+  {
+    "id": "non-blocking-parallel",
+    "preference": "During sleep / wait / long-task execution, the user is waiting for your\noutput. Staring at a progress bar isn't collaboration — it's \"stuck.\"\nAfter kicking off a background task, immediately push the next thing\nthat can be done (read related files / spawn another sub-agent / design\nnext step) — you'll be notified when the task completes. Multiple\nindependent tasks prefer parallel kick-off, don't serialize.\n",
+    "violation_keywords": [
+      "I'll wait for the tests",
+      "I'll now wait for tests",
+      "I'll wait for the subagent",
+      "I'll now wait for subagent",
+      "serial execution",
+      "I'll wait",
+      "let me wait",
+      "I'm watching",
+      "I'm staring at it"
+    ],
+    "violation_checks": [
+      "non_blocking_parallel"
+    ],
+    "force_block_exempt": true
+  },
+  {
+    "id": "loud-failure-with-evidence",
+    "preference": "The user trusts you, but \"should / probably\" leaves them uncertain\nwhether you've actually checked or are guessing.\nWhen completing code tasks, attach test-pass / build-OK / data /\nscreenshot evidence so they can directly see the result.\nSkipped some step / used mocks / fake data — honestly state it\nrather than fake completion; this builds more trust than pretending.\nLoud failure beats quiet covering-up — they need to know the real\nstate to collaborate with you.\n",
+    "violation_keywords": [
+      "skipped",
+      "temporary fake data",
+      "temporary mock"
+    ],
+    "violation_checks": [
+      "loud_failure_with_evidence"
+    ]
+  },
+  {
+    "id": "read-before-write",
+    "preference": "Before changing code, see how this block is used — upstream callers /\nexports / shared utils / existing conventions.\n\"Looks unrelated\" is the easiest mistake — usually means you haven't\nread enough context.\nThe user wants you to spend 2 minutes reading related code to avoid\nbreaking a 30-minute-discovered cascading bug.\nBefore changing any module, ask yourself: what's it coupled with,\nwho's affected by changes, is there an upstream location to fix\nit once and for all?\n",
+    "violation_keywords": [
+      "looks unrelated",
+      "shouldn't affect other"
+    ],
+    "violation_checks": [
+      "read_before_write"
+    ]
+  },
+  {
+    "id": "deep-fix-not-bypass",
+    "preference": "When pinrule blocks you, first reaction shouldn't be \"bypass\" — pause\nand read the trigger text, think whether it's a real violation or\npinrule's own bug. Manually modifying session-state to make commit pass\n/ temporarily changing rules.yaml to disable the rule / hacking\nliterals to bypass detection — these are all \"performing for the user,\"\nshort-term passing but they'll find out.\nThe correct flow when blocked: see trigger → dig into pattern or\nsystem bug → fix root cause (tighten pattern if too wide, fix system\nbug if pinrule's own issue). This way the next person hitting the same\nscenario won't be blocked the same way.\nException: user explicitly says \"bypass once for this commit\" → only\nthen bypass.\n",
+    "violation_keywords": [
+      "force evidence",
+      "manually inject",
+      "hack to make commit"
+    ],
+    "violation_checks": [
+      "bypass_pinrule_detection"
+    ]
+  }
+]

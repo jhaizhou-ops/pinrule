@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import json
+
 
 from pinrule.config import DEFAULTS, get, load
 
@@ -106,23 +108,23 @@ def test_defaults_reinject_every_n_tokens_is_none():
 
 def test_load_bool_false_overrides_default(tmp_path):
     """notify_enabled 默认 True，用户设 false → 应覆盖为 False。"""
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: false\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": False}), encoding="utf-8")
     cfg = load(p)
     assert cfg["notify_enabled"] is False
 
 
 def test_load_bool_true_stays_true(tmp_path):
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: true\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": True}), encoding="utf-8")
     cfg = load(p)
     assert cfg["notify_enabled"] is True
 
 
 def test_load_null_does_not_override_default(tmp_path):
     """null 值 → 用 DEFAULTS，不把字段设为 None。"""
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: null\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": None}), encoding="utf-8")
     cfg = load(p)
     assert cfg["notify_enabled"] is True  # DEFAULTS 中是 True
 
@@ -132,8 +134,8 @@ def test_load_null_does_not_override_default(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_integer_override(tmp_path):
-    p = tmp_path / "config.yaml"
-    p.write_text("escalate_threshold: 10\nstop_block_max_per_turn: 0\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"escalate_threshold": 10, "stop_block_max_per_turn": 0}), encoding="utf-8")
     cfg = load(p)
     assert cfg["escalate_threshold"] == 10
     assert cfg["stop_block_max_per_turn"] == 0
@@ -144,8 +146,8 @@ def test_load_integer_override(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_none_default_overridden_by_integer(tmp_path):
-    p = tmp_path / "config.yaml"
-    p.write_text("reinject_every_n_tokens: 4000\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"reinject_every_n_tokens": 4000}), encoding="utf-8")
     cfg = load(p)
     assert cfg["reinject_every_n_tokens"] == 4000
 
@@ -165,21 +167,21 @@ def test_defaults_all_scalar_values():
 # ---------------------------------------------------------------------------
 
 def test_get_returns_user_value_when_overridden(tmp_path):
-    p = tmp_path / "config.yaml"
-    p.write_text("escalate_threshold: 99\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"escalate_threshold": 99}), encoding="utf-8")
     assert get("escalate_threshold", p) == 99
 
 
 def test_get_returns_default_for_missing_key(tmp_path):
-    p = tmp_path / "config.yaml"
-    p.write_text("notify_enabled: false\n", encoding="utf-8")
+    p = tmp_path / "config.json"
+    p.write_text(json.dumps({"notify_enabled": False}), encoding="utf-8")
     # escalate_threshold 未在配置中，返回 DEFAULTS 值
     assert get("escalate_threshold", p) == DEFAULTS["escalate_threshold"]
 
 
 def test_get_returns_none_for_truly_unknown_key(tmp_path):
     """完全不存在的 key → get() 返回 None（不报错）。"""
-    p = tmp_path / "config.yaml"
+    p = tmp_path / "config.json"
     p.write_text("", encoding="utf-8")
     result = get("this_key_does_not_exist", p)
     assert result is None
@@ -190,7 +192,7 @@ def test_get_returns_none_for_truly_unknown_key(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_returns_copy_not_defaults_reference(tmp_path):
-    p = tmp_path / "config.yaml"
+    p = tmp_path / "config.json"
     p.write_text("", encoding="utf-8")
     cfg = load(p)
     cfg["escalate_threshold"] = 9999
@@ -202,7 +204,7 @@ def test_load_returns_copy_not_defaults_reference(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_load_contains_all_defaults_keys(tmp_path):
-    p = tmp_path / "config.yaml"
+    p = tmp_path / "config.json"
     p.write_text("", encoding="utf-8")
     cfg = load(p)
     for key in DEFAULTS:

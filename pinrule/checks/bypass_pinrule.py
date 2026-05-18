@@ -48,8 +48,8 @@ def _build_state_path_re() -> re.Pattern[str]:
     - `PINRULE_HOME` env 隔离 mode（跨用户 / CI / 多 profile）：加 PINRULE_HOME 实际
       绝对路径 + 如果在 home 下还加 `~/<rel>` 字面兼容
 
-    文件名集合涵盖 `rules.yaml`（v0.6.0+ 主名）+ `sticky.yaml`（旧用户兼容路径）
-    + `session-state` + `violations.jsonl`。
+    文件名集合涵盖 `rules.json` + `config.json` + `session-state` + `violations.jsonl`。
+    v0.17.0 起 pinrule 0 runtime deps, 配置/规则文件全 JSON.
 
     `pinrule_home()` 在 import 时 freeze（paths.py docstring 已明确这点 — `PINRULE_HOME`
     必须在 hook 子进程启动前 set），所以 module-level 编译一次即可。
@@ -69,7 +69,7 @@ def _build_state_path_re() -> re.Pattern[str]:
         except ValueError:
             pass
 
-    files = r"(?:session-state|violations\.jsonl|rules\.yaml|sticky\.yaml)"
+    files = r"(?:session-state|violations\.jsonl|rules\.json|config\.json)"
     return re.compile(rf"(?:{'|'.join(paths)})/{files}", re.IGNORECASE)
 
 

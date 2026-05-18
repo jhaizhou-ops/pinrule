@@ -1,0 +1,8 @@
+"""Push-signal cartesian templates + vocab + flat phrases.
+
+Auto-loaded by pinrule.signals._expand_signals() for lang='en'.
+Templates use {placeholder} tokens; placeholders resolve against same-name
+list fields (or plural form: {subject} → "subjects" field).
+"""
+
+DATA = {'templates': ['{subject}\\s+{verb}'], 'subjects': ["I'll", 'I will', 'I am going to', "I'm going to", 'I am about to', "I'm about to", 'Let me', "Next I'll", 'Next I will', "Next, I'll", 'Next, let me', "Now I'll", 'Now let me', 'Going to', 'About to', 'Continuing to', 'Moving on to', 'Proceeding to', 'Will now'], 'verbs': ['proceed', 'start', 'begin', 'fix', 'add', 'change', 'modify', 'patch', 'apply', 'run', 'test', 'verify', 'check', 'inspect', 'look at', 'read', 'examine', 'commit', 'push', 'implement', 'build', 'deploy', 'investigate', 'debug', 'tackle', 'handle', 'work on', 'finish', 'continue', 'keep going', 'keep pushing', 'resolve', 'try', 'attempt'], 'phrases': ['keep pushing', 'keep going', 'keep moving', 'moving forward', 'moving on', 'moving on to the next', 'on to the next', 'on to next', 'tackling next', 'next push point', 'next step is', 'next steps are', 'the next step', 'the next thing', 'following step', 'to be continued with', 'picking this up', 'will resume', 'will continue', 'will pick up', 'up next', 'candidate list', 'candidate queue', 'going to try', 'going to start', 'going to fix', 'going to add', 'going to test', 'going to verify', 'going to check', 'going to commit', 'going to push', 'taking the next step', 'taking the next action', 'kicking off', 'rolling on to', 'rolling on', 'shifting to', 'turning to', 'heading to', 'heading into']}

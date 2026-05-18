@@ -1,7 +1,7 @@
 [project]
 name = "pinrule"
-version = "0.16.18"
-description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor, pure engineering, zero LLM, ~50-70ms hook latency"
+version = "0.17.0"
+description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor, pure engineering, zero LLM, zero runtime deps, ~50-70ms hook latency"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "jhz" }]
@@ -14,18 +14,16 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
-    # v0.16.17: Windows native 支持 — hook command 改成 `python.exe wrapper.py`
-    # 显式启 interpreter (不再依赖 Unix shebang); CI matrix 加 windows-latest
-    # runner verify; 16 个 sandbox + Windows lockdown 测试守住跨平台承诺.
+    # v0.17.0: 0 runtime deps — 砍 PyYAML, 全切 JSON (Python 标准库).
+    # v0.16.17: Windows native 支持 — hook command `python.exe wrapper.py`.
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Utilities",
 ]
-dependencies = [
-    "pyyaml>=6.0",
-]
+# v0.17.0: 0 runtime deps. JSON / importlib 都是 Python 标准库.
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/jhaizhou-ops/pinrule"
@@ -53,13 +51,13 @@ packages = ["pinrule"]
 artifacts = ["data/*.yaml"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"data/rules.dev.example.yaml" = "data/rules.dev.example.yaml"
-"data/rules.dev.example.zh.yaml" = "data/rules.dev.example.zh.yaml"
-"data/rules.dev.minimal.example.yaml" = "data/rules.dev.minimal.example.yaml"
-"data/rules.dev.minimal.example.zh.yaml" = "data/rules.dev.minimal.example.zh.yaml"
-"data/locales/en.yaml" = "data/locales/en.yaml"
-"data/locales/zh.yaml" = "data/locales/zh.yaml"
-"data/config.example.yaml" = "data/config.example.yaml"
+"data/rules.dev.example.json" = "data/rules.dev.example.json"
+"data/rules.dev.example.zh.json" = "data/rules.dev.example.zh.json"
+"data/rules.dev.minimal.example.json" = "data/rules.dev.minimal.example.json"
+"data/rules.dev.minimal.example.zh.json" = "data/rules.dev.minimal.example.zh.json"
+"data/locales/en.json" = "data/locales/en.json"
+"data/locales/zh.json" = "data/locales/zh.json"
+"data/config.example.json" = "data/config.example.json"
 # v0.9.15 critical fix (caught by GPT-5.5 full-repo review): data/signals/ 整个
 # 目录之前漏 force-include. signals.py:40 固定读 _REPO_ROOT/data/signals，
 # 源码树测试 OK 但 pip install 后 wheel 缺 → compile_alternation() 全 never-match

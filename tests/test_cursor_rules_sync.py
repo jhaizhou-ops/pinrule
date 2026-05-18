@@ -1,6 +1,6 @@
 """Tests for pinrule.cursor_rules_sync."""
 
-
+import json
 
 from pinrule.cursor_rules_sync import build_mdc_content, sync_cursor_rules
 
@@ -13,10 +13,10 @@ def test_build_mdc_content_always_apply():
 
 
 def test_sync_cursor_rules_writes_user_dir(monkeypatch, tmp_path):
-    rules_file = tmp_path / "rules.yaml"
+    rules_file = tmp_path / "rules.json"
     monkeypatch.setattr("pinrule.rule.DEFAULT_PATH", rules_file)
     rules_file.write_text(
-        "- id: test-rule\n  preference: |\n    Do the right thing.\n",
+        json.dumps([{"id": "test-rule", "preference": "Do the right thing."}], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     rules_dir = tmp_path / "rules"

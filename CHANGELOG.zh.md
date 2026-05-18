@@ -8,6 +8,8 @@ v0.5.1 起双语发布. v0.1.0 – v0.4.x 早期历史只在本中文 CHANGELOG.
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-05-18 — ⚠️ BREAKING — **0 运行时依赖**. 砍 PyYAML; 全部 config / rules / locales / examples 从 YAML 切 JSON (Python 标准库). `push_signals/{en,zh}.yaml` cartesian 模板转 Python 模块 (`{en,zh}.py`) — 嵌套模板数据用 Python 比 JSON 语义更清晰. CLI flag 改名 `--from-yaml` → `--from-json`. 配置/状态文件: `~/.pinrule/config.yaml` → `config.json`, `rules.yaml` → `rules.json`. 不自动迁移: 这是一次性 breaking 重启, 重装即可. 为什么这么做: dogfood 反馈发现 YAML 多行字符串 + 注释友好度没在被消费 — 规则是 LLM 通过 `pinrule rule add` 维护的, 不是手工编辑. 净收益: README 终于能写「0 运行时依赖」, wheel 体积更小, pip 装更快, 少一个版本冲突风险源.
+
 ## [0.16.18] — 2026-05-18 — **Windows 中文 GBK 控制台修复** (真用户 dogfood issue): `pinrule init` 在中文 Windows 默认控制台不再 `UnicodeEncodeError: 'gbk' codec can't encode character '▸'` 崩. 加 `pinrule/_io_encoding.py::force_utf8_stdio()` 共享 helper, 在每个 entry point (`__main__` / `cli.main()` / hook wrapper) 强制 stdout/stderr UTF-8. CI 加 Windows GBK 默认控制台 smoke test step (不设 PYTHONIOENCODING) 锁死回归. 同步修: `settings.json.before-pinrule` fresh-install 路径之前漏写空标记导致后续 backup 会保存 pinrule-修改过的 state (uninstall 路径实际坏了); init 自动装 hook 措辞改成「给所有检测到的客户端补装」; README 一行命令砍成 `pip install pinrule && pinrule init` (init 自动跑 install-hooks).
 
 ## [0.16.17] — 2026-05-18 — **Windows 原生支持**. Hook command 从裸 `wrapper-path` (依赖 Unix shebang) 改成 `python.exe wrapper-path` 走 `subprocess.list2cmdline` — 跨平台, 含空格 path 自动 quote. CI matrix 加 `windows-latest`; 3 个新 lockdown 测试覆盖 sys.executable 前缀 + 空格 quote + 三家 backend 一致性 (857 测).

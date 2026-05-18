@@ -193,7 +193,7 @@ class CursorBackend(JsonHooksBackend):
 
         注: pinrule 主功能 (sticky 规则注入 + 行为拦截) **不依赖 skill** — skill 只是
         给「用户用自然语言加新规则」走捷径. Cursor 用户没 skill 也能用 pinrule 全部
-        核心能力, 加规则改走 `pinrule rule add --from-yaml` 或手工编辑 rules.yaml.
+        核心能力, 加规则改走 `pinrule rule add --from-json` 或手工编辑 rules.json.
         """
         return []
 
@@ -220,7 +220,7 @@ class CursorBackend(JsonHooksBackend):
             "        mkdir -p .cursor/skills/pinrule",
             "        cp $(python -c \"import pinrule; print(pinrule.__path__[0])\")/../skills/pinrule/SKILL.md .cursor/skills/pinrule/",
             "",
-            "    替代路径 (推荐): `pinrule rule add --from-yaml /tmp/rule.yaml` 直接",
+            "    替代路径 (推荐): `pinrule rule add --from-json /tmp/rule.json` 直接",
             "    走 CLI 加规则, 不依赖 IDE skill 机制. pinrule 主流程通过 hooks.json",
             "    跑, 跟 skill 解耦.",
         ])

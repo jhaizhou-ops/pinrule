@@ -24,7 +24,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import yaml
+import json
 
 # data/locales/ relative to package root
 _LOCALES_DIR = Path(__file__).parent.parent / "data" / "locales"
@@ -62,12 +62,12 @@ def _resolve_locale() -> str:
 @lru_cache(maxsize=4)
 def _load_locale_dict(lang: str) -> dict[str, Any]:
     """Load translations for given lang. Returns empty dict if missing."""
-    path = _LOCALES_DIR / f"{lang}.yaml"
+    path = _LOCALES_DIR / f"{lang}.json"
     if not path.exists():
         return {}
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (yaml.YAMLError, OSError):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
         return {}
     if not isinstance(raw, dict):
         return {}

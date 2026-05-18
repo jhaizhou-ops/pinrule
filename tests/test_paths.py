@@ -72,11 +72,11 @@ print(PINRULE_DIR)
 """,
     )
     lines = out.splitlines()
-    # v0.5.0 起 sticky.yaml → rules.yaml（向后兼容 fallback 还在）
-    assert _normpath(lines[0]) == "/tmp/pinrule-multi-mod/rules.yaml"
+    # v0.5.0 起 sticky.json → rules.json（向后兼容 fallback 还在）
+    assert _normpath(lines[0]) == "/tmp/pinrule-multi-mod/rules.json"
     assert _normpath(lines[1]) == "/tmp/pinrule-multi-mod/violations.jsonl"
     assert _normpath(lines[2]) == "/tmp/pinrule-multi-mod/session-state"
-    assert _normpath(lines[3]) == "/tmp/pinrule-multi-mod/config.yaml"
+    assert _normpath(lines[3]) == "/tmp/pinrule-multi-mod/config.json"
     assert _normpath(lines[4]) == "/tmp/pinrule-multi-mod"
 
 
