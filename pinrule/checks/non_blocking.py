@@ -91,7 +91,7 @@ _LONG_TASK_RE = re.compile(
 # 复用 common.strip_shell_quoted_literals — 跟关键词层统一剥引号逻辑
 
 
-def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
+def check(*, tool_name: str = "", tool_input: dict | None = None, rule_id: str = "", **_):
     if tool_name != "Bash":
         return None
     cmd_raw = (tool_input or {}).get("command", "") or ""
@@ -104,7 +104,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         timeout_ms = tool_input.get("timeout")
         if isinstance(timeout_ms, (int, float)) and timeout_ms >= 30_000:
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr(
                     "check.non_blocking.cursor_timeout.trigger",
                     ms=int(timeout_ms),
@@ -116,7 +116,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         block_ms = tool_input.get("block_until_ms")
         if isinstance(block_ms, (int, float)) and block_ms >= 30_000:
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr(
                     "check.non_blocking.cursor_timeout.trigger",
                     ms=int(block_ms),
@@ -144,7 +144,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         m_block = _PYTHON_REAL_BLOCK_RE.search(cmd)
         if m_block:
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr("check.non_blocking.python_block.trigger", call=m_block.group()),
                 trigger_key="check.non_blocking.python_block.trigger",
                 snippet=cmd_raw[:200],
@@ -154,7 +154,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     m = _SLEEP_RE.search(cmd)
     if m and not is_lang_c:
         return CheckHit(
-            rule_id=_STICKY_ID,
+            rule_id=rule_id or _STICKY_ID,
             trigger=tr("check.non_blocking.sleep.trigger", cmd=m.group()),
             trigger_key="check.non_blocking.sleep.trigger",
             snippet=cmd_raw[:200],
@@ -165,7 +165,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     # 等 identifier 字面命中 \bwait\b 是假阳。同 sleep 根因。
     if _is_blocking_wait(cmd) and not is_lang_c:
         return CheckHit(
-            rule_id=_STICKY_ID,
+            rule_id=rule_id or _STICKY_ID,
             trigger=tr("check.non_blocking.wait.trigger"),
             trigger_key="check.non_blocking.wait.trigger",
             snippet=cmd_raw[:200],
@@ -176,7 +176,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
     m = _LONG_TASK_RE.search(cmd)
     if m and not is_bg and "&" not in cmd:
         return CheckHit(
-            rule_id=_STICKY_ID,
+            rule_id=rule_id or _STICKY_ID,
             trigger=tr("check.non_blocking.long_task.trigger", cmd=m.group()),
             trigger_key="check.non_blocking.long_task.trigger",
             snippet=cmd_raw[:200],

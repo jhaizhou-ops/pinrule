@@ -13,21 +13,53 @@ import re
 from pathlib import Path
 
 
+def _cursor_logs_root() -> Path | None:
+    """跨平台 Cursor logs 根目录 — v0.18.1 (Codex A + Claude C Round 1 抓的 P1):
+    之前只 hardcode macOS 路径, Linux/Windows Cursor 桌面用户静默无 advisory.
+
+    Cursor 桌面应用 logs 位置 (基于 Electron app 通用约定):
+    - macOS: ~/Library/Application Support/Cursor/logs
+    - Linux: ~/.config/Cursor/logs
+    - Windows: %APPDATA%/Cursor/logs (resolves to ~/AppData/Roaming/Cursor/logs)
+    """
+    import platform
+    import os as _os
+    system = platform.system()
+    if system == "Darwin":
+        root = Path.home() / "Library" / "Application Support" / "Cursor" / "logs"
+    elif system == "Linux":
+        root = Path.home() / ".config" / "Cursor" / "logs"
+    elif system == "Windows":
+        appdata = _os.environ.get("APPDATA")
+        if appdata:
+            root = Path(appdata) / "Cursor" / "logs"
+        else:
+            root = Path.home() / "AppData" / "Roaming" / "Cursor" / "logs"
+    else:
+        return None
+    return root if root.is_dir() else None
+
+
 def _latest_hooks_log() -> Path | None:
-    logs_root = Path.home() / "Library" / "Application Support" / "Cursor" / "logs"
-    if not logs_root.is_dir():
+    logs_root = _cursor_logs_root()
+    if logs_root is None:
         return None
     candidates = sorted(logs_root.glob("**/cursor.hooks*.log"), key=lambda p: p.stat().st_mtime)
     return candidates[-1] if candidates else None
 
 
 def _parse_hook_log(path: Path) -> dict[str, dict[str, int]]:
-    """Return {event_name: {"set": n, "null": n}} from INPUT blocks."""
+    """Return {event_name: {"set": n, "null": n}} from INPUT blocks.
+
+    v0.18.1 (Codex A Round 1): regex 真接受跨平台 transcript_path —
+    POSIX 绝对路径 ("/...") + Windows 带盘符 ("C:\\..." 在 JSON 真 escape 成 "C:\\\\...").
+    """
     text = path.read_text(encoding="utf-8", errors="replace")
     stats: dict[str, dict[str, int]] = {}
     for chunk in text.split("INPUT")[1:]:
         ev_m = re.search(r'"hook_event_name"\s*:\s*"([^"]+)"', chunk)
-        tp_m = re.search(r'"transcript_path"\s*:\s*(null|"/[^"]+")', chunk)
+        # 接受 null / POSIX "/..." / Windows "C:\\..." (JSON 真 escape 双反斜杠)
+        tp_m = re.search(r'"transcript_path"\s*:\s*(null|"[^"]+")', chunk)
         if not ev_m or not tp_m:
             continue
         ev = ev_m.group(1)

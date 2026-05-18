@@ -78,7 +78,7 @@ _PATTERNS = [
 ]
 
 
-def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
+def check(*, tool_name: str = "", tool_input: dict | None = None, rule_id: str = "", **_):
     if tool_name not in ("Bash", "Write", "Edit", "NotebookEdit"):
         return None
     # 描述上下文（文档 / 测试目录 / 探针文件）整段豁免
@@ -101,7 +101,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, **_):
         if m:
             snippet = text[max(0, m.start() - 30): m.end() + 30]
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr(trigger_key),
                 trigger_key=trigger_key,
                 snippet=snippet[:200],

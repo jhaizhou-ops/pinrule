@@ -17,7 +17,7 @@ from pinrule.i18n import tr
 _STICKY_ID = "read-before-write"
 
 
-def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=None, **_):
+def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=None, rule_id: str = "", **_):
     if tool_name not in ("Edit", "Write"):
         return None
     if session_state is None:
@@ -45,7 +45,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
                 # 用 tool_name (caller 传入) 不写死 apply_patch 字面 — 让通用层
                 # backend-neutral（未来某 backend 也用多文件 envelope 复用同条 check）
                 return CheckHit(
-                    rule_id=_STICKY_ID,
+                    rule_id=rule_id or _STICKY_ID,
                     trigger=tr("check.read_first.trigger", tool=tool_name, file_path=path),
                     trigger_key="check.read_first.trigger",
                     snippet=f"{tool_name}({path!r})",
@@ -69,7 +69,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
         return None
 
     return CheckHit(
-        rule_id=_STICKY_ID,
+        rule_id=rule_id or _STICKY_ID,
         trigger=tr("check.read_first.trigger", tool=tool_name, file_path=file_path),
         trigger_key="check.read_first.trigger",
         snippet=f"{tool_name}({file_path!r})",

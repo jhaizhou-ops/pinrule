@@ -194,7 +194,7 @@ def _strip_markdown_code_for_response_scan(text: str) -> str:
     return text
 
 
-def check(*, tool_name: str = "", tool_input: dict | None = None, response: str = "", **_):
+def check(*, tool_name: str = "", tool_input: dict | None = None, response: str = "", rule_id: str = "", **_):
     """按 tool 类型选不同 pattern 集合扫 (tool_input 层),
     + v0.11.0 加 response-level 话术 pattern (response 层) 跟 keyword 维度互补.
 
@@ -221,7 +221,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, response: str 
                     continue
                 snippet = scan_text[max(0, m.start() - 30): m.end() + 30].strip()
                 return CheckHit(
-                    rule_id=_STICKY_ID,
+                    rule_id=rule_id or _STICKY_ID,
                     trigger=tr(trigger_key),
                     trigger_key=trigger_key,
                     snippet=snippet[:200],
@@ -250,7 +250,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, response: str 
         if m:
             snippet = text[max(0, m.start() - 30): m.end() + 30].strip()
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr(trigger_key),
                 trigger_key=trigger_key,
                 snippet=snippet[:200],

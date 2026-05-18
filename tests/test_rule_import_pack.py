@@ -220,11 +220,125 @@ def test_replace_into_empty_rules_path(sandbox_rules, tmp_path):
 
 
 def test_atomic_temp_file_cleaned_up(sandbox_rules, tmp_path):
-    """import 成功后 rules.json.tmp 不应该留 — atomic os.replace 已 rename."""
+    """import 成功后 .rules.json.*.tmp 不应该留 — atomic os.replace 已 rename."""
     pack_file = tmp_path / "pack.json"
     pack_file.write_text(json.dumps([{"id": "ok", "preference": "x"}]), encoding="utf-8")
 
     rc = cmd_rule_import_pack(str(pack_file), mode="replace")
     assert rc == 0
-    assert not (sandbox_rules.parent / "rules.json.tmp").exists(), \
-        "atomic rename 后 .tmp 文件不该留"
+    # v0.18.1: tmp 文件用 NamedTemporaryFile 唯一名 (.rules.json.*.tmp) — 检查没残留
+    tmp_residues = list(sandbox_rules.parent.glob(".rules.json.*.tmp"))
+    assert not tmp_residues, f"atomic rename 后 tmp 不该留, 实际残留: {tmp_residues}"
+
+
+def test_schema_fail_byte_for_byte_unchanged(sandbox_rules, tmp_path):
+    """v0.18.1 (Codex A Round 1): schema fail 时 rules.json byte-for-byte 真没动.
+
+    之前测试只比 JSON 语义 (json.loads 相等), 不能证明真 "一字没动" — 真用户可能加了
+    注释 / 自定义空白格式 / 等. byte-for-byte 才是 atomic guarantee 真证据.
+    """
+    original_bytes = b'[\n  {"id": "original", "preference": "byte for byte test"}\n]\n'
+    sandbox_rules.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_rules.write_bytes(original_bytes)
+
+    # bad pack 真挂 schema (id 含非法字符)
+    pack_file = tmp_path / "bad-schema.json"
+    pack_file.write_text(json.dumps([
+        {"id": "OK_HERE", "preference": "x"},  # 'OK_HERE' 大写 _ → schema reject
+    ]), encoding="utf-8")
+
+    rc = cmd_rule_import_pack(str(pack_file), mode="replace")
+    assert rc == 1
+
+    # byte-for-byte 真验证 (不只是 JSON 语义)
+    after_bytes = sandbox_rules.read_bytes()
+    assert after_bytes == original_bytes, \
+        f"schema fail 时 rules.json 真该一字没动\n  before: {original_bytes!r}\n  after:  {after_bytes!r}"
+
+
+def test_duplicate_id_rejected_atomic(sandbox_rules, tmp_path):
+    """v0.18.1 (Codex A Round 1): pack 内 duplicate id 应该拒 + rules.json 不动."""
+    original_bytes = b'[\n  {"id": "original", "preference": "x"}\n]\n'
+    sandbox_rules.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_rules.write_bytes(original_bytes)
+
+    pack_file = tmp_path / "dup-id.json"
+    pack_file.write_text(json.dumps([
+        {"id": "same-id", "preference": "first"},
+        {"id": "same-id", "preference": "second"},  # 真 duplicate
+    ]), encoding="utf-8")
+
+    rc = cmd_rule_import_pack(str(pack_file), mode="replace")
+    assert rc == 1
+    assert sandbox_rules.read_bytes() == original_bytes
+
+
+def test_concurrent_import_pack_no_tmp_collision(sandbox_rules, tmp_path):
+    """v0.18.1 (Codex A Round 1): 两个 import-pack 同时跑不该共用 tmp 文件名.
+
+    固定 tmp 文件 `rules.json.tmp` 真有并发竞态. v0.18.1 用 NamedTemporaryFile 唯一名,
+    所以 tmp 文件名互不冲突 — 这测验证 tmp 文件 prefix `.rules.json.` 是 unique 的.
+    """
+    import threading
+
+    sandbox_rules.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_rules.write_text(json.dumps([{"id": "shared", "preference": "x"}]))
+
+    pack_a = tmp_path / "pack-a.json"
+    pack_a.write_text(json.dumps([{"id": "from-a", "preference": "a"}]))
+    pack_b = tmp_path / "pack-b.json"
+    pack_b.write_text(json.dumps([{"id": "from-b", "preference": "b"}]))
+
+    results = []
+    errors = []
+
+    def run(pack_file):
+        try:
+            results.append(cmd_rule_import_pack(str(pack_file), mode="replace"))
+        except Exception as e:
+            errors.append(e)
+
+    threads = [
+        threading.Thread(target=run, args=(pack_a,)),
+        threading.Thread(target=run, args=(pack_b,)),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    # 真验证: 两个都成功 (没相互踩坏 tmp), 且 rules.json 是 A 或 B 之一
+    # (race winner 谁先 os.replace 谁赢, 都合法 atomic outcome)
+    assert not errors, f"concurrent import 出现真异常: {errors}"
+    assert all(rc == 0 for rc in results), f"concurrent import 真不该有 rc=1: {results}"
+    final = json.loads(sandbox_rules.read_text())
+    final_ids = {r["id"] for r in final}
+    assert final_ids in [{"from-a"}, {"from-b"}], \
+        f"final rule pack 真该是 A or B winner, 实际: {final_ids}"
+
+    # 任何 tmp 文件都不该残留
+    tmp_residues = list(sandbox_rules.parent.glob(".rules.json.*.tmp"))
+    assert not tmp_residues, f"concurrent import 后 tmp 真不该留: {tmp_residues}"
+
+
+def test_backup_filename_has_pid_random_suffix(sandbox_rules, tmp_path):
+    """v0.18.1 (Codex A Round 1): backup 文件名加 pid + random suffix, 真避免同秒覆盖.
+
+    之前秒级 ts 同秒两个 import-pack 会覆盖对方 backup. v0.18.1 加 pid+random 真唯一.
+    """
+    sandbox_rules.parent.mkdir(parents=True, exist_ok=True)
+    sandbox_rules.write_text(json.dumps([{"id": "before-backup", "preference": "x"}]))
+
+    pack_file = tmp_path / "pack.json"
+    pack_file.write_text(json.dumps([{"id": "after-backup", "preference": "y"}]))
+
+    rc = cmd_rule_import_pack(str(pack_file), mode="replace", backup=True)
+    assert rc == 0
+
+    backups = list(sandbox_rules.parent.glob("rules.json.before-scenario-*"))
+    assert len(backups) == 1
+    # 真验证文件名格式: rules.json.before-scenario-<ts>-<pid>-<random>
+    name = backups[0].name
+    parts = name.replace("rules.json.before-scenario-", "").split("-")
+    assert len(parts) >= 4, \
+        f"backup 文件名真该含 ts (YYYYMMDD-HHMMSS) + pid + random_hex, 实际 {name}"

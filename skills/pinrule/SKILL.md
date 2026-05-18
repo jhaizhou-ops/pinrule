@@ -361,6 +361,29 @@ After `pinrule rule add` succeeds, summarize for the user:
 - "Switch to X / 切到 X 场景"
 - "Replace rule library for X / 替换为 X 场景规则集"
 
+### ⚡ Path B Execution Checklist (read this FIRST, full detail below)
+
+**Agent: this is the short route. If you can do these 10 steps in order, the full 500-line Path B detail below is just context. Don't skip steps.**
+
+```
+1. pinrule doctor                                          # Step 0.5 — backend preflight (Bash, mandatory)
+2. Read local rule files                                   # Step 2 Source A — ~/.claude/CLAUDE.md, project CLAUDE.md, .cursor/rules/*.mdc (skip pinrule-generated)
+3. WebSearch with privacy boundary                         # Step 2 Source B — scenario keywords only, never upload local rule content / project names / transcripts
+4. Draft 5-7 content-only rules with source attribution    # Step 3 — preference + Source line, NO keywords/checks yet
+5. Phase 1 preview with mandatory "Backends detected" line # Step 4 — content + sources only
+6. Ask Phase 1 approval (one prompt, not per-rule)         # Step 5 — content locks here
+7. Add violation_keywords (intent-prefix + action format)  # Step 6 — mechanism phase begins
+8. Map engine checks (8 built-in, partially-maps, not equivalence) # Step 7 — with per-rule rationale + backend coverage
+9. Phase 2 preview + approval                              # Steps 8-9 — mechanism phase locks
+10. pinrule rule import-pack --from-json <pack.json> --mode replace --backup    # Step 10 — atomic batch write (one CLI, never串 shell)
+```
+
+After write: tell user this is v1 — iterate from `pinrule audit --by-check` data after 1-2 weeks (Step 11).
+
+**Why 10 steps not 11**: Step 1 (scenario interpretation) is silent — you infer subscenario from session context, not by asking. Only ask if a brand-new session has zero context.
+
+---
+
 The user wants a **coherent rule pack** tailored to their scenario, not one rule. You will synthesize 5-7 rules by combining four signals (no opt-in prompt — all four are on by default; pinrule is opinionated):
 
 ### Step 0.5 (Path B): Preflight — detect user's active backends FIRST
@@ -657,14 +680,14 @@ Show user the *complete* rule pack with mechanism details:
   preference: <text>
   violation_keywords: ["看起来是个新需求", "应该不影响别的", "我直接设计就好"]
   violation_checks: ["read_before_write"]
-  Why this engine: 「设计前没读已有研究」≡「Edit 前没 Read」同行为 pattern
+  Why this engine: 「设计前没读已有研究」**partially maps to**「Edit 前没 Read on same file」operational pattern (engine 真检测的是 tool-level 读写顺序, 不真懂 UX research methodology — only useful when context + output 在同 file path)
   Backend coverage: ✅ Claude / ✅ Codex / ✅ Cursor 桌面 (PreToolUse 通用)
 
 [loud-failure-research-claim] ✓ engine: loud_failure_with_evidence
   preference: <text>
   violation_keywords: ["这个研究表明", "数据显示", "结论是"]
   violation_checks: ["loud_failure_with_evidence"]
-  Why this engine: 「研究 claim 没附数据」≡「completion 没附 test_pass evidence」
+  Why this engine: 「研究 claim 没附数据」**partially maps to**「completion 没附 test_pass evidence」(engine `_ACTION_CONTEXT_RE` 偏 dev 词 test/build/code/commit, non-code 场景需要 keyword 兜底, engine 命中可能稀疏)
   Backend coverage: ✅ Claude / ✅ Codex / ✅ Cursor 桌面 Agent
   ⚠️ 如果你主要用 Cursor CLI (非桌面 Agent), Stop hook 路径 silent — 建议主用桌面 Agent
 
@@ -715,7 +738,7 @@ pinrule rule import-pack --from-json /tmp/pinrule-scenario-pack.json --mode repl
 2. Parses + schema-validates the entire pack
 3. Verifies id uniqueness, soft/hard caps, `violation_checks` function existence
 4. Creates a backup (if `--backup`)
-5. Writes to `rules.json.tmp` + `os.rename` swap (atomic on POSIX + Windows)
+5. Writes to a unique tmp file (NamedTemporaryFile, same dir as `rules.json`) + `os.replace` swap (atomic on POSIX + Windows; `os.replace` 真覆盖已存在目标, 跟 Windows `os.rename` 区别)
 
 **If anything in steps 1-4 fails**, `rules.json` is **byte-for-byte unchanged**. This is real atomic, not the old `remove + add` shell chain which could leave the library half-replaced.
 
@@ -833,7 +856,7 @@ After writing:
 > - [ablation-completeness] ✓ engine: loud_failure_with_evidence
 >   violation_keywords: ["主结果是 X", "整体准确率", "我们的方法效果"]
 >   violation_checks: ["loud_failure_with_evidence"]
->   Why this engine: 「报实验结果没附 ablation/baseline」≡ 「claim 没附数据」同 pattern — loud_failure 检测 completion words + 缺测试通过 evidence, 同样适用「ML claim + 缺 ablation 数据」
+>   Why this engine: 「报实验结果没附 ablation/baseline」**partially maps to**「claim 没附数据」 — loud_failure engine `_ACTION_CONTEXT_RE` 偏 dev 词 (test/build/code/commit), 「报实验结果」类 ML 表述未必命中 engine; 主要靠 Layer 1.5 keyword 兜底, engine 是 nice-to-have 不是 reliable trigger
 >
 > - [eval-data-isolation] ✓ engine: no_testset_no_future_leakage
 >   violation_keywords: ["复用 test set", "拿测试集调", "在 eval 上 search"]
@@ -887,7 +910,7 @@ After writing:
 - ❌ Don't ask user to opt into each signal source (A/B/H/S) — all four are default-on, pinrule is opinionated
 - ❌ Don't skip the **Source attribution** line in each rule preview — provenance is non-negotiable for user audit
 - ❌ Don't default to append for scenario rule pack (Path A default is append; Path B default is replace)
-- ❌ Don't skip the backup step before batch write — `cp ~/.pinrule/rules.json ~/.pinrule/rules.json.before-scenario-*` is the rollback path if anything fails
+- ❌ Don't skip the `--backup` flag when calling `pinrule rule import-pack` — pinrule auto-creates `~/.pinrule/rules.json.before-scenario-<ts>-<pid>-<random>` with this flag, atomic before the swap (v0.18.0+)
 - ❌ Don't claim "I researched online" without actually running WebSearch / WebFetch — fabricating sources is worse than just synthesizing from training knowledge honestly
 - ❌ Don't include `pinrule rule add --from-json` for rules sourced from `~/.pinrule/rules.json` itself (self-reference loop — read user's *non-pinrule* files for signal)
 - ❌ Don't propose >10 rules in the pack (pinrule soft cap is 10; aim for 5-7 to leave room for user's later /pinrule additions)

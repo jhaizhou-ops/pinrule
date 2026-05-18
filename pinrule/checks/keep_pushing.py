@@ -82,7 +82,7 @@ _USER_STOP_HINT_RE = compile_alternation("user_stop_hints")
 _AGENT_SATURATION_RE = compile_alternation("agent_saturation")
 
 
-def check(*, response: str = "", user_prompt: str = "", **_):
+def check(*, response: str = "", user_prompt: str = "", rule_id: str = "", **_):
     """检测 Agent response 是不是「无下一步陈述完结」型停下。
 
     豁免优先级：
@@ -148,7 +148,7 @@ def check(*, response: str = "", user_prompt: str = "", **_):
     m_stop = _STOP_HINT_RE.search(tail)
     if m_stop:
         return CheckHit(
-            rule_id=_STICKY_ID,
+            rule_id=rule_id or _STICKY_ID,
             trigger=tr("check.keep_pushing.stop_hint.trigger", word=m_stop.group()),
             trigger_key="check.keep_pushing.stop_hint.trigger",
             snippet=tail[:200],
@@ -171,7 +171,7 @@ def check(*, response: str = "", user_prompt: str = "", **_):
     # 命中 2（默认）：纯陈述完结无下一步 — 用户反馈核心场景
     # 「没有疑问句的停止才是该监控的」
     return CheckHit(
-        rule_id=_STICKY_ID,
+        rule_id=rule_id or _STICKY_ID,
         trigger=tr("check.keep_pushing.default.trigger"),
         trigger_key="check.keep_pushing.default.trigger",
         snippet=tail[:200],

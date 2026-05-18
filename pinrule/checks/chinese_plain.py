@@ -116,7 +116,7 @@ _MIN_CHINESE_AFTER_JARGON = 2
 _JARGON_PAREN_MAX_DIST = 30
 
 
-def check(*, response: str = "", **_):
+def check(*, response: str = "", rule_id: str = "", **_):
     if not response or not response.strip():
         return None
 
@@ -159,7 +159,7 @@ def check(*, response: str = "", **_):
         ratio = chinese / max(total, 1)
         if ratio < _MIN_CHINESE_RATIO:
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr("check.chinese_plain.ratio.trigger", ratio=f"{ratio*100:.0f}", min=f"{_MIN_CHINESE_RATIO*100:.0f}"),
                 trigger_key="check.chinese_plain.ratio.trigger",
                 snippet=natural_for_ratio[:150],
@@ -204,7 +204,7 @@ def check(*, response: str = "", **_):
             continue
         # 没括号解释 → 算违反
         return CheckHit(
-            rule_id=_STICKY_ID,
+            rule_id=rule_id or _STICKY_ID,
             trigger=tr("check.chinese_plain.jargon.trigger", term=m.group()),
             trigger_key="check.chinese_plain.jargon.trigger",
             snippet=jargon_scan_text[max(0, m.start() - 20): m.end() + _JARGON_CONTEXT_RADIUS],

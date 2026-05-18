@@ -73,6 +73,7 @@ def check(
     tool_input: dict | None = None,
     response: str = "",
     session_state=None,
+    rule_id: str = "",
     **_,
 ):
 
@@ -94,7 +95,7 @@ def check(
             if _CHAINED_TEST_RE.search(cmd_stripped) and not _FAKE_TEST_FLAG_RE.search(cmd_stripped):
                 return None
             return CheckHit(
-                rule_id=_STICKY_ID,
+                rule_id=rule_id or _STICKY_ID,
                 trigger=tr("check.evidence.commit.trigger"),
                 trigger_key="check.evidence.commit.trigger",
                 snippet=cmd[:200],
@@ -110,7 +111,7 @@ def check(
                 continue
             if not has_recent_test:
                 return CheckHit(
-                    rule_id=_STICKY_ID,
+                    rule_id=rule_id or _STICKY_ID,
                     trigger=tr("check.evidence.completion.trigger", word=m_done.group()),
                     trigger_key="check.evidence.completion.trigger",
                     snippet=response[max(0, m_done.start()-30): m_done.end()+50],
@@ -122,7 +123,7 @@ def check(
                 continue
             if not has_recent_test:
                 return CheckHit(
-                    rule_id=_STICKY_ID,
+                    rule_id=rule_id or _STICKY_ID,
                     trigger=tr("check.evidence.weak_claim.trigger", word=m_weak.group()),
                     trigger_key="check.evidence.weak_claim.trigger",
                     snippet=response[max(0, m_weak.start()-30): m_weak.end()+50],

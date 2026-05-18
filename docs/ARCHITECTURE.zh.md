@@ -225,7 +225,7 @@ UserPromptSubmit 才加。如果你看 `/tmp/pinrule_stop_trace.log` 实际 sess
 | `no_testset_no_future_leakage` | 不喂测试集 | gold_cases 反喂 / 跨 split 复制 / 长 hash 在比较或赋值位置 |
 | `read_before_write` | 先读再写 | Edit/Write 前未 Read 该 file_path（Write 新文件豁免） |
 | `keep_pushing_no_stop` | 不主动停 | 优先级判：0) **user prompt 上文含叫停字眼**（不用了 / 休息吧 / 明天再说 / 先到这 / 算了 / 晚安 / 够了 等规则 #8 例外清单）→ 整 turn 豁免（最高优先级）1) response 末尾 80 字含推进信号（我现在 / 接下来 + 动词）→ 豁免 2) 含问号 → 豁免（合理询问决策应鼓励）3) 含停顿语气词（下次 / 先到这 / 告一段落）→ 命中 4) 默认命中（纯陈述完结无推进无问号）|
-| `bypass_pinrule_detection` | 不绕检测（sticky #1 深挖根因） | **L1 字面层**：Bash 命令含 pinrule 内部字面 (last_test_pass_ts / pending_bg_tasks / session-state json 路径) + 写操作 → 命中「绕开 pinrule」。豁免：pinrule 官方 CLI / 只读 inspection / commit message 引号字面。**L3 时序层 (v0.11.1+)**：pre_tool_use Edit + 上一 Bash 是测试命令且失败 + 当前 file_path 本 session 未 Read → 命中「报错后没看源代码就改」草草了事 pattern。L4 (认知深度 — Agent 心里有没有真挖) 工程拦不到，靠 preference 注入 |
+| `bypass_pinrule_detection` | 不绕检测（rule #1 深挖根因） | **L1 字面层**：Bash 命令含 pinrule 内部字面 (last_test_pass_ts / pending_bg_tasks / session-state json 路径) + 写操作 → 命中「绕开 pinrule」。豁免：pinrule 官方 CLI / 只读 inspection / commit message 引号字面。**L3 时序层 (v0.11.1+)**：pre_tool_use Edit + 上一 Bash 是测试命令且失败 + 当前 file_path 本 session 未 Read → 命中「报错后没看源代码就改」草草了事 pattern。L4 (认知深度 — Agent 心里有没有真挖) 工程拦不到，靠 preference 注入 |
 
 每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
 

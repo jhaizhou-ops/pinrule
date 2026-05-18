@@ -117,7 +117,7 @@ _SHELL_REDIR_WRITE_RE = re.compile(
 _PINRULE_CLI_RE = re.compile(r"\bpinrule\s+(?:init|install-hooks|uninstall-hooks|reset|reset-session|stats|audit|violations|sticky|doctor)\b")
 
 
-def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=None, **_):
+def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=None, rule_id: str = "", **_):
     """两路检测同 rule_id `deep-fix-not-bypass`:
 
     1. Bash 命令含 pinrule 内部字面 + 写操作 → 「绕开 pinrule 检测」违反
@@ -139,7 +139,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
                 getattr(last_bash, "output_failed", False)
             if is_test_fail and not session_state.has_read(edit_fp):
                 return CheckHit(
-                    rule_id=_STICKY_ID,
+                    rule_id=rule_id or _STICKY_ID,
                     trigger=tr("check.deep_fix.edit_after_test_fail_no_read.trigger", file_path=edit_fp),
                     trigger_key="check.deep_fix.edit_after_test_fail_no_read.trigger",
                     snippet=f"Edit({edit_fp!r}) after test fail without reading source",
@@ -192,7 +192,7 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, session_state=
         m2 = _PINRULE_STATE_PATH_RE.search(cmd_stripped)
         trigger_text = m1.group() if m1 else (m2.group() if m2 else "pinrule 内部状态")
         return CheckHit(
-            rule_id=_STICKY_ID,
+            rule_id=rule_id or _STICKY_ID,
             trigger=tr("check.bypass_pinrule.trigger", target=trigger_text),
             trigger_key="check.bypass_pinrule.trigger",
             snippet=cmd_raw[:200],

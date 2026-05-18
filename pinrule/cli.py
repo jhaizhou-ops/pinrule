@@ -822,23 +822,40 @@ def cmd_rule_import_pack(
             return 1
 
     # Step 5: 写 backup (atomic 之前)
+    # v0.18.1 fix (Codex A Round 1): 秒级 ts 可能同秒覆盖, 加 pid + random suffix
+    # 真避免 backup file 同秒被另一个 pinrule import-pack 进程覆盖
     if backup and RULES_PATH.exists():
+        import os as _os
+        import secrets as _secrets
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        backup_path = RULES_PATH.parent / f"rules.json.before-scenario-{ts}"
+        unique = f"{_os.getpid()}-{_secrets.token_hex(3)}"
+        backup_path = RULES_PATH.parent / f"rules.json.before-scenario-{ts}-{unique}"
         backup_path.write_text(
             RULES_PATH.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         print(f"  备份: {backup_path}")
 
-    # Step 6: 原子写 (tmp + rename)
+    # Step 6: 原子写 (NamedTemporaryFile 唯一 tmp + os.replace swap)
+    # v0.18.1 fix (Codex A Round 1): 固定 tmp 文件名 `rules.json.tmp` 真有并发竞态 —
+    # 两个 import-pack 同时跑会撞同一 tmp, 破坏 atomic 承诺. 改用 NamedTemporaryFile
+    # 同目录唯一名 (跨 fs 不 atomic, 同目录才 atomic), delete=False 让 os.replace 真 rename.
     RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    tmp_write = RULES_PATH.with_suffix(".json.tmp")
-    tmp_write.write_text(
-        json.dumps(final, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        prefix=".rules.json.",
+        suffix=".tmp",
+        dir=str(RULES_PATH.parent),
     )
-    os.replace(tmp_write, RULES_PATH)  # atomic on POSIX + Windows
+    try:
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as tf:
+            tf.write(json.dumps(final, ensure_ascii=False, indent=2) + "\n")
+            tf.flush()
+            os.fsync(tf.fileno())  # crash durability — 数据真落盘前不 replace
+        os.replace(tmp_path, RULES_PATH)  # atomic 同目录 rename (POSIX + Windows)
+    except OSError:
+        # disk full / permission / 等 OS 错 → 清 tmp + 透传错误
+        Path(tmp_path).unlink(missing_ok=True)
+        raise
 
     # Step 7: 反馈
     n_final = len(validated)
