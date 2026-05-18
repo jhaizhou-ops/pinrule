@@ -299,3 +299,53 @@ def test_skill_frontmatter_mentions_both_paths(skill_text: str) -> None:
         "frontmatter description 没提 Path A (单条规则)"
     assert "Scenario rule pack" in head, \
         "frontmatter description 没提 Path B (场景规则集)"
+
+
+def test_skill_path_b_checklist_is_short_8_step_skeleton(skill_text: str) -> None:
+    """Path B Execution Checklist 必须是短骨架 — 评委反馈: 低能力模型一眼读完, 不要内联长注解.
+
+    Why: 之前版本 10 行 checklist 每行带 'Step X — ... format ...' 内联注解
+    干扰低能力模型 attention. 改成 8 步核心骨架, 详细约束放下面 Step X 详解里.
+    """
+    import re
+    # 定位 checklist 代码块
+    m = re.search(
+        r"### ⚡ Path B Execution Checklist.*?```\n(.*?)```",
+        skill_text,
+        re.DOTALL,
+    )
+    assert m, "Path B Execution Checklist 代码块丢了"
+    body = m.group(1)
+    numbered_lines = [
+        line for line in body.splitlines()
+        if re.match(r"\s*\d+\.\s", line)
+    ]
+    assert len(numbered_lines) == 8, \
+        f"Path B checklist 应该是 8 步短骨架 (评委反馈), 现在 {len(numbered_lines)} 步"
+    # 真核心 8 个 anchor
+    assert "pinrule doctor" in body, "checklist 缺 step 1 (pinrule doctor backend preflight)"
+    assert "local rule files" in body or "Local rule files" in body, \
+        "checklist 缺 Source A 步 (read local rule files)"
+    assert "WebSearch" in body, "checklist 缺 Source B 步 (WebSearch)"
+    assert "Phase 1" in body and "Phase 2" in body, \
+        "checklist 缺两阶段分隔"
+    assert "import-pack" in body and "--mode replace" in body and "--backup" in body, \
+        "checklist 缺真原子写命令 (import-pack --mode replace --backup)"
+
+
+def test_skill_path_b_checklist_lines_under_80_chars(skill_text: str) -> None:
+    """checklist 单行不能太长 — 短骨架的标准是低能力模型一眼读完不卷行."""
+    import re
+    m = re.search(
+        r"### ⚡ Path B Execution Checklist.*?```\n(.*?)```",
+        skill_text,
+        re.DOTALL,
+    )
+    assert m
+    body = m.group(1)
+    over_long = [
+        line for line in body.splitlines()
+        if re.match(r"\s*\d+\.\s", line) and len(line) > 100
+    ]
+    assert not over_long, \
+        f"checklist 有行超过 100 字符, 评委说要让低能力模型一眼读完: {over_long}"

@@ -363,24 +363,22 @@ After `pinrule rule add` succeeds, summarize for the user:
 
 ### ⚡ Path B Execution Checklist (read this FIRST, full detail below)
 
-**Agent: this is the short route. If you can do these 10 steps in order, the full 500-line Path B detail below is just context. Don't skip steps.**
+**Agent: this is the short route. Follow these 8 steps in order. Per-step constraints + format templates are in the Step X sections below — don't skip them.**
 
 ```
-1. pinrule doctor                                          # Step 0.5 — backend preflight (Bash, mandatory)
-2. Read local rule files                                   # Step 2 Source A — ~/.claude/CLAUDE.md, project CLAUDE.md, .cursor/rules/*.mdc (skip pinrule-generated)
-3. WebSearch with privacy boundary                         # Step 2 Source B — scenario keywords only, never upload local rule content / project names / transcripts
-4. Draft 5-7 content-only rules with source attribution    # Step 3 — preference + Source line, NO keywords/checks yet
-5. Phase 1 preview with mandatory "Backends detected" line # Step 4 — content + sources only
-6. Ask Phase 1 approval (one prompt, not per-rule)         # Step 5 — content locks here
-7. Add violation_keywords (intent-prefix + action format)  # Step 6 — mechanism phase begins
-8. Map engine checks (8 built-in, partially-maps, not equivalence) # Step 7 — with per-rule rationale + backend coverage
-9. Phase 2 preview + approval                              # Steps 8-9 — mechanism phase locks
-10. pinrule rule import-pack --from-json <pack.json> --mode replace --backup    # Step 10 — atomic batch write (one CLI, never串 shell)
+1. pinrule doctor                                  # backend preflight
+2. Read user's local rule files                    # Source A
+3. WebSearch external best practices               # Source B
+4. Draft Phase 1 content preview                   # 5-7 rules, no keywords yet
+5. User approval — Phase 1 content locks
+6. Add keywords + map engine checks → Phase 2      # mechanism phase
+7. User approval — Phase 2 mechanism locks
+8. pinrule rule import-pack --mode replace --backup    # atomic batch write
 ```
 
-After write: tell user this is v1 — iterate from `pinrule audit --by-check` data after 1-2 weeks (Step 11).
+After write: tell user this is v1 — iterate from `pinrule audit --by-check` data after 1-2 weeks.
 
-**Why 10 steps not 11**: Step 1 (scenario interpretation) is silent — you infer subscenario from session context, not by asking. Only ask if a brand-new session has zero context.
+**Step numbering in the detailed sections below** maps onto this 8-step checklist: Step 0.5 = checklist #1, Step 2 = checklist #2-3, Steps 3-4 = #4, Step 5 = #5, Steps 6-8 = #6, Step 9 = #7, Step 10 = #8. The detailed Steps add format templates, edge cases, and per-step constraints — the checklist is the skeleton, not the spec.
 
 ---
 
