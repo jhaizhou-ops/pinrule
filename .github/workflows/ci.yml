@@ -41,6 +41,21 @@ jobs:
       - name: Test
         run: pytest tests/ -q
 
+      - name: Windows GBK default-console smoke test (zh-CN user 真路径)
+        # 用户 dogfood (2026-05-18) 撞 issue: PYTHONIOENCODING=utf-8 让 CI 真
+        # 漏测中文 Windows 默认 GBK 控制台. 这个 step 真不设 UTF-8 env, 模拟
+        # 真中文 Windows 用户跑 pinrule init / hook 的 default state.
+        if: runner.os == 'Windows'
+        run: |
+          chcp 936
+          python -m pinrule --version
+          # 跑 init 真验证不崩溃 (用户 issue Bug 1)
+          $env:PINRULE_HOME = "$env:RUNNER_TEMP\pinrule-gbk-smoke"
+          python -m pinrule init --no-minimal
+          # hook smoke: import + main() 不该 UnicodeEncodeError
+          $payload = '{"session_id":"smoke","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"echo hi"}}'
+          $payload | python -c "from pinrule.hooks import pre_tool_use; pre_tool_use.main()"
+
       - name: Build wheel
         run: |
           pip install build

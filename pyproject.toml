@@ -1,6 +1,6 @@
 [project]
 name = "pinrule"
-version = "0.16.17"
+version = "0.16.18"
 description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor, pure engineering, zero LLM, ~50-70ms hook latency"
 readme = "README.md"
 requires-python = ">=3.11"

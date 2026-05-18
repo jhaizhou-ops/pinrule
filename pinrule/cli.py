@@ -1194,7 +1194,7 @@ def _auto_install_hooks_for_detected_clients() -> None:
             print(f"      - {reason}")
         if len(reasons) > 5:
             print(f"      ... +{len(reasons) - 5} more")
-    print("→ 自动 install-hooks --backend all (功能与 Claude 对齐)…")
+    print("→ 自动 install-hooks 给所有检测到的客户端补装…")
     cmd_install_hooks("all")
 
 
@@ -1404,11 +1404,16 @@ def _install_to_backend(backend) -> int:
     pinrule_python = sys.executable
     for hook_basename in _unique_hook_basenames(backend):
         wrapper = hooks_dir / f"pinrule_{hook_basename}.py"
+        # v0.16.18: wrapper 起手 force UTF-8 stdio. Windows zh-CN console 默认
+        # GBK strict 让 hook 输出的中文 reason + emoji 真乱码 (`\U...` 字面 +
+        # `??`), 注入回 AI 客户端的 permissionDecisionReason 直接破坏.
         wrapper.write_text(
             f"#!{pinrule_python}\n"
             f"# pinrule {hook_basename} hook wrapper (auto-generated)\n"
             f"# python: {pinrule_python}\n"
             f"import sys\n"
+            f"from pinrule._io_encoding import force_utf8_stdio\n"
+            f"force_utf8_stdio()\n"
             f"sys.exit(__import__('pinrule.hooks.{hook_basename}', fromlist=['main']).main())\n"
         )
         wrapper.chmod(0o755)
@@ -1418,13 +1423,25 @@ def _install_to_backend(backend) -> int:
         old_pr.unlink()
         print(f"  删除旧版: {old_pr}")
 
-    # 备份原 settings（保留初次 + 加 ts 的本次备份）
+    # 备份原 settings — 真 pristine "装 pinrule 前" 内容只第一次写, 之后保留.
+    # v0.16.18 真根因修: 之前 L1424 `if settings_path.exists()` 让 fresh install
+    # 跳过整段 backup, 然后 init 自动 fire install-hooks 写出 pinrule 化 settings.
+    # 用户后续手工 install-hooks 看到 settings.json 真存在 (但已 pinrule 化!),
+    # backup_path 不存在条件成立 → 真把 pinrule 化版本当 pristine 备份了.
+    # 卸载时 `cp settings.json.before-pinrule settings.json` 恢复的是 pinrule 化
+    # 状态, 真 uninstall path 断. fresh install 必须写 empty marker 表示真 empty
+    # pre-pinrule state.
     settings_path = backend.settings_path()
     backup_path = backend.settings_backup_path()
-    if settings_path.exists():
-        if not backup_path.exists():
+    if not backup_path.exists():
+        if settings_path.exists():
             backup_path.write_text(settings_path.read_text(encoding="utf-8"), encoding="utf-8")
             print(f"  备份原 settings: {backup_path}")
+        else:
+            # fresh install — primary backup 写空标记真 pristine 状态 (no pre-pinrule settings)
+            backup_path.write_text("", encoding="utf-8")
+            print(f"  备份原 settings: {backup_path} (装 pinrule 前真无 settings 文件)")
+    if settings_path.exists():
         ts_backup = settings_path.with_suffix(
             settings_path.suffix + f".before-pinrule.{int(time.time())}"
         )
@@ -1601,6 +1618,12 @@ def _parse_backend_arg(args: list[str]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # v0.16.18: force UTF-8 stdio. Windows zh-CN console default = GBK strict
+    # encoding crashes on `▸` (U+25B8) / `🛑` 类字符. 真用户 dogfood issue
+    # 报的 `pinrule init` UnicodeEncodeError 真根因. 重复 import 没副作用.
+    from pinrule._io_encoding import force_utf8_stdio
+    force_utf8_stdio()
+
     argv = argv if argv is not None else sys.argv[1:]
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)

@@ -8,6 +8,8 @@ Releases from v0.5.1 onward publish bilingually. Earlier history (v0.1.0 – v0.
 
 ## [Unreleased]
 
+## [0.16.18] — 2026-05-18 — **Windows zh-CN GBK console fix** (real user dogfood issue): `pinrule init` no longer crashes on default Chinese Windows console with `UnicodeEncodeError: 'gbk' codec can't encode character '▸'`. Added `pinrule/_io_encoding.py::force_utf8_stdio()` shared helper called at every entry point (`__main__`, `cli.main()`, hook wrappers). CI adds Windows GBK default-console smoke test step (no PYTHONIOENCODING) to lock down the regression. Also fixed: `settings.json.before-pinrule` no longer saves pinrule-modified state when fresh-install path skipped initial backup (uninstall path was effectively broken); init's auto-install-hooks message rephrased; README one-liner trimmed to `pip install pinrule && pinrule init` (init auto-fires install-hooks for detected clients).
+
 ## [0.16.17] — 2026-05-18 — **Windows native support**. Hook command goes from bare `wrapper-path` (Unix shebang-dependent) to `python.exe wrapper-path` via `subprocess.list2cmdline` — cross-platform, handles paths with spaces. CI matrix adds `windows-latest`; 3 new lockdown tests cover sys.executable prefix + space-quoting + all-3-backends consistency (857 tests).
 
 ## [0.16.16] — 2026-05-17 — README full redesign (203 lines bilingual, paced to aider / open-interpreter / mem0 patterns) + PyPI metadata polish (description aligned with slogan, keywords drop `dogfooding`, add `pinrule` / `claude-code` / `agent-rules`).

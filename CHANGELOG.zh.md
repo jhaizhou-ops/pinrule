@@ -8,6 +8,8 @@ v0.5.1 起双语发布. v0.1.0 – v0.4.x 早期历史只在本中文 CHANGELOG.
 
 ## [Unreleased]
 
+## [0.16.18] — 2026-05-18 — **Windows 中文 GBK 控制台修复** (真用户 dogfood issue): `pinrule init` 在中文 Windows 默认控制台不再 `UnicodeEncodeError: 'gbk' codec can't encode character '▸'` 崩. 加 `pinrule/_io_encoding.py::force_utf8_stdio()` 共享 helper, 在每个 entry point (`__main__` / `cli.main()` / hook wrapper) 强制 stdout/stderr UTF-8. CI 加 Windows GBK 默认控制台 smoke test step (不设 PYTHONIOENCODING) 锁死回归. 同步修: `settings.json.before-pinrule` fresh-install 路径之前漏写空标记导致后续 backup 会保存 pinrule-修改过的 state (uninstall 路径实际坏了); init 自动装 hook 措辞改成「给所有检测到的客户端补装」; README 一行命令砍成 `pip install pinrule && pinrule init` (init 自动跑 install-hooks).
+
 ## [0.16.17] — 2026-05-18 — **Windows 原生支持**. Hook command 从裸 `wrapper-path` (依赖 Unix shebang) 改成 `python.exe wrapper-path` 走 `subprocess.list2cmdline` — 跨平台, 含空格 path 自动 quote. CI matrix 加 `windows-latest`; 3 个新 lockdown 测试覆盖 sys.executable 前缀 + 空格 quote + 三家 backend 一致性 (857 测).
 
 ## [0.16.16] — 2026-05-17 — README 全 redesign (双语 203 行, 节奏对齐 aider / open-interpreter / mem0 标杆) + PyPI metadata 精修 (description 跟 slogan 对齐, keywords 砍 `dogfooding` 加 `pinrule` / `claude-code` / `agent-rules`).

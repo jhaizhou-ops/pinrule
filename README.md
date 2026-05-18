@@ -21,8 +21,10 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 ## Quick start
 
 ```bash
-pip install pinrule && pinrule init && pinrule install-hooks
+pip install pinrule && pinrule init
 ```
+
+`pinrule init` creates `~/.pinrule/` with the default rules + auto-installs hooks for any detected client (Claude / Codex / Cursor). If you install a new client later, run `pinrule install-hooks` to wire it up.
 
 > **Windows users**: Windows doesn't ship Python by default. If `python --version` doesn't show a real version (just silently exits to Microsoft Store), install Python first:
 > ```powershell
@@ -30,7 +32,6 @@ pip install pinrule && pinrule init && pinrule install-hooks
 > # close + reopen PowerShell so PATH refreshes
 > python -m pip install pinrule
 > python -m pinrule init
-> python -m pinrule install-hooks
 > python -m pinrule doctor
 > ```
 > The `python -m pinrule` form avoids needing Python's `Scripts\` folder on PATH (which isn't there by default after `pip install`).
