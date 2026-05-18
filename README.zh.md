@@ -52,7 +52,7 @@ pip install pinrule && pinrule init
 
 重启客户端或 CLI 后立即生效。
 
-**卸载** — `pinrule uninstall-hooks && cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json`。
+**卸载** — `pinrule uninstall-hooks`（自动给所有装了 pinrule 的客户端 surgical 拆 hook + 从 settings 移除 entry，不动你其他工具装的 hook）。
 
 ---
 

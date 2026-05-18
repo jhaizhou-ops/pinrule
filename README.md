@@ -54,7 +54,7 @@ pip install pinrule && pinrule init
 
 Restart Claude / Codex / Cursor — default rules become active once hooks load.
 
-**Uninstall** — `pinrule uninstall-hooks && cp ~/.claude/settings.json.before-pinrule ~/.claude/settings.json`.
+**Uninstall** — `pinrule uninstall-hooks` (auto-removes pinrule entries from every detected client surgically; doesn't touch hooks installed by other tools).
 
 > **Windows without Python**: `python --version` silently jumping to Microsoft Store means no real Python — install via `winget install Python.Python.3.12`, reopen PowerShell, then use `python -m pip install pinrule && python -m pinrule init` (the `python -m` form avoids needing `Scripts\` on PATH).
 
