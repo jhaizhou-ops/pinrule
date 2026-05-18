@@ -2,9 +2,9 @@
 
 **[🇬🇧 English](./HOWTO.md) · [🇨🇳 中文（当前）](./HOWTO.zh.md)**
 
-pinrule 当前装机支持 3 家（Claude / Codex / Cursor）。本文档讲怎么
-加第 3 家 — 实证 vibe-island 桥支持的 9 家清单：claude / codex / cursor /
-cursor / factory / qoder / copilot / codebuddy / kimi。
+pinrule 当前装机支持 3 家（Claude / Codex / Cursor）。本文档讲怎么加第 4 家
+— 理论上**任何提供 hook 接口（能注册外部命令在事件触发时执行 + 通过
+stdin 传递 payload）的 AI 编程客户端**都可以加 backend 支持。
 
 ## 5 步加一个新 backend
 
@@ -23,7 +23,7 @@ cursor / factory / qoder / copilot / codebuddy / kimi。
 6. **每条 hook entry 是否需要 matcher / timeout 字段** — 各家不一样
 
 调研来源优先级：① 官方文档 ② 跑客户端 + trace hook 看 stdin 字段
-③ 看现有桥工具（vibe-island）的实现 ④ GitHub issues
+③ GitHub issues / 社区
 
 ### 第 2 步：在 `pinrule/backends/` 新建一个 backend 文件
 
@@ -168,29 +168,28 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 ## 不能省的步骤（按 pinrule 项目原则）
 
 - ❌ **不要凭文档结束，必须端到端跑过**（pinrule 的 `long-term-fundamental` + `loud-failure-with-evidence` 规则）
-- ❌ **不要破坏他人 hook 共存**（vibe-island / rtk 等同 event 多 entry 必须保留）
+- ❌ **不要破坏他人 hook 共存**（rtk 等同 event 多 entry 必须保留）
 - ❌ **配置文件原子写**（基类已实现 tmp + os.replace 不用动）
 - ❌ **不要硬编码 backend id 名字到核心逻辑** — 加 backend 不该改 cli.py 等核心代码
 
-## 候选 backend 清单（vibe-island 实证情报，待装上实测）
+## 已支持 backend
 
-读 `~/.vibe-island/bin/vibe-island-bridge` zsh 脚本第 28 行拿到的 vibe-island
-实证支持的客户端配置文件路径清单。**这是二手情报需要实际装客户端实测协议字段**
-才能加 backend — 留这里给未来贡献者按列表挑：
-
-| 客户端 | 推测配置路径 | 状态 |
+| 客户端 | 配置路径 | 状态 |
 |---|---|---|
 | Claude | `~/.claude/settings.json` | ✓ v0.1.0 起 |
 | Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
 | Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/pinrule` skill 仅 project-scoped — Cursor 没 home-level global skills 目录）。**回复级 check** 需用户开 Agent transcripts — 见 README「Cursor：开启 Agent Transcripts」 |
-| Factory | `~/.factory/settings.json` | 待装 + 实测 |
-| Qoder | `~/.qoder/settings.json` | 待装 + 实测 |
-| GitHub Copilot | `~/.copilot/config.json` | 待装 + 实测（可能没 hook 协议） |
-| CodeBuddy | `~/.codebuddy/settings.json` | 待装 + 实测 |
-| Kimi CLI | `~/.kimi/config.toml`（TOML 不是 JSON！） | 待装 + 实测 — TOML 格式可能不能直接继承 JsonHooksBackend |
 
-**测试每家**前看清这家 hook 协议文档（如有）+ vibe-island 那家用啥
-event 名 + 客户端版本号（vibe-island 情报可能过时 — 我们实测发现 Codex
-真 feature 名是 `hooks` 不是 vibe-island config.toml 用的 `codex_hooks`）。
+## 候选 backend — 没有现成清单
 
-**加新 backend 跟踪本文件这表格**，确保后人看到当前哪些已支持哪些待做。
+理论上**任何提供 hook 接口的 AI 编程客户端**都可以加 backend 支持。客户端协议需满足：
+
+- 有 hook 配置文件（JSON / TOML / YAML 都行）
+- 能在 user prompt / tool call / stop 这类事件触发时执行外部命令
+- 通过 stdin 传 payload（含 `prompt` / `tool_input` / `transcript_path` 等字段）
+
+**没有现成清单可以直接照抄** — 各家客户端协议在快速演化，二手情报往往过时（字段名变 / event 名变 / 启用 flag 变）。**实测协议字段比看清单更可靠**。
+
+加新 backend 流程：装该客户端 → trace hook 协议看真字段 → 按上面 5 步走 → 加测试 → PR。
+
+**加新 backend 跟踪本文件「已支持 backend」表格**，确保后人看到当前哪些已支持。

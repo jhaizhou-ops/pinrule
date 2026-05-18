@@ -2,7 +2,7 @@
 
 **[🇬🇧 English (current)](./HOWTO.md) · [🇨🇳 中文](./HOWTO.zh.md)**
 
-pinrule currently supports 3 clients out-of-the-box (Claude / Codex / Cursor). This doc explains how to add a 4th — empirically-verified vibe-island bridge supports 9 clients: claude / codex / cursor / factory / qoder / copilot / codebuddy / kimi.
+pinrule currently supports 3 clients out-of-the-box (Claude / Codex / Cursor). This doc explains how to add a 4th — in principle **any AI coding client that exposes a hook interface** (registers external commands at event triggers + passes payload via stdin) can be added as a backend.
 
 ## 5 steps to add a new backend
 
@@ -17,7 +17,7 @@ Per pinrule's `long-term-fundamental` rule — **actually run, don't assume.** R
 5. **Whether enablement step needed** — like Codex requires `[features] hooks = true`
 6. **Whether each hook entry needs matcher / timeout fields** — varies per client
 
-Research source priority: ① Official docs ② Actually run client + trace hook stdin fields ③ Look at existing bridge tools (vibe-island) implementation ④ GitHub issues
+Research source priority: ① Official docs ② Actually run client + trace hook stdin fields ③ GitHub issues / community
 
 ### Step 2: Create a new backend file in `pinrule/backends/`
 
@@ -157,25 +157,28 @@ echo '{"session_id":"t","prompt_response":"I'll patch this quickly","<other fiel
 ## Non-skippable steps (per pinrule project principles)
 
 - ❌ **Don't ship based on docs alone — actually run the new backend end-to-end** (pinrule's `long-term-fundamental` + `loud-failure-with-evidence` rules)
-- ❌ **Don't break coexistence with other hooks** (vibe-island / rtk etc. same-event multiple entries must be preserved)
+- ❌ **Don't break coexistence with other hooks** (rtk and similar tools' same-event multiple entries must be preserved)
 - ❌ **Atomic config file writes** (base class already implements tmp + os.replace, no need to touch)
 - ❌ **Don't hardcode backend id names into core logic** — adding a backend shouldn't require modifying cli.py or other core code
 
-## Candidate backend list (vibe-island empirical intel, pending real install + test)
+## Currently supported backends
 
-From `~/.vibe-island/bin/vibe-island-bridge` zsh script line 28, vibe-island's empirically-supported clients with config paths. **This is secondary intel needing real client install + protocol field verification** before backend can be added — left here for future contributors to pick from:
-
-| Client | Suspected config path | Status |
+| Client | Config path | Status |
 |---|---|---|
 | Claude | `~/.claude/settings.json` | ✓ Since v0.1.0 |
 | Codex | `~/.codex/hooks.json` | ✓ Since v0.3.0 |
 | Cursor | `~/.cursor/hooks.json` | ✓ Since v0.12.0 (Cursor 1.7+ required; `/pinrule` skill is project-scoped only — no global skills dir on Cursor) |
-| Factory | `~/.factory/settings.json` | Pending install + test |
-| Qoder | `~/.qoder/settings.json` | Pending install + test |
-| GitHub Copilot | `~/.copilot/config.json` | Pending install + test (may not have hook protocol) |
-| CodeBuddy | `~/.codebuddy/settings.json` | Pending install + test |
-| Kimi CLI | `~/.kimi/config.toml` (TOML not JSON!) | Pending install + test — TOML format may not inherit JsonHooksBackend directly |
 
-**Before testing each**, check that client's hook protocol docs (if any) + which event names vibe-island uses for that client + client version (vibe-island intel may be outdated — we empirically found Codex's real feature name is `hooks` not vibe-island config.toml's `codex_hooks`).
+## Candidate backends — no pre-built list
 
-**When adding new backend, update this table in this file** to ensure later contributors see what's currently supported vs. pending.
+In principle **any AI coding client that exposes a hook interface** can be added as a backend. The client's protocol needs to provide:
+
+- A hook config file (JSON / TOML / YAML — all fine)
+- Ability to execute external commands at events like user prompt / tool call / stop
+- stdin payload delivery (with fields like `prompt` / `tool_input` / `transcript_path`)
+
+**There's no pre-built shopping list** — client protocols evolve fast and secondary intel goes stale (field names change, event names change, enablement flags change). **Empirically verifying protocol fields beats reading any list.**
+
+Process to add a new backend: install that client → trace hook protocol to see real fields → follow the 5 steps above → add tests → PR.
+
+**When adding a new backend, update the "Currently supported backends" table above** so later contributors see what's actually supported.

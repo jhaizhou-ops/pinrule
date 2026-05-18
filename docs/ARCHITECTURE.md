@@ -303,7 +303,7 @@ pinrule doctor                     # Check environment + all hook install status
 `install-hooks` key features:
 - Idempotent — multiple runs produce same result
 - First run backs up `settings.json` to `settings.json.before-pinrule`
-- Preserves all non-pinrule hooks (vibe-island / rtk / codex-review etc. coexist)
+- Preserves all non-pinrule hooks (rtk / codex-review etc. coexist)
 - Uses wrapper paths with `pinrule_` prefix to identify pinrule entries
 
 ## Configuration
