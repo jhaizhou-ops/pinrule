@@ -24,6 +24,13 @@ Andrej Karpathy's [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-sk
 pip install pinrule && pinrule init && pinrule install-hooks
 ```
 
+> **Windows users**: if `pinrule` command isn't recognized after `pip install`, your Python's `Scripts\` folder isn't on PATH (default Windows Python install). Use module-form instead — works identically:
+> ```powershell
+> python -m pinrule init
+> python -m pinrule install-hooks
+> python -m pinrule doctor
+> ```
+
 Restart Claude / Codex / Cursor — default rules become active once hooks load. To add a personal rule:
 
 ```
