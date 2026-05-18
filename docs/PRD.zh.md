@@ -109,7 +109,7 @@ pinrule 只做**「核心方向永驻 + 违反检测」**这一件事。
 
 两层检测：
 - **关键词层**：扫 Bash command + Write/Edit 注释行 + Stop hook 看 Agent response 含违反字眼
-- **工程层（M2+ 加强）**：8 个 violation_check 函数针对每条 sticky 做精确 regex 检测
+- **工程层（M2+ 加强）**：8 个 violation_check 函数针对每条规则做精确 regex 检测
   - long_term_fundamental：长 hash if 分支 / 黑白名单字面 / TODO 实际注释 / 意图字面注释 / 全大写常量名单
   - non_blocking_parallel：sleep / wait / 长任务无 background / 间接 shell 执行
   - chinese_plain_no_jargon：中文占比 + jargon 检测（剥 code block + inline code）

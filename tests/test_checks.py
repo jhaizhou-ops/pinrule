@@ -322,6 +322,36 @@ def test_non_blocking_sleep_fractional_caught():
     assert hit is not None
 
 
+def test_non_blocking_cursor_shell_block_until_ms_default_not_blocking():
+    """朋友 Cursor 试用真假阳回归：Cursor SDK 每次 Shell 调用都默认带
+    block_until_ms=30000（语义是「最多等 30s 再转后台」，跟命令本身阻塞与否无关）。
+    真短命令（pinrule doctor / ls 等 <1s）不该被这个 SDK 默认值拦。
+
+    朋友报告: 之前 block_until_ms >= 30000 判断让每个 Cursor Shell 调用都被拦。
+    Fix: 删错误代理判断，只走命令内容检测。
+    """
+    fn = REGISTRY["non_blocking_parallel"]
+    for cmd in ["pinrule doctor", "ls -la", "echo hello", "git status"]:
+        hit = fn(
+            tool_name="Bash",
+            tool_input={"command": cmd, "block_until_ms": 30000},
+        )
+        assert hit is None, (
+            f"Cursor SDK 默认 block_until_ms=30000 + 真短命令 {cmd!r} 不该被拦"
+        )
+
+
+def test_non_blocking_real_sleep_still_caught_under_cursor_payload():
+    """钉死: 删 block_until_ms 代理判断后，真 sleep N 命令仍要被命令内容检测兜住。"""
+    fn = REGISTRY["non_blocking_parallel"]
+    hit = fn(
+        tool_name="Bash",
+        tool_input={"command": "sleep 60", "block_until_ms": 30000},
+    )
+    assert hit is not None, "真 sleep 60 应该被命令内容检测拦"
+    assert "sleep" in hit.trigger
+
+
 def test_non_blocking_detects_long_task_no_background():
     fn = REGISTRY["non_blocking_parallel"]
     # 长任务（docker run / build）— 不带 background 命中

@@ -99,32 +99,11 @@ def check(*, tool_name: str = "", tool_input: dict | None = None, rule_id: str =
         return None
     tool_input = tool_input or {}
     is_bg = bool(tool_input.get("run_in_background"))
-    # Cursor Shell: sync `timeout` ms (no run_in_background field) — treat as blocking wait.
-    if not is_bg:
-        timeout_ms = tool_input.get("timeout")
-        if isinstance(timeout_ms, (int, float)) and timeout_ms >= 30_000:
-            return CheckHit(
-                rule_id=rule_id or _STICKY_ID,
-                trigger=tr(
-                    "check.non_blocking.cursor_timeout.trigger",
-                    ms=int(timeout_ms),
-                ),
-                trigger_key="check.non_blocking.cursor_timeout.trigger",
-                snippet=cmd_raw[:200],
-                suggested_fix=tr("check.non_blocking.cursor_timeout.fix"),
-            )
-        block_ms = tool_input.get("block_until_ms")
-        if isinstance(block_ms, (int, float)) and block_ms >= 30_000:
-            return CheckHit(
-                rule_id=rule_id or _STICKY_ID,
-                trigger=tr(
-                    "check.non_blocking.cursor_timeout.trigger",
-                    ms=int(block_ms),
-                ),
-                trigger_key="check.non_blocking.cursor_timeout.trigger",
-                snippet=cmd_raw[:200],
-                suggested_fix=tr("check.non_blocking.cursor_timeout.fix"),
-            )
+    # 注意: 之前这里基于 tool_input["block_until_ms"] >= 30000 拦截 — 这是错误代理.
+    # block_until_ms 是 Cursor MCP Await tool / Shell SDK 的「调用等待上限 → 然后转后台」,
+    # 跟命令本身会不会阻塞无关. Cursor SDK 给每个 Shell 调用都默认带 30000, 导致
+    # `pinrule doctor` 这种 <1s 命令也全部被拦. 真阻塞由下面命令内容判断 (_SLEEP_RE /
+    # _LONG_TASK_RE / _PYTHON_REAL_BLOCK_RE) 兜.
     # 扫命令骨架，跳过引号字面（commit message / echo 引号内容不是执行意图）
     cmd = strip_shell_quoted_literals(cmd_raw)
 

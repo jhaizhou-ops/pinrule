@@ -18,7 +18,7 @@
                        ▼
 ┌───────────────────────────────────────────────────────────┐
 │  Claude hooks (~/.claude/hooks/)                     │
-│  ├── pinrule_user_prompt_submit.py   ← 每条消息前注入 sticky │
+│  ├── pinrule_user_prompt_submit.py   ← 每条消息前注入规则   │
 │  ├── pinrule_pre_tool_use.py         ← 实时拦截违反 tool 调用│
 │  ├── pinrule_post_tool_use.py        ← 跟踪状态 + catchup    │
 │  └── pinrule_stop.py                 ← 扫 response 违反      │
@@ -60,8 +60,8 @@
 ### violations.jsonl
 
 ```jsonl
-{"ts":1715617200,"session_id":"abc","sticky_id":"long-term-fundamental","trigger":"硬编码","snippet":"...先 硬编码 这个值..."}
-{"ts":1715617250,"session_id":"abc","sticky_id":"non-blocking-parallel","trigger":"Bash sleep 命令: 'sleep 30'","snippet":"sleep 30 && echo done"}
+{"ts":1715617200,"session_id":"abc","rule_id":"long-term-fundamental","trigger":"硬编码","snippet":"...先 硬编码 这个值..."}
+{"ts":1715617250,"session_id":"abc","rule_id":"non-blocking-parallel","trigger":"Bash sleep 命令: 'sleep 30'","snippet":"sleep 30 && echo done"}
 ```
 
 append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史，最老的删）。
@@ -145,7 +145,7 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 实现：`pinrule/hooks/pre_tool_use.py`
 
 两层检测：
-1. **工程层** — 跑 sticky 配的 `violation_checks` 函数集（精确 regex pattern）
+1. **工程层** — 跑规则配的 `violation_checks` 函数集（精确 regex pattern）
 2. **关键词层（兜底）** — 扫 Bash command 骨架（剥引号字面 + heredoc 智能剥）+ Write/Edit 注释 + docstring
 
 优先工程层（更精确），命中即 deny。Fail open 原则（配置错 / payload 解析失败 → allow，不卡 Agent）。
@@ -229,7 +229,7 @@ UserPromptSubmit 才加。如果你看 `/tmp/pinrule_stop_trace.log` 实际 sess
 
 每个 check 函数签名：`def check(*, tool_name, tool_input, response, session_state, **_) -> CheckHit | None`。
 
-返回 `None` = 无违反，返回 `CheckHit(sticky_id, trigger, snippet, suggested_fix)` = 违反命中。
+返回 `None` = 无违反，返回 `CheckHit(rule_id, trigger, snippet, suggested_fix)` = 违反命中。
 
 ## 共用 helpers（`pinrule/checks/common.py`）
 
