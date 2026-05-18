@@ -375,6 +375,16 @@ rm -rf /tmp/pinrule-trial                              # 试完干净撤
 
 注：path 在 module-level 常量 import 时 freeze，所以 `PINRULE_HOME` 必须在启动 pinrule 进程**之前** set。Hook wrapper 调起的 pinrule 继承父进程 env，所以 sandbox 装完之后运行时 env 不用再保留（wrapper 路径本身已经是 sandbox 内部的了）。
 
+## 跨平台支持
+
+pinrule 真支持 Linux / macOS / Windows 三平台 — [CI 6 矩阵全绿](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml)（ubuntu + macOS + Windows × Python 3.11 / 3.12）+ 朋友 Windows 真机 dogfood 确认能跑。平台实现细节：
+
+- **hook 命令**在 `settings.json` / `hooks.json` 里用 `subprocess.list2cmdline([sys.executable, wrapper])` — 显式 `python.exe wrapper.py` 跨平台一致，含空格的路径自动加引号。
+- **跨进程 file lock** Unix 上用 `fcntl.flock`（advisory，进程退出 kernel 自动释放）。Windows 上 no-op fallback — 真实使用一 session 一 AI 客户端不并发，单进程 pinrule 不受影响。N=20 并发压测只在 Unix 跑（验证 lock primitive，不验证真实用法）。
+- **桌面通知**按 `sys.platform` 分发：macOS `osascript`、Linux `notify-send`、Windows `msg`（Pro/Enterprise 自带；Home 版静默 no-op）。
+- **路径归一化** `_normalize_path` 用 `os.path.abspath(os.path.expanduser(...))` — stdlib 给出每平台正确行为；AI 客户端传 native 路径，真实场景跟期望一致。
+- **stdio UTF-8** entry point 共享 `force_utf8_stdio()` helper —— `chcp 936` (zh-CN GBK default) Windows 控制台不会 crash 在 `▸` 等 CJK 符号。
+
 ## 性能预算
 
 | 路径 | 预算 | 当前实测 |
@@ -400,7 +410,6 @@ rm -rf /tmp/pinrule-trial                              # 试完干净撤
 - ❌ 数据库 — `violations.jsonl` + `session-state/*.json` 文本 IO 足够
 - ❌ 自动蒸馏新 sticky — 用户掌控
 - ❌ retrieval / cosine / scene 选规则 — 5-10 条 always-on
-- ❌ 跨平台支持 — 先 Claude only
 - ❌ Web UI / TUI — CLI + $EDITOR 足够
 
 ## 已交付里程碑

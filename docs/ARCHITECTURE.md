@@ -358,14 +358,15 @@ rm -rf /tmp/pinrule-trial                              # Clean trial removal
 
 Note: paths freeze at module-level constant import time, so `PINRULE_HOME` must be set **before** launching pinrule. Hook-wrapper-invoked pinrule inherits parent process env, so once the sandbox install is done the env is no longer required at runtime (wrapper path is already sandbox-internal).
 
-## Cross-platform notes (v0.16.17+)
+## Cross-platform notes
 
-pinrule runs on Linux, macOS, and Windows. A few platform details:
+pinrule runs on Linux, macOS, and Windows — [CI 6-matrix green](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu + macOS + Windows × Python 3.11 / 3.12), real-user dogfood on Windows native confirmed. Platform implementation details:
 
-- **Hook command in `settings.json` / `hooks.json`** is `subprocess.list2cmdline([sys.executable, wrapper])` — explicit `python.exe wrapper.py` instead of relying on Unix shebang. Same on all platforms; auto-quotes paths with spaces.
-- **Cross-process file lock** uses `fcntl.flock` on Unix (advisory, kernel-released on process exit). On Windows `fcntl` isn't available; pinrule falls back to no-op (single-process is fine; concurrent multi-client writes to the same `session-state/` are racy on Windows). Test suite skips the N=20 concurrent race-fix tests on Windows; if you need cross-process safety on Windows, a `msvcrt.locking` shim can ship in a follow-up.
-- **Desktop notifications** dispatch by `sys.platform`: macOS `osascript`, Linux `notify-send`, Windows `msg`. `msg` ships with Windows Pro/Enterprise; Home builds need an alternative or have notifications silently no-op.
-- **Path normalization** in `_normalize_path` uses `os.path.abspath(os.path.expanduser(...))`. Per-platform behavior is what stdlib gives you: Unix-style `/x/foo.py` on Windows becomes `<drive>:\x\foo.py` (Windows abspath semantics). In real usage, Windows AI clients pass Windows paths, so this matches expectation; only tests that mock Unix-path inputs need platform-skip.
+- **Hook command** in `settings.json` / `hooks.json` uses `subprocess.list2cmdline([sys.executable, wrapper])` — explicit `python.exe wrapper.py` cross-platform, auto-quotes paths with spaces.
+- **Cross-process file lock** uses `fcntl.flock` on Unix (advisory, kernel-released on process exit). On Windows uses no-op fallback — single-AI-client-per-session is the real-world case so single-process pinrule is unaffected. The N=20 concurrent stress test is Unix-only by design (validates the lock primitive, not real-world usage).
+- **Desktop notifications** dispatch by `sys.platform`: macOS `osascript`, Linux `notify-send`, Windows `msg` (ships with Pro/Enterprise; Home builds silently no-op).
+- **Path normalization** in `_normalize_path` uses `os.path.abspath(os.path.expanduser(...))` — stdlib gives correct per-platform behavior; AI clients pass native paths so this matches expectation in real use.
+- **stdio UTF-8** forced via `force_utf8_stdio()` in entry points — `chcp 936` (zh-CN GBK default) Windows consoles don't crash on `▸` and other CJK punctuation.
 
 ## Performance budget
 
@@ -392,7 +393,6 @@ Performance hasn't been a bottleneck — measured far below budget.
 - ❌ Database — `violations.jsonl` + `session-state/*.json` text IO is enough
 - ❌ Auto-distilling new rules — user-controlled
 - ❌ retrieval / cosine / scene rule selection — 5-10 rules always-on
-- ❌ Cross-platform support (v0.4+ supports Claude / Codex / Cursor)
 - ❌ Web UI / TUI — CLI + $EDITOR is enough
 
 ## Delivered milestones
