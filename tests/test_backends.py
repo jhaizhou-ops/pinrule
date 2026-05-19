@@ -262,18 +262,22 @@ def test_detect_installed_returns_list_of_names():
 
 
 def test_detect_installed_picks_up_each_backend(monkeypatch):
-    """3 个 backend 都「装了」→ detect 返回 3 个（顺序按 REGISTRY）。"""
+    """4 个 backend 都「装了」→ detect 返回 4 个（顺序按 REGISTRY）。"""
+    from pinrule.backends import HermesBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: True)
-    assert detect_installed_backends() == ["claude-code", "codex", "cursor"]
+    monkeypatch.setattr(HermesBackend, "client_installed", lambda self: True)
+    assert detect_installed_backends() == ["claude-code", "codex", "cursor", "hermes"]
 
 
 def test_detect_installed_skips_uninstalled_backend(monkeypatch):
     """只装一个 → detect 只返回那个。"""
+    from pinrule.backends import HermesBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(HermesBackend, "client_installed", lambda self: False)
     assert detect_installed_backends() == ["codex"]
 
 

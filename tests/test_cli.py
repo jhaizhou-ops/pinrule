@@ -46,10 +46,11 @@ def fake_home(tmp_path, monkeypatch):
     fake_repo = tmp_path / "fake_repo"
     fake_repo.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(cli, "_CLEANUP_REPO_ROOT", fake_repo)
-    from pinrule.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend, CursorBackend, HermesBackend
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: True)
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(HermesBackend, "client_installed", lambda self: False)
     return tmp_path
 
 
@@ -560,10 +561,11 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
     sticky_path.write_text(json.dumps([{"id": "test", "preference": "x"}], ensure_ascii=False, indent=2))
     import pinrule.rule
     import pinrule.violations
-    from pinrule.backends import CodexBackend
+    from pinrule.backends import CodexBackend, HermesBackend
     import unittest.mock
     # mock 其他 backend 没装（fake_home 是 tmp，本测试只关心 Claude Code 路径）
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(HermesBackend, "client_installed", lambda self: False)
     cli.cmd_install_hooks(backend_name="claude-code")
     with unittest.mock.patch.object(pinrule.rule, "DEFAULT_PATH", sticky_path):
         with unittest.mock.patch.object(cli, "RULES_PATH", sticky_path):
@@ -579,10 +581,11 @@ def test_doctor_reports_fully_installed(fake_home, capsys, monkeypatch):
 
 def test_doctor_cursor_flat_hook_entry_detected(fake_home, monkeypatch, capsys):
     """Cursor native flat {command} entry 应被 doctor 识别为已安装 (v0.13.5 fix)."""
-    from pinrule.backends import CursorBackend, CodexBackend, ClaudeCodeBackend
+    from pinrule.backends import CursorBackend, CodexBackend, ClaudeCodeBackend, HermesBackend
 
     monkeypatch.setattr(CodexBackend, "client_installed", lambda self: False)
     monkeypatch.setattr(ClaudeCodeBackend, "client_installed", lambda self: False)
+    monkeypatch.setattr(HermesBackend, "client_installed", lambda self: False)
     # v0.16.7: fake_home fixture 现在 mock CursorBackend.client_installed=False,
     # 本 test 需要 Cursor 装着才能验 doctor detect — 显式 override.
     monkeypatch.setattr(CursorBackend, "client_installed", lambda self: True)

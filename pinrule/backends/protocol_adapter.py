@@ -57,28 +57,45 @@ _CURSOR_EVENT_NAMES = frozenset({
     "beforeReadFile", "afterFileEdit",
 })
 
+# Hermes Agent event 名集合 — snake_case + on_/pre_/post_ 前缀 (NousResearch
+# hermes-agent 源码 ground: agent/shell_hooks.py + conversation_loop.py).
+# 跟 Claude PascalCase / Cursor camelCase 都不同, 是 Hermes 独有特征.
+_HERMES_EVENT_NAMES = frozenset({
+    "pre_tool_call", "post_tool_call",
+    "pre_llm_call", "post_llm_call",
+    "on_session_start", "on_session_end",
+    "on_session_finalize", "on_session_reset",
+    "subagent_stop",
+})
+
 
 def detect_backend(payload: dict) -> str:
     """从 stdin payload 检测当前 hook 跑在哪个 backend.
 
-    Detection 顺序 (v0.13.2 砍 Gemini 后简化):
-    1. payload.hook_event_name ∈ Cursor event 名 (camelCase 小开头) → 'cursor'
-    2. wrapper 调用路径含 '/.cursor/' → 'cursor' (event name 缺失兜底)
-    3. wrapper 调用路径含 '/.codex/' → 'codex'
+    Detection 顺序:
+    1. payload.hook_event_name ∈ Cursor event 名 (camelCase) → 'cursor'
+    2. payload.hook_event_name ∈ Hermes event 名 (snake_case) → 'hermes'
+    3. wrapper 调用路径含 '/.cursor/' → 'cursor' (event name 缺失兜底)
+    4. wrapper 调用路径含 '/.codex/' → 'codex'
        (真测试 2026-05-16: codex error "unsupported permissionDecision:allow"
        证实 codex 不接受 Claude allow shape — emit_allow 必须返 {}.)
-    4. 否则 fallback 'claude-code'
+    5. wrapper 调用路径含 '/.hermes/' → 'hermes' (event name 缺失兜底)
+    6. 否则 fallback 'claude-code'
 
     返回 backend 名 (REGISTRY key) — 调用方用 `REGISTRY[name]` 拿 backend 实例.
     """
     event = payload.get("hook_event_name", "") or ""
     if event in _CURSOR_EVENT_NAMES:
         return "cursor"
+    if event in _HERMES_EVENT_NAMES:
+        return "hermes"
     # Path-based fallback for 协议未在 payload 写 hook_event_name 的边缘情况
     if sys.argv and "/.cursor/" in sys.argv[0]:
         return "cursor"
     if sys.argv and "/.codex/" in sys.argv[0]:
         return "codex"
+    if sys.argv and "/.hermes/" in sys.argv[0]:
+        return "hermes"
     return "claude-code"
 
 
