@@ -197,20 +197,22 @@ append-only，行数超 5000 自动 rotation（`.1` `.2` `.3` 保留 3 个历史
 UserPromptSubmit 才加。如果你看 `/tmp/pinrule_stop_trace.log` 实际 session 0 条，
 先检查 `~/.claude/settings.json` 的 Stop entry 是否含 matcher 字段。
 
-## 三端能力对照
+## 四端能力对照
 
-每家 backend native event 触达面 — 三端共用 pinrule 核心逻辑, 但每家挑该平台原生协议最强的触达点 (Cursor 4 个独立 gate / Codex PermissionRequest / Claude PreCompact 落盘), 不互相套别家协议形状.
+每家 backend native event 触达面 — 四端共用 pinrule 核心逻辑, 但每家挑该平台原生协议最强的触达点 (Cursor 4 个独立 gate / Codex PermissionRequest / Claude PreCompact 落盘), 不互相套别家协议形状.
 
-| 能力 | Claude | Codex | Cursor |
-|---|---|---|---|
-| Native hook 数 | 8 | 6 | 12 |
-| 起手注入规则 | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart |
-| 工具调用前实时拦截 | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 个独立 gate (Shell / MCP / Read / File) |
-| Stop 干预 | ✓ block 决策 | ✓ block 决策 | ✓ followup_message (自动续推) |
-| compact 后续命 | ✓ PreCompact 落盘 | — | ✓ preCompact 落盘 |
-| 子 Agent 覆盖 | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop |
-| `/pinrule <NL>` 加规则 | ✓ home 全局 | ✓ home 全局 | ⚠ 只 project-scoped |
-| 可见性兜底 | — | trusted_hash 自动信任 | `.mdc` Rules `alwaysApply` |
+| 能力 | Claude | Codex | Cursor | Hermes |
+|---|---|---|---|---|
+| Native hook 数 | 8 | 6 | 12 | 5 |
+| 起手注入规则 | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart | ✓ on_session_start |
+| 工具调用前实时拦截 | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 个独立 gate (Shell / MCP / Read / File) | ✓ pre_tool_call |
+| Stop 干预 | ✓ block 决策 | ✓ block 决策 | ✓ followup_message (自动续推) | — (on_session_end 真 fire 但无 transcript) |
+| compact 后续命 | ✓ PreCompact 落盘 | — | ✓ preCompact 落盘 | — (持久 memory 模型) |
+| 子 Agent 覆盖 | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop | — |
+| `/pinrule <NL>` 加规则 | ✓ home 全局 | ✓ home 全局 | ⚠ 只 project-scoped | ✓ home 全局 (`~/.hermes/skills/`) |
+| 可见性兜底 | — | trusted_hash 自动信任 | `.mdc` Rules `alwaysApply` | — (`--accept-hooks` flag 同意) |
+
+**Hermes config 已知 limit** (v0.19.0): pinrule 自带 YAML subset parser 真不接受 hermes 默认 `~/.hermes/config.yaml` (含 multi-line string 续行 + `agent.personalities` 段 unicode escape continuation). 临时 workaround: `pinrule install-hooks --backend hermes` 生成 wrapper 后, 手工 append `hooks:` 段到 config.yaml — 详见 HOWTO. 真 line-based surgical operator v0.19.1 真补.
 
 ## 8 个 violation_check 函数（工程层精准检测）
 
@@ -355,7 +357,7 @@ v0.16.11 把 `PINRULE_HOME` 从「只管数据目录」扩成**真 install-root 
 | 锚点 | 没设 `PINRULE_HOME` | `PINRULE_HOME=/tmp/foo` |
 |---|---|---|
 | 数据目录（rules.json / violations.jsonl / session-state/ / config.json） | `~/.pinrule/` | `/tmp/foo/.pinrule/`（走 `pinrule_home()`） |
-| Hook wrapper 装机根 | `~/.claude/`, `~/.codex/`, `~/.cursor/` | `/tmp/foo/.claude/`, `/tmp/foo/.codex/`, `/tmp/foo/.cursor/`（走 `pinrule_install_root()`） |
+| Hook wrapper 装机根 | `~/.claude/`, `~/.codex/`, `~/.cursor/`, `~/.hermes/` | `/tmp/foo/.claude/`, `/tmp/foo/.codex/`, `/tmp/foo/.cursor/`, `/tmp/foo/.hermes/`（走 `pinrule_install_root()`） |
 | settings.json 入口 | 写 `~/.claude/settings.json` 等 | 写 `/tmp/foo/.claude/settings.json` 等 |
 | Skill 文件（`SKILL.md`） | `~/.claude/skills/pinrule/`, `~/.codex/skills/pinrule/` | 镜像到 `/tmp/foo/...` |
 | Cursor `.mdc` rules | `~/.cursor/rules/` | `/tmp/foo/.cursor/rules/` |

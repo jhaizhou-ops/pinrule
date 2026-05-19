@@ -106,7 +106,7 @@ Use both. Memory holds "I prefer TypeScript"; pinrule enforces "non-negotiable d
 | **Hook latency** | ~50-70ms typical (machine-bound; reproduce via `scripts/measure_perf.py`) |
 | **Token overhead** | ~2% of conversation context in real dogfood (methodology: [docs/EVALUATION.md](./docs/EVALUATION.md)) |
 | **Tests** | 800+ unit tests, [green on 6-matrix CI](https://github.com/jhaizhou-ops/pinrule/actions/workflows/ci.yml) (ubuntu + macOS + Windows × Python 3.11 / 3.12) |
-| **Supported clients** | Claude / Codex / Cursor — [add a backend](./pinrule/backends/HOWTO.md) |
+| **Supported clients** | Claude / Codex / Cursor / Hermes — [add a backend](./pinrule/backends/HOWTO.md) |
 
 ---
 

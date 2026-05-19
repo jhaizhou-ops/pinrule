@@ -187,18 +187,20 @@ Performance: < 200ms.
 
 ## Backend capability matrix
 
-Per-backend native event surface — same pinrule core logic on all 3, each backend uses the native protocol's strongest surface (Cursor's 4 dedicated gates, Codex's PermissionRequest, Claude's PreCompact dump). No backend reuses another's protocol shape.
+Per-backend native event surface — same pinrule core logic on all 4, each backend uses the native protocol's strongest surface (Cursor's 4 dedicated gates, Codex's PermissionRequest, Claude's PreCompact dump). No backend reuses another's protocol shape.
 
-| Capability | Claude | Codex | Cursor |
-|---|---|---|---|
-| Native hook count | 8 | 6 | 12 |
-| Session-start rule inject | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart |
-| Real-time tool gate | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 dedicated gates (Shell / MCP / Read / File) |
-| Stop intervention | ✓ block decision | ✓ block decision | ✓ followup_message (auto-continue) |
-| Compact resilience | ✓ PreCompact dump | — | ✓ preCompact dump |
-| Subagent coverage | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop |
-| `/pinrule <NL>` rule input | ✓ home-global | ✓ home-global | ⚠ project-scoped only |
-| Visibility fallback | — | trusted_hash auto-trust | `.mdc` Rules `alwaysApply` |
+| Capability | Claude | Codex | Cursor | Hermes |
+|---|---|---|---|---|
+| Native hook count | 8 | 6 | 12 | 5 |
+| Session-start rule inject | ✓ SessionStart | ✓ SessionStart | ✓ sessionStart | ✓ on_session_start |
+| Real-time tool gate | ✓ PreToolUse | ✓ PreToolUse + PermissionRequest | ✓ preToolUse + 4 dedicated gates (Shell / MCP / Read / File) | ✓ pre_tool_call |
+| Stop intervention | ✓ block decision | ✓ block decision | ✓ followup_message (auto-continue) | — (on_session_end fires but no transcript) |
+| Compact resilience | ✓ PreCompact dump | — | ✓ preCompact dump | — (persistent memory model) |
+| Subagent coverage | ✓ SubagentStart/Stop | — | ✓ subagentStart/Stop | — |
+| `/pinrule <NL>` rule input | ✓ home-global | ✓ home-global | ⚠ project-scoped only | ✓ home-global (`~/.hermes/skills/`) |
+| Visibility fallback | — | trusted_hash auto-trust | `.mdc` Rules `alwaysApply` | — (consent via `--accept-hooks`) |
+
+**Hermes config caveat** (known v0.19.0 limit): pinrule's bundled YAML subset parser doesn't accept Hermes's default `~/.hermes/config.yaml` (multi-line string continuations + unicode escape continuations under `agent.personalities`). Workaround: append the `hooks:` section manually after `pinrule install-hooks --backend hermes` generates wrappers — see HOWTO. A surgical line-based operator is planned for v0.19.1.
 
 ## 8 violation_check functions (engine-layer precise detection)
 
@@ -338,7 +340,7 @@ v0.16.11 expanded `PINRULE_HOME` from "data dir only" to **true install-root san
 | Anchor | Without `PINRULE_HOME` | With `PINRULE_HOME=/tmp/foo` |
 |---|---|---|
 | Data dir (rules.json / violations.jsonl / session-state/ / config.json) | `~/.pinrule/` | `/tmp/foo/.pinrule/` (via `pinrule_home()`) |
-| Hook wrapper install root | `~/.claude/`, `~/.codex/`, `~/.cursor/` | `/tmp/foo/.claude/`, `/tmp/foo/.codex/`, `/tmp/foo/.cursor/` (via `pinrule_install_root()`) |
+| Hook wrapper install root | `~/.claude/`, `~/.codex/`, `~/.cursor/`, `~/.hermes/` | `/tmp/foo/.claude/`, `/tmp/foo/.codex/`, `/tmp/foo/.cursor/`, `/tmp/foo/.hermes/` (via `pinrule_install_root()`) |
 | settings.json entries | written to `~/.claude/settings.json` etc. | written to `/tmp/foo/.claude/settings.json` etc. |
 | Skill files (`SKILL.md`) | `~/.claude/skills/pinrule/`, `~/.codex/skills/pinrule/` | mirrored under `/tmp/foo/...` |
 | Cursor `.mdc` rules | `~/.cursor/rules/` | `/tmp/foo/.cursor/rules/` |

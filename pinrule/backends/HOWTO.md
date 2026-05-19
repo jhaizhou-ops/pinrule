@@ -2,7 +2,7 @@
 
 **[🇬🇧 English (current)](./HOWTO.md) · [🇨🇳 中文](./HOWTO.zh.md)**
 
-pinrule currently supports 3 clients out-of-the-box (Claude / Codex / Cursor). This doc explains how to add a 4th — in principle **any AI coding client that exposes a hook interface** (registers external commands at event triggers + passes payload via stdin) can be added as a backend.
+pinrule currently supports 4 clients out-of-the-box (Claude / Codex / Cursor / Hermes). This doc explains how to add a 5th — in principle **any AI coding client that exposes a hook interface** (registers external commands at event triggers + passes payload via stdin) can be added as a backend.
 
 ## 5 steps to add a new backend
 
@@ -168,6 +168,7 @@ echo '{"session_id":"t","prompt_response":"I'll patch this quickly","<other fiel
 | Claude | `~/.claude/settings.json` | ✓ Since v0.1.0 |
 | Codex | `~/.codex/hooks.json` | ✓ Since v0.3.0 |
 | Cursor | `~/.cursor/hooks.json` | ✓ Since v0.12.0 (Cursor 1.7+ required; `/pinrule` skill is project-scoped only — no global skills dir on Cursor) |
+| Hermes | `~/.hermes/config.yaml` | ✓ Since v0.19.0 (NousResearch Hermes Agent v0.14.0+ — persistent server agent with plugin hooks; source-grounded against `agent/shell_hooks.py`. **Known v0.19.0 limit**: pinrule's bundled YAML subset parser doesn't accept Hermes's default `config.yaml` (multi-line string continuations under `agent.personalities`) — workaround: append the `hooks:` section manually after `install-hooks` generates wrappers; line-based surgical operator planned for v0.19.1.) |
 
 ## Candidate backends — no pre-built list
 

@@ -2,7 +2,7 @@
 
 **[🇬🇧 English](./HOWTO.md) · [🇨🇳 中文（当前）](./HOWTO.zh.md)**
 
-pinrule 当前装机支持 3 家（Claude / Codex / Cursor）。本文档讲怎么加第 4 家
+pinrule 当前装机支持 4 家（Claude / Codex / Cursor / Hermes）。本文档讲怎么加第 5 家
 — 理论上**任何提供 hook 接口（能注册外部命令在事件触发时执行 + 通过
 stdin 传递 payload）的 AI 编程客户端**都可以加 backend 支持。
 
@@ -179,6 +179,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 | Claude | `~/.claude/settings.json` | ✓ v0.1.0 起 |
 | Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
 | Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/pinrule` skill 仅 project-scoped — Cursor 没 home-level global skills 目录）。**回复级 check** 需用户开 Agent transcripts — 见 README「Cursor：开启 Agent Transcripts」 |
+| Hermes | `~/.hermes/config.yaml` | ✓ v0.19.0 起（NousResearch Hermes Agent v0.14.0+ — 持久 server agent + plugin hooks；基于 `agent/shell_hooks.py` 源码 ground）。**v0.19.0 已知 limit**: pinrule 自带 YAML subset parser 不接受 Hermes 默认 `config.yaml`（`agent.personalities` 段含 multi-line string 续行）— workaround: `install-hooks` 生成 wrapper 后手工 append `hooks:` 段；line-based surgical operator v0.19.1 真补。 |
 
 ## 候选 backend — 没有现成清单
 
