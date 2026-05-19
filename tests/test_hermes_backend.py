@@ -25,12 +25,38 @@ import json
 import pytest
 
 from pinrule.backends import REGISTRY, HermesBackend
-from pinrule.backends._base import SettingsParseError
 from pinrule.backends.hermes import (
     _emit_yaml_subset,
+    _extract_hooks_section,
     _parse_yaml_subset,
+    _strip_hooks_section,
     _YamlSubsetError,
 )
+
+
+# 真模拟 Hermes 默认 config.yaml 的复杂语法 — 含 multi-line string 续行 +
+# unicode escape continuation + 嵌套 mapping. pinrule subset parser 真处理
+# 不了这些, 但 line-based surgical operator 应该原样保留.
+HERMES_LIKE_DEFAULT_CONFIG = """\
+model:
+  default: gpt-5.5
+  provider: custom
+  base_url: https://api.favorais.com/v1
+terminal:
+  backend: local
+  cwd: .
+  timeout: 180
+agent:
+  max_turns: 60
+  personalities:
+    helpful: You are a helpful, friendly AI assistant.
+    creative: You are a creative assistant. Think outside the box and offer innovative
+      solutions.
+    kawaii: "You are a kawaii assistant! Use cute expressions like (\\u25D5\\u203F\\u25D5\\
+      ), \\u2605, \\u266A, and ~! Add sparkles and be super enthusiastic about everything!"
+display:
+  compact: false
+"""
 
 
 @pytest.fixture
@@ -352,15 +378,17 @@ def test_hermes_load_settings_empty_when_no_file(hermes_test_config_dir):
 
 
 def test_hermes_save_then_load_roundtrip(hermes_test_config_dir):
-    """save_settings + load_settings 真 roundtrip 不丢字段."""
+    """save_settings + load_settings 真 roundtrip — v0.19.0 surgical 后 pinrule
+    只 own `hooks` 段, 其他顶层 yaml 字段不进 load 返回. 用户 `hooks_auto_accept`
+    等真物理保留在 file 里 (save 时真不被破坏), 但不在 pinrule load_settings 返回里."""
     b = HermesBackend()
+    # 真 save 只 hooks 段 (其他字段不属于 pinrule own 范围)
     data = {
         "hooks": {
             "pre_tool_call": [
                 {"command": "/x/pinrule_pre_tool_use.py", "timeout": 30},
             ],
         },
-        "hooks_auto_accept": False,
     }
     b.save_settings(data)
     loaded = b.load_settings()
@@ -376,13 +404,151 @@ def test_hermes_save_settings_atomic_no_tmp_leftover(hermes_test_config_dir):
     assert not tmp_files
 
 
-def test_hermes_load_raises_on_unsupported_yaml(hermes_test_config_dir):
-    """用户 config.yaml 含 advanced YAML 时 SettingsParseError loud-fail."""
+def test_hermes_load_ignores_non_hooks_complex_yaml(hermes_test_config_dir):
+    """v0.19.0 surgical 后: 用户 config.yaml 非 hooks 段含 advanced YAML
+    (multi-line / unicode escape / anchor 等) 时 pinrule 不再 raise — 因为
+    它根本不 parse 那些段, 只 extract hooks 段. 没 hooks 段返 {}."""
     b = HermesBackend()
     p = b.settings_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    # Anchor — pinrule 真不支持
-    p.write_text("k: &anchor value\n", encoding="utf-8")
-    with pytest.raises(SettingsParseError) as exc:
-        b.load_settings()
-    assert "PyYAML" in str(exc.value) or "YAML 高级特性" in str(exc.value)
+    # 真用 Hermes-like 复杂 yaml 但无 hooks 段
+    p.write_text(HERMES_LIKE_DEFAULT_CONFIG, encoding="utf-8")
+    loaded = b.load_settings()
+    assert loaded == {}  # 没 hooks 段 → 空 dict
+
+
+# ---------- v0.19.0 line-based surgical operator ----------
+
+
+def test_extract_hooks_section_finds_top_level_hooks():
+    """真从顶层 `hooks:` 段提内容, 子级 indented 行全保留."""
+    raw = HERMES_LIKE_DEFAULT_CONFIG + (
+        "hooks:\n"
+        "  pre_tool_call:\n"
+        "    - command: /x/y.py\n"
+        "      timeout: 30\n"
+    )
+    hooks_block = _extract_hooks_section(raw)
+    assert "pre_tool_call:" in hooks_block
+    assert "/x/y.py" in hooks_block
+    # 真不应含非 hooks 段的字段
+    assert "personalities" not in hooks_block
+    assert "model:" not in hooks_block
+
+
+def test_extract_hooks_section_no_hooks_returns_empty():
+    """raw 无顶层 `hooks:` 段返空 string."""
+    assert _extract_hooks_section(HERMES_LIKE_DEFAULT_CONFIG) == ""
+    assert _extract_hooks_section("") == ""
+
+
+def test_extract_hooks_section_distinguishes_hooks_auto_accept():
+    """`hooks_auto_accept:` 真不是 `hooks:` — 不被误识别."""
+    raw = "hooks_auto_accept: false\nmodel:\n  default: gpt-5.5\n"
+    assert _extract_hooks_section(raw) == ""
+
+
+def test_strip_hooks_section_preserves_other_sections():
+    """surgical strip `hooks:` 段, 其他真原样保留 — 含 multi-line 续行."""
+    raw = HERMES_LIKE_DEFAULT_CONFIG + (
+        "hooks:\n"
+        "  pre_tool_call:\n"
+        "    - command: /x/y.py\n"
+        "      timeout: 30\n"
+        "display:\n"
+        "  show_reasoning: false\n"
+    )
+    stripped = _strip_hooks_section(raw)
+    # hooks 段真删干净
+    assert "pre_tool_call:" not in stripped
+    assert "/x/y.py" not in stripped
+    # 其他段真完整保留 (含 multi-line 续行 + unicode escape)
+    assert "personalities" in stripped
+    assert "(\\u25D5" in stripped  # unicode escape continuation 真保留
+    assert "innovative\n      solutions." in stripped  # multi-line 续行 真保留
+    # hooks 段后的真 display 段也保留
+    assert "show_reasoning: false" in stripped
+
+
+def test_save_preserves_hermes_default_complex_yaml(hermes_test_config_dir):
+    """v0.19.0 真核心 — save 后 user 的复杂 yaml (multi-line / unicode escape)
+    真完整保留, 不被 pinrule 改坏."""
+    b = HermesBackend()
+    p = b.settings_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    # 真先放 Hermes-like 复杂 default config
+    p.write_text(HERMES_LIKE_DEFAULT_CONFIG, encoding="utf-8")
+    # 真 save 加 hooks 段
+    b.save_settings({
+        "hooks": {
+            "pre_tool_call": [
+                {"command": "/Users/x/.hermes/agent-hooks/pinrule_pre_tool_use.py", "timeout": 30},
+            ],
+        },
+    })
+    final = p.read_text(encoding="utf-8")
+    # 非 hooks 段真原样保留
+    assert "personalities:" in final
+    assert "(\\u25D5\\u203F\\u25D5\\" in final  # unicode escape 续行真保留
+    assert "innovative\n      solutions." in final  # multi-line 续行真保留
+    assert "model:" in final
+    assert "default: gpt-5.5" in final
+    # hooks 段真 append 到末尾
+    assert "hooks:" in final
+    assert "pinrule_pre_tool_use.py" in final
+
+
+def test_save_then_load_roundtrip_preserves_complex_yaml(hermes_test_config_dir):
+    """v0.19.0: 真 save → load → save → load roundtrip 不丢字段也不破坏非 hooks 段."""
+    b = HermesBackend()
+    p = b.settings_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(HERMES_LIKE_DEFAULT_CONFIG, encoding="utf-8")
+
+    data1 = {"hooks": {"pre_tool_call": [
+        {"command": "/x/wrapper.py", "timeout": 30},
+    ]}}
+    b.save_settings(data1)
+    loaded1 = b.load_settings()
+    assert loaded1 == data1
+
+    # 真再 save 一次 (替换 hooks 段) — 非 hooks 段仍真保留
+    data2 = {"hooks": {"pre_llm_call": [
+        {"command": "/y/wrapper.py", "timeout": 30},
+    ]}}
+    b.save_settings(data2)
+    loaded2 = b.load_settings()
+    assert loaded2 == data2
+    # 真 verify Hermes default 字段仍在
+    final = p.read_text(encoding="utf-8")
+    assert "personalities:" in final
+    assert "kawaii:" in final
+
+
+def test_hermes_install_hooks_works_on_real_hermes_default(hermes_test_config_dir):
+    """真端到端 — 模拟真 Hermes 装机用户跑 install-hooks 全流程不报错."""
+    from pinrule.cli import cmd_install_hooks
+    import unittest.mock
+
+    b = HermesBackend()
+    p = b.settings_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(HERMES_LIKE_DEFAULT_CONFIG, encoding="utf-8")
+
+    # 真 mock 其他 backend client_installed false, hermes true
+    from pinrule.backends import ClaudeCodeBackend, CodexBackend, CursorBackend
+    with unittest.mock.patch.object(ClaudeCodeBackend, "client_installed", lambda self: False), \
+         unittest.mock.patch.object(CodexBackend, "client_installed", lambda self: False), \
+         unittest.mock.patch.object(CursorBackend, "client_installed", lambda self: False), \
+         unittest.mock.patch.object(HermesBackend, "client_installed", lambda self: True):
+        rc = cmd_install_hooks("hermes")
+    assert rc == 0
+    # config.yaml 真保留 + 加 hooks 段
+    final = p.read_text(encoding="utf-8")
+    assert "personalities:" in final  # 真未破坏
+    assert "hooks:" in final
+    assert "pre_tool_call:" in final
+    assert "pinrule_pre_tool_use.py" in final
+    # 真 wrapper 也生成
+    wrapper = b.hooks_dir() / "pinrule_pre_tool_use.py"
+    assert wrapper.exists()

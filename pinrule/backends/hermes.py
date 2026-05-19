@@ -113,32 +113,56 @@ class HermesBackend(JsonHooksBackend):
         return "pinrule_" in entry.get("command", "")
 
     def load_settings(self) -> dict:
-        """读 `~/.hermes/config.yaml` parse subset YAML.
+        """读 `~/.hermes/config.yaml` — line-based surgical, 只 extract `hooks:` 段.
 
-        Honest failure: 用户 config.yaml 含 advanced YAML (anchors / flow style /
-        multi-line strings) 时 pinrule loud-fail with clear message — 让用户
-        手工 backup + 简化语法后重跑. 不静默改坏用户 config.
+        v0.19.0 fix: 之前真 parse 整个 yaml 文件撞 hermes default config 的
+        multi-line string 续行 / unicode escape continuation. 真根因不是 yaml
+        parser 不够强 — 是 pinrule 真不应该 parse 整个 hermes config (它只关心
+        hooks 段). 本方法 line-based 找顶层 `hooks:` 段提取出来 parse 成 dict,
+        其他 yaml 段一律不读不碰 — 真无视 user config 含啥高级语法.
         """
         p = self.settings_path()
         if not p.exists():
             return {}
+        raw = p.read_text(encoding="utf-8")
+        hooks_block = _extract_hooks_section(raw)
+        if not hooks_block:
+            return {}
         try:
-            return _parse_yaml_subset(p.read_text(encoding="utf-8"))
+            return _parse_yaml_subset("hooks:\n" + hooks_block)
         except _YamlSubsetError as e:
             raise SettingsParseError(
-                f"{self._SETTINGS_FILENAME} 含 pinrule 不支持的 YAML 高级特性: {e}\n"
+                f"{self._SETTINGS_FILENAME} 的 `hooks:` 段含 pinrule 不支持的 YAML 子集语法: {e}\n"
                 f"路径: {p}\n"
-                f"pinrule 用 0 runtime deps 不依赖 PyYAML, 仅支持基础 YAML 子集 "
-                f"(mapping / sequence / scalar). 手工 backup + 改为基础语法后 "
-                f"重跑 install-hooks, 或开 GitHub issue 反馈协议变体."
+                f"pinrule 用 0 runtime deps 不依赖 PyYAML, hooks 段仅支持基础语法 "
+                f"(mapping / sequence / scalar). pinrule 自己生成的 hooks 段一定能 parse — "
+                f"如果失败说明 hooks 段被 user 手工改过或 hermes 升级后 schema 变了, "
+                f"开 GitHub issue 反馈."
             ) from e
 
     def save_settings(self, data: dict) -> None:
-        """原子写 `~/.hermes/config.yaml` — emit subset YAML, tmp + os.replace."""
+        """原子写 `~/.hermes/config.yaml` — line-based surgical 只动 `hooks:` 段.
+
+        真**不重写整个文件**, 只:
+        1. 读原始 raw text
+        2. 找顶层 `hooks:` 段起止行号, surgical 删掉旧 hooks 段
+        3. 把新 hooks 段 emit 出来 append 到末尾
+        4. 其他 yaml 段 (model / terminal / agent / personalities / etc.)
+           全部原样保留 — anchors / multi-line / unicode escape 都不破坏
+
+        atomic: tmp + os.replace 防中断 truncate.
+        """
         p = self.settings_path()
         p.parent.mkdir(parents=True, exist_ok=True)
+        existing_raw = p.read_text(encoding="utf-8") if p.exists() else ""
+        stripped = _strip_hooks_section(existing_raw)
+        new_hooks_text = _emit_yaml_subset({"hooks": data.get("hooks", {})})
+        if stripped.strip():
+            final = stripped.rstrip() + "\n\n" + new_hooks_text
+        else:
+            final = new_hooks_text
         tmp = p.with_suffix(p.suffix + f".pinrule-tmp.{os.getpid()}")
-        tmp.write_text(_emit_yaml_subset(data), encoding="utf-8")
+        tmp.write_text(final, encoding="utf-8")
         os.replace(tmp, p)
 
     def normalize_tool_name(self, raw_tool_name: str, payload: dict) -> str:
@@ -207,6 +231,82 @@ class HermesBackend(JsonHooksBackend):
 
 class _YamlSubsetError(Exception):
     """Raised when input YAML uses features outside pinrule's subset support."""
+
+
+# ---------------------------------------------------------------------- #
+# Line-based surgical operator (v0.19.0) — 只动 `hooks:` 段, 不 parse 整 file.
+# Hermes 默认 config.yaml 含 multi-line string 续行 + unicode escape 等真
+# 复杂语法 pinrule subset parser 处理不了 — 但 pinrule 也真没必要 parse
+# 整个 hermes config, 它只关心 hooks 段. 这俩 helper 用 line-based 操作
+# 把 hooks 段从 raw 文本里 extract / strip 出来, 其他段一律不碰.
+# ---------------------------------------------------------------------- #
+
+
+def _extract_hooks_section(raw: str) -> str:
+    """从 raw config.yaml 文本里 extract 顶层 `hooks:` 段内容 (不含 `hooks:` 行).
+
+    返回 hooks 段下面真所有 indented 行 (含空行) join 起来的 string.
+    没有 `hooks:` 顶层 key 返空 string.
+
+    真识别规则:
+    - 顶层 key = 行首无 indent + 含 `:` + 非 comment
+    - 注意 `hooks:` vs `hooks_auto_accept:` 真严格区分 — 用 `hooks:` 后跟空或空白.
+    """
+    lines = raw.splitlines()
+    in_hooks = False
+    out: list[str] = []
+    for line in lines:
+        if not in_hooks:
+            stripped = line.rstrip()
+            # 真严格匹配顶层 `hooks:` (不是 hooks_auto_accept 等)
+            if stripped == "hooks:" or stripped.startswith("hooks: "):
+                in_hooks = True
+                # inline `hooks: {}` 真特殊 case — 返空 (空 hooks)
+                inline_val = stripped[len("hooks:"):].strip()
+                if inline_val == "{}":
+                    return ""
+                continue
+        else:
+            # 真段内: indented 行 (含空行) 都属于 hooks 段
+            if not line.strip():
+                # 空行: 真可能段内 (yaml 段间分隔) 或段后, 安全起见 keep 直到撞真新 top-level key
+                out.append(line)
+                continue
+            # 行首无 whitespace 且非 comment → 新顶层 key, hooks 段结束
+            if line[0] not in (" ", "\t", "#"):
+                break
+            out.append(line)
+    # 去掉真 trailing 空行
+    while out and not out[-1].strip():
+        out.pop()
+    return "\n".join(out)
+
+
+def _strip_hooks_section(raw: str) -> str:
+    """从 raw config.yaml 真删掉顶层 `hooks:` 段, 其他全保留 verbatim.
+
+    用于 save_settings 真重写: strip 旧 hooks 段 → append 新 hooks 段.
+    """
+    lines = raw.splitlines()
+    out: list[str] = []
+    in_hooks = False
+    for line in lines:
+        if not in_hooks:
+            stripped = line.rstrip()
+            if stripped == "hooks:" or stripped.startswith("hooks: "):
+                in_hooks = True
+                continue
+            out.append(line)
+        else:
+            if not line.strip():
+                # 段内空行真 skip (它属于被删的段)
+                continue
+            if line[0] not in (" ", "\t", "#"):
+                # 新顶层 key — hooks 段结束, 这行真保留
+                in_hooks = False
+                out.append(line)
+            # else: indented (段内) → skip
+    return "\n".join(out)
 
 
 def _emit_yaml_subset(data: Any, indent: int = 0) -> str:

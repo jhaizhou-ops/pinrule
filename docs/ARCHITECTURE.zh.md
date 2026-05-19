@@ -212,7 +212,7 @@ UserPromptSubmit 才加。如果你看 `/tmp/pinrule_stop_trace.log` 实际 sess
 | `/pinrule <NL>` 加规则 | ✓ home 全局 | ✓ home 全局 | ⚠ 只 project-scoped | ✓ home 全局 (`~/.hermes/skills/`) |
 | 可见性兜底 | — | trusted_hash 自动信任 | `.mdc` Rules `alwaysApply` | — (`--accept-hooks` flag 同意) |
 
-**Hermes config 已知 limit** (v0.19.0): pinrule 自带 YAML subset parser 真不接受 hermes 默认 `~/.hermes/config.yaml` (含 multi-line string 续行 + `agent.personalities` 段 unicode escape continuation). 临时 workaround: `pinrule install-hooks --backend hermes` 生成 wrapper 后, 手工 append `hooks:` 段到 config.yaml — 详见 HOWTO. 真 line-based surgical operator v0.19.1 真补.
+**Hermes config 写入策略**: pinrule 用 line-based surgical operator 真只动 `~/.hermes/config.yaml` 顶层 `hooks:` 段. 其他段 (`model:` / `agent.personalities:` 含多行字符串 + unicode escape 续行等) 真完整保留 — pinrule 真不 parse 它们. 保持 0 runtime deps (无 PyYAML 依赖); 装机真全自动.
 
 ## 8 个 violation_check 函数（工程层精准检测）
 

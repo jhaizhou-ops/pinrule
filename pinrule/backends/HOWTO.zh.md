@@ -179,7 +179,7 @@ echo '{"session_id":"t","prompt_response":"我先打个补丁","<其他字段>":
 | Claude | `~/.claude/settings.json` | ✓ v0.1.0 起 |
 | Codex | `~/.codex/hooks.json` | ✓ v0.3.0 起 |
 | Cursor | `~/.cursor/hooks.json` | ✓ v0.12.0 起（需 Cursor 1.7+；`/pinrule` skill 仅 project-scoped — Cursor 没 home-level global skills 目录）。**回复级 check** 需用户开 Agent transcripts — 见 README「Cursor：开启 Agent Transcripts」 |
-| Hermes | `~/.hermes/config.yaml` | ✓ v0.19.0 起（NousResearch Hermes Agent v0.14.0+ — 持久 server agent + plugin hooks；基于 `agent/shell_hooks.py` 源码 ground）。**v0.19.0 已知 limit**: pinrule 自带 YAML subset parser 不接受 Hermes 默认 `config.yaml`（`agent.personalities` 段含 multi-line string 续行）— workaround: `install-hooks` 生成 wrapper 后手工 append `hooks:` 段；line-based surgical operator v0.19.1 真补。 |
+| Hermes | `~/.hermes/config.yaml` | ✓ v0.19.0 起（NousResearch Hermes Agent v0.14.0+ — 持久 server agent + plugin hooks；基于 `agent/shell_hooks.py` 源码 ground）。Line-based surgical operator 只动顶层 `hooks:` 段，Hermes 其他段（含多行字符串 / unicode escape 续行）完整保留，装机全自动。 |
 
 ## 候选 backend — 没有现成清单
 

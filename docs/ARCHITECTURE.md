@@ -200,7 +200,7 @@ Per-backend native event surface — same pinrule core logic on all 4, each back
 | `/pinrule <NL>` rule input | ✓ home-global | ✓ home-global | ⚠ project-scoped only | ✓ home-global (`~/.hermes/skills/`) |
 | Visibility fallback | — | trusted_hash auto-trust | `.mdc` Rules `alwaysApply` | — (consent via `--accept-hooks`) |
 
-**Hermes config caveat** (known v0.19.0 limit): pinrule's bundled YAML subset parser doesn't accept Hermes's default `~/.hermes/config.yaml` (multi-line string continuations + unicode escape continuations under `agent.personalities`). Workaround: append the `hooks:` section manually after `pinrule install-hooks --backend hermes` generates wrappers — see HOWTO. A surgical line-based operator is planned for v0.19.1.
+**Hermes config write strategy**: pinrule uses a line-based surgical operator that only touches the top-level `hooks:` section of `~/.hermes/config.yaml`. Other sections (`model:`, `agent.personalities:` with multi-line strings + unicode-escape continuations, etc.) are preserved verbatim — pinrule never parses them. Zero-runtime-deps promise preserved (no PyYAML dependency); install is fully automatic.
 
 ## 8 violation_check functions (engine-layer precise detection)
 

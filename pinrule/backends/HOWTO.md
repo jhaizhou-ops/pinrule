@@ -168,7 +168,7 @@ echo '{"session_id":"t","prompt_response":"I'll patch this quickly","<other fiel
 | Claude | `~/.claude/settings.json` | ✓ Since v0.1.0 |
 | Codex | `~/.codex/hooks.json` | ✓ Since v0.3.0 |
 | Cursor | `~/.cursor/hooks.json` | ✓ Since v0.12.0 (Cursor 1.7+ required; `/pinrule` skill is project-scoped only — no global skills dir on Cursor) |
-| Hermes | `~/.hermes/config.yaml` | ✓ Since v0.19.0 (NousResearch Hermes Agent v0.14.0+ — persistent server agent with plugin hooks; source-grounded against `agent/shell_hooks.py`. **Known v0.19.0 limit**: pinrule's bundled YAML subset parser doesn't accept Hermes's default `config.yaml` (multi-line string continuations under `agent.personalities`) — workaround: append the `hooks:` section manually after `install-hooks` generates wrappers; line-based surgical operator planned for v0.19.1.) |
+| Hermes | `~/.hermes/config.yaml` | ✓ Since v0.19.0 (NousResearch Hermes Agent v0.14.0+ — persistent server agent with plugin hooks; source-grounded against `agent/shell_hooks.py`. Line-based surgical operator only touches the top-level `hooks:` section — Hermes's other sections preserved verbatim, install is fully automatic.) |
 
 ## Candidate backends — no pre-built list
 
