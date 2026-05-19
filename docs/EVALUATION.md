@@ -76,7 +76,7 @@ If you measure your own ratio and want a reproducible script for it, [file an Is
   - rule count (more rules → bigger baseline + bigger anchor when rules drift)
   - drift rate (Agent drifts more often → bigger per-turn anchor)
   - session length (longer session → more chance to hit decay threshold)
-- **No client-side overhead measurement yet** — the AI client itself (Claude / Codex / Cursor) adds latency for spawning the hook subprocess and reading its stdout; pinrule's `scripts/measure_perf.py` measures pinrule's part only.
+- **No client-side overhead measurement yet** — the AI client itself (Claude / Codex / Cursor / Hermes) adds latency for spawning the hook subprocess and reading its stdout; pinrule's `scripts/measure_perf.py` measures pinrule's part only.
 - **Token overhead doesn't include AI-client-side compression** — if your client compresses long history before sending to the model, the actual prompt size is smaller than what pinrule injected.
 
 If you measure your own pinrule session and the numbers diverge meaningfully from this doc, that's interesting — please share via Issue.

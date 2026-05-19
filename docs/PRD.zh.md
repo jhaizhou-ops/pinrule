@@ -135,7 +135,7 @@ pinrule 只做**「核心方向永驻 + 违反检测」**这一件事。
 
 ### F5. 自然语言规则录入（`/pinrule` skill）✅（v0.5.16+ — skill 第一次触发的 release）
 
-**触发方式**：用户在 Claude / Codex / Cursor 任一输 `/pinrule <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 JSON → `pinrule rule preview` schema 校验 → 跟用户确认 → `pinrule rule add` 写入 → 反馈报告
+**触发方式**：用户在 Claude / Codex / Cursor / Hermes 任一输 `/pinrule <自然语言>`。skill 走 7 步：识别意图 → 检查现有规则重叠 → 内联起草 JSON → `pinrule rule preview` schema 校验 → 跟用户确认 → `pinrule rule add` 写入 → 反馈报告
 
 **skill 替你做的事**：
 - 语气优化（协作默契语气 — 大模型对此回应是「我对齐」不是「我争辩」）
@@ -152,7 +152,7 @@ pinrule 只做**「核心方向永驻 + 违反检测」**这一件事。
 **多 backend 装机**（v0.5.16+）：
 - Claude: `~/.claude/skills/pinrule/SKILL.md`（Markdown + YAML frontmatter）
 - Codex: `~/.agents/skills/pinrule/SKILL.md`（注：`~/.agents/` 不是 `~/.codex/` — 按 OpenAI 设计跟 Anthropic 共享命名空间）
-- `pinrule init` 自动装到所有三家；`pinrule install-skill [--force] [--backend <name>]` 给升级用；`pinrule doctor` 报每个 backend skill 状态
+- `pinrule init` 自动装到所有四家；`pinrule install-skill [--force] [--backend <name>]` 给升级用；`pinrule doctor` 报每个 backend skill 状态
 
 
 ### F6. 国际化（v0.5.2+ 注入文本；v0.8.0+ 检测信号）✅
@@ -241,7 +241,7 @@ pinrule = **通用 hook 框架** + **场景规则集**。
 - ❌ Web UI / 图形配置（CLI 编辑够了）
 - ❌ 评测体系 / accuracy 指标（自用观察够了）
 
-跨 IDE / 跨 AI 客户端支持已经 ship: Claude / Codex / Cursor 三家通用, 基类抽象让加 Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi 等变成「填表」工作. 详 [`pinrule/backends/HOWTO.zh.md`](../pinrule/backends/HOWTO.zh.md).
+跨 IDE / 跨 AI 客户端支持已经 ship: Claude / Codex / Cursor / Hermes 四家通用, 基类抽象让加新客户端 (任何提供 hook 接口的真都行) 变成「填表」工作. 详 [`pinrule/backends/HOWTO.zh.md`](../pinrule/backends/HOWTO.zh.md).
 
 ## 后续可能（v1+）
 

@@ -131,7 +131,7 @@ If you think this is a pinrule false positive, run `pinrule audit` and look for 
 
 Yes. Two ways:
 - `pinrule uninstall-hooks` (also accepts `--backend` to remove from a specific backend, or `all`)
-- Manually edit the backend's settings file (`~/.claude/settings.json` / `~/.codex/hooks.json` / `~/.cursor/hooks.json`) and remove / comment out the event from the hooks section
+- Manually edit the backend's settings file (`~/.claude/settings.json` / `~/.codex/hooks.json` / `~/.cursor/hooks.json` / `~/.hermes/config.yaml`) and remove / comment out the event from the hooks section
 
 But try it for a week first.
 

@@ -1,12 +1,12 @@
 [project]
 name = "pinrule"
 version = "0.19.0"
-description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor, pure engineering, zero LLM, zero runtime deps, ~50-70ms hook latency"
+description = "Pin the 5-10 rules your AI must not drift from during long tasks — Claude / Codex / Cursor / Hermes, pure engineering, zero LLM, zero runtime deps, ~50-70ms hook latency"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "jhz" }]
 license = { text = "MIT" }
-keywords = ["claude", "codex", "cursor", "agent", "hook", "rules", "preferences", "pinrule", "claude-code", "agent-rules"]
+keywords = ["claude", "codex", "cursor", "hermes", "agent", "hook", "rules", "preferences", "pinrule", "claude-code", "agent-rules"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

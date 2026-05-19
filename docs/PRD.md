@@ -130,7 +130,7 @@ Three hook feedback points:
 
 ### F5. Natural-language rule input via `/pinrule` skill ✅ (v0.5.16+ — first release where the skill actually triggers)
 
-**Triggering**: user types `/pinrule <natural language>` in any of Claude / Codex / Cursor. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft JSON inline → `pinrule rule preview` schema check → confirm with user → `pinrule rule add` write → report.
+**Triggering**: user types `/pinrule <natural language>` in any of Claude / Codex / Cursor / Hermes. Skill walks a 7-step workflow: intent → existing-rule overlap check → draft JSON inline → `pinrule rule preview` schema check → confirm with user → `pinrule rule add` write → report.
 
 **What the skill handles**:
 - Tone refinement (collaborative-agreement phrasing — LLMs respond with alignment instead of defensive argument)
@@ -236,7 +236,7 @@ This positioning emerged as insight from M3 dogfooding — previously assumed "u
 - ❌ Web UI / graphical config (CLI editing is enough)
 - ❌ Evaluation system / accuracy metrics (self-use observation is enough)
 
-Cross-IDE / cross-AI client support already shipped: Claude / Codex / Cursor all three universal; base-class abstraction makes adding Cursor / Factory / Qoder / Copilot / CodeBuddy / Kimi etc. a "fill-in-form" task. See [`pinrule/backends/HOWTO.md`](../pinrule/backends/HOWTO.md).
+Cross-IDE / cross-AI client support already shipped: Claude / Codex / Cursor / Hermes all four universal; base-class abstraction makes adding new clients with a hook interface a "fill-in-form" task. See [`pinrule/backends/HOWTO.md`](../pinrule/backends/HOWTO.md).
 
 ## Future possibilities (v1+)
 

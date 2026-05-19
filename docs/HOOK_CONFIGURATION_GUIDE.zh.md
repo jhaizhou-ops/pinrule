@@ -132,7 +132,7 @@ pinrule doctor                                     # 验证装机（自动扫所
 
 能。两种方式：
 - `pinrule uninstall-hooks`（也接 `--backend` 拆指定 backend，或 `all`）
-- 手工编辑对应 backend 的 settings 文件（`~/.claude/settings.json` / `~/.codex/hooks.json` / `~/.cursor/hooks.json`），在 hooks 段删 / 注释掉对应 event
+- 手工编辑对应 backend 的 settings 文件（`~/.claude/settings.json` / `~/.codex/hooks.json` / `~/.cursor/hooks.json` / `~/.hermes/config.yaml`），在 hooks 段删 / 注释掉对应 event
 
 但建议先用一周看效果。
 

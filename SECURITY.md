@@ -22,7 +22,7 @@ pinrule is a **local hook tool** — runs on your machine, reads your local conf
 
 ### **Not** pinrule's security responsibility
 
-- **Claude / Codex / Cursor model security issues** → contact upstream
+- **Claude / Codex / Cursor / Hermes model security issues** → contact upstream
 - **Agent behavior after rule injection** → model behavior is outside pinrule's control (pinrule only injects rule text, doesn't adjudicate how the Agent executes)
 - **Security of other tools in your `~/.claude/`** → contact those tools' maintainers
 - **Network-layer / system-layer threats** → outside pinrule's threat model

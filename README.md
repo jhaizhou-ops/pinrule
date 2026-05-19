@@ -46,9 +46,9 @@ The Agent figures out your OS, Python state, and which clients you have. After i
 pip install pinrule && pinrule init
 ```
 
-`pinrule init` auto-installs hooks for any detected client (Claude / Codex / Cursor) + writes default rules to `~/.pinrule/`. If you install a new client later, run `pinrule install-hooks` to wire it up.
+`pinrule init` auto-installs hooks for any detected client (Claude / Codex / Cursor / Hermes) + writes default rules to `~/.pinrule/`. If you install a new client later, run `pinrule install-hooks` to wire it up.
 
-Restart Claude / Codex / Cursor — default rules become active once hooks load.
+Restart Claude / Codex / Cursor / Hermes — default rules become active once hooks load.
 
 **Uninstall** — `pinrule uninstall-hooks` (auto-removes pinrule entries from every detected client surgically; doesn't touch hooks installed by other tools).
 
@@ -72,7 +72,7 @@ Per-hook lifecycle: see [ARCHITECTURE.md](./docs/ARCHITECTURE.md#backend-capabil
 flowchart LR
     R[(rules.json<br/>5-10 core directions)]
     K[pinrule engine<br/>regex + counting]
-    A[🤖 Agent<br/>Claude / Codex / Cursor]
+    A[🤖 Agent<br/>Claude / Codex / Cursor / Hermes]
     V[(violations.jsonl<br/>audit history)]
 
     R ==> K

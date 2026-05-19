@@ -118,7 +118,7 @@ pinrule hook entries (`pinrule/hooks/*.py`) use the following fields, typically 
 - `prompt` — UserPromptSubmit / BeforeAgent both use `prompt`
 - `tool_name` / `tool_input` / `tool_response` — Pre/PostToolUse all use same names
 
-Stop fields differ across 3 backends (pinrule stop.py already three-way fallback):
+Stop fields differ across backends (pinrule stop.py has fallback chain):
 - Claude: `transcript_path` (reverse-read transcript)
 - Codex: `last_assistant_message`
 
