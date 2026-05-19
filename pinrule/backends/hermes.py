@@ -187,20 +187,15 @@ class HermesBackend(JsonHooksBackend):
         return json.dumps({})
 
     def skill_install_targets(self, skill_name: str = "pinrule") -> list[tuple[Path, str]]:
-        """Hermes Agent skill 装机目标 — 真路径**待 user 本机验证**.
+        """Hermes Agent skill 装机目标: `~/.hermes/skills/<skill_name>/SKILL.md`.
 
-        Hermes docs 提到 skills "compatible with the agentskills.io open standard"
-        + "Hermes writes reusable skill documents" — 真有 skill 系统但官方 docs
-        没明确写 home-level global skills directory 真路径.
-
-        按 [[feedback-no-guessing-other-platforms.md]]: 不猜协议私货. 返空 list
-        先 (跟 Cursor 同款), 等 user 本机装 Hermes 后 grep `hermes` CLI 或
-        `~/.hermes/` 目录结构确认 skill dir 位置, 再补真路径.
-
-        pinrule 主功能 (规则注入 + 行为拦截) **不依赖 skill** — 用户想用
-        `/pinrule <自然语言>` 加规则功能, 需等本路径确认后补支持.
+        Source-grounded: `hermes_constants.get_skills_dir() = get_hermes_home() / "skills"`.
+        Hermes Agent docs 提到 skills "compatible with agentskills.io open standard"
+        — pinrule SKILL.md 真按这个标准装到 ~/.hermes/skills/pinrule/SKILL.md.
         """
-        return []
+        from pinrule.paths import pinrule_install_root
+        skills_dir = pinrule_install_root() / self._CONFIG_DIR_NAME / "skills" / skill_name
+        return [(skills_dir / "SKILL.md", "markdown")]
 
 
 # ---------------------------------------------------------------------- #

@@ -87,6 +87,18 @@ def test_hermes_event_mapping_covers_pinrule_canonical_wrappers():
     events = HermesBackend().hook_events()
     assert events["pre_llm_call"] == "user_prompt_submit"
     assert events["on_session_start"] == "session_start"
+    # on_session_end 是 Hermes CLI 模式真 Stop 等价 (agent:end 真不存在)
+    assert events["on_session_end"] == "stop"
+
+
+def test_hermes_does_not_use_gateway_only_events():
+    """gateway:startup / agent:end / agent:start 等是 Gateway-only events,
+    CLI 模式真不 fire. 源码 verify (agent/shell_hooks.py 真不在 whitelist).
+    pinrule 真不映射这些避免装无效 hook."""
+    events = HermesBackend().hook_events()
+    assert "agent:end" not in events
+    assert "agent:start" not in events
+    assert "gateway:startup" not in events
 
 
 # ---------- event entry + pinrule entry 识别 ----------
