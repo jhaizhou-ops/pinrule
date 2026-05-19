@@ -22,17 +22,19 @@ from pinrule.backends._base import Backend
 from pinrule.backends.claude_code import ClaudeCodeBackend
 from pinrule.backends.codex import CodexBackend
 from pinrule.backends.cursor import CursorBackend
+from pinrule.backends.hermes import HermesBackend
 
 # 名字 → backend 实例的注册表
 REGISTRY: dict[str, Backend] = {
     "claude-code": ClaudeCodeBackend(),
     "codex": CodexBackend(),
     "cursor": CursorBackend(),
+    "hermes": HermesBackend(),
 }
 
 __all__ = [
     "Backend", "ClaudeCodeBackend", "CodexBackend",
-    "CursorBackend", "REGISTRY",
+    "CursorBackend", "HermesBackend", "REGISTRY",
 ]
 
 

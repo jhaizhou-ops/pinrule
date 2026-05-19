@@ -52,3 +52,22 @@ CURSOR_HOOK_EVENTS: dict[str, str] = {
 CODEX_HOOK_EVENTS: dict[str, str] = {
     spec["event"]: spec["wrapper"] for spec in CODEX_NATIVE_HOOKS
 }
+
+
+# Hermes Agent — https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks (2026-05)
+# NousResearch Hermes Agent v0.14.0+ — persistent memory + multi-platform CLI agent.
+# Plugin hooks (CLI + Gateway), 真 stdin JSON payload with session_id / tool_name /
+# tool_input / cwd / extra. Output shape: {"decision": "block"} or {"action": "block"}
+# normalized; pre_llm_call accepts top-level {"context": "..."}.
+HERMES_NATIVE_HOOKS: list[NativeHookSpec] = [
+    {"event": "pre_llm_call", "wrapper": "user_prompt_submit", "role": "inject"},
+    {"event": "on_session_start", "wrapper": "session_start", "role": "inject"},
+    {"event": "post_tool_call", "wrapper": "post_tool_use", "role": "inject"},
+    {"event": "pre_tool_call", "wrapper": "pre_tool_use", "role": "gate"},
+    {"event": "agent:end", "wrapper": "stop", "role": "audit"},
+    {"event": "on_session_end", "wrapper": "session_end", "role": "lifecycle"},
+]
+
+HERMES_HOOK_EVENTS: dict[str, str] = {
+    spec["event"]: spec["wrapper"] for spec in HERMES_NATIVE_HOOKS
+}
